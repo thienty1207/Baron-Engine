@@ -49,12 +49,13 @@ reviewed.
 ## Read Order
 
 1. `README.md`
-2. `docs/specs/2026-06-08-baron-product-spec-1.0.md`
-3. `docs/roadmap/2026-06-08-implementation-roadmap.md`
-4. `docs/architecture/ARCHITECTURE.md`
-5. `docs/architecture/MEMORY_MODEL.md`
-6. `docs/architecture/ADAPTERS.md`
-7. `notes/build-log/CURRENT.md`
+2. `docs/BARON_STATUS.md`
+3. `notes/build-log/CURRENT.md`
+4. `docs/specs/2026-06-08-baron-product-spec-1.0.md`
+5. `docs/roadmap/2026-06-08-implementation-roadmap.md`
+6. `docs/architecture/ARCHITECTURE.md`
+7. `docs/architecture/MEMORY_MODEL.md`
+8. `docs/architecture/ADAPTERS.md`
 
 ## Build Notes Rule
 
@@ -63,6 +64,9 @@ when work starts, changes direction, gets interrupted, or finishes a phase.
 
 This folder is temporary and can be deleted after Baron reaches a mature release.
 Do not put source-of-truth product decisions only in build notes.
+
+Use `docs/BARON_STATUS.md` as the durable progress dashboard. Update it whenever
+a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 

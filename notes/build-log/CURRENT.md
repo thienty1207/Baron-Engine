@@ -13,6 +13,7 @@ Phase 0 - foundation skeleton.
 - Baron Product Spec 1.0
 - implementation roadmap
 - architecture docs
+- durable Baron status dashboard
 - core asset blueprints
 - adapter blueprints
 
@@ -25,6 +26,7 @@ Verified and committed.
 - `cargo fmt --all`: passed
 - `cargo test`: passed
 - `cargo run -p baron-cli -- --help`: passed
+- `docs/BARON_STATUS.json` parses as JSON: passed
 
 ## Next Action
 

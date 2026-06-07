@@ -1,0 +1,90 @@
+{
+  "project": "Baron Engine",
+  "lastUpdated": "2026-06-08",
+  "overallCompletionPercent": 3,
+  "currentPhase": "phase-0-foundation-skeleton",
+  "currentPhaseStatus": "completed",
+  "nextAction": "phase-1-survey-engine",
+  "buildConfidence": "foundation is clear, engine behavior not implemented yet",
+  "completionDefinition": [
+    "survey and shadow mode support old repositories",
+    "Vault Markdown is the source of truth",
+    "SQLite cache is accelerator only and rebuildable",
+    "memory firewall prevents shared-vault project noise",
+    "context compiler produces bounded task-relevant context",
+    "Codex Claude and generic adapters work",
+    "Superpowers remains workflow core",
+    "three core quality agents are shipped and routed",
+    "optional frontend and security skills are shipped and lazy-routed",
+    "active plan state works",
+    "Product Harness works",
+    "proof and trace quality gates work",
+    "agent-bootstrap migration dry-run works",
+    "release binaries and smoke tests pass"
+  ],
+  "phases": [
+    {
+      "id": 0,
+      "name": "Foundation Skeleton",
+      "status": "completed",
+      "completionPercent": 3,
+      "proof": ["cargo test", "help smoke", "initial commit"]
+    },
+    {
+      "id": 1,
+      "name": "Survey Engine",
+      "status": "not_started",
+      "completionPercent": 0,
+      "proof": []
+    },
+    {
+      "id": 2,
+      "name": "Vault + Memory Firewall",
+      "status": "not_started",
+      "completionPercent": 0,
+      "proof": []
+    },
+    {
+      "id": 3,
+      "name": "Context Compiler",
+      "status": "not_started",
+      "completionPercent": 0,
+      "proof": []
+    },
+    {
+      "id": 4,
+      "name": "Agent Adapters",
+      "status": "not_started",
+      "completionPercent": 0,
+      "proof": []
+    },
+    {
+      "id": 5,
+      "name": "Plan/Harness/Proof/Trace",
+      "status": "not_started",
+      "completionPercent": 0,
+      "proof": []
+    },
+    {
+      "id": 6,
+      "name": "Agent Bootstrap Migration",
+      "status": "not_started",
+      "completionPercent": 0,
+      "proof": []
+    },
+    {
+      "id": 7,
+      "name": "Release Hardening",
+      "status": "not_started",
+      "completionPercent": 0,
+      "proof": []
+    }
+  ],
+  "readFirst": [
+    "docs/BARON_STATUS.md",
+    "notes/build-log/CURRENT.md",
+    "docs/specs/2026-06-08-baron-product-spec-1.0.md",
+    "docs/roadmap/2026-06-08-implementation-roadmap.md",
+    "docs/architecture/ARCHITECTURE.md"
+  ]
+}

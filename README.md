@@ -23,6 +23,9 @@ This repository intentionally starts with a product spec, roadmap, architecture
 skeleton, and tiny compiling Rust workspace. The full engine is not implemented
 yet. The goal of phase 0 is to make the direction impossible to lose.
 
+Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
+`docs/BARON_STATUS.json`.
+
 ## Core Promise
 
 Baron should help an AI agent answer these questions before it edits code:
@@ -70,3 +73,6 @@ phase 0.
 `notes/build-log/` is a temporary working memory folder for building Baron. It is
 safe to delete after Baron reaches a mature release, because the durable product
 spec, roadmap, and architecture docs live under `docs/`.
+
+For status, read `docs/BARON_STATUS.md` first. For interrupted work, read
+`notes/build-log/CURRENT.md` next.
