@@ -1,0 +1,6 @@
+/target/
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+/.baron/cache/
+/.baron/tmp/
