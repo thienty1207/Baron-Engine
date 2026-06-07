@@ -17,11 +17,11 @@ one durable engine:
 
 ## Phase
 
-Current phase: `0 - foundation skeleton`.
+Current phase: `1 - Survey Engine completed`.
 
 This repository intentionally starts with a product spec, roadmap, architecture
-skeleton, and tiny compiling Rust workspace. The full engine is not implemented
-yet. The goal of phase 0 is to make the direction impossible to lose.
+skeleton, and a Rust workspace. The read-only Survey Engine is implemented; the
+Vault Memory Engine is the next major phase.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
@@ -44,10 +44,11 @@ Baron should help an AI agent answer these questions before it edits code:
 Target command surface:
 
 ```bash
-baron survey
-baron init --codex
-baron init --claude
-baron init --agent
+baron survey [repo-path]
+baron survey [repo-path] --json
+baron init [repo-path] --codex --shadow
+baron init [repo-path] --claude --shadow
+baron init [repo-path] --agent --shadow
 baron context --codex
 baron context --claude
 baron context --agent
@@ -58,8 +59,8 @@ baron harness status
 baron trace score
 ```
 
-These commands are a contract for the roadmap, not all implemented behavior in
-phase 0.
+`survey` and `init --shadow` are implemented in Phase 1 as read-only commands.
+Later commands remain roadmap contracts until their phases are completed.
 
 ## Source Of Truth
 

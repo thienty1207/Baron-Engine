@@ -7,3 +7,4 @@ repository.workspace = true
 
 [dependencies]
 baron-core = { path = "../baron-core" }
+serde = { version = "1.0", features = ["derive"] }

@@ -15,17 +15,16 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 0 only creates the foundation:
+Phase 1 has implemented the read-only Survey Engine:
 
-- product spec
-- roadmap
-- architecture skeleton
-- temporary build notes
-- Rust workspace skeleton
-- core asset and adapter blueprints
+- `baron survey`
+- `baron survey --json`
+- `baron init --codex --shadow`
+- `baron init --claude --shadow`
+- `baron init --agent --shadow`
 
-Do not implement the full Baron engine until the product spec and roadmap are
-reviewed.
+The next major phase is Vault + Memory Firewall. Do not implement later phases
+without updating `docs/BARON_STATUS.md` and `notes/build-log/CURRENT.md`.
 
 ## Non-Negotiables
 
@@ -70,11 +69,14 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For phase 0, verify:
+For the current foundation and survey engine, verify:
 
 ```bash
 cargo test
 cargo run -p baron-cli -- --help
+cargo run -p baron-cli -- survey .
+cargo run -p baron-cli -- survey . --json
+cargo run -p baron-cli -- init . --codex --shadow
 ```
 
 Later phases must add deeper smoke tests for `survey`, `init`, `context`,

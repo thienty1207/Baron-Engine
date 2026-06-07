@@ -5,10 +5,11 @@ This document tracks the target CLI contract.
 ## Phase 1
 
 ```bash
-baron survey
-baron init --codex --shadow
-baron init --claude --shadow
-baron init --agent --shadow
+baron survey [repo-path]
+baron survey [repo-path] --json
+baron init [repo-path] --codex --shadow
+baron init [repo-path] --claude --shadow
+baron init [repo-path] --agent --shadow
 ```
 
 ## Phase 2

@@ -1,7 +1,7 @@
 # Baron Implementation Roadmap
 
 Date: 2026-06-08
-Status: phase 0 roadmap
+Status: phase 1 completed; phase 2 next
 
 ## Phase 0 - Foundation Skeleton
 
@@ -27,14 +27,16 @@ Verification:
 
 Goal: make Baron safely understand a repo before changing it.
 
+Status: completed.
+
 Commands:
 
 ```bash
-baron survey
-baron survey --json
-baron init --codex --shadow
-baron init --claude --shadow
-baron init --agent --shadow
+baron survey [repo-path]
+baron survey [repo-path] --json
+baron init [repo-path] --codex --shadow
+baron init [repo-path] --claude --shadow
+baron init [repo-path] --agent --shadow
 ```
 
 Deliverables:
@@ -51,6 +53,8 @@ Deliverables:
 ## Phase 2 - Vault And Memory Firewall
 
 Goal: create durable memory without cross-project contamination.
+
+Status: next.
 
 Commands:
 

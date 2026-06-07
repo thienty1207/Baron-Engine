@@ -4,11 +4,11 @@ Last updated: 2026-06-08
 
 ## Overall
 
-- Completion: 3%
-- Current phase: Phase 0 - Foundation Skeleton
+- Completion: 15%
+- Current phase: Phase 1 - Survey Engine
 - Current phase status: completed
-- Current next action: Phase 1 - Survey Engine
-- Build confidence: foundation is clear, engine behavior not implemented yet
+- Current next action: Phase 2 - Vault + Memory Firewall
+- Build confidence: read-only repo survey and shadow previews are verified; memory engine behavior is not implemented yet
 
 ## What 100% Means
 
@@ -39,7 +39,7 @@ Completion requires:
 | Phase | Name | Status | Completion | Proof |
 | --- | --- | --- | --- | --- |
 | 0 | Foundation Skeleton | completed | 3% | `cargo test`, help smoke, initial commit |
-| 1 | Survey Engine | not_started | 0% | none |
+| 1 | Survey Engine | completed | 12% | `cargo test`, survey smoke, JSON smoke, shadow init smoke |
 | 2 | Vault + Memory Firewall | not_started | 0% | none |
 | 3 | Context Compiler | not_started | 0% | none |
 | 4 | Agent Adapters | not_started | 0% | none |
@@ -64,13 +64,13 @@ Completion requires:
 
 ### Phase 1 - Survey Engine
 
-- [ ] `baron survey` reads repo without modifying files.
-- [ ] `baron survey --json` outputs machine-readable survey.
-- [ ] Project Atlas Markdown is generated.
-- [ ] Project Atlas JSON is generated.
-- [ ] Stack, entrypoint, build, test, and risky surfaces are detected.
-- [ ] Shadow mode init does not overwrite project files.
-- [ ] Old repo smoke test passes.
+- [x] `baron survey` reads repo without modifying files.
+- [x] `baron survey --json` outputs machine-readable survey.
+- [x] Project Atlas Markdown is generated to stdout.
+- [x] Project Atlas JSON is generated to stdout.
+- [x] Stack, entrypoint, build, test, and risky surfaces are detected.
+- [x] Shadow mode init does not overwrite project files.
+- [x] Old repo smoke test passes against the Baron repo itself.
 
 ### Phase 2 - Vault + Memory Firewall
 

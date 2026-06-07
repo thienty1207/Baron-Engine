@@ -1,11 +1,11 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-08",
-  "overallCompletionPercent": 3,
-  "currentPhase": "phase-0-foundation-skeleton",
+  "overallCompletionPercent": 15,
+  "currentPhase": "phase-1-survey-engine",
   "currentPhaseStatus": "completed",
-  "nextAction": "phase-1-survey-engine",
-  "buildConfidence": "foundation is clear, engine behavior not implemented yet",
+  "nextAction": "phase-2-vault-memory-firewall",
+  "buildConfidence": "read-only repo survey and shadow previews are verified, memory engine behavior is not implemented yet",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -33,9 +33,14 @@
     {
       "id": 1,
       "name": "Survey Engine",
-      "status": "not_started",
-      "completionPercent": 0,
-      "proof": []
+      "status": "completed",
+      "completionPercent": 12,
+      "proof": [
+        "cargo test",
+        "survey smoke",
+        "JSON smoke",
+        "shadow init smoke"
+      ]
     },
     {
       "id": 2,

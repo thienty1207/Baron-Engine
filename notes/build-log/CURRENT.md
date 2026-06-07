@@ -4,33 +4,40 @@ Date: 2026-06-08
 
 ## Current Phase
 
-Phase 0 - foundation skeleton.
+Phase 1 - Survey Engine.
 
 ## What Is Being Built
 
-- new repo at `D:\work\IT\Tools\Baron-Engine`
-- Rust workspace skeleton
-- Baron Product Spec 1.0
-- implementation roadmap
-- architecture docs
-- durable Baron status dashboard
-- core asset blueprints
-- adapter blueprints
+- read-only repo survey
+- Project Atlas Markdown to stdout
+- Project Atlas JSON to stdout
+- no-write `init --codex --shadow`
+- no-write `init --claude --shadow`
+- no-write `init --agent --shadow`
 
 ## Current Status
 
-Verified and committed.
+Implemented, verified, and ready to commit.
 
 ## Verification
 
 - `cargo fmt --all`: passed
 - `cargo test`: passed
 - `cargo run -p baron-cli -- --help`: passed
+- `cargo run -p baron-cli -- survey .`: passed
+- `cargo run -p baron-cli -- survey . --json`: passed
+- `cargo run -p baron-cli -- init . --codex --shadow`: passed
 - `docs/BARON_STATUS.json` parses as JSON: passed
+- `git diff --check`: passed
 
 ## Next Action
 
-Begin phase 1: Survey Engine design and implementation.
+Commit Phase 1, then begin Phase 2 - Vault + Memory Firewall.
+
+## Phase 1 Commit
+
+- Commit message: `feat: add Baron survey engine`
+- Use `git log -1 --oneline` after commit for the exact hash.
 
 ## Phase 0 Commit
 
