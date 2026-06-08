@@ -15,15 +15,19 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 1 has implemented the read-only Survey Engine:
+Phase 2 has implemented the read-only Survey Engine plus Vault + Memory Firewall:
 
 - `baron survey`
 - `baron survey --json`
 - `baron init --codex --shadow`
 - `baron init --claude --shadow`
 - `baron init --agent --shadow`
+- `baron memory status [repo-path] --vault <vault-path>`
+- `baron memory index [repo-path] --vault <vault-path>`
+- `baron memory compact [repo-path] --vault <vault-path>`
+- `baron recall "<query>" [repo-path] --vault <vault-path>`
 
-The next major phase is Vault + Memory Firewall. Do not implement later phases
+The next major phase is Context Compiler. Do not implement later phases
 without updating `docs/BARON_STATUS.md` and `notes/build-log/CURRENT.md`.
 
 ## Non-Negotiables
@@ -69,14 +73,19 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For the current foundation and survey engine, verify:
+For the current foundation, survey engine, and memory firewall, verify:
 
 ```bash
+cargo fmt --all
 cargo test
 cargo run -p baron-cli -- --help
 cargo run -p baron-cli -- survey .
 cargo run -p baron-cli -- survey . --json
 cargo run -p baron-cli -- init . --codex --shadow
+cargo run -p baron-cli -- memory status . --vault .tmp/baron-vault
+cargo run -p baron-cli -- memory index . --vault .tmp/baron-vault
+cargo run -p baron-cli -- memory compact . --vault .tmp/baron-vault
+cargo run -p baron-cli -- recall "survey engine proof" . --vault .tmp/baron-vault
 ```
 
 Later phases must add deeper smoke tests for `survey`, `init`, `context`,

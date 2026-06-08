@@ -1,17 +1,17 @@
 # Current Baron Plan State
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Current Focus
 
-- Phase: 1 - Survey Engine
-- Goal: implement read-only repo survey, Project Atlas stdout, JSON stdout, and no-write shadow init previews.
+- Phase: 2 - Vault + Memory Firewall
+- Goal: implement durable Vault memory with SQLite index and cross-project firewall.
 - Status: completed
-- Verification: `cargo fmt --all`, `cargo test`, `baron survey .`, `baron survey . --json`, `baron init . --codex --shadow`, and `git diff --check` passed
-- Commit message: `feat: add Baron survey engine`
+- Verification: `cargo fmt --all`, `cargo test`, memory CLI smoke, multi-project firewall smoke, JSON status parse, and `git diff --check` passed
+- Commit message: `feat: add vault memory firewall`
 
 ## Rules
 
 - Do not build the full engine before the spec and roadmap are clear.
 - Keep build notes updated during long work.
-- Do not start phase 2 until Phase 1 is committed and reviewed.
+- Do not start phase 3 until Phase 2 is committed and reviewed.

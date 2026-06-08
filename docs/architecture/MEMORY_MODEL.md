@@ -5,6 +5,10 @@ Baron uses two layers:
 1. Markdown vault as source of truth.
 2. SQLite/cache/index as accelerator.
 
+Phase 2 implements the first working version of this model through
+`baron memory status`, `baron memory index`, `baron memory compact`, and
+`baron recall`. Memory commands require `--vault <path>` or `BARON_VAULT`.
+
 ## Memory Classes
 
 - `project_verified`: current project fact backed by repo, test, decision, or trace.
@@ -55,3 +59,14 @@ Vault/
 ```
 
 SQLite is disposable. Markdown is durable.
+
+## Phase 2 Behavior
+
+- `memory status` inspects Vault health and does not create files.
+- `memory index` creates the Vault scaffold and project capsule, then rebuilds
+  `memory-index.sqlite` from Markdown.
+- `memory compact` rebuilds the index and prints a bounded Memory Firewall Brief.
+- `recall` rebuilds the index and returns ranked memory after firewall gating.
+- Current-project memory is preferred over all other project memory.
+- `APPROVED_GLOBAL.md` may be used when relevant.
+- `GLOBAL_CANDIDATES.md` is indexed for diagnostics but not trusted as fact.

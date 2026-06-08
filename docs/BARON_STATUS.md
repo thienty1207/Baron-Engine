@@ -1,14 +1,14 @@
 # Baron Build Status
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Overall
 
-- Completion: 15%
-- Current phase: Phase 1 - Survey Engine
+- Completion: 30%
+- Current phase: Phase 2 - Vault + Memory Firewall
 - Current phase status: completed
-- Current next action: Phase 2 - Vault + Memory Firewall
-- Build confidence: read-only repo survey and shadow previews are verified; memory engine behavior is not implemented yet
+- Current next action: Phase 3 - Context Compiler
+- Build confidence: read-only repo survey, shadow previews, Vault scaffold, SQLite index, and Memory Firewall behavior are verified
 
 ## What 100% Means
 
@@ -40,7 +40,7 @@ Completion requires:
 | --- | --- | --- | --- | --- |
 | 0 | Foundation Skeleton | completed | 3% | `cargo test`, help smoke, initial commit |
 | 1 | Survey Engine | completed | 12% | `cargo test`, survey smoke, JSON smoke, shadow init smoke |
-| 2 | Vault + Memory Firewall | not_started | 0% | none |
+| 2 | Vault + Memory Firewall | completed | 15% | `cargo test`, memory CLI tests, multi-project firewall tests, smoke commands |
 | 3 | Context Compiler | not_started | 0% | none |
 | 4 | Agent Adapters | not_started | 0% | none |
 | 5 | Plan/Harness/Proof/Trace | not_started | 0% | none |
@@ -74,14 +74,14 @@ Completion requires:
 
 ### Phase 2 - Vault + Memory Firewall
 
-- [ ] Vault scaffold exists.
-- [ ] Project capsule exists.
-- [ ] SQLite/cache index can be rebuilt from Markdown.
-- [ ] Current project memory is prioritized.
-- [ ] Verified global memory is allowed only when relevant.
-- [ ] Cross-project memory is blocked unless explicitly matched.
-- [ ] Stale and unknown memory are marked correctly.
-- [ ] Multi-project vault smoke test passes.
+- [x] Vault scaffold exists.
+- [x] Project capsule exists.
+- [x] SQLite/cache index can be rebuilt from Markdown.
+- [x] Current project memory is prioritized.
+- [x] Verified global memory is allowed only when relevant.
+- [x] Cross-project memory is blocked unless explicitly matched.
+- [x] Stale and unknown memory are marked correctly.
+- [x] Multi-project vault smoke test passes.
 
 ### Phase 3 - Context Compiler
 

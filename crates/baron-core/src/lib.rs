@@ -1,4 +1,7 @@
+pub mod firewall;
+pub mod memory;
 pub mod survey;
+pub mod vault;
 
 pub fn product_name() -> &'static str {
     "Baron Engine"

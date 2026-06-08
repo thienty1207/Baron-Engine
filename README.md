@@ -17,11 +17,11 @@ one durable engine:
 
 ## Phase
 
-Current phase: `1 - Survey Engine completed`.
+Current phase: `2 - Vault + Memory Firewall completed`.
 
 This repository intentionally starts with a product spec, roadmap, architecture
-skeleton, and a Rust workspace. The read-only Survey Engine is implemented; the
-Vault Memory Engine is the next major phase.
+skeleton, and a Rust workspace. The read-only Survey Engine and Vault Memory
+Firewall are implemented; the Context Compiler is the next major phase.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
@@ -49,23 +49,29 @@ baron survey [repo-path] --json
 baron init [repo-path] --codex --shadow
 baron init [repo-path] --claude --shadow
 baron init [repo-path] --agent --shadow
+baron memory status [repo-path] --vault <vault-path>
+baron memory index [repo-path] --vault <vault-path>
+baron memory compact [repo-path] --vault <vault-path>
+baron recall "<query>" [repo-path] --vault <vault-path>
 baron context --codex
 baron context --claude
 baron context --agent
-baron recall "<query>"
-baron memory status
 baron plan status
 baron harness status
 baron trace score
 ```
 
-`survey` and `init --shadow` are implemented in Phase 1 as read-only commands.
-Later commands remain roadmap contracts until their phases are completed.
+`survey`, `init --shadow`, `memory status`, `memory index`, `memory compact`,
+and `recall` are implemented. Later commands remain roadmap contracts until
+their phases are completed.
+
+Phase 2 memory commands require `--vault <path>` or `BARON_VAULT`. Baron does
+not guess where memory should live.
 
 ## Source Of Truth
 
 - Vault Markdown is the durable source of truth.
-- SQLite/cache/index files are accelerators only.
+- SQLite/cache/index files are rebuildable accelerators only.
 - Rust is the main engine runtime.
 - Agent-specific files are adapters, not separate brains.
 

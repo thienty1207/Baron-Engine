@@ -15,11 +15,14 @@ baron init [repo-path] --agent --shadow
 ## Phase 2
 
 ```bash
-baron memory status
-baron memory index
-baron memory compact
-baron recall "<query>"
+baron memory status [repo-path] --vault <vault-path>
+baron memory index [repo-path] --vault <vault-path>
+baron memory compact [repo-path] --vault <vault-path>
+baron recall "<query>" [repo-path] --vault <vault-path>
 ```
+
+All Phase 2 memory commands also accept `BARON_VAULT`. If neither `--vault` nor
+`BARON_VAULT` is provided, Baron fails clearly instead of guessing.
 
 ## Phase 3
 

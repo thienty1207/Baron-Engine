@@ -1,7 +1,7 @@
 # Baron Implementation Roadmap
 
-Date: 2026-06-08
-Status: phase 1 completed; phase 2 next
+Date: 2026-06-09
+Status: phase 2 completed; phase 3 next
 
 ## Phase 0 - Foundation Skeleton
 
@@ -54,15 +54,15 @@ Deliverables:
 
 Goal: create durable memory without cross-project contamination.
 
-Status: next.
+Status: completed.
 
 Commands:
 
 ```bash
-baron memory status
-baron memory index
-baron memory compact
-baron recall "<query>"
+baron memory status [repo-path] --vault <vault-path>
+baron memory index [repo-path] --vault <vault-path>
+baron memory compact [repo-path] --vault <vault-path>
+baron recall "<query>" [repo-path] --vault <vault-path>
 ```
 
 Deliverables:
@@ -75,6 +75,13 @@ Deliverables:
 - SQLite cache/index
 - current-project priority
 - cross-project blocking
+
+Verification:
+
+- `cargo test`
+- memory CLI smoke
+- multi-project firewall smoke
+- `git diff --check`
 
 ## Phase 3 - Context Compiler
 

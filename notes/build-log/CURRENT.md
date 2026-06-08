@@ -1,19 +1,19 @@
 # Current Build Note
 
-Date: 2026-06-08
+Date: 2026-06-09
 
 ## Current Phase
 
-Phase 1 - Survey Engine.
+Phase 2 - Vault + Memory Firewall.
 
 ## What Is Being Built
 
-- read-only repo survey
-- Project Atlas Markdown to stdout
-- Project Atlas JSON to stdout
-- no-write `init --codex --shadow`
-- no-write `init --claude --shadow`
-- no-write `init --agent --shadow`
+- Vault scaffold
+- project capsule
+- SQLite memory index rebuilt from Markdown
+- Memory Firewall ranking
+- cross-project blocking
+- `memory status`, `memory index`, `memory compact`, and `recall`
 
 ## Current Status
 
@@ -23,16 +23,22 @@ Implemented, verified, and ready to commit.
 
 - `cargo fmt --all`: passed
 - `cargo test`: passed
-- `cargo run -p baron-cli -- --help`: passed
-- `cargo run -p baron-cli -- survey .`: passed
-- `cargo run -p baron-cli -- survey . --json`: passed
-- `cargo run -p baron-cli -- init . --codex --shadow`: passed
+- `baron memory status . --vault <target-temp-vault>`: passed
+- `baron memory index . --vault <target-temp-vault>`: passed
+- `baron memory compact . --vault <target-temp-vault>`: passed
+- `baron recall "survey engine proof" . --vault <target-temp-vault>`: passed
+- multi-project firewall smoke: passed
 - `docs/BARON_STATUS.json` parses as JSON: passed
 - `git diff --check`: passed
 
 ## Next Action
 
-Commit Phase 1, then begin Phase 2 - Vault + Memory Firewall.
+Run final verification, commit Phase 2, then begin Phase 3 - Context Compiler.
+
+## Phase 2 Commit
+
+- Commit message: `feat: add vault memory firewall`
+- Use `git log -1 --oneline` after commit for the exact hash.
 
 ## Phase 1 Commit
 
