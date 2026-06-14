@@ -15,7 +15,8 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 2 has implemented the read-only Survey Engine plus Vault + Memory Firewall:
+Phase 3 has implemented the read-only Survey Engine, Vault + Memory Firewall,
+and bounded Context Compiler:
 
 - `baron survey`
 - `baron survey --json`
@@ -26,8 +27,12 @@ Phase 2 has implemented the read-only Survey Engine plus Vault + Memory Firewall
 - `baron memory index [repo-path] --vault <vault-path>`
 - `baron memory compact [repo-path] --vault <vault-path>`
 - `baron recall "<query>" [repo-path] --vault <vault-path>`
+- `baron context [repo-path] --codex --vault <vault-path>`
+- `baron context [repo-path] --claude --vault <vault-path>`
+- `baron context [repo-path] --agent --vault <vault-path>`
+- `baron context [repo-path] --why --vault <vault-path>`
 
-The next major phase is Context Compiler. Do not implement later phases
+The next major phase is Agent Adapters. Do not implement later phases
 without updating `docs/BARON_STATUS.md` and `notes/build-log/CURRENT.md`.
 
 ## Non-Negotiables
@@ -73,7 +78,8 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For the current foundation, survey engine, and memory firewall, verify:
+For the current foundation, survey engine, memory firewall, and context
+compiler, verify:
 
 ```bash
 cargo fmt --all
@@ -86,6 +92,10 @@ cargo run -p baron-cli -- memory status . --vault .tmp/baron-vault
 cargo run -p baron-cli -- memory index . --vault .tmp/baron-vault
 cargo run -p baron-cli -- memory compact . --vault .tmp/baron-vault
 cargo run -p baron-cli -- recall "survey engine proof" . --vault .tmp/baron-vault
+cargo run -p baron-cli -- context . --codex --task "implement auth login" --vault .tmp/baron-vault
+cargo run -p baron-cli -- context . --claude --vault .tmp/baron-vault
+cargo run -p baron-cli -- context . --agent --vault .tmp/baron-vault
+cargo run -p baron-cli -- context . --why --vault .tmp/baron-vault
 ```
 
 Later phases must add deeper smoke tests for `survey`, `init`, `context`,

@@ -27,11 +27,17 @@ All Phase 2 memory commands also accept `BARON_VAULT`. If neither `--vault` nor
 ## Phase 3
 
 ```bash
-baron context --codex
-baron context --claude
-baron context --agent
-baron context --why
+baron context [repo-path] --codex --vault <vault-path>
+baron context [repo-path] --claude --vault <vault-path>
+baron context [repo-path] --agent --vault <vault-path>
+baron context [repo-path] --codex --task "<task>" --vault <vault-path>
+baron context [repo-path] --why --vault <vault-path>
 ```
+
+Context commands also accept `BARON_VAULT`. Normal context requires exactly one
+adapter target. `--why` defaults to generic-agent reasoning when no adapter is
+specified. Phase 3 prints bounded context to stdout and does not generate
+adapter files.
 
 ## Phase 4
 

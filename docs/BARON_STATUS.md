@@ -1,14 +1,14 @@
 # Baron Build Status
 
-Last updated: 2026-06-09
+Last updated: 2026-06-14
 
 ## Overall
 
-- Completion: 30%
-- Current phase: Phase 2 - Vault + Memory Firewall
+- Completion: 45%
+- Current phase: Phase 3 - Context Compiler
 - Current phase status: completed
-- Current next action: Phase 3 - Context Compiler
-- Build confidence: read-only repo survey, shadow previews, Vault scaffold, SQLite index, and Memory Firewall behavior are verified
+- Current next action: Phase 4 - Agent Adapters
+- Build confidence: repo survey, Vault firewall, adapter-specific bounded context, task-risk guidance, and skipped-context explanations are verified
 
 ## What 100% Means
 
@@ -41,7 +41,7 @@ Completion requires:
 | 0 | Foundation Skeleton | completed | 3% | `cargo test`, help smoke, initial commit |
 | 1 | Survey Engine | completed | 12% | `cargo test`, survey smoke, JSON smoke, shadow init smoke |
 | 2 | Vault + Memory Firewall | completed | 15% | `cargo test`, memory CLI tests, multi-project firewall tests, smoke commands |
-| 3 | Context Compiler | not_started | 0% | none |
+| 3 | Context Compiler | completed | 15% | `cargo test`, context core/CLI tests, adapter/risk/why smoke |
 | 4 | Agent Adapters | not_started | 0% | none |
 | 5 | Plan/Harness/Proof/Trace | not_started | 0% | none |
 | 6 | Agent Bootstrap Migration | not_started | 0% | none |
@@ -85,13 +85,13 @@ Completion requires:
 
 ### Phase 3 - Context Compiler
 
-- [ ] `baron context --codex` works.
-- [ ] `baron context --claude` works.
-- [ ] `baron context --agent` works.
-- [ ] `baron context --why` explains loaded/skipped context.
-- [ ] Context output stays bounded.
-- [ ] Context changes by task, risk, phase, and adapter.
-- [ ] Context compiler smoke test passes.
+- [x] `baron context --codex` works.
+- [x] `baron context --claude` works.
+- [x] `baron context --agent` works.
+- [x] `baron context --why` explains loaded/skipped context.
+- [x] Context output stays bounded.
+- [x] Context changes by task, risk, phase, and adapter.
+- [x] Context compiler smoke test passes.
 
 ### Phase 4 - Agent Adapters
 
@@ -139,6 +139,7 @@ Completion requires:
 - Roadmap: `docs/roadmap/2026-06-08-implementation-roadmap.md`
 - Architecture: `docs/architecture/ARCHITECTURE.md`
 - Memory model: `docs/architecture/MEMORY_MODEL.md`
+- Context compiler: `docs/architecture/CONTEXT_COMPILER.md`
 - Adapter model: `docs/architecture/ADAPTERS.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 

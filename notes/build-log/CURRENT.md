@@ -1,39 +1,44 @@
 # Current Build Note
 
-Date: 2026-06-09
+Date: 2026-06-14
 
 ## Current Phase
 
-Phase 2 - Vault + Memory Firewall.
+Phase 3 - Context Compiler.
 
 ## What Is Being Built
 
-- Vault scaffold
-- project capsule
-- SQLite memory index rebuilt from Markdown
-- Memory Firewall ranking
-- cross-project blocking
-- `memory status`, `memory index`, `memory compact`, and `recall`
+- bounded context compilation from repo survey and Vault memory
+- Codex, Claude, and generic-agent context targets
+- task-aware low, medium, high, and unknown risk guidance
+- current execution-state excerpt
+- explicit skipped-context explanation
+- `context --why` selection diagnostics
 
 ## Current Status
 
-Implemented, verified, and committed.
+Implemented and verified. Commit pending.
 
 ## Verification
 
 - `cargo fmt --all`: passed
 - `cargo test`: passed
-- `baron memory status . --vault <target-temp-vault>`: passed
-- `baron memory index . --vault <target-temp-vault>`: passed
-- `baron memory compact . --vault <target-temp-vault>`: passed
-- `baron recall "survey engine proof" . --vault <target-temp-vault>`: passed
-- multi-project firewall smoke: passed
+- context compiler core tests: passed
+- context compiler CLI tests: passed
+- `baron context . --codex --task "implement auth login" --vault <temp-vault>`: passed
+- `baron context . --claude --vault <temp-vault>`: passed
+- `baron context . --agent --vault <temp-vault>`: passed
+- `baron context . --why --vault <temp-vault>`: passed
 - `docs/BARON_STATUS.json` parses as JSON: passed
 - `git diff --check`: passed
 
 ## Next Action
 
-Begin Phase 3 - Context Compiler.
+Begin Phase 4 - Agent Adapters.
+
+## Phase 3 Commit
+
+- Commit: pending
 
 ## Phase 2 Commit
 

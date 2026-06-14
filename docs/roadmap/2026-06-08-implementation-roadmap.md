@@ -1,7 +1,7 @@
 # Baron Implementation Roadmap
 
-Date: 2026-06-09
-Status: phase 2 completed; phase 3 next
+Date: 2026-06-14
+Status: phase 3 completed; phase 4 next
 
 ## Phase 0 - Foundation Skeleton
 
@@ -87,13 +87,16 @@ Verification:
 
 Goal: make AI read the right thing automatically.
 
+Status: completed.
+
 Commands:
 
 ```bash
-baron context --codex
-baron context --claude
-baron context --agent
-baron context --why
+baron context [repo-path] --codex --vault <vault-path>
+baron context [repo-path] --claude --vault <vault-path>
+baron context [repo-path] --agent --vault <vault-path>
+baron context [repo-path] --codex --task "<task>" --vault <vault-path>
+baron context [repo-path] --why --vault <vault-path>
 ```
 
 Deliverables:
@@ -103,6 +106,14 @@ Deliverables:
 - task/risk/phase-aware read selection
 - bounded output
 - skipped-context explanation
+
+Verification:
+
+- `cargo test`
+- Codex, Claude, and generic context smoke
+- task-risk smoke
+- context-selection `--why` smoke
+- `git diff --check`
 
 ## Phase 4 - Agent Adapters
 

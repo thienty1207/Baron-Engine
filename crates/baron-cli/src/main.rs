@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Result};
 use baron_adapters::{shadow_preview, AgentAdapter};
+use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
 use baron_core::firewall::{compact_memory_brief, recall, render_recall};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::survey::{render_project_atlas, survey_repository};
@@ -41,6 +42,21 @@ enum Commands {
     Recall {
         query: String,
         repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    Context {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        codex: bool,
+        #[arg(long)]
+        claude: bool,
+        #[arg(long = "agent")]
+        agent: bool,
+        #[arg(long)]
+        why: bool,
+        #[arg(long)]
+        task: Option<String>,
         #[arg(long)]
         vault: Option<PathBuf>,
     },
@@ -131,12 +147,49 @@ fn run() -> Result<()> {
             build_memory_index(&context)?;
             print!("{}", render_recall(&recall(&context, &query, 8)?));
         }
+        Some(Commands::Context {
+            repo_path,
+            codex,
+            claude,
+            agent,
+            why,
+            task,
+            vault,
+        }) => {
+            let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+            let vault_path = resolve_vault_path(vault)?;
+            let target = parse_context_target(codex, claude, agent, why)?;
+            if why {
+                print!("{}", compile_context_why(repo_path, vault_path, target)?);
+            } else {
+                print!(
+                    "{}",
+                    compile_context_for_task(repo_path, vault_path, target, task.as_deref(),)?
+                );
+            }
+        }
         None => {
             println!("{} {}", product_name(), phase());
             println!("Run `baron --help` for commands.");
         }
     }
     Ok(())
+}
+
+fn parse_context_target(
+    codex: bool,
+    claude: bool,
+    agent: bool,
+    allow_default: bool,
+) -> Result<ContextTarget> {
+    match (codex as u8) + (claude as u8) + (agent as u8) {
+        1 if codex => Ok(ContextTarget::Codex),
+        1 if claude => Ok(ContextTarget::Claude),
+        1 if agent => Ok(ContextTarget::Generic),
+        0 if allow_default => Ok(ContextTarget::Generic),
+        0 => bail!("Choose one context target: --codex, --claude, or --agent."),
+        _ => bail!("Choose only one context target: --codex, --claude, or --agent."),
+    }
 }
 
 fn parse_adapter(codex: bool, claude: bool, agent: bool) -> Result<AgentAdapter> {
