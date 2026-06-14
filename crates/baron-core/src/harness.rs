@@ -136,6 +136,27 @@ pub fn harness_status(repo_root: impl AsRef<Path>) -> Result<String> {
     ))
 }
 
+pub fn current_harness_risk(repo_root: impl AsRef<Path>) -> RiskLane {
+    let content = fs::read_to_string(repo_root.as_ref().join("docs/baron/harness/CURRENT.md"))
+        .unwrap_or_default();
+    if content.contains("Risk: `high`") {
+        RiskLane::High
+    } else if content.contains("Risk: `low`") {
+        RiskLane::Low
+    } else {
+        RiskLane::Medium
+    }
+}
+
+pub fn current_harness_title(repo_root: impl AsRef<Path>) -> Option<String> {
+    let content =
+        fs::read_to_string(repo_root.as_ref().join("docs/baron/harness/CURRENT.md")).ok()?;
+    content
+        .lines()
+        .find_map(|line| line.strip_prefix("- Title: "))
+        .map(str::to_string)
+}
+
 fn story_content(title: &str, risk: RiskLane) -> String {
     let proof = match risk {
         RiskLane::Low => "concrete verification result",

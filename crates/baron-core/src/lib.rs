@@ -3,8 +3,10 @@ pub mod context;
 pub mod firewall;
 pub mod harness;
 pub mod memory;
+pub mod proof;
 pub mod risk;
 pub mod survey;
+pub mod trace;
 pub mod vault;
 
 pub fn product_name() -> &'static str {
