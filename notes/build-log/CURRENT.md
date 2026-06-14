@@ -4,37 +4,40 @@ Date: 2026-06-14
 
 ## Current Phase
 
-Phase 3 - Context Compiler.
+Phase 4-5 - Agent Adapters And Execution Engine.
 
 ## What Is Being Built
 
-- bounded context compilation from repo survey and Vault memory
-- Codex, Claude, and generic-agent context targets
-- task-aware low, medium, high, and unknown risk guidance
-- current execution-state excerpt
-- explicit skipped-context explanation
-- `context --why` selection diagnostics
+- shared `.baron/project.toml` configuration
+- machine-local `.baron/local.toml` Vault routing
+- Codex, Claude, and generic managed adapters
+- user-content and custom-asset preservation
+- Active Plan State
+- Product Harness risk intake
+- proof recording and completion gates
+- trace recording and quality scoring
 
 ## Current Status
 
-Implemented, verified, and committed.
+Design and implementation plan approved. Implementation starting in an isolated
+worktree.
 
 ## Verification
 
-- `cargo fmt --all`: passed
-- `cargo test`: passed
-- context compiler core tests: passed
-- context compiler CLI tests: passed
-- `baron context . --codex --task "implement auth login" --vault <temp-vault>`: passed
-- `baron context . --claude --vault <temp-vault>`: passed
-- `baron context . --agent --vault <temp-vault>`: passed
-- `baron context . --why --vault <temp-vault>`: passed
-- `docs/BARON_STATUS.json` parses as JSON: passed
-- `git diff --check`: passed
+- Phase 3 baseline `cargo build --quiet`: passed
+- Phase 3 baseline `cargo test --quiet`: passed
+- Phase 4-5 verification: pending
 
 ## Next Action
 
-Begin Phase 4 - Agent Adapters.
+Implement Task 1 - project/local configuration with TDD.
+
+## Phase 4-5 Worktree
+
+- Branch: `codex/baron-phase-4-5`
+- Path: `C:\Users\Ho Thien Ty\.config\superpowers\worktrees\Baron-Engine\codex-baron-phase-4-5`
+- Design: `docs/superpowers/specs/2026-06-14-agent-adapters-execution-engine-design.md`
+- Plan: `docs/superpowers/plans/2026-06-14-phase-4-5-adapters-execution-engine.md`
 
 ## Phase 3 Commit
 
