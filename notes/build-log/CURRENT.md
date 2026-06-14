@@ -17,7 +17,7 @@ Phase 3 - Context Compiler.
 
 ## Current Status
 
-Implemented and verified. Commit pending.
+Implemented, verified, and committed.
 
 ## Verification
 
@@ -38,7 +38,7 @@ Begin Phase 4 - Agent Adapters.
 
 ## Phase 3 Commit
 
-- Commit: pending
+- Commit: `c192baf feat: add Baron context compiler`
 
 ## Phase 2 Commit
 

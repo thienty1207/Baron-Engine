@@ -2,6 +2,7 @@
 
 Date: 2026-06-14
 Status: completed
+Feature commit: `c192baf feat: add Baron context compiler`
 
 ## Goal
 

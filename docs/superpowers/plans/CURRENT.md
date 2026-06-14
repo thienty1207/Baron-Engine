@@ -8,7 +8,7 @@ Last updated: 2026-06-14
 - Goal: compile bounded task-relevant context for Codex, Claude, and generic agents.
 - Status: completed
 - Verification: `cargo fmt --all`, `cargo test`, context core/CLI tests, adapter/risk/why smoke, JSON status parse, and `git diff --check` passed
-- Commit: pending
+- Commit: `c192baf feat: add Baron context compiler`
 
 ## Rules
 
