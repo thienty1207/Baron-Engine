@@ -25,6 +25,8 @@ pub enum MemoryKind {
     Task,
     Plan,
     Harness,
+    Proof,
+    Trace,
     Session,
     Global,
 }
@@ -238,6 +240,8 @@ fn scan_project_records(
         MemoryKind::Session,
         &mut files,
     )?;
+    collect_markdown_files(&project_root.join("Proofs"), MemoryKind::Proof, &mut files)?;
+    collect_markdown_files(&project_root.join("Traces"), MemoryKind::Trace, &mut files)?;
 
     let mut records = Vec::new();
     for (path, kind) in files.into_iter().take(200) {
@@ -426,6 +430,8 @@ impl MemoryKind {
             MemoryKind::Task => "task",
             MemoryKind::Plan => "plan",
             MemoryKind::Harness => "harness",
+            MemoryKind::Proof => "proof",
+            MemoryKind::Trace => "trace",
             MemoryKind::Session => "session",
             MemoryKind::Global => "global",
         }
@@ -437,6 +443,8 @@ impl MemoryKind {
             "task" => MemoryKind::Task,
             "plan" => MemoryKind::Plan,
             "harness" => MemoryKind::Harness,
+            "proof" => MemoryKind::Proof,
+            "trace" => MemoryKind::Trace,
             "session" => MemoryKind::Session,
             "global" => MemoryKind::Global,
             _ => MemoryKind::Fact,

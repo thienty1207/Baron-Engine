@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use baron_core::firewall::{compact_memory_brief, recall};
-use baron_core::memory::{build_memory_index, load_memory_records, MemoryScope};
+use baron_core::memory::{build_memory_index, load_memory_records, MemoryKind, MemoryScope};
 use baron_core::vault::{ensure_vault, project_slug};
 use tempfile::tempdir;
 
@@ -177,4 +177,31 @@ fn compact_brief_is_bounded_and_labels_unknowns() {
     assert!(brief.contains("Verified project fact"));
     assert!(brief.contains("Unknowns"));
     assert!(brief.contains("No missing memory facts detected"));
+}
+
+#[test]
+fn scanner_indexes_proof_and_trace_markdown() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    write(
+        &context.project_root.join("Proofs/auth-proof.md"),
+        "# Proof\n\n- Auth test passed and verified.\n",
+    );
+    write(
+        &context.project_root.join("Traces/auth-trace.md"),
+        "# Trace\n\n- Detailed auth trace passed.\n",
+    );
+
+    build_memory_index(&context).unwrap();
+    let records = load_memory_records(&context).unwrap();
+
+    assert!(records
+        .iter()
+        .any(|record| record.kind == MemoryKind::Proof));
+    assert!(records
+        .iter()
+        .any(|record| record.kind == MemoryKind::Trace));
 }

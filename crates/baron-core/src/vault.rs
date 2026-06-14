@@ -104,7 +104,14 @@ pub fn ensure_vault(
     )?;
     write_if_missing(&context.project_root.join("Tasks.md"), "# Tasks\n\n")?;
 
-    for directory in ["Plans", "ProductHarness", "Sessions", "Artifacts"] {
+    for directory in [
+        "Plans",
+        "ProductHarness",
+        "Proofs",
+        "Traces",
+        "Sessions",
+        "Artifacts",
+    ] {
         fs::create_dir_all(context.project_root.join(directory))?;
     }
 

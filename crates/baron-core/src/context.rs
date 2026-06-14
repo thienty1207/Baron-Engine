@@ -71,6 +71,7 @@ pub fn compile_context_for_task(
 
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_execution_state(repo_path));
+    output.push_str(&render_execution_evidence(repo_path));
 
     output.push_str(&memory_brief.replacen(
         "# Memory Firewall Brief",
@@ -115,6 +116,10 @@ pub fn compile_context_why(
     ));
     if execution_state_path(repo_path).is_some() {
         output.push_str("- Loaded: bounded execution state because the repo exposes a current plan/status file.\n");
+    }
+    if repo_path.join("docs/baron/harness/CURRENT.md").is_file() {
+        output
+            .push_str("- Loaded: bounded Product Harness state because a current story exists.\n");
     }
     output.push_str(&format!(
         "- Loaded: {} adapter guidance because output shape changes by agent tool.\n\n",
@@ -240,6 +245,7 @@ fn render_execution_state(repo_path: &Path) -> String {
 
 fn execution_state_path(repo_path: &Path) -> Option<std::path::PathBuf> {
     [
+        "docs/baron/plans/CURRENT.md",
         "docs/superpowers/plans/CURRENT.md",
         "docs/BARON_STATUS.md",
         "notes/build-log/CURRENT.md",
@@ -247,6 +253,38 @@ fn execution_state_path(repo_path: &Path) -> Option<std::path::PathBuf> {
     .iter()
     .map(|path| repo_path.join(path))
     .find(|path| path.is_file())
+}
+
+fn render_execution_evidence(repo_path: &Path) -> String {
+    let mut output = String::new();
+    output.push_str("## Product Harness State\n\n");
+    output.push_str(&bounded_file(
+        &repo_path.join("docs/baron/harness/CURRENT.md"),
+        1_200,
+        "- no current Product Harness story\n",
+    ));
+    output.push_str("\n## Proof And Trace State\n\n");
+    output.push_str("### Proof\n\n");
+    output.push_str(&bounded_file(
+        &repo_path.join("docs/baron/proofs/INDEX.md"),
+        800,
+        "- no proof recorded\n",
+    ));
+    output.push_str("\n### Trace\n\n");
+    output.push_str(&bounded_file(
+        &repo_path.join("docs/baron/traces/INDEX.md"),
+        800,
+        "- no trace recorded\n",
+    ));
+    output.push('\n');
+    output
+}
+
+fn bounded_file(path: &Path, limit: usize, missing: &str) -> String {
+    match fs::read_to_string(path) {
+        Ok(content) => format!("{}\n", truncate_chars(content.trim(), limit)),
+        Err(_) => missing.to_string(),
+    }
 }
 
 fn classify_risk(task: Option<&str>, survey: &RepoSurvey) -> RiskLane {

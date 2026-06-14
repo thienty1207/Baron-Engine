@@ -153,3 +153,39 @@ fn context_stays_bounded_when_execution_state_is_large() {
     assert!(bundle.matches("large-state-line").count() < 200);
     assert!(bundle.contains("## Skipped Context"));
 }
+
+#[test]
+fn context_prefers_baron_plan_and_loads_bounded_execution_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join("docs/baron/plans")).unwrap();
+    fs::create_dir_all(repo.join("docs/baron/harness")).unwrap();
+    fs::create_dir_all(repo.join("docs/baron/proofs")).unwrap();
+    fs::create_dir_all(repo.join("docs/baron/traces")).unwrap();
+    write(
+        &repo.join("docs/baron/plans/CURRENT.md"),
+        "# Current Baron Plan\n\n- Title: auth login\n- Status: `in_progress`\n",
+    );
+    write(
+        &repo.join("docs/baron/harness/CURRENT.md"),
+        "# Current Product Harness\n\n- Title: auth login\n- Risk: `high`\n",
+    );
+    write(
+        &repo.join("docs/baron/proofs/INDEX.md"),
+        "# Baron Proof Index\n\n- latest auth tests passed\n",
+    );
+    write(
+        &repo.join("docs/baron/traces/INDEX.md"),
+        "# Baron Trace Index\n\n- latest detailed trace passed\n",
+    );
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("docs/baron/plans/CURRENT.md"));
+    assert!(bundle.contains("## Product Harness State"));
+    assert!(bundle.contains("Risk: `high`"));
+    assert!(bundle.contains("## Proof And Trace State"));
+    assert!(bundle.contains("latest auth tests passed"));
+    assert!(bundle.contains("latest detailed trace passed"));
+}
