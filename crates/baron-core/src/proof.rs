@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
+use crate::risk::RiskLane;
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +94,38 @@ pub fn latest_proof(repo_root: &Path) -> Result<Option<ProofRecord>> {
         repo_path: path,
         vault_path: PathBuf::new(),
     }))
+}
+
+pub fn proof_satisfies_risk(summary: &str, risk: RiskLane) -> bool {
+    let lower = summary.to_lowercase();
+    if lower.trim().is_empty() {
+        return false;
+    }
+    if risk == RiskLane::Low {
+        return true;
+    }
+    let verification = ["passed", "verified", "test", "build", "smoke"]
+        .iter()
+        .any(|term| lower.contains(term));
+    if !verification {
+        return false;
+    }
+    if risk == RiskLane::Medium {
+        return true;
+    }
+    [
+        "security",
+        "authorization",
+        "permission",
+        "tenant",
+        "rls",
+        "migration",
+        "data impact",
+        "payment",
+        "upload",
+    ]
+    .iter()
+    .any(|term| lower.contains(term))
 }
 
 fn latest_markdown(root: &Path) -> Result<Option<PathBuf>> {
