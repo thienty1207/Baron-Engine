@@ -46,6 +46,23 @@ fn proof_record_is_written_to_repo_and_vault() {
 }
 
 #[test]
+fn weak_high_risk_proof_remains_insufficient_in_validation_matrix() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    start_or_resume_intake(&repo, &context, "backend login security").unwrap();
+
+    record_proof(&repo, &context, "manual check completed").unwrap();
+
+    let matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    assert!(matrix
+        .contains("| backend login security | high | insufficient | manual check completed |"));
+    assert!(!matrix.contains("| backend login security | high | verified |"));
+}
+
+#[test]
 fn low_risk_trace_with_summary_and_outcome_passes_minimal() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
@@ -142,6 +159,49 @@ fn high_risk_trace_with_plan_story_proof_and_files_passes_detailed() {
     assert!(fs::read_to_string(&trace.repo_path)
         .unwrap()
         .contains("src/auth.rs"));
+}
+
+#[test]
+fn high_risk_trace_does_not_count_baron_state_as_product_files() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    setup_git(&repo);
+    fs::write(repo.join("README.md"), "# Demo\n").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    baron_core::plan::start_or_resume_plan(&repo, &context, "backend login security").unwrap();
+    start_or_resume_intake(&repo, &context, "backend login security").unwrap();
+    record_proof(
+        &repo,
+        &context,
+        "cargo test auth passed; security authorization and tenant impact verified",
+    )
+    .unwrap();
+
+    let trace = record_trace(
+        &repo,
+        &context,
+        "Claimed backend login implementation without product changes",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
+
+    assert!(!score.passed);
+    assert!(score.missing_fields.contains(&"files changed".to_string()));
+    let trace_content = fs::read_to_string(trace.repo_path).unwrap();
+    assert!(trace_content.contains("## Files Changed\n\n- none detected"));
 }
 
 #[test]

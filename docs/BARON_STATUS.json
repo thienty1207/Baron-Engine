@@ -1,11 +1,11 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-14",
-  "overallCompletionPercent": 45,
-  "currentPhase": "phase-3-context-compiler",
+  "overallCompletionPercent": 80,
+  "currentPhase": "phase-5-plan-harness-proof-trace",
   "currentPhaseStatus": "completed",
-  "nextAction": "phase-4-agent-adapters",
-  "buildConfidence": "repo survey, Vault firewall, adapter-specific bounded context, task-risk guidance, and skipped-context explanations are verified",
+  "nextAction": "phase-6-agent-bootstrap-migration",
+  "buildConfidence": "full Rust tests, Clippy, format, JSON validation, three-adapter preservation smoke, and high-risk completion smoke are verified",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -68,16 +68,27 @@
     {
       "id": 4,
       "name": "Agent Adapters",
-      "status": "not_started",
-      "completionPercent": 0,
-      "proof": []
+      "status": "completed",
+      "completionPercent": 15,
+      "proof": [
+        "adapter lifecycle tests",
+        "managed-block preservation tests",
+        "multi-adapter and nested-path CLI tests"
+      ]
     },
     {
       "id": 5,
       "name": "Plan/Harness/Proof/Trace",
-      "status": "not_started",
-      "completionPercent": 0,
-      "proof": []
+      "status": "completed",
+      "completionPercent": 20,
+      "proof": [
+        "plan and harness tests",
+        "story validation matrix tests",
+        "managed-state exclusion regression test",
+        "proof and trace tier tests",
+        "high-risk completion gate tests",
+        "repo and Vault mirror tests"
+      ]
     },
     {
       "id": 6,

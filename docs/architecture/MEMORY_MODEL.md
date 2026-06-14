@@ -48,6 +48,9 @@ Vault/
       Tasks.md
       Plans/
       ProductHarness/
+        TEST_MATRIX.md
+      Proofs/
+      Traces/
       Sessions/
       Artifacts/
   Artifacts/
@@ -70,3 +73,7 @@ SQLite is disposable. Markdown is durable.
 - Current-project memory is preferred over all other project memory.
 - `APPROVED_GLOBAL.md` may be used when relevant.
 - `GLOBAL_CANDIDATES.md` is indexed for diagnostics but not trusted as fact.
+- Plan, Product Harness, proof, and trace Markdown are indexed as distinct
+  memory kinds so later sessions can recall both intent and verification.
+- Product Harness `TEST_MATRIX.md` ties the current story to proof status and
+  evidence while remaining plain Markdown that can be rebuilt or inspected.

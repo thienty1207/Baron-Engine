@@ -3,6 +3,11 @@
 Baron core owns memory, context, plan, harness, proof, and trace behavior.
 Adapters only translate that core into the shape expected by an agent tool.
 
+All adapters share `.baron/project.toml` for committed project identity and
+`.baron/local.toml` for the machine-local Vault path. Repeated init may register
+multiple adapters. `baron update` refreshes registered adapters without
+deleting unknown custom assets.
+
 ## Initial Adapters
 
 ### Codex
@@ -22,6 +27,7 @@ Outputs:
 - core Superpowers skill
 - 3 core quality agents
 - optional frontend/security skills
+- managed root instructions that preserve user text outside Baron markers
 
 ### Claude
 
@@ -37,6 +43,7 @@ Outputs:
 - `CLAUDE.md`
 - Claude-readable imports or command guidance
 - Baron context and harness instructions
+- Claude-readable Superpowers, optional domain skills, and quality agents
 
 ### Generic Agent
 
@@ -52,7 +59,10 @@ Outputs:
 - `AGENT.md`
 - `baron-context.md`
 - optional JSON context bundle
+- portable core skills and quality-agent contracts under `.baron/core`
 
 ## Adapter Rule
 
 Adapters must not fork Baron behavior. They only translate Baron behavior.
+Every adapter requires automatic context, plan, harness, proof, and trace
+behavior. Platform-specific hooks are accelerators, not separate workflow truth.

@@ -330,8 +330,21 @@ fn changed_files(repo_root: &Path) -> Vec<String> {
         .filter_map(|line| line.get(3..))
         .map(str::trim)
         .filter(|line| !line.is_empty())
+        .filter(|line| !is_baron_managed_path(line))
         .map(str::to_string)
         .collect()
+}
+
+fn is_baron_managed_path(path: &str) -> bool {
+    let path = path.replace('\\', "/");
+    path.starts_with(".baron/")
+        || path.starts_with(".codex/")
+        || path.starts_with(".claude/")
+        || path.starts_with("docs/baron/")
+        || matches!(
+            path.as_str(),
+            "AGENTS.md" | "CLAUDE.md" | "AGENT.md" | "baron-context.md" | "baron-context.json"
+        )
 }
 
 fn parse_risk(content: &str) -> RiskLane {

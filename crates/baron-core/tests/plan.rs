@@ -138,7 +138,7 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         .unwrap();
     fs::write(repo.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
-    start_or_resume_plan(&repo, &context, "backend login security").unwrap();
+    let plan = start_or_resume_plan(&repo, &context, "backend login security").unwrap();
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
     record_proof(
         &repo,
@@ -169,6 +169,9 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
     let status = plan_status(&repo).unwrap();
     assert!(status.contains("Status: `completed`"));
     assert!(status.contains("authorization review"));
+    let plan_content = fs::read_to_string(plan.repo_path).unwrap();
+    assert!(plan_content.contains("verification: cargo test auth passed with authorization review"));
+    assert!(!plan_content.contains("verification: not_run"));
     let repo_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
     let vault_index = fs::read_to_string(context.project_root.join("Plans/INDEX.md")).unwrap();
     for index in [repo_index, vault_index] {

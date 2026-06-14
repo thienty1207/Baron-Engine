@@ -175,6 +175,7 @@ pub fn update_current_validation_evidence(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
     evidence: &str,
+    verified: bool,
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let Some(title) = current_harness_title(repo_root) else {
@@ -185,14 +186,14 @@ pub fn update_current_validation_evidence(
         &repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
         &title,
         risk,
-        "verified",
+        if verified { "verified" } else { "insufficient" },
         evidence,
     )?;
     upsert_validation_row(
         &vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
         &title,
         risk,
-        "verified",
+        if verified { "verified" } else { "insufficient" },
         evidence,
     )
 }

@@ -27,7 +27,7 @@ pub fn start_or_resume_plan(
     let title = title.trim();
     if let Some(active) = active_plan(repo_root)? {
         if active.title.eq_ignore_ascii_case(title) && active.status != "completed" {
-            set_plan_status(&active.path, "in_progress")?;
+            set_plan_state(&active.path, "in_progress", None)?;
             append_progress(&active.path, "Plan resumed.")?;
             mirror_plan(repo_root, vault, &active.path)?;
             update_plan_indexes(
@@ -136,7 +136,7 @@ pub fn interrupt_plan(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let active = require_active_plan(repo_root)?;
-    set_plan_status(&active.path, "interrupted")?;
+    set_plan_state(&active.path, "interrupted", None)?;
     append_progress(&active.path, &format!("Interrupted: {}", state.trim()))?;
     mirror_plan(repo_root, vault, &active.path)?;
     update_plan_indexes(
@@ -190,7 +190,7 @@ pub fn complete_plan(
     if verification_summary.trim().is_empty() {
         bail!("Plan completion requires a non-empty verification summary.");
     }
-    set_plan_status(&active.path, "completed")?;
+    set_plan_state(&active.path, "completed", Some(verification_summary.trim()))?;
     append_progress(
         &active.path,
         &format!(
@@ -296,13 +296,22 @@ fn field(content: &str, prefix: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn set_plan_status(path: &Path, status: &str) -> Result<()> {
+fn set_plan_state(path: &Path, status: &str, verification: Option<&str>) -> Result<()> {
     let content = fs::read_to_string(path)?;
+    let updated = now();
+    let verification = verification.map(single_line);
     let updated = content
         .lines()
         .map(|line| {
             if line.starts_with("status: ") {
                 format!("status: {status}")
+            } else if line.starts_with("updated: ") {
+                format!("updated: {updated}")
+            } else if line.starts_with("verification: ") {
+                verification
+                    .as_ref()
+                    .map(|value| format!("verification: {value}"))
+                    .unwrap_or_else(|| line.to_string())
             } else {
                 line.to_string()
             }
@@ -310,6 +319,10 @@ fn set_plan_status(path: &Path, status: &str) -> Result<()> {
         .collect::<Vec<_>>()
         .join("\n");
     write(path, &(updated + "\n"))
+}
+
+fn single_line(value: &str) -> String {
+    value.replace(['\r', '\n'], " ").trim().to_string()
 }
 
 fn append_progress(path: &Path, note: &str) -> Result<()> {

@@ -4,11 +4,11 @@ Last updated: 2026-06-14
 
 ## Overall
 
-- Completion: 45%
-- Current phase: Phase 3 - Context Compiler
+- Completion: 80%
+- Current phase: Phase 5 - Plan/Harness/Proof/Trace
 - Current phase status: completed
-- Current next action: Phase 4 - Agent Adapters
-- Build confidence: repo survey, Vault firewall, adapter-specific bounded context, task-risk guidance, and skipped-context explanations are verified
+- Current next action: Phase 6 - Agent Bootstrap Migration
+- Build confidence: full Rust tests, Clippy, format, JSON validation, three-adapter preservation smoke, and high-risk completion smoke are verified
 
 ## What 100% Means
 
@@ -42,8 +42,8 @@ Completion requires:
 | 1 | Survey Engine | completed | 12% | `cargo test`, survey smoke, JSON smoke, shadow init smoke |
 | 2 | Vault + Memory Firewall | completed | 15% | `cargo test`, memory CLI tests, multi-project firewall tests, smoke commands |
 | 3 | Context Compiler | completed | 15% | `cargo test`, context core/CLI tests, adapter/risk/why smoke |
-| 4 | Agent Adapters | not_started | 0% | none |
-| 5 | Plan/Harness/Proof/Trace | not_started | 0% | none |
+| 4 | Agent Adapters | completed | 15% | adapter lifecycle, preservation, multi-adapter and nested-path tests |
+| 5 | Plan/Harness/Proof/Trace | completed | 20% | plan, harness, proof, trace, completion-gate and mirror tests |
 | 6 | Agent Bootstrap Migration | not_started | 0% | none |
 | 7 | Release Hardening | not_started | 0% | none |
 
@@ -95,23 +95,25 @@ Completion requires:
 
 ### Phase 4 - Agent Adapters
 
-- [ ] Codex adapter generates `AGENTS.md` and `.codex/`.
-- [ ] Claude adapter generates `CLAUDE.md`.
-- [ ] Generic adapter generates portable agent files.
-- [ ] Adapters preserve user-written content.
-- [ ] Adapters refresh managed blocks safely.
-- [ ] Adapter update smoke tests pass.
+- [x] Codex adapter generates `AGENTS.md` and `.codex/`.
+- [x] Claude adapter generates `CLAUDE.md`.
+- [x] Generic adapter generates portable agent files.
+- [x] Adapters preserve user-written content.
+- [x] Adapters refresh managed blocks safely.
+- [x] Adapter update smoke tests pass.
 
 ### Phase 5 - Plan/Harness/Proof/Trace
 
-- [ ] Active plan state works.
-- [ ] Product Harness intake works.
-- [ ] Risk flags and lanes work.
-- [ ] Proof requirements are risk-aware.
-- [ ] Trace recording works.
-- [ ] Trace scoring works.
-- [ ] Friction/backlog loop works.
-- [ ] High-risk completion without proof is blocked.
+- [x] Active plan state works.
+- [x] Product Harness intake works.
+- [x] Risk flags and lanes work.
+- [x] Proof requirements are risk-aware.
+- [x] Validation matrix links stories to proof evidence.
+- [x] Weak proof remains insufficient and Baron state cannot fake product-file evidence.
+- [x] Trace recording works.
+- [x] Trace scoring works.
+- [x] Friction backlog works.
+- [x] High-risk completion without proof is blocked.
 
 ### Phase 6 - Agent Bootstrap Migration
 
@@ -141,6 +143,7 @@ Completion requires:
 - Memory model: `docs/architecture/MEMORY_MODEL.md`
 - Context compiler: `docs/architecture/CONTEXT_COMPILER.md`
 - Adapter model: `docs/architecture/ADAPTERS.md`
+- Phase 4-5 design: `docs/superpowers/specs/2026-06-14-agent-adapters-execution-engine-design.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule

@@ -1,8 +1,8 @@
 # Baron Context Compiler
 
-The Context Compiler is the Phase 3 bridge between repository understanding,
-Vault memory, and an agent tool. It produces a bounded Markdown brief on stdout.
-It does not create or update adapter files.
+The Context Compiler is the read-only bridge between repository understanding,
+Vault memory, execution evidence, and an agent tool. It produces a bounded
+Markdown brief on stdout. It does not create or update adapter files.
 
 ## Inputs
 
@@ -15,10 +15,12 @@ It does not create or update adapter files.
 
 1. Survey Engine Project Atlas
 2. bounded current execution state
-3. current-project memory
-4. relevant approved global memory
-5. adapter-specific guidance
-6. explicit unknowns and skipped context
+3. bounded current Product Harness state
+4. bounded proof and trace indexes
+5. current-project memory
+6. relevant approved global memory
+7. adapter-specific guidance
+8. explicit unknowns and skipped context
 
 Weak cross-project memory, global candidates, full session history, and broad
 documentation bodies are not loaded into the compact bundle.
@@ -47,4 +49,4 @@ verification evidence should be.
 
 The Context Compiler may create or refresh Vault scaffold/index artifacts
 through the Phase 2 memory engine. It does not write to the target repository.
-Phase 4 owns managed adapter-file generation and update behavior.
+`baron init` and `baron update` own managed adapter-file generation and refresh.

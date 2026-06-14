@@ -15,8 +15,8 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 3 has implemented the read-only Survey Engine, Vault + Memory Firewall,
-and bounded Context Compiler:
+Phase 5 has implemented the Survey Engine, Vault + Memory Firewall, bounded
+Context Compiler, multi-agent adapters, and execution-state gates:
 
 - `baron survey`
 - `baron survey --json`
@@ -31,8 +31,13 @@ and bounded Context Compiler:
 - `baron context [repo-path] --claude --vault <vault-path>`
 - `baron context [repo-path] --agent --vault <vault-path>`
 - `baron context [repo-path] --why --vault <vault-path>`
+- `baron update [repo-path]`
+- `baron plan <status|start|update|interrupt|complete>`
+- `baron harness <status|intake|decision|friction>`
+- `baron proof <status|record>`
+- `baron trace <record|score>`
 
-The next major phase is Agent Adapters. Do not implement later phases
+The next major phase is Agent Bootstrap Migration. Do not implement later phases
 without updating `docs/BARON_STATUS.md` and `notes/build-log/CURRENT.md`.
 
 ## Non-Negotiables
@@ -53,6 +58,18 @@ without updating `docs/BARON_STATUS.md` and `notes/build-log/CURRENT.md`.
 - Optional skills and optional agents must stay lazy-loaded and routed.
 - AI agents must not recursively read all skills, agents, docs, or memory.
 - Unknown facts must be marked unknown instead of guessed.
+- `.baron/project.toml` is shared project routing, never memory.
+- `.baron/local.toml` is machine-local Vault routing and must stay ignored.
+- Adapter updates must preserve user text outside Baron markers and unknown
+  custom skills/agents.
+- High-risk plans must not complete without valid proof and a detailed passing
+  trace.
+- Product Harness intake must maintain `docs/baron/harness/TEST_MATRIX.md`;
+  proof recording updates the current story evidence in both repo and Vault,
+  but weak evidence must remain `insufficient`.
+- A failed trace score is a hard automation stop, not an informational warning.
+- Baron-managed plan, harness, adapter, and config files do not count as
+  product-file changes for detailed trace quality.
 
 ## Read Order
 
@@ -78,8 +95,7 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For the current foundation, survey engine, memory firewall, and context
-compiler, verify:
+For the current foundation through Phase 5, verify:
 
 ```bash
 cargo fmt --all
@@ -96,6 +112,12 @@ cargo run -p baron-cli -- context . --codex --task "implement auth login" --vaul
 cargo run -p baron-cli -- context . --claude --vault .tmp/baron-vault
 cargo run -p baron-cli -- context . --agent --vault .tmp/baron-vault
 cargo run -p baron-cli -- context . --why --vault .tmp/baron-vault
+cargo run -p baron-cli -- init . --codex --vault .tmp/baron-vault
+cargo run -p baron-cli -- update .
+cargo run -p baron-cli -- plan status
+cargo run -p baron-cli -- harness status
+cargo run -p baron-cli -- proof status
+cargo run -p baron-cli -- trace score
 ```
 
 Later phases must add deeper smoke tests for `survey`, `init`, `context`,

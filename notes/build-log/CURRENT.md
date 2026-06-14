@@ -19,18 +19,43 @@ Phase 4-5 - Agent Adapters And Execution Engine.
 
 ## Current Status
 
-Design and implementation plan approved. Implementation starting in an isolated
-worktree.
+Implemented and verified. Final documentation commit and branch integration are
+the only remaining actions.
 
 ## Verification
 
 - Phase 3 baseline `cargo build --quiet`: passed
 - Phase 3 baseline `cargo test --quiet`: passed
-- Phase 4-5 verification: pending
+- configuration tests: passed
+- adapter lifecycle and preservation tests: passed
+- plan and harness tests: passed
+- proof and trace tests: passed
+- weak-proof and managed-state false-positive regressions: passed
+- execution CLI tests: passed
+- full `cargo test --quiet`: passed
+- three-adapter/custom-preservation/high-risk lifecycle smoke: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- fresh three-adapter/custom-preservation/high-risk lifecycle smoke: passed
+- `docs/BARON_STATUS.json` parse: passed
+- `git diff --check`: passed after normalizing vendored trailing whitespace
 
 ## Next Action
 
-Implement Task 1 - project/local configuration with TDD.
+Commit completion evidence, merge to `main`, and push.
+
+## Phase 4-5 Feature Commits
+
+- `07c09db feat: add Baron project configuration`
+- `737a4e8 feat: add managed multi-agent adapters`
+- `68df801 feat: add adapter init and update lifecycle`
+- `0f555e9 feat: add risk-aware product harness`
+- `055b0b8 feat: add proof and trace quality gates`
+- `bd058e2 feat: add gated active plan state`
+- `217233f feat: expose Baron execution state commands`
+- `3ee93c5 feat: connect execution state to context and memory`
+- `094891e feat: tighten Baron execution quality gates`
 
 ## Phase 4-5 Worktree
 

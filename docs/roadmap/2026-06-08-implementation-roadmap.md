@@ -1,7 +1,7 @@
 # Baron Implementation Roadmap
 
 Date: 2026-06-14
-Status: phase 3 completed; phase 4 next
+Status: phases 4 and 5 completed; phase 6 next
 
 ## Phase 0 - Foundation Skeleton
 
@@ -119,6 +119,8 @@ Verification:
 
 Goal: support multiple agent tools without changing the Baron core.
 
+Status: completed.
+
 Commands:
 
 ```bash
@@ -138,9 +140,18 @@ Deliverables:
 - safe update/merge behavior
 - user-owned content preservation
 
+Verification:
+
+- managed-block and custom-asset preservation tests
+- Codex, Claude, and generic adapter tests
+- multi-adapter init/update CLI tests
+- nested-directory automatic config smoke
+
 ## Phase 5 - Plan, Harness, Proof, Trace
 
 Goal: connect execution state with proof and trace quality.
+
+Status: completed.
 
 Commands:
 
@@ -159,9 +170,18 @@ Deliverables:
 - product harness story packets
 - risk flags
 - proof requirements
-- validation matrix
+- validation matrix linking each story to proof status and evidence
 - trace quality tiers
 - friction backlog
+
+Verification:
+
+- plan lifecycle and interruption tests
+- risk-aware harness tests
+- proof and trace tier tests
+- high-risk completion rejection tests
+- repo/Vault mirror tests
+- execution CLI smoke
 
 ## Phase 6 - Migration From Agent Bootstrap
 

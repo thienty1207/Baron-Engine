@@ -50,6 +50,11 @@ baron update --claude
 baron update --agent
 ```
 
+Implemented syntax accepts optional `[repo-path]`. `init` accepts
+`--vault <vault-path>` or `BARON_VAULT`; later commands may use
+`.baron/local.toml`. `update` without an adapter refreshes all registered
+adapters.
+
 ## Phase 5
 
 ```bash
@@ -64,3 +69,27 @@ baron proof status
 baron trace record "<summary>"
 baron trace score
 ```
+
+Implemented Phase 5 surface:
+
+```bash
+baron plan status [repo-path]
+baron plan start "<title>" [repo-path]
+baron plan update "<note>" [repo-path]
+baron plan interrupt "<state>" [repo-path]
+baron plan complete "<verification>" [repo-path]
+baron harness status [repo-path]
+baron harness intake "<title>" [repo-path]
+baron harness decision "<summary>" [repo-path]
+baron harness friction "<summary>" [repo-path]
+baron proof status [repo-path]
+baron proof record "<verification>" [repo-path]
+baron trace record "<summary>" [repo-path] --outcome <completed|partial|blocked|failed>
+baron trace score [repo-path] [--id <trace-id>]
+```
+
+`baron trace score` exits unsuccessfully when the trace does not meet the
+risk-required tier. This makes the quality gate enforceable by agent runtimes
+instead of being a passive report.
+Detailed traces require a changed project file; Baron-managed config, adapter,
+plan, harness, proof, and trace files are excluded from that evidence.

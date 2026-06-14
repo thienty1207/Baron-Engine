@@ -8,7 +8,7 @@ license: MIT; adapted from tanviet12/vbsec
 
 This bundled optional domain skill provides a defensive appsec scan for AI-assisted codebases. It is adapted from `tanviet12/vbsec` and tuned for Agent Bootstrap projects.
 
-Public source: https://github.com/tanviet12/vbsec  
+Public source: https://github.com/tanviet12/vbsec
 License: MIT, copyright Bui Tan Viet. See `LICENSE.txt`.
 
 ## Compatibility Guardrails
