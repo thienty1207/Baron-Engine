@@ -8,7 +8,7 @@ Last updated: 2026-06-09
 - Goal: implement durable Vault memory with SQLite index and cross-project firewall.
 - Status: completed
 - Verification: `cargo fmt --all`, `cargo test`, memory CLI smoke, multi-project firewall smoke, JSON status parse, and `git diff --check` passed
-- Commit message: `feat: add vault memory firewall`
+- Commit: `c6fc469 feat: add vault memory firewall`
 
 ## Rules
 
