@@ -75,16 +75,16 @@ pub fn record_trace(
         .join("Traces")
         .join(&date)
         .join(format!("{id}.md"));
-    let content = render_trace(
-        &id,
+    let content = render_trace(TraceView {
+        id: &id,
         summary,
         outcome,
         risk,
-        plan.as_deref(),
-        story.as_deref(),
-        proof.as_ref().map(|value| value.summary.as_str()),
-        &files,
-    );
+        plan: plan.as_deref(),
+        story: story.as_deref(),
+        proof: proof.as_ref().map(|value| value.summary.as_str()),
+        files: &files,
+    });
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
     append(
@@ -175,6 +175,23 @@ pub fn score_trace(
         .unwrap_or(&repo_path);
     let vault_path = vault.project_root.join("Traces").join(relative);
     write(&vault_path, &updated)?;
+    let trace_id = trace_field(&content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string());
+    let outcome = trace_field(&content, "- Outcome: `").unwrap_or_else(|| "unknown".to_string());
+    let summary = trace_summary(&content);
+    update_trace_index(
+        &repo_root.join("docs/baron/traces/INDEX.md"),
+        &trace_id,
+        &outcome,
+        &summary,
+        &score,
+    )?;
+    update_trace_index(
+        &vault.project_root.join("Traces/INDEX.md"),
+        &trace_id,
+        &outcome,
+        &summary,
+        &score,
+    )?;
     Ok(score)
 }
 
@@ -206,19 +223,10 @@ pub fn latest_trace_score(repo_root: impl AsRef<Path>) -> Result<Option<TraceSco
     }))
 }
 
-fn render_trace(
-    id: &str,
-    summary: &str,
-    outcome: TraceOutcome,
-    risk: RiskLane,
-    plan: Option<&str>,
-    story: Option<&str>,
-    proof: Option<&str>,
-    files: &[String],
-) -> String {
+fn render_trace(view: TraceView<'_>) -> String {
     let mut content = format!(
         "# Baron Execution Trace\n\n\
-- Trace ID: `{id}`\n\
+- Trace ID: `{}`\n\
 - Recorded: {}\n\
 - Risk: `{}`\n\
 - Outcome: `{}`\n\
@@ -228,22 +236,34 @@ fn render_trace(
 - Score status: `unscored`\n\n\
 ## Task Summary\n\n{}\n\n\
 ## Files Changed\n\n",
+        view.id,
         Local::now().to_rfc3339_opts(SecondsFormat::Secs, false),
-        risk.as_str(),
-        outcome.as_str(),
-        plan.unwrap_or("missing"),
-        story.unwrap_or("missing"),
-        proof.unwrap_or("missing"),
-        summary.trim()
+        view.risk.as_str(),
+        view.outcome.as_str(),
+        view.plan.unwrap_or("missing"),
+        view.story.unwrap_or("missing"),
+        view.proof.unwrap_or("missing"),
+        view.summary.trim()
     );
-    if files.is_empty() {
+    if view.files.is_empty() {
         content.push_str("- none detected\n");
     } else {
-        for file in files {
+        for file in view.files {
             content.push_str(&format!("- `{file}`\n"));
         }
     }
     content
+}
+
+struct TraceView<'a> {
+    id: &'a str,
+    summary: &'a str,
+    outcome: TraceOutcome,
+    risk: RiskLane,
+    plan: Option<&'a str>,
+    story: Option<&'a str>,
+    proof: Option<&'a str>,
+    files: &'a [String],
 }
 
 fn find_trace(repo_root: &Path, trace_id: Option<&str>) -> Result<PathBuf> {
@@ -372,6 +392,60 @@ fn replace_score(content: &str, score: &TraceScore) -> String {
         }
         _ => format!("{}\n\n{}", content.trim_end(), block),
     }
+}
+
+fn trace_field(content: &str, prefix: &str) -> Option<String> {
+    content
+        .lines()
+        .find_map(|line| line.strip_prefix(prefix))
+        .and_then(|value| value.strip_suffix('`'))
+        .map(str::to_string)
+}
+
+fn trace_summary(content: &str) -> String {
+    content
+        .split("## Task Summary")
+        .nth(1)
+        .and_then(|value| value.split("## Files Changed").next())
+        .unwrap_or("unknown")
+        .trim()
+        .replace(['\r', '\n'], " ")
+}
+
+fn update_trace_index(
+    path: &Path,
+    id: &str,
+    outcome: &str,
+    summary: &str,
+    score: &TraceScore,
+) -> Result<()> {
+    let row = format!(
+        "- `{id}` - {outcome} - score: `{}/{}` - passed: `{}` - {summary}",
+        score.achieved.as_str(),
+        score.required.as_str(),
+        if score.passed { "yes" } else { "no" }
+    );
+    let mut content =
+        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Trace Index\n\n".to_string());
+    let prefix = format!("- `{id}` -");
+    let mut replaced = false;
+    let mut lines = content
+        .lines()
+        .map(|line| {
+            if line.starts_with(&prefix) {
+                replaced = true;
+                row.clone()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>();
+    if !replaced {
+        lines.push(row);
+    }
+    content = lines.join("\n");
+    content.push('\n');
+    write(path, &content)
 }
 
 fn parse_tier_line(content: &str, prefix: &str) -> TraceTier {

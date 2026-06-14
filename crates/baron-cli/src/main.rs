@@ -441,6 +441,13 @@ fn run() -> Result<()> {
                         score.missing_fields.join(", ")
                     }
                 );
+                if !score.passed {
+                    bail!(
+                        "Trace quality gate failed: required `{}`, achieved `{}`.",
+                        score.required.as_str(),
+                        score.achieved.as_str()
+                    );
+                }
             }
         },
         None => {

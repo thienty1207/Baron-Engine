@@ -39,6 +39,12 @@ fn high_risk_intake_creates_repo_and_vault_story() {
     let content = fs::read_to_string(&story.repo_path).unwrap();
     assert!(content.contains("Risk: `high`"));
     assert!(content.contains("security/data-impact proof"));
+    let repo_matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    let vault_matrix =
+        fs::read_to_string(context.project_root.join("ProductHarness/TEST_MATRIX.md")).unwrap();
+    for matrix in [repo_matrix, vault_matrix] {
+        assert!(matrix.contains("| backend login with Gin | high | pending | pending |"));
+    }
 }
 
 #[test]

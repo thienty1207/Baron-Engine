@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
+use crate::harness::update_current_validation_evidence;
 use crate::risk::RiskLane;
 use crate::vault::VaultContext;
 
@@ -49,6 +50,7 @@ pub fn record_proof(
         "# Baron Proof Index\n\n",
         &format!("- `{id}` - {}", summary.trim()),
     )?;
+    update_current_validation_evidence(repo_root, vault, summary.trim())?;
     Ok(ProofRecord {
         id,
         summary: summary.trim().to_string(),

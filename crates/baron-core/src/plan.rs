@@ -30,15 +30,25 @@ pub fn start_or_resume_plan(
             set_plan_status(&active.path, "in_progress")?;
             append_progress(&active.path, "Plan resumed.")?;
             mirror_plan(repo_root, vault, &active.path)?;
+            update_plan_indexes(
+                repo_root,
+                vault,
+                &active.title,
+                &active.path,
+                active.risk,
+                "in_progress",
+            )?;
             write_current(
                 repo_root,
                 vault,
-                title,
-                active.risk,
-                "in_progress",
-                &active.path,
-                "continue from last known state",
-                "not_run",
+                CurrentPlanView {
+                    title,
+                    risk: active.risk,
+                    status: "in_progress",
+                    plan_path: &active.path,
+                    next_action: "continue from last known state",
+                    verification: "not_run",
+                },
             )?;
             return Ok(PlanRecord {
                 title: title.to_string(),
@@ -82,12 +92,14 @@ pub fn start_or_resume_plan(
     write_current(
         repo_root,
         vault,
-        title,
-        risk,
-        "in_progress",
-        &repo_path,
-        "continue from current task scope",
-        "not_run",
+        CurrentPlanView {
+            title,
+            risk,
+            status: "in_progress",
+            plan_path: &repo_path,
+            next_action: "continue from current task scope",
+            verification: "not_run",
+        },
     )?;
     Ok(PlanRecord {
         title: title.to_string(),
@@ -106,12 +118,14 @@ pub fn update_plan(repo_root: impl AsRef<Path>, vault: &VaultContext, note: &str
     write_current(
         repo_root,
         vault,
-        &active.title,
-        active.risk,
-        &active.status,
-        &active.path,
-        note.trim(),
-        "not_run",
+        CurrentPlanView {
+            title: &active.title,
+            risk: active.risk,
+            status: &active.status,
+            plan_path: &active.path,
+            next_action: note.trim(),
+            verification: "not_run",
+        },
     )
 }
 
@@ -125,15 +139,25 @@ pub fn interrupt_plan(
     set_plan_status(&active.path, "interrupted")?;
     append_progress(&active.path, &format!("Interrupted: {}", state.trim()))?;
     mirror_plan(repo_root, vault, &active.path)?;
-    write_current(
+    update_plan_indexes(
         repo_root,
         vault,
         &active.title,
+        &active.path,
         active.risk,
         "interrupted",
-        &active.path,
-        state.trim(),
-        "not_run",
+    )?;
+    write_current(
+        repo_root,
+        vault,
+        CurrentPlanView {
+            title: &active.title,
+            risk: active.risk,
+            status: "interrupted",
+            plan_path: &active.path,
+            next_action: state.trim(),
+            verification: "not_run",
+        },
     )
 }
 
@@ -175,15 +199,25 @@ pub fn complete_plan(
         ),
     )?;
     mirror_plan(repo_root, vault, &active.path)?;
-    write_current(
+    update_plan_indexes(
         repo_root,
         vault,
         &active.title,
+        &active.path,
         active.risk,
         "completed",
-        &active.path,
-        "start the next explicit task",
-        verification_summary.trim(),
+    )?;
+    write_current(
+        repo_root,
+        vault,
+        CurrentPlanView {
+            title: &active.title,
+            risk: active.risk,
+            status: "completed",
+            plan_path: &active.path,
+            next_action: "start the next explicit task",
+            verification: verification_summary.trim(),
+        },
     )
 }
 
@@ -198,30 +232,25 @@ pub fn plan_status(repo_root: impl AsRef<Path>) -> Result<String> {
     ))
 }
 
-fn write_current(
-    repo_root: &Path,
-    vault: &VaultContext,
-    title: &str,
-    risk: RiskLane,
-    status: &str,
-    plan_path: &Path,
-    next_action: &str,
-    verification: &str,
-) -> Result<()> {
+fn write_current(repo_root: &Path, vault: &VaultContext, view: CurrentPlanView<'_>) -> Result<()> {
     let content = format!(
         "# Current Baron Plan\n\n\
-- Title: {title}\n\
+- Title: {}\n\
 - Plan: `{}`\n\
-- Status: `{status}`\n\
+- Status: `{}`\n\
 - Risk: `{}`\n\
-- Verification: {verification}\n\
-- Next action: {next_action}\n\
+- Verification: {}\n\
+- Next action: {}\n\
 - Updated: {}\n\n\
 ## Rules\n\n\
 - Silence or shutdown never means completed.\n\
 - Completion requires risk-appropriate proof and a passing trace score.\n",
-        normalize(plan_path, repo_root),
-        risk.as_str(),
+        view.title,
+        normalize(view.plan_path, repo_root),
+        view.status,
+        view.risk.as_str(),
+        view.verification,
+        view.next_action,
         now()
     );
     write(&repo_root.join("docs/baron/plans/CURRENT.md"), &content)?;
@@ -353,6 +382,65 @@ fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
     write(path, &content)
 }
 
+fn update_plan_indexes(
+    repo_root: &Path,
+    vault: &VaultContext,
+    title: &str,
+    repo_path: &Path,
+    risk: RiskLane,
+    status: &str,
+) -> Result<()> {
+    let vault_path = vault_plan_path(repo_root, vault, repo_path);
+    replace_plan_index_row(
+        &repo_root.join("docs/baron/plans/INDEX.md"),
+        title,
+        &normalize(repo_path, repo_root),
+        risk,
+        status,
+    )?;
+    replace_plan_index_row(
+        &vault.project_root.join("Plans/INDEX.md"),
+        title,
+        &normalize(&vault_path, &vault.project_root),
+        risk,
+        status,
+    )
+}
+
+fn replace_plan_index_row(
+    path: &Path,
+    title: &str,
+    relative_path: &str,
+    risk: RiskLane,
+    status: &str,
+) -> Result<()> {
+    let row = format!(
+        "- [{title}]({relative_path}) - status: `{status}` - risk: `{}`",
+        risk.as_str()
+    );
+    let mut content =
+        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Plan Index\n\n".to_string());
+    let prefix = format!("- [{title}](");
+    let mut replaced = false;
+    let mut lines = content
+        .lines()
+        .map(|line| {
+            if line.starts_with(&prefix) {
+                replaced = true;
+                row.clone()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>();
+    if !replaced {
+        lines.push(row);
+    }
+    content = lines.join("\n");
+    content.push('\n');
+    write(path, &content)
+}
+
 fn write(path: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -402,4 +490,13 @@ struct ActivePlan {
     path: PathBuf,
     status: String,
     risk: RiskLane,
+}
+
+struct CurrentPlanView<'a> {
+    title: &'a str,
+    risk: RiskLane,
+    status: &'a str,
+    plan_path: &'a Path,
+    next_action: &'a str,
+    verification: &'a str,
 }

@@ -88,7 +88,7 @@ pub fn compile_context_for_task(
     );
     output.push_str("- unrelated project memory unless explicitly requested through recall\n");
     output.push_str("- full documentation bodies and historical session folders\n");
-    output.push_str("- adapter file generation; that belongs to Phase 4\n");
+    output.push_str("- adapter refresh; managed files are owned by `baron init/update`\n");
     output.push_str("- No target repo files were written.\n");
 
     Ok(truncate_context(output))
@@ -135,7 +135,7 @@ pub fn compile_context_why(
         "- Skipped: full docs and session history because compact context must stay bounded.\n",
     );
     output.push_str(
-        "- Skipped: adapter file generation because Phase 3 only compiles stdout context.\n",
+        "- Skipped: adapter refresh because init/update owns managed files; context remains read-only.\n",
     );
     output.push_str(&format!(
         "- Survey unknowns retained: {}.\n",

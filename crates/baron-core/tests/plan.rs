@@ -94,6 +94,13 @@ fn update_and_interrupt_preserve_last_known_state() {
     )
     .unwrap();
     assert!(plan.contains("Implemented hero"));
+    let repo_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
+    let vault_index = fs::read_to_string(context.project_root.join("Plans/INDEX.md")).unwrap();
+    for index in [repo_index, vault_index] {
+        assert!(index.contains("frontend HomePage"));
+        assert!(index.contains("status: `interrupted`"));
+        assert!(!index.contains("frontend HomePage") || !index.contains("status: `in_progress`"));
+    }
 }
 
 #[test]
@@ -162,4 +169,10 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
     let status = plan_status(&repo).unwrap();
     assert!(status.contains("Status: `completed`"));
     assert!(status.contains("authorization review"));
+    let repo_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
+    let vault_index = fs::read_to_string(context.project_root.join("Plans/INDEX.md")).unwrap();
+    for index in [repo_index, vault_index] {
+        assert!(index.contains("backend login security"));
+        assert!(index.contains("status: `completed`"));
+    }
 }

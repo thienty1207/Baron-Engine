@@ -178,3 +178,35 @@ fn proof_status_and_trace_score_report_missing_state_clearly() {
         .failure()
         .stderr(predicate::str::contains("No Baron trace found"));
 }
+
+#[test]
+fn trace_score_returns_failure_when_quality_gate_does_not_pass() {
+    let (_temp, repo, _vault) = init_project();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["harness", "intake", "frontend dashboard flow"])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args([
+            "trace",
+            "record",
+            "Implemented dashboard state",
+            "--outcome",
+            "completed",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["trace", "score"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Passed: `no`"))
+        .stderr(predicate::str::contains("Trace quality gate failed"));
+}

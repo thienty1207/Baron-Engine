@@ -29,11 +29,20 @@ fn proof_record_is_written_to_repo_and_vault() {
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
 
+    start_or_resume_intake(&repo, &context, "frontend dashboard flow").unwrap();
     let proof = record_proof(&repo, &context, "cargo test passed: 42 tests").unwrap();
 
     assert!(proof.repo_path.exists());
     assert!(proof.vault_path.exists());
     assert!(proof_status(&repo).unwrap().contains("42 tests"));
+    let repo_matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    let vault_matrix =
+        fs::read_to_string(context.project_root.join("ProductHarness/TEST_MATRIX.md")).unwrap();
+    for matrix in [repo_matrix, vault_matrix] {
+        assert!(matrix.contains(
+            "| frontend dashboard flow | medium | verified | cargo test passed: 42 tests |"
+        ));
+    }
 }
 
 #[test]
@@ -159,4 +168,12 @@ fn scoring_updates_repo_and_vault_trace() {
     assert!(fs::read_to_string(&trace.vault_path)
         .unwrap()
         .contains("Trace Quality Score"));
+    let repo_index = fs::read_to_string(repo.join("docs/baron/traces/INDEX.md")).unwrap();
+    let vault_index = fs::read_to_string(context.project_root.join("Traces/INDEX.md")).unwrap();
+    for index in [repo_index, vault_index] {
+        assert!(index.contains(&format!(
+            "`{}` - completed - score: `minimal/minimal` - passed: `yes`",
+            trace.id
+        )));
+    }
 }

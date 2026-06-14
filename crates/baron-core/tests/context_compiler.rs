@@ -71,7 +71,8 @@ fn why_output_explains_loaded_and_skipped_context() {
     assert!(why.contains("Loaded: repo survey"));
     assert!(why.contains("Loaded: Memory Firewall Brief"));
     assert!(why.contains("Skipped: full Vault scan"));
-    assert!(why.contains("Skipped: adapter file generation"));
+    assert!(why.contains("Skipped: adapter refresh because init/update owns managed files"));
+    assert!(!why.contains("Phase 3 only"));
 }
 
 #[test]

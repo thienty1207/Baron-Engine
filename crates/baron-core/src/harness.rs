@@ -72,6 +72,20 @@ pub fn start_or_resume_intake(
         &vault.project_root.join("ProductHarness/CURRENT.md"),
         &current,
     )?;
+    upsert_validation_row(
+        &repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
+        title,
+        risk,
+        "pending",
+        "pending",
+    )?;
+    upsert_validation_row(
+        &vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
+        title,
+        risk,
+        "pending",
+        "pending",
+    )?;
     Ok(HarnessStory {
         title: title.to_string(),
         risk,
@@ -157,6 +171,32 @@ pub fn current_harness_title(repo_root: impl AsRef<Path>) -> Option<String> {
         .map(str::to_string)
 }
 
+pub fn update_current_validation_evidence(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    evidence: &str,
+) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let Some(title) = current_harness_title(repo_root) else {
+        return Ok(());
+    };
+    let risk = current_harness_risk(repo_root);
+    upsert_validation_row(
+        &repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
+        &title,
+        risk,
+        "verified",
+        evidence,
+    )?;
+    upsert_validation_row(
+        &vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
+        &title,
+        risk,
+        "verified",
+        evidence,
+    )
+}
+
 fn story_content(title: &str, risk: RiskLane) -> String {
     let proof = match risk {
         RiskLane::Low => "concrete verification result",
@@ -197,6 +237,53 @@ fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
         return Ok(());
     }
     append(path, header, item)
+}
+
+fn upsert_validation_row(
+    path: &Path,
+    title: &str,
+    risk: RiskLane,
+    status: &str,
+    evidence: &str,
+) -> Result<()> {
+    const HEADER: &str = "# Baron Validation Matrix\n\n\
+| Story | Risk | Status | Evidence |\n\
+| --- | --- | --- | --- |\n";
+    let title = table_cell(title);
+    let row = format!(
+        "| {title} | {} | {} | {} |",
+        risk.as_str(),
+        table_cell(status),
+        table_cell(evidence)
+    );
+    let mut content = fs::read_to_string(path).unwrap_or_else(|_| HEADER.to_string());
+    let prefix = format!("| {title} |");
+    let mut replaced = false;
+    let mut lines = content
+        .lines()
+        .map(|line| {
+            if line.starts_with(&prefix) {
+                replaced = true;
+                row.clone()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>();
+    if !replaced {
+        lines.push(row);
+    }
+    content = lines.join("\n");
+    content.push('\n');
+    write(path, &content)
+}
+
+fn table_cell(value: &str) -> String {
+    value
+        .replace('|', "\\|")
+        .replace(['\r', '\n'], " ")
+        .trim()
+        .to_string()
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
