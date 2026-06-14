@@ -57,7 +57,11 @@ pub fn record_trace(
     let now = Local::now();
     let id = now.format("%Y%m%d%H%M%S%3f").to_string();
     let date = now.format("%Y-%m-%d").to_string();
-    let risk = current_harness_risk(repo_root);
+    let risk = if repo_root.join("docs/baron/harness/CURRENT.md").exists() {
+        current_harness_risk(repo_root)
+    } else {
+        current_plan_risk(repo_root)
+    };
     let story = current_harness_title(repo_root);
     let plan = current_plan_title(repo_root);
     let proof = latest_proof(repo_root)?;
@@ -279,6 +283,18 @@ fn current_plan_title(repo_root: &Path) -> Option<String> {
         .lines()
         .find_map(|line| line.strip_prefix("- Title: "))
         .map(str::to_string)
+}
+
+fn current_plan_risk(repo_root: &Path) -> RiskLane {
+    let content =
+        fs::read_to_string(repo_root.join("docs/baron/plans/CURRENT.md")).unwrap_or_default();
+    if content.contains("- Risk: `high`") {
+        RiskLane::High
+    } else if content.contains("- Risk: `low`") {
+        RiskLane::Low
+    } else {
+        RiskLane::Medium
+    }
 }
 
 fn changed_files(repo_root: &Path) -> Vec<String> {
