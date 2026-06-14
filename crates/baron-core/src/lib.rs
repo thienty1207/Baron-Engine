@@ -1,3 +1,4 @@
+pub mod config;
 pub mod context;
 pub mod firewall;
 pub mod memory;
