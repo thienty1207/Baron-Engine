@@ -52,7 +52,10 @@ fn nested_paths_discover_project_root_and_local_vault() {
     fs::create_dir_all(&nested).unwrap();
     initialize_project(&repo, AdapterKind::Generic, &vault).unwrap();
 
-    assert_eq!(find_project_root(&nested).unwrap(), repo.canonicalize().unwrap());
+    assert_eq!(
+        find_project_root(&nested).unwrap(),
+        repo.canonicalize().unwrap()
+    );
     assert_eq!(
         resolve_vault_path_for_repo(None, &nested).unwrap(),
         vault.canonicalize().unwrap_or(vault)

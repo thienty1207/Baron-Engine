@@ -84,10 +84,7 @@ pub fn initialize_project(
         &repo_root.join(LOCAL_CONFIG_PATH),
         &toml::to_string_pretty(&local)?,
     )?;
-    write_if_missing(
-        &baron_root.join(".gitignore"),
-        "local.toml\ncache/\ntmp/\n",
-    )?;
+    write_if_missing(&baron_root.join(".gitignore"), "local.toml\ncache/\ntmp/\n")?;
     Ok(config)
 }
 

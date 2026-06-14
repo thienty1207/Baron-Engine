@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+mod install;
+mod managed;
+
+pub use install::{install_adapter, InstallReport};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentAdapter {
     Codex,
