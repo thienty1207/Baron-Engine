@@ -54,7 +54,7 @@ fn install_claude(repo: &Path) -> Result<InstallReport> {
     upsert_managed_block(&repo.join("CLAUDE.md"), &startup_contract("Claude"))?;
     write_managed_file(
         &repo.join(".claude/commands/baron-context.md"),
-        "# Baron Context\n\nRun `baron context --claude` silently, then follow the bounded context bundle.\n",
+        "# Baron Context\n\nRun `baron capability check` and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n",
     )?;
     write_managed_file(
         &repo.join(".claude/commands/baron-status.md"),
@@ -81,13 +81,14 @@ fn install_generic(repo: &Path) -> Result<InstallReport> {
     upsert_managed_block(&repo.join("AGENT.md"), &startup_contract("generic agents"))?;
     write_managed_file(
         &repo.join("baron-context.md"),
-        "# Baron Context Contract\n\nRun `baron context --agent` at session start. Treat its output as bounded orientation, not as a replacement for repository evidence.\n",
+        "# Baron Context Contract\n\nRun `baron capability check` and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n",
     )?;
     write_managed_file(
         &repo.join("baron-context.json"),
         &serde_json::to_string_pretty(&serde_json::json!({
             "engine": "baron",
             "adapter": "agent",
+            "capabilityCheckCommand": "baron capability check",
             "contextCommand": "baron context --agent",
             "automatic": true,
             "sourceOfTruth": ["repository", "vault-markdown"]
@@ -116,13 +117,14 @@ fn startup_contract(agent: &str) -> String {
     format!(
         "# Baron Automatic Agent Contract\n\n\
 You are using Baron through the {agent} adapter.\n\n\
+- At session start, silently run `baron capability check`; capability presence is not execution evidence.\n\
 - At session start, silently run `baron context` and follow its bounded context.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\
 - Create harness intake for medium/high-risk work.\n\
 - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
 - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\
-- Record proof after verification, then record and run `baron trace score` before claiming completion.\n\
+- After actually running a registered provider, attach structured capability evidence with `baron proof record`; then record and run `baron trace score` before claiming completion.\n\
 - Never complete high-risk work when proof is missing or trace quality fails.\n\
 - Treat Vault Markdown as durable memory and unknown facts as unknown.\n"
     )

@@ -177,3 +177,32 @@ fn bundled_domain_skills_do_not_depend_on_agent_bootstrap_runtime() {
         }
     }
 }
+
+#[test]
+fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    fs::create_dir_all(&repo).unwrap();
+
+    install_adapter(&repo, AgentAdapter::Codex).unwrap();
+    install_adapter(&repo, AgentAdapter::Claude).unwrap();
+    install_adapter(&repo, AgentAdapter::Generic).unwrap();
+
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+        let content = fs::read_to_string(repo.join(path)).unwrap();
+        assert!(
+            content.contains("baron capability check"),
+            "{path} must trigger automatic capability refresh"
+        );
+        assert!(
+            content.contains("presence is not execution evidence"),
+            "{path} must prevent false tool-backed completion claims"
+        );
+        assert!(content.contains("baron proof record"));
+    }
+    let claude_context =
+        fs::read_to_string(repo.join(".claude/commands/baron-context.md")).unwrap();
+    assert!(claude_context.contains("baron capability check"));
+    let generic_context = fs::read_to_string(repo.join("baron-context.json")).unwrap();
+    assert!(generic_context.contains("\"capabilityCheckCommand\": \"baron capability check\""));
+}
