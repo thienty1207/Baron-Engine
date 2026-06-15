@@ -266,10 +266,19 @@ fn value_matches_repo(value: &Value, repo_root: &Path) -> bool {
     let repo = normalize_path(repo_root);
     let mut values = Vec::new();
     collect_strings(value, &mut values);
-    values
-        .iter()
-        .map(|value| normalize_text_path(value))
-        .any(|value| value == repo || value.starts_with(&format!("{repo}/")))
+    values.iter().any(|value| {
+        let normalized = normalize_text_path(value);
+        if normalized == repo || normalized.starts_with(&format!("{repo}/")) {
+            return true;
+        }
+        Path::new(value)
+            .canonicalize()
+            .ok()
+            .map(|candidate| normalize_path(&candidate))
+            .is_some_and(|candidate| {
+                candidate == repo || candidate.starts_with(&format!("{repo}/"))
+            })
+    })
 }
 
 fn extract_messages(records: &[Value]) -> Vec<(String, String)> {

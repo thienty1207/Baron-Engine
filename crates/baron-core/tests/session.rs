@@ -127,3 +127,38 @@ fn context_automatically_imports_matched_sessions() {
     assert!(context.project_root.join("Sessions/Imported").exists());
     assert!(output.contains("durable session decision"));
 }
+
+#[test]
+fn session_import_matches_canonical_path_aliases() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let nested = repo.join("nested");
+    let vault = temp.path().join("Vault");
+    let codex = temp.path().join("sessions");
+    fs::create_dir_all(&nested).unwrap();
+    fs::create_dir_all(&codex).unwrap();
+    let aliased_repo = nested.join("..").to_string_lossy().to_string();
+    fs::write(
+        codex.join("aliased-path.jsonl"),
+        format!(
+            "{}\n{}",
+            serde_json::json!({"type":"session_meta","payload":{"cwd":aliased_repo}}),
+            serde_json::json!({"type":"response_item","payload":{"role":"user","content":"Remember the canonical path alias decision"}})
+        ),
+    )
+    .unwrap();
+    std::env::set_var("BARON_CODEX_SESSIONS_ROOT", &codex);
+    std::env::set_var(
+        "BARON_CLAUDE_SESSIONS_ROOT",
+        temp.path().join("missing-claude"),
+    );
+
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let report = import_sessions(&repo, &context, 20).unwrap();
+
+    std::env::remove_var("BARON_CODEX_SESSIONS_ROOT");
+    std::env::remove_var("BARON_CLAUDE_SESSIONS_ROOT");
+
+    assert_eq!(report.imported, 1);
+}
