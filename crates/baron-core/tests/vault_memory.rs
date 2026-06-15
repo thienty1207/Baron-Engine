@@ -301,3 +301,60 @@ fn incremental_index_reuses_refreshes_and_removes_sources() {
         .iter()
         .any(|record| record.path.ends_with("Notes/decision.md")));
 }
+
+#[test]
+fn semantic_recall_bridges_vietnamese_security_and_rls_tenant_isolation() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("semantic-memory");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    write(
+        &context.project_root.join("Decisions.md"),
+        "# Decisions\n\n- Supabase RLS policies enforce tenant isolation for customer records.\n",
+    );
+    build_memory_index(&context).unwrap();
+
+    let result = recall(&context, "bảo mật dữ liệu khách hàng", 5).unwrap();
+
+    assert!(result.results.iter().any(|hit| hit
+        .record
+        .excerpt
+        .contains("Supabase RLS policies enforce tenant isolation")));
+    assert!(result.results[0]
+        .notes
+        .iter()
+        .any(|note| note.contains("concept")));
+}
+
+#[test]
+fn same_slug_memory_firewall_uses_project_identity_not_folder_name() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let first = temp.path().join("one/same-app");
+    let second = temp.path().join("two/same-app");
+    fs::create_dir_all(&first).unwrap();
+    fs::create_dir_all(&second).unwrap();
+    let first_context = ensure_vault(&vault, &first).unwrap();
+    let second_context = ensure_vault(&vault, &second).unwrap();
+    write(
+        &first_context.project_root.join("Facts.md"),
+        "# Facts\n\n- Auth implementation belongs to project one.\n",
+    );
+    write(
+        &second_context.project_root.join("Facts.md"),
+        "# Facts\n\n- Auth implementation belongs to project two.\n",
+    );
+    build_memory_index(&first_context).unwrap();
+
+    let result = recall(&first_context, "auth implementation", 10).unwrap();
+
+    assert!(result
+        .results
+        .iter()
+        .any(|hit| hit.record.excerpt.contains("belongs to project one")));
+    assert!(!result
+        .results
+        .iter()
+        .any(|hit| hit.record.excerpt.contains("belongs to project two")));
+}

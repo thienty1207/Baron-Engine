@@ -5,7 +5,7 @@ use anyhow::Result;
 
 use crate::capability::{load_registry, render_capability_summary};
 use crate::config::AdapterKind;
-use crate::firewall::compact_memory_brief;
+use crate::firewall::compact_memory_brief_for_task;
 use crate::memory::build_memory_index;
 use crate::survey::{survey_repository, ProjectType, RepoSurvey};
 use crate::vault::ensure_vault;
@@ -46,7 +46,7 @@ pub fn compile_context_for_task(
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
     build_memory_index(&vault)?;
-    let memory_brief = compact_memory_brief(&vault)?;
+    let memory_brief = compact_memory_brief_for_task(&vault, task)?;
     let risk = classify_risk(task, &survey);
 
     let mut output = String::new();
