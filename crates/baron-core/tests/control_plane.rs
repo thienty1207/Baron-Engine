@@ -1,7 +1,11 @@
 use std::fs;
 use std::path::Path;
 
-use baron_core::control_plane::validate_control_plane;
+use baron_core::control_plane::{
+    gate_evidence_status, record_gate_evidence, route_task, validate_control_plane,
+};
+use baron_core::risk::RiskLane;
+use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
 fn write(path: &Path, content: &str) {
@@ -110,4 +114,92 @@ fn diagnoses_duplicate_workflow_ownership_and_recursive_agent_orchestration() {
         .diagnostics
         .iter()
         .any(|item| item.contains("recursive subagent orchestration")));
+}
+
+#[test]
+fn routes_frontend_tasks_narrowly_with_review_and_test_gates() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let route = route_task(repo, "polish responsive homepage layout", RiskLane::Medium).unwrap();
+
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "superpowers"));
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "frontend-design"));
+    assert!(!route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "vibe-security-scan"));
+    assert_eq!(route.mandatory_agents, ["code-reviewer", "test-engineer"]);
+    assert!(route
+        .skipped
+        .iter()
+        .any(|item| item.contains("vibe-security-scan")));
+}
+
+#[test]
+fn routes_security_tasks_to_security_skill_and_all_core_gates() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let route = route_task(
+        repo,
+        "implement auth login with tenant RLS permissions",
+        RiskLane::High,
+    )
+    .unwrap();
+
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "vibe-security-scan"));
+    assert_eq!(
+        route.mandatory_agents,
+        ["code-reviewer", "security-auditor", "test-engineer"]
+    );
+    assert!(route.explanation.contains("security-sensitive task"));
+}
+
+#[test]
+fn mandatory_gate_evidence_must_be_recorded_before_it_counts() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    install_minimal_codex_contract(&repo);
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let route = route_task(&repo, "auth security review", RiskLane::High).unwrap();
+
+    let missing = gate_evidence_status(&repo, &route.mandatory_agents).unwrap();
+    assert!(!missing.passed);
+    assert_eq!(
+        missing.missing_agents,
+        ["code-reviewer", "security-auditor", "test-engineer"]
+    );
+
+    for agent in &route.mandatory_agents {
+        record_gate_evidence(
+            &repo,
+            &context,
+            agent,
+            &format!("{agent} reviewed auth security with evidence"),
+        )
+        .unwrap();
+    }
+
+    let passed = gate_evidence_status(&repo, &route.mandatory_agents).unwrap();
+    assert!(passed.passed);
+    assert!(passed.missing_agents.is_empty());
+    let repo_evidence = fs::read_to_string(repo.join("docs/baron/control-plane/GATES.md")).unwrap();
+    let vault_evidence =
+        fs::read_to_string(context.project_root.join("ControlPlane/GATES.md")).unwrap();
+    assert!(repo_evidence.contains("security-auditor reviewed auth security"));
+    assert!(vault_evidence.contains("security-auditor reviewed auth security"));
 }

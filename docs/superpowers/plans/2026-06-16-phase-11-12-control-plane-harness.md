@@ -43,14 +43,14 @@
 - Test: `crates/baron-core/tests/control_plane.rs`
 - Test: `crates/baron-cli/tests/control_plane_cli.rs`
 
-- [ ] Write failing tests proving frontend tasks route Superpowers plus `frontend-design`, `code-reviewer`, and `test-engineer`.
-- [ ] Write failing tests proving auth/security tasks route Superpowers plus `vibe-security-scan`, `security-auditor`, `code-reviewer`, and `test-engineer`.
-- [ ] Write failing tests proving routing explains selected and skipped assets.
-- [ ] Write failing tests proving medium/high-risk completion cannot count mandatory agents without gate evidence.
-- [ ] Implement `baron control-plane status|route|record-gate|evidence`.
-- [ ] Mirror gate evidence to Vault Markdown.
-- [ ] Run focused tests until green.
-- [ ] Commit `feat: add explainable quality gate routing`.
+- [x] Write failing tests proving frontend tasks route Superpowers plus `frontend-design`, `code-reviewer`, and `test-engineer`.
+- [x] Write failing tests proving auth/security tasks route Superpowers plus `vibe-security-scan`, `security-auditor`, `code-reviewer`, and `test-engineer`.
+- [x] Write failing tests proving routing explains selected and skipped assets.
+- [x] Write failing tests proving medium/high-risk completion cannot count mandatory agents without gate evidence.
+- [x] Implement `baron control-plane status|route|record-gate|evidence`.
+- [x] Mirror gate evidence to Vault Markdown.
+- [x] Run focused tests until green.
+- [x] Commit `feat: add explainable quality gate routing`.
 
 ### Task 3: Phase 11 Adapter Contract Hardening
 

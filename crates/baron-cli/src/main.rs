@@ -16,6 +16,9 @@ use baron_core::config::{
     AdapterKind,
 };
 use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
+use baron_core::control_plane::{
+    gate_evidence_status, record_gate_evidence, route_task, validate_control_plane,
+};
 use baron_core::firewall::{compact_memory_brief, recall, render_recall};
 use baron_core::harness::{
     harness_status, record_decision, record_friction, start_or_resume_intake,
@@ -121,6 +124,10 @@ enum Commands {
     Capability {
         #[command(subcommand)]
         command: CapabilityCommands,
+    },
+    ControlPlane {
+        #[command(subcommand)]
+        command: ControlPlaneCommands,
     },
     Automation {
         #[command(subcommand)]
@@ -292,6 +299,29 @@ enum CapabilityCommands {
 }
 
 #[derive(Debug, Subcommand)]
+enum ControlPlaneCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Route {
+        task: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t = RiskLaneArg::Medium)]
+        risk: RiskLaneArg,
+    },
+    RecordGate {
+        agent: String,
+        summary: String,
+        repo_path: Option<PathBuf>,
+    },
+    Evidence {
+        repo_path: Option<PathBuf>,
+        #[arg(long = "required")]
+        required: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum AutomationCommands {
     Status {
         repo_path: Option<PathBuf>,
@@ -338,6 +368,13 @@ enum ProviderKindArg {
     Skill,
     Http,
     AgentAdapter,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RiskLaneArg {
+    Low,
+    Medium,
+    High,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -841,6 +878,89 @@ fn run() -> Result<()> {
                 println!("- Removed: `{}`", if removed { "yes" } else { "no" });
             }
         },
+        Some(Commands::ControlPlane { command }) => match command {
+            ControlPlaneCommands::Status { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                let report = validate_control_plane(&repo_root)?;
+                println!("# Baron Control Plane Status\n");
+                println!("- Passed: `{}`", if report.passed { "yes" } else { "no" });
+                println!(
+                    "- Workflow owner: `{}`",
+                    report
+                        .workflow_owner
+                        .unwrap_or_else(|| "missing".to_string())
+                );
+                println!(
+                    "- Mandatory agents: {}",
+                    if report.mandatory_agents.is_empty() {
+                        "none".to_string()
+                    } else {
+                        report.mandatory_agents.join(", ")
+                    }
+                );
+                println!("- Diagnostics: {}", list_or_none(&report.diagnostics));
+            }
+            ControlPlaneCommands::Route {
+                task,
+                repo_path,
+                risk,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let route = route_task(&repo_root, &task, risk.into())?;
+                println!("# Baron Control Plane Route\n");
+                println!("- Task: `{}`", task);
+                println!("- Explanation: {}", route.explanation);
+                println!("\n## Selected Skills\n");
+                for skill in &route.selected_skills {
+                    println!("- `{}`: {}", skill.name, skill.reason);
+                }
+                println!("\n## Mandatory Agent Gates\n");
+                for agent in &route.mandatory_agents {
+                    println!("- `{agent}`");
+                }
+                println!("\n## Skipped\n");
+                if route.skipped.is_empty() {
+                    println!("- none");
+                } else {
+                    for skipped in &route.skipped {
+                        println!("- {skipped}");
+                    }
+                }
+            }
+            ControlPlaneCommands::RecordGate {
+                agent,
+                summary,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let evidence = record_gate_evidence(&repo_root, &vault, &agent, &summary)?;
+                println!("# Baron Control Plane Gate Evidence\n");
+                println!("- Gate evidence recorded");
+                println!("- Agent: `{}`", evidence.agent);
+                println!("- Repo: `{}`", evidence.repo_path.display());
+                println!("- Vault: `{}`", evidence.vault_path.display());
+            }
+            ControlPlaneCommands::Evidence {
+                repo_path,
+                required,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let required = if required.is_empty() {
+                    vec![
+                        "code-reviewer".to_string(),
+                        "security-auditor".to_string(),
+                        "test-engineer".to_string(),
+                    ]
+                } else {
+                    required
+                };
+                let status = gate_evidence_status(&repo_root, &required)?;
+                println!("# Baron Control Plane Evidence\n");
+                println!("- Passed: `{}`", if status.passed { "yes" } else { "no" });
+                println!("- Required: {}", required.join(", "));
+                println!("- Missing: {}", list_or_none(&status.missing_agents));
+            }
+        },
         Some(Commands::Automation { command }) => match command {
             AutomationCommands::Status { repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
@@ -1166,6 +1286,16 @@ impl From<ProviderKindArg> for ProviderKind {
             ProviderKindArg::Skill => ProviderKind::Skill,
             ProviderKindArg::Http => ProviderKind::Http,
             ProviderKindArg::AgentAdapter => ProviderKind::AgentAdapter,
+        }
+    }
+}
+
+impl From<RiskLaneArg> for baron_core::risk::RiskLane {
+    fn from(value: RiskLaneArg) -> Self {
+        match value {
+            RiskLaneArg::Low => Self::Low,
+            RiskLaneArg::Medium => Self::Medium,
+            RiskLaneArg::High => Self::High,
         }
     }
 }
