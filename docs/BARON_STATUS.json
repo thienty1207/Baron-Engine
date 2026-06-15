@@ -6,9 +6,9 @@
   "targetRelease": "2.0.0",
   "targetReleaseCompletionPercent": 45,
   "remainingPhaseCount": 4,
-  "currentPhase": "phase-11-skill-agent-control-plane",
-  "currentPhaseStatus": "planned",
-  "nextAction": "design-and-plan-phase-11",
+  "currentPhase": "phase-11-12-control-plane-self-improving-harness",
+  "currentPhaseStatus": "in_progress",
+  "nextAction": "execute-phase-11-12-tdd-plan",
   "buildConfidence": "Phases 9 and 10 pass local acceptance, full workspace tests, Clippy, and scale/session smokes. Version 2.0.0 claims remain unearned until phases 11 through 14 and cross-platform gates pass.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",

@@ -4,12 +4,12 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 11 - Skill And Agent Control Plane (planned). Phase 9 and Phase 10 are
-implemented and fully verified.
+Phase 11-12 - Control Plane And Self-Improving Harness (in progress).
+Phase 9 and Phase 10 are implemented and fully verified.
 
 ## What Is Being Built
 
-Baron 2.0 continues with four remaining phases:
+Baron 2.0 continues with Phase 11-12 in progress and two later release-blocking phases:
 
 - strict skill and agent control plane
 - self-improving Product Harness
@@ -23,9 +23,10 @@ identity, native Codex/Claude hooks, lifecycle reconciliation, preserved custom
 routing, incremental indexing, multilingual task-aware recall, and automatic
 session import.
 
-Baron 2.0 progress is 45%. The remaining blockers are the Phase 11 control
-plane, Phase 12 self-improving harness, Phase 13 extreme-scale certification,
-and Phase 14 cross-platform release hardening.
+Baron 2.0 progress remains 45% until Phase 11-12 pass implementation, smoke,
+and final verification. The remaining blockers are the Phase 11 control plane,
+Phase 12 self-improving harness, Phase 13 extreme-scale certification, and
+Phase 14 cross-platform release hardening.
 
 ## Verification
 
@@ -101,9 +102,10 @@ and Phase 14 cross-platform release hardening.
 
 ## Next Action
 
-Design and plan Phase 11 - Skill And Agent Control Plane. Preserve all Phase
-9-10 identity, automation, memory, semantic recall, session privacy, and
-custom-routing contracts.
+Implement the Phase 11-12 plan:
+`docs/superpowers/plans/2026-06-16-phase-11-12-control-plane-harness.md`.
+Preserve all Phase 9-10 identity, automation, memory, semantic recall, session
+privacy, and custom-routing contracts.
 
 ## Phase 9-10 Feature Commits
 

@@ -7,9 +7,9 @@ Last updated: 2026-06-15
 - Stable release: `v1.0.0` (Phase 0-8 complete)
 - Baron 2.0 completion: 45%
 - Remaining phases: 4 (Phase 11 through Phase 14)
-- Current phase: Phase 11 - Skill And Agent Control Plane
-- Current phase status: planned
-- Current next action: design and plan Phase 11 from the completed Phase 9-10 baseline
+- Current phase: Phase 11-12 - Control Plane And Self-Improving Harness
+- Current phase status: in progress
+- Current next action: execute `docs/superpowers/plans/2026-06-16-phase-11-12-control-plane-harness.md`
 - Build confidence: Phase 9-10 local acceptance, full workspace tests, Clippy, and scale/session smokes pass; Baron 2.0 release claims remain unearned until Phase 11-14 and cross-platform gates pass
 
 ## Why The Roadmap Continues
