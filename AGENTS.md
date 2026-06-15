@@ -15,8 +15,9 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 8 release hardening builds on the completed Survey Engine, Vault + Memory Firewall, bounded
-Context Compiler, multi-agent adapters, and execution-state gates:
+Baron `v1.0.0` completes Phase 8 release hardening on top of the Survey Engine,
+Vault + Memory Firewall, bounded Context Compiler, multi-agent adapters, and
+execution-state gates:
 
 - `baron survey`
 - `baron survey --json`
@@ -45,7 +46,7 @@ Phase 6 imports useful legacy data into Baron-native structures, validates or
 quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
 runtime only after Baron passes. Phase 7 adds adapter-aware capability
 registration, presence checks, graceful degradation, and structured execution
-evidence. Phase 8 adds native releases, checksums, lifecycle installers, and
+evidence. Phase 8 ships native releases, checksums, lifecycle installers, and
 cross-platform smoke proof without changing Baron's core.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,

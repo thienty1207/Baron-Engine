@@ -4,7 +4,7 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 8 - Release Hardening (implementation in progress).
+Phase 8 - Release Hardening (completed).
 
 ## What Is Being Built
 
@@ -15,13 +15,11 @@ Phase 8 - Release Hardening (implementation in progress).
 
 ## Current Status
 
-Phase 8 implementation is complete locally on
-`codex/phase-8-release-hardening`. Release metadata, checksums, lifecycle
-installers, CI/release workflows, docs, and release smoke tests pass on Windows.
-Hosted Linux and macOS proof remains before the phase can be marked complete.
-The first hosted run exposed a Windows Server 2025 compatibility gap:
-`Get-FileHash` was unavailable. The installer now uses the standard .NET
-SHA-256 implementation and is ready for a second hosted run.
+Phase 8 is merged to `main`, tagged `v1.0.0`, and published on GitHub. Release
+metadata, checksums, lifecycle installers, CI/release workflows, docs, and
+release smoke tests pass. Windows, Linux, Intel macOS, and Apple Silicon macOS
+native jobs pass. The published PowerShell installer completed isolated
+install, update, rollback, and uninstall lifecycle verification.
 
 ## Verification
 
@@ -69,11 +67,15 @@ SHA-256 implementation and is ready for a second hosted run.
 - Phase 7 missing-required-provider negative smoke: passed and blocked completion
 - `docs/BARON_STATUS.json` parse: passed
 - `git diff --check`: passed
+- Phase 8 branch CI `27534373035`: passed on all four native platforms
+- Phase 8 main CI `27534650603`: passed
+- Phase 8 release workflow `27534923497`: passed
+- Published `v1.0.0` install/update/rollback/uninstall lifecycle: passed
 
 ## Next Action
 
-Push the Phase 8 branch and inspect the GitHub-hosted Windows, Linux, Intel
-macOS, and Apple Silicon macOS matrix.
+Maintain the stable `v1.0.0` release and open a new plan only for verified
+follow-up work.
 
 ## Phase 4-5 Feature Commits
 

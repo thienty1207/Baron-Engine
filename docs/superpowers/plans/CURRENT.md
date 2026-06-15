@@ -4,10 +4,10 @@ Last updated: 2026-06-15
 
 ## Current Focus
 
-- Current phase: Phase 8 - Release Hardening
-- Status: `implementation_in_progress`
-- Verification: Phase 7 full suite plus Phase 8 release contract, Windows installer lifecycle, large-repo, shared-Vault, multi-adapter, and degradation smoke pass locally
-- Next action: finish docs, run the complete local release gate, then push for native hosted-runner proof
+- Completed phase: Phase 8 - Release Hardening
+- Status: `completed`
+- Verification: local release gates, four-platform native CI, tagged release workflow, and the published installer lifecycle pass
+- Next action: maintain `v1.0.0` and start a new plan only for verified follow-up work
 
 ## Phase 8 Contract
 
@@ -16,7 +16,7 @@ Last updated: 2026-06-15
 - Checksum verification happens before executable replacement.
 - Update keeps rollback binaries.
 - Uninstall never owns project or Vault data.
-- Local proof cannot substitute for hosted macOS and Linux proof.
+- Hosted Windows, Linux, Intel macOS, and Apple Silicon macOS proof is recorded.
 
 ## Active Documents
 
@@ -27,7 +27,7 @@ Last updated: 2026-06-15
 
 ## Rules
 
-- Do not call Baron 100% complete before Phase 8 release hardening passes.
+- Baron is 100% complete against the Phase 0-8 roadmap for `v1.0.0`.
 - Do not treat installed or detected tools as executed checks.
 - Keep Vault Markdown as memory source of truth.
 - Keep Superpowers and the three core quality agents unchanged.

@@ -4,11 +4,11 @@ Last updated: 2026-06-15
 
 ## Overall
 
-- Completion: 95%
+- Completion: 100%
 - Current phase: Phase 8 - Release Hardening
-- Current phase status: implementation_in_progress
-- Current next action: push Phase 8 and verify the four-platform GitHub Actions matrix
-- Build confidence: all Phase 8 local tests, Clippy, format, Windows installer lifecycle, and release smoke scenarios pass
+- Current phase status: completed
+- Current next action: maintain the stable `v1.0.0` release and triage verified user feedback
+- Build confidence: local gates, four-platform native CI, release packaging, and the published Windows installer lifecycle pass
 
 ## What 100% Means
 
@@ -49,7 +49,7 @@ Completion requires:
 | 5 | Plan/Harness/Proof/Trace | completed | 20% / 20% | plan, harness, proof, trace, completion-gate and mirror tests |
 | 6 | Native Migration And Legacy Retirement | completed | 8% / 8% | transactional migration tests, rollback tests, core asset contracts, full suite, manual smoke |
 | 7 | Baron Capability Registry | completed | 7% / 7% | provider-kind, compatibility, degradation, context, proof/trace, CLI, and adapter automation tests |
-| 8 | Release Hardening | implementation_in_progress | 0% / 5% | local release gates pass; hosted Linux and macOS proof pending |
+| 8 | Release Hardening | completed | 5% / 5% | local release gates, four-platform CI, tagged release workflow, and published installer lifecycle pass |
 
 ## Completion Checklist
 
@@ -147,19 +147,19 @@ Completion requires:
 
 ### Phase 8 - Release Hardening
 
-- [ ] Windows binary release works.
-- [ ] macOS binary release works.
-- [ ] Linux binary release works.
-- [ ] Checksums are generated.
-- [ ] PowerShell and shell installers verify checksums before installation.
-- [ ] Install, update, rollback, and uninstall docs exist.
-- [ ] Fresh project smoke test passes.
-- [ ] Old project smoke test passes.
-- [ ] Very large repository smoke test passes.
-- [ ] Shared Vault multi-project isolation smoke test passes.
-- [ ] Multi-agent adapter smoke test passes.
-- [ ] Capability Registry degradation smoke test passes.
-- [ ] GitHub release assets and version metadata are reproducible.
+- [x] Windows x64 binary release works.
+- [x] Intel and Apple Silicon macOS binary releases work.
+- [x] Linux x64 binary release works.
+- [x] Checksums are generated.
+- [x] PowerShell and shell installers verify checksums before installation.
+- [x] Install, update, rollback, and uninstall docs exist.
+- [x] Fresh project smoke test passes.
+- [x] Old project smoke test passes.
+- [x] Very large repository smoke test passes.
+- [x] Shared Vault multi-project isolation smoke test passes.
+- [x] Multi-agent adapter smoke test passes.
+- [x] Capability Registry degradation smoke test passes.
+- [x] GitHub release assets and version metadata are reproducible.
 
 ## Current Working Files
 
@@ -181,10 +181,13 @@ Completion requires:
 - Phase 8 design: `docs/superpowers/specs/2026-06-15-release-hardening-design.md`
 - Phase 8 plan: `docs/superpowers/plans/2026-06-15-phase-8-release-hardening.md`
 - Phase 8 build log: `notes/build-log/2026-06-15-phase-8-release-hardening.md`
+- Release guide: `docs/RELEASE.md`
+- Published release: `https://github.com/thienty1207/Baron-Engine/releases/tag/v1.0.0`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Do not call Baron complete until every phase checklist is finished and verified.
-If a session is interrupted, read this file and `notes/build-log/CURRENT.md`
-before continuing.
+Baron `1.0.0` is complete against the Phase 0-8 roadmap. Future work must
+preserve the released memory, adapter, proof, capability, and data-safety
+contracts. Read this file and `notes/build-log/CURRENT.md` before starting a
+new phase.

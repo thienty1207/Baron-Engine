@@ -51,7 +51,7 @@ ownership.
 - [x] Add three-adapter lifecycle smoke.
 - [x] Add optional capability degradation smoke and retain existing required
   capability completion-gate coverage.
-- [ ] Run the matrix locally and on each GitHub-hosted operating system.
+- [x] Run the matrix locally and on each GitHub-hosted operating system.
 
 ## Task 6: Documentation And Completion
 
@@ -60,6 +60,6 @@ ownership.
   notes.
 - [x] Run format, full tests, Clippy, package smoke, installer smoke, and
   `git diff --check`.
-- [ ] Push branch and verify the cross-platform CI matrix.
-- [ ] Merge to main, tag `v1.0.0`, and verify release assets.
-- [ ] Mark Phase 8 complete and overall status 100% only after all proof passes.
+- [x] Push branch and verify the cross-platform CI matrix.
+- [x] Merge to main, tag `v1.0.0`, and verify release assets.
+- [x] Mark Phase 8 complete and overall status 100% only after all proof passes.

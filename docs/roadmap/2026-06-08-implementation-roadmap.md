@@ -1,7 +1,7 @@
 # Baron Implementation Roadmap
 
 Date: 2026-06-14
-Status: phases 0 through 7 completed; phase 8 next
+Status: phases 0 through 8 completed; Baron `v1.0.0` released
 
 ## Phase 0 - Foundation Skeleton
 
@@ -282,6 +282,8 @@ Delivered:
 
 Goal: ship Baron as a reliable tool.
 
+Status: completed on 2026-06-15 as `v1.0.0`.
+
 Deliverables:
 
 - Windows binary
@@ -294,6 +296,17 @@ Deliverables:
 - adapter output tests
 - capability degradation tests
 - docs and install flow
+
+Delivered:
+
+- checksum-verified Windows x64, Linux x64, Intel macOS, and Apple Silicon
+  macOS archives
+- safe PowerShell and POSIX install, update, rollback, and uninstall lifecycle
+- deterministic release manifest and SHA-256 verification
+- native four-platform CI and tagged GitHub Release workflow
+- release smoke for fresh, old, large, shared-Vault, multi-adapter, and
+  degraded-capability scenarios
+- published `v1.0.0` lifecycle verification
 
 ## Release Rule
 

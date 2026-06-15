@@ -11,8 +11,7 @@ install/update/rollback/uninstall behavior and cross-platform proof.
 
 - Branch: `codex/phase-8-release-hardening`
 - Worktree: `C:\Users\Ho Thien Ty\.config\superpowers\worktrees\Baron-Engine\phase-8-release-hardening`
-- Status: implementation and all local release gates pass; hosted native-runner
-  proof is next.
+- Status: completed, merged to `main`, tagged `v1.0.0`, and published.
 
 ## Baseline Proof
 
@@ -63,9 +62,8 @@ install/update/rollback/uninstall behavior and cross-platform proof.
 
 ## Exact Resume Point
 
-Push `codex/phase-8-release-hardening`, inspect the four-platform GitHub Actions
-matrix, fix any hosted-runner issue, then merge, tag `v1.0.0`, and verify the
-published release assets before marking Baron 100%.
+No Phase 8 implementation remains. Maintain `v1.0.0`, triage verified release
+feedback, and create a new phase plan before changing released contracts.
 
 ## Hosted Runner Findings
 
@@ -79,3 +77,14 @@ published release assets before marking Baron 100%.
 - Fix: PowerShell installer now computes SHA-256 directly with
   `System.Security.Cryptography.SHA256`, removing the cmdlet dependency.
 - Local installer lifecycle and PowerShell parser checks pass after the fix.
+- Branch CI run `27534373035`: Windows x64, Linux x64, Intel macOS, Apple
+  Silicon macOS, format, and Clippy all passed.
+- Main CI run `27534650603`: passed after merge.
+- Release workflow `27534923497`: version check, four native builds, asset
+  verification, and GitHub Release publication passed.
+- Published release:
+  `https://github.com/thienty1207/Baron-Engine/releases/tag/v1.0.0`
+- Eight release assets were verified: four native archives, two installers,
+  `release-manifest.json`, and `SHA256SUMS`.
+- The published PowerShell installer passed isolated install, update, rollback,
+  and uninstall lifecycle verification without touching project or Vault data.
