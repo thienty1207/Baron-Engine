@@ -188,12 +188,17 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
     install_adapter(&repo, AgentAdapter::Claude).unwrap();
     install_adapter(&repo, AgentAdapter::Generic).unwrap();
 
-    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+    for (path, adapter) in [
+        ("AGENTS.md", "codex"),
+        ("CLAUDE.md", "claude"),
+        ("AGENT.md", "agent"),
+    ] {
         let content = fs::read_to_string(repo.join(path)).unwrap();
         assert!(
-            content.contains("baron capability check"),
+            content.contains(&format!("baron capability check --adapter {adapter}")),
             "{path} must trigger automatic capability refresh"
         );
+        assert!(content.contains(&format!("baron context --{adapter}")));
         assert!(
             content.contains("presence is not execution evidence"),
             "{path} must prevent false tool-backed completion claims"
@@ -204,5 +209,6 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
         fs::read_to_string(repo.join(".claude/commands/baron-context.md")).unwrap();
     assert!(claude_context.contains("baron capability check"));
     let generic_context = fs::read_to_string(repo.join("baron-context.json")).unwrap();
-    assert!(generic_context.contains("\"capabilityCheckCommand\": \"baron capability check\""));
+    assert!(generic_context
+        .contains("\"capabilityCheckCommand\": \"baron capability check --adapter agent\""));
 }

@@ -4,11 +4,11 @@ Last updated: 2026-06-15
 
 ## Overall
 
-- Completion: 88%
-- Current phase: Phase 7 - Baron Capability Registry
-- Current phase status: implementation_in_progress
-- Current next action: write failing core capability registry tests
-- Build confidence: Phase 6 full Rust tests, Clippy, formatting, migration rollback, cross-Vault import, recall, and end-to-end smoke are verified
+- Completion: 95%
+- Current phase: Phase 8 - Release Hardening
+- Current phase status: not_started
+- Current next action: design the cross-platform release and installer contract
+- Build confidence: Phase 7 registry, provider probes, adapter isolation, automatic routing, execution-evidence gates, full Rust tests, and Clippy are verified
 
 ## What 100% Means
 
@@ -48,7 +48,7 @@ Completion requires:
 | 4 | Agent Adapters | completed | 15% / 15% | adapter lifecycle, preservation, multi-adapter and nested-path tests |
 | 5 | Plan/Harness/Proof/Trace | completed | 20% / 20% | plan, harness, proof, trace, completion-gate and mirror tests |
 | 6 | Native Migration And Legacy Retirement | completed | 8% / 8% | transactional migration tests, rollback tests, core asset contracts, full suite, manual smoke |
-| 7 | Baron Capability Registry | implementation_in_progress | 0% / 7% | design and TDD plan recorded; baseline suite passes |
+| 7 | Baron Capability Registry | completed | 7% / 7% | provider-kind, compatibility, degradation, context, proof/trace, CLI, and adapter automation tests |
 | 8 | Release Hardening | not_started | 0% / 5% | none |
 
 ## Completion Checklist
@@ -135,15 +135,15 @@ Completion requires:
 
 ### Phase 7 - Baron Capability Registry
 
-- [ ] Baron registers tools by capability instead of hard-coded tool name.
-- [ ] Registry supports CLI, binary, MCP, skill, HTTP service, and agent adapter providers.
-- [ ] Presence checks report `present`, `missing`, or `unknown` with checked time and evidence.
-- [ ] Baron knows whether the active Codex, Claude, or generic adapter can use each provider.
-- [ ] Missing optional capabilities degrade cleanly instead of breaking normal work.
-- [ ] Missing registered capabilities lower Proof/Trace confidence and appear in diagnostics.
-- [ ] Context includes only a bounded capability summary.
-- [ ] AI cannot claim a tool-backed check ran unless execution evidence exists.
-- [ ] Registry, compatibility, fallback, and false-claim regression tests pass.
+- [x] Baron registers tools by capability instead of hard-coded tool name.
+- [x] Registry supports CLI, binary, MCP, skill, HTTP service, and agent adapter providers.
+- [x] Presence checks report `present`, `missing`, or `unknown` with checked time and evidence.
+- [x] Baron knows whether the active Codex, Claude, or generic adapter can use each provider.
+- [x] Missing optional capabilities degrade cleanly instead of breaking normal work.
+- [x] Missing registered capabilities lower Proof/Trace confidence and appear in diagnostics.
+- [x] Context includes only a bounded capability summary.
+- [x] AI cannot claim a tool-backed check ran unless execution evidence exists.
+- [x] Registry, compatibility, fallback, and false-claim regression tests pass.
 
 ### Phase 8 - Release Hardening
 
@@ -169,6 +169,7 @@ Completion requires:
 - Memory model: `docs/architecture/MEMORY_MODEL.md`
 - Context compiler: `docs/architecture/CONTEXT_COMPILER.md`
 - Adapter model: `docs/architecture/ADAPTERS.md`
+- Capability registry: `docs/architecture/CAPABILITY_REGISTRY.md`
 - Phase 4-5 design: `docs/superpowers/specs/2026-06-14-agent-adapters-execution-engine-design.md`
 - Phase 6-8 roadmap decision log: `notes/build-log/2026-06-15-phase-6-8-roadmap.md`
 - Phase 6 design: `docs/superpowers/specs/2026-06-15-native-migration-legacy-retirement-design.md`

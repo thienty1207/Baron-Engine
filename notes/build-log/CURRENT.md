@@ -4,20 +4,21 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 7 - Baron Capability Registry (implementation in progress).
+Phase 8 - Release Hardening (not started).
 
 ## What Is Being Built
 
-- capability-based tool registration
-- provider presence and compatibility evidence
-- bounded capability summaries for context
-- proof/trace confidence reduction when required tools are unavailable
+- cross-platform release binaries
+- checksum-verifying installers
+- install, update, rollback, and uninstall lifecycle
+- large-repo, shared-Vault, multi-adapter, and degraded-capability release smoke
 
 ## Current Status
 
-Phase 6 is implemented, merged, and pushed. Phase 7 has an approved
-Baron-native design and a test-first implementation plan. The clean Phase 6
-baseline passes in the isolated Phase 7 worktree.
+Phase 7 is implemented and verified on `codex/phase-7-capability-registry`.
+Baron now has a committed capability contract, machine-local presence cache,
+adapter-aware checks, bounded context, automatic adapter routing, and hard
+execution-evidence gates for required providers.
 
 ## Verification
 
@@ -51,10 +52,24 @@ baseline passes in the isolated Phase 7 worktree.
 - manual dry-run/apply/recall/status/rollback smoke: passed
 - Phase 6 full `cargo test --workspace --all-targets`: passed
 - Phase 6 `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 7 registry core tests: passed
+- Phase 7 provider-kind and HTTP/MCP/adapter probe tests: passed
+- Phase 7 capability CLI tests: passed
+- Phase 7 context bounding and adapter cache-isolation tests: passed
+- Phase 7 Proof/Trace false-claim regression tests: passed
+- Phase 7 Codex/Claude/generic automatic startup tests: passed
+- Vault environment race regression: passed 5 consecutive runs
+- Phase 7 full `cargo test --workspace --all-targets`: passed
+- Phase 7 `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 7 `cargo fmt --all -- --check`: passed
+- Phase 7 positive register/check/context/proof/trace/complete smoke: passed
+- Phase 7 missing-required-provider negative smoke: passed and blocked completion
+- `docs/BARON_STATUS.json` parse: passed
+- `git diff --check`: passed
 
 ## Next Action
 
-Write failing core registry tests before adding production code.
+Design Phase 8 Release Hardening before implementation.
 
 ## Phase 4-5 Feature Commits
 

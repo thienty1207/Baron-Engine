@@ -18,12 +18,12 @@ one durable engine:
 
 ## Phase
 
-Current completed phase: `6 - Native Migration And Legacy Retirement`.
+Current completed phase: `7 - Baron Capability Registry`.
 
 Survey, Vault Memory Firewall, Context Compiler, multi-agent adapters, Active
 Plan State, Product Harness, proof gates, trace quality, and transactional
-legacy migration are implemented. Phase 7 adds the Baron Capability Registry.
-Phase 8 is release hardening.
+legacy migration, and the Baron Capability Registry are implemented. Phase 8
+is release hardening.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
@@ -40,6 +40,8 @@ Baron should help an AI agent answer these questions before it edits code:
 - What proof is required before claiming completion?
 - Which trace should be left for the next agent session?
 - Which adapter format does this agent tool need?
+- Which registered capability providers are present and compatible?
+- Which tool-backed claims have real execution evidence?
 
 ## Initial Commands
 
@@ -74,6 +76,10 @@ baron proof status
 baron proof record "<verification>"
 baron trace record "<summary>" --outcome completed
 baron trace score
+baron capability register "security scan" --name security-skill --kind skill --scan .codex/skills/vibe-security-scan --adapter codex --description "Provides defensive repository security review guidance."
+baron capability check
+baron capability list
+baron capability remove "security scan" --name security-skill
 baron migrate agent-bootstrap [repo-path] --dry-run
 baron migrate agent-bootstrap [repo-path]
 baron migrate status [repo-path]
@@ -81,12 +87,38 @@ baron migrate rollback --id <migration-id> [repo-path] --vault <vault-path>
 ```
 
 `survey`, `init --shadow`, `memory status`, `memory index`, `memory compact`,
-`recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, and
-`trace`, and Agent Bootstrap migration are implemented. Release commands remain
-roadmap contracts until Phase 8.
+`recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, `trace`,
+Capability Registry, and Agent Bootstrap migration are implemented. Release
+commands remain roadmap contracts until Phase 8.
 
 Memory and context commands require `--vault <path>` or `BARON_VAULT`. Baron
 does not guess where memory should live.
+
+## Capability Registry
+
+Baron can use optional project tools without becoming dependent on them. A
+project registers the ability it needs, such as `security-scan`,
+`impact-analysis`, or `deploy-verification`, and then lists one or more
+providers for that ability.
+
+Baron keeps three facts separate:
+
+- registered: the project intends to use this provider
+- present: the current machine appears equipped to use it
+- executed: the provider actually ran for this task and produced recorded
+  evidence
+
+This prevents a common AI mistake: seeing that a tool is installed and then
+claiming its check passed without running it.
+
+Provider definitions live in `.baron/capabilities.toml`. Current-machine checks
+live in the rebuildable `.baron/cache/capability-state.json`. CLI, binary, MCP,
+skill, HTTP, and agent-adapter providers are supported.
+
+Agents automatically run `baron capability check` before compact context.
+Missing optional tools produce a visible fallback warning. Missing required
+tools, or required tools without execution evidence, make Proof insufficient
+and prevent Trace from passing.
 
 ## Context Compiler
 

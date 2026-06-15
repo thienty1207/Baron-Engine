@@ -1,7 +1,7 @@
 # Phase 7 Build Log - Baron Capability Registry
 
 Date: 2026-06-15
-Status: implementation_in_progress
+Status: completed
 
 ## Goal
 
@@ -25,12 +25,31 @@ evidence.
 - `cargo build --workspace`: passed
 - `cargo test --workspace --all-targets`: passed
 
-## Current Step
+## Delivered
 
-Task 1: record the Phase 7 design, implementation plan, status, and recovery
-checkpoint.
+- capability-based committed registry
+- rebuildable provider presence cache
+- all six provider kinds
+- active adapter compatibility and cache isolation
+- optional fallback and required gap diagnostics
+- capability CLI with human and JSON output
+- bounded context summary
+- structured capability execution evidence
+- Proof and Trace false-claim gates
+- automatic capability checks in every adapter
+
+## Verification
+
+- focused registry, CLI, context, proof, trace, and adapter tests: passed
+- MCP, HTTP, skill, CLI, binary, and adapter probe coverage: passed
+- old Vault environment tests serialized after a reproduced race
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- status JSON parse and `git diff --check`: passed
+- positive lifecycle smoke: passed
+- missing required provider smoke: Trace correctly failed
 
 ## Next Step
 
-Write failing core registry tests before adding production code.
-
+Merge Phase 7 to `main`, rerun verification on `main`, and push `origin/main`.

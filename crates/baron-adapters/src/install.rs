@@ -30,7 +30,7 @@ pub fn install_adapter(
 }
 
 fn install_codex(repo: &Path) -> Result<InstallReport> {
-    upsert_managed_block(&repo.join("AGENTS.md"), &startup_contract("Codex"))?;
+    upsert_managed_block(&repo.join("AGENTS.md"), &startup_contract("Codex", "codex"))?;
     write_managed_file(&repo.join(".codex/INDEX.md"), &codex_index())?;
     write_managed_file(
         &repo.join(".codex/skills/INDEX.md"),
@@ -51,10 +51,13 @@ fn install_codex(repo: &Path) -> Result<InstallReport> {
 }
 
 fn install_claude(repo: &Path) -> Result<InstallReport> {
-    upsert_managed_block(&repo.join("CLAUDE.md"), &startup_contract("Claude"))?;
+    upsert_managed_block(
+        &repo.join("CLAUDE.md"),
+        &startup_contract("Claude", "claude"),
+    )?;
     write_managed_file(
         &repo.join(".claude/commands/baron-context.md"),
-        "# Baron Context\n\nRun `baron capability check` and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n",
+        "# Baron Context\n\nRun `baron capability check --adapter claude` and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n",
     )?;
     write_managed_file(
         &repo.join(".claude/commands/baron-status.md"),
@@ -78,17 +81,20 @@ fn install_claude(repo: &Path) -> Result<InstallReport> {
 }
 
 fn install_generic(repo: &Path) -> Result<InstallReport> {
-    upsert_managed_block(&repo.join("AGENT.md"), &startup_contract("generic agents"))?;
+    upsert_managed_block(
+        &repo.join("AGENT.md"),
+        &startup_contract("generic agents", "agent"),
+    )?;
     write_managed_file(
         &repo.join("baron-context.md"),
-        "# Baron Context Contract\n\nRun `baron capability check` and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n",
+        "# Baron Context Contract\n\nRun `baron capability check --adapter agent` and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n",
     )?;
     write_managed_file(
         &repo.join("baron-context.json"),
         &serde_json::to_string_pretty(&serde_json::json!({
             "engine": "baron",
             "adapter": "agent",
-            "capabilityCheckCommand": "baron capability check",
+            "capabilityCheckCommand": "baron capability check --adapter agent",
             "contextCommand": "baron context --agent",
             "automatic": true,
             "sourceOfTruth": ["repository", "vault-markdown"]
@@ -113,12 +119,12 @@ fn install_generic(repo: &Path) -> Result<InstallReport> {
     ))
 }
 
-fn startup_contract(agent: &str) -> String {
+fn startup_contract(agent: &str, adapter: &str) -> String {
     format!(
         "# Baron Automatic Agent Contract\n\n\
 You are using Baron through the {agent} adapter.\n\n\
-- At session start, silently run `baron capability check`; capability presence is not execution evidence.\n\
-- At session start, silently run `baron context` and follow its bounded context.\n\
+- At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
+- At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\
 - Create harness intake for medium/high-risk work.\n\

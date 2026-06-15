@@ -15,7 +15,7 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 6 has completed the Survey Engine, Vault + Memory Firewall, bounded
+Phase 7 has completed the Survey Engine, Vault + Memory Firewall, bounded
 Context Compiler, multi-agent adapters, and execution-state gates:
 
 - `baron survey`
@@ -39,11 +39,13 @@ Context Compiler, multi-agent adapters, and execution-state gates:
 - `baron migrate agent-bootstrap [repo-path] --dry-run`
 - `baron migrate agent-bootstrap [repo-path]`
 - `baron migrate <status|rollback>`
+- `baron capability <register|check|list|remove>`
 
 Phase 6 imports useful legacy data into Baron-native structures, validates or
 quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
-runtime only after Baron passes. The next phase is Phase 7 - Baron Capability
-Registry. Phase 8 is Release Hardening.
+runtime only after Baron passes. Phase 7 adds adapter-aware capability
+registration, presence checks, graceful degradation, and structured execution
+evidence. The next phase is Phase 8 - Release Hardening.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -67,6 +69,10 @@ exact resume point.
 - Skills and agents must pass Baron-native contracts before activation.
 - Tool-backed proof requires execution evidence; configured or detected presence
   alone is not proof that a check ran.
+- At session start, agents silently run `baron capability check` before
+  `baron context`; context reads only the bounded cache summary.
+- Missing optional providers degrade with warnings. Missing required providers
+  or missing execution evidence block Proof/Trace completion gates.
 - Baron must include exactly three core quality agents:
   - `code-reviewer`
   - `security-auditor`
@@ -100,6 +106,7 @@ exact resume point.
 6. `docs/architecture/ARCHITECTURE.md`
 7. `docs/architecture/MEMORY_MODEL.md`
 8. `docs/architecture/ADAPTERS.md`
+9. `docs/architecture/CAPABILITY_REGISTRY.md`
 
 ## Build Notes Rule
 
@@ -114,7 +121,7 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For the current foundation through Phase 5, verify:
+For the current foundation through Phase 7, verify:
 
 ```bash
 cargo fmt --all
@@ -137,6 +144,8 @@ cargo run -p baron-cli -- plan status
 cargo run -p baron-cli -- harness status
 cargo run -p baron-cli -- proof status
 cargo run -p baron-cli -- trace score
+cargo run -p baron-cli -- capability list
+cargo run -p baron-cli -- capability check
 ```
 
 Later phases must add deeper smoke tests for `survey`, `init`, `context`,

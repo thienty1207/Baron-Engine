@@ -1,7 +1,7 @@
 # Baron Implementation Roadmap
 
 Date: 2026-06-14
-Status: phases 4 and 5 completed; phase 6 next
+Status: phases 0 through 7 completed; phase 8 next
 
 ## Phase 0 - Foundation Skeleton
 
@@ -233,6 +233,8 @@ Delivered:
 
 ## Phase 7 - Baron Capability Registry
 
+Status: completed on 2026-06-15.
+
 Goal: let Baron know which tools are available, what capability each tool
 provides, whether the active agent can use it, and how missing tools affect
 proof confidence.
@@ -264,6 +266,17 @@ Verification:
 - graceful degradation tests
 - false tool-execution claim regression tests
 - bounded context and shared-Vault smoke tests
+
+Delivered:
+
+- committed `.baron/capabilities.toml` registry and rebuildable machine cache
+- CLI, binary, MCP, skill, HTTP, and agent-adapter provider kinds
+- adapter-specific presence and compatibility observations
+- automatic checks in Codex, Claude, and generic startup contracts
+- bounded context summary with cache isolation between adapters
+- optional-provider degradation and required-provider diagnostics
+- structured capability execution evidence in Proof
+- Trace failure when required capability evidence is absent
 
 ## Phase 8 - Hardening And Release
 

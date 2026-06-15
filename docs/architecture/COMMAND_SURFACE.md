@@ -93,3 +93,18 @@ risk-required tier. This makes the quality gate enforceable by agent runtimes
 instead of being a passive report.
 Detailed traces require a changed project file; Baron-managed config, adapter,
 plan, harness, proof, and trace files are excluded from that evidence.
+
+## Phase 7
+
+```bash
+baron capability register "<capability>" [repo-path] --name <provider> --kind <cli|binary|mcp|skill|http|agent-adapter> [--required] [--command <command>] [--scan <target>] [--adapter <codex|claude|agent>]... --description "<description>"
+baron capability check [capability] [repo-path] [--adapter <codex|claude|agent>] [--json]
+baron capability list [repo-path] [--adapter <codex|claude|agent>] [--json]
+baron capability remove "<capability>" [repo-path] --name <provider>
+baron proof record "<verification>" [repo-path] --capability-evidence "<capability>|<provider>|<result summary>"
+```
+
+Capability definitions are committed in `.baron/capabilities.toml`. Presence
+checks write only `.baron/cache/capability-state.json`. Presence and adapter
+compatibility do not count as task execution; structured proof evidence is
+required before a registered required capability can support completion.

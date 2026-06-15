@@ -1,11 +1,11 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-15",
-  "overallCompletionPercent": 88,
-  "currentPhase": "phase-7-baron-capability-registry",
-  "currentPhaseStatus": "implementation_in_progress",
-  "nextAction": "write-failing-core-capability-registry-tests",
-  "buildConfidence": "Phase 6 full Rust tests, Clippy, formatting, migration rollback, cross-Vault import, recall, and end-to-end smoke are verified",
+  "overallCompletionPercent": 95,
+  "currentPhase": "phase-8-release-hardening",
+  "currentPhaseStatus": "not_started",
+  "nextAction": "design-cross-platform-release-and-installer-contract",
+  "buildConfidence": "Phase 7 registry, provider probes, adapter isolation, automatic routing, execution-evidence gates, full Rust tests, and Clippy are verified",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -116,10 +116,18 @@
     {
       "id": 7,
       "name": "Baron Capability Registry",
-      "status": "implementation_in_progress",
+      "status": "completed",
       "roadmapWeightPercent": 7,
-      "completionPercent": 0,
-      "proof": []
+      "completionPercent": 7,
+      "proof": [
+        "provider-kind and presence-probe tests",
+        "adapter compatibility and cache isolation tests",
+        "graceful degradation and required-gap tests",
+        "bounded context summary tests",
+        "structured proof and trace execution-evidence tests",
+        "Codex Claude and generic automatic startup tests",
+        "full workspace tests and Clippy"
+      ]
     },
     {
       "id": 8,
