@@ -2,8 +2,10 @@ pub mod automation;
 pub mod capability;
 pub mod config;
 pub mod context;
+pub mod control_plane;
 pub mod firewall;
 pub mod harness;
+pub mod harness_improvement;
 pub mod identity;
 pub mod memory;
 pub mod migration;
@@ -21,7 +23,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-10-massive-memory-semantic-recall"
+    "phase-12-self-improving-harness"
 }
 
 #[cfg(test)]
@@ -31,6 +33,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-10-massive-memory-semantic-recall");
+        assert_eq!(phase(), "phase-12-self-improving-harness");
     }
 }

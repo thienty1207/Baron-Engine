@@ -197,10 +197,12 @@ You are using Baron through the {agent} adapter.\n\n\
 - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
 - At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
+- Before selecting skills or agents for meaningful work, silently run `baron control-plane route \"<task>\"` and follow the selected/skipped explanation.\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\
 - Create harness intake for medium/high-risk work.\n\
 - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
 - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\
+- After each mandatory quality gate actually runs, record it with `baron control-plane record-gate <agent> \"<evidence summary>\"`.\n\
 - After actually running a registered provider, attach structured capability evidence with `baron proof record`; then record and run `baron trace score` before claiming completion.\n\
 - Never complete high-risk work when proof is missing or trace quality fails.\n\
 - Treat Vault Markdown as durable memory and unknown facts as unknown.\n"
@@ -217,11 +219,12 @@ fn skills_index(root: &str) -> String {
     format!(
         "# Baron Skill Routing\n\n\
 Do not recursively load every skill. Match the task, then read only the narrow skill body.\n\n\
-| Skill | Role | Trigger |\n\
-| --- | --- | --- |\n\
-| Superpowers | workflow core | planning, TDD, debugging, review, verification |\n\
-| `frontend-design` | optional domain | UI, layout, responsive, accessibility, browser-facing flows |\n\
-| `vibe-security-scan` | optional domain | auth, API, secrets, RLS, uploads, payment, dependencies, permissions |\n\n\
+Run `baron control-plane route \"<task>\"` before loading optional skills.\n\n\
+| Skill | Ownership | Trigger | Exclusion | Evidence | Conflicts |\n\
+| --- | --- | --- | --- | --- | --- |\n\
+| Superpowers | workflow core | planning, TDD, debugging, review, verification | never optional | plan/proof/trace discipline | no other skill may claim workflow ownership |\n\
+| `frontend-design` | optional frontend domain | UI, layout, responsive, accessibility, browser-facing flows | backend-only, CLI-only, security-only tasks | files/screens reviewed, UI verification | must not replace Superpowers or quality gates |\n\
+| `vibe-security-scan` | optional defensive security domain | auth, API, secrets, RLS, uploads, payment, dependencies, permissions | visual-only or copy-only tasks | severity, evidence, fix, verification | must not replace `security-auditor` final gate |\n\n\
 Skill root: `{root}`.\n"
     )
 }
@@ -229,11 +232,12 @@ Skill root: `{root}`.\n"
 fn agents_index() -> String {
     "# Baron Agent Routing\n\n\
 Use the three core quality agents as gates, not as workflow owners. Do not dispatch agents recursively.\n\n\
-| Agent | Gate |\n\
-| --- | --- |\n\
-| `code-reviewer` | correctness, regressions, maintainability, architecture |\n\
-| `security-auditor` | exploitable security and sensitive-memory risks |\n\
-| `test-engineer` | verification evidence and missing coverage |\n"
+Run `baron control-plane route \"<task>\"` before dispatch. After a gate actually runs, record evidence with `baron control-plane record-gate`.\n\n\
+| Agent | Ownership | Trigger | Exclusion | Evidence | Conflicts |\n\
+| --- | --- | --- | --- | --- | --- |\n\
+| `code-reviewer` | core quality gate | meaningful code change, medium/high-risk work | pure docs/status-only updates unless requested | findings or no-issue review with files/proof/trace gaps | must not plan, implement, or call subagents |\n\
+| `security-auditor` | core security gate | auth, permission, tenant/RLS, secrets, upload, payment, dependency, security-sensitive work | non-security low-risk work | severity, evidence, impact, fix, verification | must not provide weaponized exploit steps or call subagents |\n\
+| `test-engineer` | core verification gate | implementation, bugfix, release, proof, regression concern | none for meaningful implementation | exact commands, outcomes, missing coverage | must not replace actual test/proof execution |\n"
         .to_string()
 }
 

@@ -16,9 +16,16 @@ use baron_core::config::{
     AdapterKind,
 };
 use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
+use baron_core::control_plane::{
+    gate_evidence_status, record_gate_evidence, route_task, validate_control_plane,
+};
 use baron_core::firewall::{compact_memory_brief, recall, render_recall};
 use baron_core::harness::{
     harness_status, record_decision, record_friction, start_or_resume_intake,
+};
+use baron_core::harness_improvement::{
+    audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
+    verify_open_stories,
 };
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::migration::{
@@ -122,6 +129,10 @@ enum Commands {
         #[command(subcommand)]
         command: CapabilityCommands,
     },
+    ControlPlane {
+        #[command(subcommand)]
+        command: ControlPlaneCommands,
+    },
     Automation {
         #[command(subcommand)]
         command: AutomationCommands,
@@ -185,6 +196,14 @@ enum HarnessCommands {
     Status {
         repo_path: Option<PathBuf>,
     },
+    Audit {
+        repo_path: Option<PathBuf>,
+    },
+    VerifyAll {
+        repo_path: Option<PathBuf>,
+        #[arg(long, default_value_t = 25)]
+        limit: usize,
+    },
     Intake {
         title: String,
         repo_path: Option<PathBuf>,
@@ -195,6 +214,18 @@ enum HarnessCommands {
     },
     Friction {
         summary: String,
+        repo_path: Option<PathBuf>,
+    },
+    Intervention {
+        summary: String,
+        repo_path: Option<PathBuf>,
+    },
+    Propose {
+        repo_path: Option<PathBuf>,
+    },
+    Outcome {
+        proposal_id: String,
+        outcome: String,
         repo_path: Option<PathBuf>,
     },
 }
@@ -292,6 +323,29 @@ enum CapabilityCommands {
 }
 
 #[derive(Debug, Subcommand)]
+enum ControlPlaneCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Route {
+        task: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t = RiskLaneArg::Medium)]
+        risk: RiskLaneArg,
+    },
+    RecordGate {
+        agent: String,
+        summary: String,
+        repo_path: Option<PathBuf>,
+    },
+    Evidence {
+        repo_path: Option<PathBuf>,
+        #[arg(long = "required")]
+        required: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum AutomationCommands {
     Status {
         repo_path: Option<PathBuf>,
@@ -338,6 +392,13 @@ enum ProviderKindArg {
     Skill,
     Http,
     AgentAdapter,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RiskLaneArg {
+    Low,
+    Medium,
+    High,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -568,6 +629,21 @@ fn run() -> Result<()> {
                 let repo_root = configured_repo(repo_path)?;
                 print!("{}", harness_status(repo_root)?);
             }
+            HarnessCommands::Audit { repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let audit = audit_harness(&repo_root, &vault)?;
+                println!("# Baron Harness Audit\n");
+                println!("- Context-read score: {}", audit.context_read_score);
+                println!("- Open friction: {}", audit.open_friction_count);
+                println!("- Diagnostics: {}", list_or_none(&audit.diagnostics));
+            }
+            HarnessCommands::VerifyAll { repo_path, limit } => {
+                let repo_root = configured_repo(repo_path)?;
+                let report = verify_open_stories(&repo_root, limit)?;
+                println!("# Baron Harness Story Verification\n");
+                println!("- Checked stories: {}", report.checked_count);
+                println!("- Proof gaps: {}", list_or_none(&report.proof_gaps));
+            }
             HarnessCommands::Intake { title, repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let story = start_or_resume_intake(&repo_root, &vault, &title)?;
@@ -593,6 +669,35 @@ fn run() -> Result<()> {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 record_friction(&repo_root, &vault, &summary)?;
                 println!("# Baron Harness Friction\n\n- Friction recorded.");
+            }
+            HarnessCommands::Intervention { summary, repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let record = record_intervention(&repo_root, &vault, &summary)?;
+                println!("# Baron Harness Intervention\n");
+                println!("- Intervention recorded");
+                println!("- Repo: `{}`", record.repo_path.display());
+                println!("- Vault: `{}`", record.vault_path.display());
+            }
+            HarnessCommands::Propose { repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let proposal = propose_improvements(&repo_root, &vault)?;
+                println!("# Baron Harness Improvement Proposals\n");
+                println!("- Proposals: {}", proposal.proposal_count);
+                println!("- IDs: {}", list_or_none(&proposal.proposal_ids));
+                println!("- Human approval: human approval required before core policy or architecture changes");
+                println!("- Repo: `{}`", proposal.repo_path.display());
+                println!("- Vault: `{}`", proposal.vault_path.display());
+            }
+            HarnessCommands::Outcome {
+                proposal_id,
+                outcome,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                record_improvement_outcome(&repo_root, &vault, &proposal_id, &outcome)?;
+                println!("# Baron Harness Improvement Outcome\n");
+                println!("- Outcome recorded");
+                println!("- Proposal: `{proposal_id}`");
             }
         },
         Some(Commands::Proof { command }) => match command {
@@ -839,6 +944,89 @@ fn run() -> Result<()> {
                 println!("- Capability: `{}`", capability);
                 println!("- Provider: `{}`", name);
                 println!("- Removed: `{}`", if removed { "yes" } else { "no" });
+            }
+        },
+        Some(Commands::ControlPlane { command }) => match command {
+            ControlPlaneCommands::Status { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                let report = validate_control_plane(&repo_root)?;
+                println!("# Baron Control Plane Status\n");
+                println!("- Passed: `{}`", if report.passed { "yes" } else { "no" });
+                println!(
+                    "- Workflow owner: `{}`",
+                    report
+                        .workflow_owner
+                        .unwrap_or_else(|| "missing".to_string())
+                );
+                println!(
+                    "- Mandatory agents: {}",
+                    if report.mandatory_agents.is_empty() {
+                        "none".to_string()
+                    } else {
+                        report.mandatory_agents.join(", ")
+                    }
+                );
+                println!("- Diagnostics: {}", list_or_none(&report.diagnostics));
+            }
+            ControlPlaneCommands::Route {
+                task,
+                repo_path,
+                risk,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let route = route_task(&repo_root, &task, risk.into())?;
+                println!("# Baron Control Plane Route\n");
+                println!("- Task: `{}`", task);
+                println!("- Explanation: {}", route.explanation);
+                println!("\n## Selected Skills\n");
+                for skill in &route.selected_skills {
+                    println!("- `{}`: {}", skill.name, skill.reason);
+                }
+                println!("\n## Mandatory Agent Gates\n");
+                for agent in &route.mandatory_agents {
+                    println!("- `{agent}`");
+                }
+                println!("\n## Skipped\n");
+                if route.skipped.is_empty() {
+                    println!("- none");
+                } else {
+                    for skipped in &route.skipped {
+                        println!("- {skipped}");
+                    }
+                }
+            }
+            ControlPlaneCommands::RecordGate {
+                agent,
+                summary,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let evidence = record_gate_evidence(&repo_root, &vault, &agent, &summary)?;
+                println!("# Baron Control Plane Gate Evidence\n");
+                println!("- Gate evidence recorded");
+                println!("- Agent: `{}`", evidence.agent);
+                println!("- Repo: `{}`", evidence.repo_path.display());
+                println!("- Vault: `{}`", evidence.vault_path.display());
+            }
+            ControlPlaneCommands::Evidence {
+                repo_path,
+                required,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let required = if required.is_empty() {
+                    vec![
+                        "code-reviewer".to_string(),
+                        "security-auditor".to_string(),
+                        "test-engineer".to_string(),
+                    ]
+                } else {
+                    required
+                };
+                let status = gate_evidence_status(&repo_root, &required)?;
+                println!("# Baron Control Plane Evidence\n");
+                println!("- Passed: `{}`", if status.passed { "yes" } else { "no" });
+                println!("- Required: {}", required.join(", "));
+                println!("- Missing: {}", list_or_none(&status.missing_agents));
             }
         },
         Some(Commands::Automation { command }) => match command {
@@ -1166,6 +1354,16 @@ impl From<ProviderKindArg> for ProviderKind {
             ProviderKindArg::Skill => ProviderKind::Skill,
             ProviderKindArg::Http => ProviderKind::Http,
             ProviderKindArg::AgentAdapter => ProviderKind::AgentAdapter,
+        }
+    }
+}
+
+impl From<RiskLaneArg> for baron_core::risk::RiskLane {
+    fn from(value: RiskLaneArg) -> Self {
+        match value {
+            RiskLaneArg::Low => Self::Low,
+            RiskLaneArg::Medium => Self::Medium,
+            RiskLaneArg::High => Self::High,
         }
     }
 }

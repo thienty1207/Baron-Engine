@@ -12,6 +12,8 @@ baron-cli
        -> harness engine
        -> proof engine
        -> trace engine
+       -> control-plane engine
+       -> harness improvement engine
        -> release metadata and checksum verifier
   -> baron-adapters
        -> codex adapter
@@ -30,6 +32,8 @@ repo + vault + user task
   -> survey/context compiler
   -> memory firewall
   -> active plan and harness state
+  -> control-plane route and quality-gate evidence
+  -> harness audit and improvement loop
   -> adapter-specific context output
   -> agent work
   -> proof + trace + memory write-back
@@ -50,6 +54,10 @@ repo + vault + user task
 - Update mode must preserve user-owned files.
 - Adapter files use managed markers where possible.
 - Baron must never mark completion without verification evidence.
+- Baron must never count a mandatory skill/agent gate without recorded gate
+  evidence.
+- Baron may propose harness improvements, but must not rewrite core policy or
+  architecture without human approval.
 - Baron must never promote cross-project memory as truth without confidence.
 - Release installers must verify SHA-256 and staged binary version before
   replacing the active executable.

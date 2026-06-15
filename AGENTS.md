@@ -16,8 +16,8 @@ trace quality, and adapter-specific output for multiple agent tools.
 ## Current Phase
 
 Baron `v1.0.0` completes Phase 8 release hardening. Baron `v2.0.0` spans Phase
-9 through Phase 14. Phase 9 and Phase 10 are implemented in the current source;
-Phase 11, Skill And Agent Control Plane, is the next planned phase.
+9 through Phase 14. Phase 9 through Phase 12 are implemented in the current
+source; Phase 13, Extreme Scale Certification, is the next planned phase.
 
 The current source command surface is:
 
@@ -45,6 +45,8 @@ The current source command surface is:
 - `baron migrate <status|rollback>`
 - `baron capability <register|check|list|remove>`
 - `baron automation <status|reconcile|hook>`
+- `baron control-plane <status|route|record-gate|evidence>`
+- `baron harness <audit|verify-all|intervention|propose|outcome>`
 
 Phase 6 imports useful legacy data into Baron-native structures, validates or
 quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
@@ -54,9 +56,10 @@ evidence. Phase 8 ships native releases, checksums, lifecycle installers, and
 cross-platform smoke proof without changing Baron's core. Phase 9-10 add
 IDE-compatible observable automation, collision-resistant identity,
 incremental massive memory, multilingual task-aware recall, and automatic
-session ingestion. Phase 11-14 must add the strict skill/agent control plane,
-self-improving harness, extreme-scale certification, and Baron 2.0 release
-hardening.
+session ingestion. Phase 11-12 add strict skill/agent contracts, explainable
+routing, mandatory gate evidence, context-read scoring, drift audits,
+interventions, improvement proposals, and outcome tracking. Phase 13-14 must
+add extreme-scale certification and Baron 2.0 release hardening.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -77,6 +80,12 @@ exact resume point.
 - Use project ID, not folder basename, as the memory isolation boundary.
 - Keep session import bounded, exact-repo-matched, redacted, and deduplicated.
 - Do not restore fixed file-count truncation in survey or memory indexing.
+- Keep Superpowers as the only workflow core and the three core quality agents
+  as evidence-backed gates.
+- Do not count a mandatory quality gate unless `baron control-plane record-gate`
+  captured evidence that it actually ran.
+- Product Harness may propose improvements, but must not rewrite core policy or
+  architecture without human approval.
 - Vault Markdown remains the source of truth.
 - SQLite/cache/index files are accelerators only.
 - Baron must support old repos through shadow-first onboarding.

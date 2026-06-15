@@ -295,3 +295,44 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
     assert!(generic_context
         .contains("\"capabilityCheckCommand\": \"baron capability check --adapter agent\""));
 }
+
+#[test]
+fn generated_indexes_define_strict_contract_fields_and_control_plane_startup() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    fs::create_dir_all(&repo).unwrap();
+
+    install_adapter(&repo, AgentAdapter::Codex).unwrap();
+    install_adapter(&repo, AgentAdapter::Claude).unwrap();
+    install_adapter(&repo, AgentAdapter::Generic).unwrap();
+
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+        let content = fs::read_to_string(repo.join(path)).unwrap();
+        assert!(
+            content.contains("baron control-plane route"),
+            "{path} must require explainable routing"
+        );
+        assert!(
+            content.contains("baron control-plane record-gate"),
+            "{path} must require quality gate evidence"
+        );
+    }
+
+    for path in [
+        ".codex/skills/INDEX.md",
+        ".claude/skills/INDEX.md",
+        ".baron/core/skills/INDEX.md",
+        ".codex/agents/INDEX.md",
+        ".claude/agents/INDEX.md",
+        ".baron/core/agents/INDEX.md",
+    ] {
+        let content = fs::read_to_string(repo.join(path)).unwrap();
+        for required in ["Ownership", "Trigger", "Exclusion", "Evidence", "Conflicts"] {
+            assert!(content.contains(required), "{path} missing {required}");
+        }
+        assert!(
+            content.contains("baron control-plane"),
+            "{path} must point agents to control-plane validation"
+        );
+    }
+}

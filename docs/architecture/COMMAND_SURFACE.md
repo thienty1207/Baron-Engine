@@ -146,3 +146,31 @@ baron context [repo-path] --task "<task>" --codex|--claude|--agent --vault <vaul
 
 Context automatically imports a bounded batch for initialized projects.
 `memory import-sessions` is the explicit inspection/recovery command.
+
+## Phase 11
+
+```bash
+baron control-plane status [repo-path]
+baron control-plane route "<task>" [repo-path] --risk <low|medium|high>
+baron control-plane record-gate <agent> "<evidence summary>" [repo-path]
+baron control-plane evidence [repo-path] --required <agent>
+```
+
+The control plane validates skill/agent contracts, protects Superpowers as the
+only workflow owner, explains selected and skipped assets, and records evidence
+before a mandatory quality gate counts as run.
+
+## Phase 12
+
+```bash
+baron harness audit [repo-path]
+baron harness verify-all [repo-path] [--limit <n>]
+baron harness intervention "<summary>" [repo-path]
+baron harness propose [repo-path]
+baron harness outcome <proposal-id> "<actual outcome>" [repo-path]
+```
+
+The self-improving harness audits context reads, proof gaps, trace gaps,
+documentation drift, interventions, friction patterns, and proposal outcomes.
+It proposes improvements but does not rewrite core policy without human
+approval.

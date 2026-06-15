@@ -1,16 +1,16 @@
 # Baron Build Status
 
-Last updated: 2026-06-15
+Last updated: 2026-06-16
 
 ## Overall
 
 - Stable release: `v1.0.0` (Phase 0-8 complete)
-- Baron 2.0 completion: 45%
-- Remaining phases: 4 (Phase 11 through Phase 14)
-- Current phase: Phase 11 - Skill And Agent Control Plane
+- Baron 2.0 completion: 80%
+- Remaining phases: 2 (Phase 13 through Phase 14)
+- Current phase: Phase 13 - Extreme Scale Certification
 - Current phase status: planned
-- Current next action: design and plan Phase 11 from the completed Phase 9-10 baseline
-- Build confidence: Phase 9-10 local acceptance, full workspace tests, Clippy, and scale/session smokes pass; Baron 2.0 release claims remain unearned until Phase 11-14 and cross-platform gates pass
+- Current next action: design and plan Phase 13 from the completed Phase 11-12 baseline
+- Build confidence: Phase 11-12 local acceptance, full workspace tests, Clippy, and control-plane/harness smokes pass; Baron 2.0 release claims remain unearned until Phase 13-14 and cross-platform gates pass
 
 ## Why The Roadmap Continues
 
@@ -18,8 +18,6 @@ The `v1.0.0` release is a working foundation, not the final long-horizon
 promise. An adversarial audit found release-blocking gaps for the Baron 2.0
 goal:
 
-- self-improving harness analysis is incomplete
-- skill/agent contracts and mandatory gate execution evidence are not yet complete
 - extreme-scale and cross-platform Baron 2.0 certification is not yet complete
 
 ## What Baron 2.0 100% Means
@@ -80,8 +78,8 @@ remaining-program weights:
 | --- | --- | --- | --- | --- |
 | 9 | Automation Runtime And Project Identity | completed | 20% | collision, lifecycle, reconciliation, native-hook, and custom-routing preservation tests |
 | 10 | Massive Memory And Semantic Recall | completed | 25% | incremental 350-source index, 6,000-file survey, multilingual recall, session import, and bounded-context tests |
-| 11 | Skill And Agent Control Plane | planned | 20% | contract validation, conflict detection, explainable routing, quality-gate execution evidence |
-| 12 | Self-Improving Harness | planned | 15% | context score, drift audit, interventions, verify-all, proposal, and outcome-loop tests |
+| 11 | Skill And Agent Control Plane | completed | 20% | contract validation, conflict detection, explainable routing, quality-gate execution evidence |
+| 12 | Self-Improving Harness | completed | 15% | context score, drift audit, interventions, verify-all, proposal, and outcome-loop tests |
 | 13 | Extreme Scale Certification | planned | 15% | large-repo, large-memory, multi-project, interruption, corruption, move, rename, and soak tests |
 | 14 | Baron 2.0 Release Hardening | planned | 5% | v1 migration, cross-platform CI, installers, rollback, release assets, and final acceptance suite |
 
@@ -218,23 +216,23 @@ remaining-program weights:
 
 ### Phase 11 - Skill And Agent Control Plane
 
-- [ ] Define validated contracts for skill/agent triggers, exclusions, ownership, conflicts, dependencies, inputs, outputs, and evidence.
-- [ ] Keep Superpowers as the workflow core and the three core quality agents as mandatory risk-aware gates.
-- [ ] Route optional assets narrowly without recursive loading.
-- [ ] Explain why each skill/agent was selected or skipped.
-- [ ] Detect duplicate ownership, conflicting instructions, weak contracts, and recursive orchestration.
-- [ ] Preserve custom files and custom routing through init, update, migration, and adapter changes.
-- [ ] Require execution evidence before a mandatory agent gate counts as passed.
+- [x] Define validated contracts for skill/agent triggers, exclusions, ownership, conflicts, dependencies, inputs, outputs, and evidence.
+- [x] Keep Superpowers as the workflow core and the three core quality agents as mandatory risk-aware gates.
+- [x] Route optional assets narrowly without recursive loading.
+- [x] Explain why each skill/agent was selected or skipped.
+- [x] Detect duplicate ownership, conflicting instructions, weak contracts, and recursive orchestration.
+- [x] Preserve custom files and custom routing through init, update, migration, and adapter changes.
+- [x] Require execution evidence before a mandatory agent gate counts as passed.
 
 ### Phase 12 - Self-Improving Harness
 
-- [ ] Score whether required context was actually read.
-- [ ] Audit documentation drift, contradictions, stale rules, and harness entropy.
-- [ ] Record human, reviewer, CI, and agent interventions.
-- [ ] Verify open stories and proof gaps in bounded batches.
-- [ ] Group repeated friction and generate evidence-backed improvement proposals.
-- [ ] Track predicted impact against actual outcomes.
-- [ ] Require human approval before core policy or architecture is rewritten.
+- [x] Score whether required context was actually read.
+- [x] Audit documentation drift, contradictions, stale rules, and harness entropy.
+- [x] Record human, reviewer, CI, and agent interventions.
+- [x] Verify open stories and proof gaps in bounded batches.
+- [x] Group repeated friction and generate evidence-backed improvement proposals.
+- [x] Track predicted impact against actual outcomes.
+- [x] Require human approval before core policy or architecture is rewritten.
 
 ### Phase 13 - Extreme Scale Certification
 
@@ -281,8 +279,8 @@ remaining-program weights:
 
 ## Current Rule
 
-Baron `1.0.0` is complete against the Phase 0-8 roadmap. Baron `2.0.0` is 45%
-complete after Phase 9-10. Future work must preserve the verified identity,
-native automation, incremental memory, semantic recall, adapter, proof,
-capability, and data-safety contracts. Read this file and
-`notes/build-log/CURRENT.md` before starting Phase 11.
+Baron `1.0.0` is complete against the Phase 0-8 roadmap. Baron `2.0.0` is 80%
+complete after Phase 11-12. Future work must preserve the verified identity,
+native automation, incremental memory, semantic recall, control-plane,
+self-improving harness, adapter, proof, capability, and data-safety contracts.
+Read this file and `notes/build-log/CURRENT.md` before starting Phase 13.
