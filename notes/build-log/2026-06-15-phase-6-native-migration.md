@@ -28,6 +28,7 @@ rollback.
 - `fd70349 feat: add transactional legacy migration core`
 - `a1f8f3d feat: expose Baron migration lifecycle`
 - `d5a4b12 feat: make migration and core assets Baron native`
+- `75089ea docs: complete Baron phase 6 migration`
 
 ## Verification
 
