@@ -4,7 +4,7 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 9 - Automation Runtime And Project Identity (planned; implementation not started).
+Phase 9 - Automation Runtime And Project Identity (in progress), followed immediately by Phase 10 - Massive Memory And Semantic Recall.
 
 ## What Is Being Built
 
@@ -19,9 +19,10 @@ Baron 2.0 is a six-phase continuation:
 
 ## Current Status
 
-Phase 8 is merged to `main`, tagged `v1.0.0`, and published on GitHub. Baron
-2.0 implementation has not started. The program design and Phase 9-14 roadmap
-are now the source of truth for remaining work.
+Phase 8 is merged to `main`, tagged `v1.0.0`, and published on GitHub. Phase 9
+and Phase 10 implementation started on branch `codex/phase-9-10` in an isolated
+worktree. The program design, Phase 9-14 roadmap, and the active Phase 9-10 plan
+are the source of truth for remaining work.
 
 The roadmap was extended after an adversarial audit confirmed duplicate-name
 project identity collisions, fixed scan limits, lexical-only recall, custom
@@ -81,9 +82,8 @@ ingestion, and an incomplete harness improvement loop.
 
 ## Next Action
 
-Write and approve the detailed Phase 9 design and implementation plan. Begin
-implementation with failing regressions for duplicate project names, custom
-routing preservation, and observable IDE-compatible lifecycle automation.
+Execute `docs/superpowers/plans/2026-06-15-phase-9-10-automation-memory.md`
+using TDD. Resume at the first unchecked task and record each verified batch.
 
 ## Phase 4-5 Feature Commits
 

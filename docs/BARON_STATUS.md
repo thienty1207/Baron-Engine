@@ -8,8 +8,8 @@ Last updated: 2026-06-15
 - Baron 2.0 completion: 0%
 - Remaining phases: 6 (Phase 9 through Phase 14)
 - Current phase: Phase 9 - Automation Runtime And Project Identity
-- Current phase status: planned, implementation not started
-- Current next action: approve the Phase 9 design and implementation plan
+- Current phase status: in progress
+- Current next action: execute the Phase 9-10 TDD plan on `codex/phase-9-10`
 - Build confidence: `v1.0.0` release gates pass; Baron 2.0 claims remain unearned until Phase 9-14 verification passes
 
 ## Why The Roadmap Continues
