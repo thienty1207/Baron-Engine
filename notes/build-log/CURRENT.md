@@ -1,26 +1,24 @@
 # Current Build Note
 
-Date: 2026-06-14
+Date: 2026-06-15
 
 ## Current Phase
 
-Phase 4-5 - Agent Adapters And Execution Engine.
+Phase 6 - Native Migration And Legacy Retirement.
 
 ## What Is Being Built
 
-- shared `.baron/project.toml` configuration
-- machine-local `.baron/local.toml` Vault routing
-- Codex, Claude, and generic managed adapters
-- user-content and custom-asset preservation
-- Active Plan State
-- Product Harness risk intake
-- proof recording and completion gates
-- trace recording and quality scoring
+- Baron-native migration from legacy Agent Bootstrap projects
+- Vault-contained rollback backups
+- custom skill and agent contract validation
+- quarantine for invalid or conflicting legacy assets
+- verified removal of Agent Bootstrap managed runtime and files
+- Phase 7 Capability Registry design after migration is complete
 
 ## Current Status
 
-Implemented and verified. Final documentation commit and branch integration are
-the only remaining actions.
+Phase 4-5 are implemented, verified, merged, and pushed at `e1e377d`.
+The roadmap now contains eight phases. Phase 6 design has not started.
 
 ## Verification
 
@@ -40,10 +38,15 @@ the only remaining actions.
 - fresh three-adapter/custom-preservation/high-risk lifecycle smoke: passed
 - `docs/BARON_STATUS.json` parse: passed
 - `git diff --check`: passed after normalizing vendored trailing whitespace
+- Phase 4-5 merged and pushed to `origin/main`: passed
+- Phase 6-8 roadmap/status synchronization: passed
+- `docs/BARON_STATUS.json` parse after roadmap extension: passed
+- static phase-reference scan after roadmap extension: passed
 
 ## Next Action
 
-Commit completion evidence, merge to `main`, and push.
+Write and approve the Phase 6 Baron-native migration design before
+implementation. Do not begin Phase 7 until Phase 6 is verified.
 
 ## Phase 4-5 Feature Commits
 
@@ -57,10 +60,16 @@ Commit completion evidence, merge to `main`, and push.
 - `3ee93c5 feat: connect execution state to context and memory`
 - `094891e feat: tighten Baron execution quality gates`
 
-## Phase 4-5 Worktree
+## Roadmap Extension
 
-- Branch: `codex/baron-phase-4-5`
-- Path: `C:\Users\Ho Thien Ty\.config\superpowers\worktrees\Baron-Engine\codex-baron-phase-4-5`
+- Phase 6: Native Migration And Legacy Retirement
+- Phase 7: Baron Capability Registry
+- Phase 8: Release Hardening
+- Decision log: `notes/build-log/2026-06-15-phase-6-8-roadmap.md`
+
+## Completed Phase 4-5 Work
+
+- Branch was merged and deleted.
 - Design: `docs/superpowers/specs/2026-06-14-agent-adapters-execution-engine-design.md`
 - Plan: `docs/superpowers/plans/2026-06-14-phase-4-5-adapters-execution-engine.md`
 
@@ -89,3 +98,6 @@ Commit completion evidence, merge to `main`, and push.
 - Optional bundled domain skills are `frontend-design` and `vibe-security-scan`.
 - Baron must support Codex, Claude, and generic agents through adapters.
 - Shadow-first onboarding is mandatory for old repos.
+- Migration imports data, not Agent Bootstrap architecture or runtime.
+- Skills and agents must satisfy Baron-native contracts before activation.
+- Missing capabilities must reduce confidence instead of producing false claims.

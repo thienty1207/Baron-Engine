@@ -13,16 +13,19 @@ one durable engine:
 - active plan state
 - product harness
 - proof and trace quality gates
+- capability-aware tool routing and evidence
 - adapter-specific output for Codex, Claude, Cursor, and generic agents
 
 ## Phase
 
-Current phase: `5 - Plan, Harness, Proof, and Trace completed`.
+Current phase: `6 - Native Migration And Legacy Retirement design pending`.
 
 This repository intentionally starts with a product spec, roadmap, architecture
 skeleton, and a Rust workspace. Survey, Vault Memory Firewall, Context Compiler,
 multi-agent adapters, Active Plan State, Product Harness, proof gates, and trace
-quality are implemented. Agent Bootstrap Migration is the next major phase.
+quality are implemented. Next, Baron will convert useful legacy project data
+into Baron-native structures and retire Agent Bootstrap managed assets. Phase 7
+adds the Baron Capability Registry. Phase 8 is release hardening.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.

@@ -1,10 +1,10 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-06-14",
+  "lastUpdated": "2026-06-15",
   "overallCompletionPercent": 80,
-  "currentPhase": "phase-5-plan-harness-proof-trace",
-  "currentPhaseStatus": "completed",
-  "nextAction": "phase-6-agent-bootstrap-migration",
+  "currentPhase": "phase-6-native-migration-legacy-retirement",
+  "currentPhaseStatus": "design_pending",
+  "nextAction": "design-phase-6-baron-native-migration-without-agent-bootstrap-runtime",
   "buildConfidence": "full Rust tests, Clippy, format, JSON validation, three-adapter preservation smoke, and high-risk completion smoke are verified",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
@@ -19,7 +19,9 @@
     "active plan state works",
     "Product Harness works",
     "proof and trace quality gates work",
-    "agent-bootstrap migration dry-run works",
+    "legacy project migration converts useful data into Baron-native structures",
+    "legacy runtime and managed files are retired after verified migration",
+    "capability registry prevents false tool-execution claims",
     "release binaries and smoke tests pass"
   ],
   "phases": [
@@ -27,6 +29,7 @@
       "id": 0,
       "name": "Foundation Skeleton",
       "status": "completed",
+      "roadmapWeightPercent": 3,
       "completionPercent": 3,
       "proof": ["cargo test", "help smoke", "initial commit"]
     },
@@ -34,6 +37,7 @@
       "id": 1,
       "name": "Survey Engine",
       "status": "completed",
+      "roadmapWeightPercent": 12,
       "completionPercent": 12,
       "proof": [
         "cargo test",
@@ -46,6 +50,7 @@
       "id": 2,
       "name": "Vault + Memory Firewall",
       "status": "completed",
+      "roadmapWeightPercent": 15,
       "completionPercent": 15,
       "proof": [
         "cargo test",
@@ -58,6 +63,7 @@
       "id": 3,
       "name": "Context Compiler",
       "status": "completed",
+      "roadmapWeightPercent": 15,
       "completionPercent": 15,
       "proof": [
         "cargo test",
@@ -69,6 +75,7 @@
       "id": 4,
       "name": "Agent Adapters",
       "status": "completed",
+      "roadmapWeightPercent": 15,
       "completionPercent": 15,
       "proof": [
         "adapter lifecycle tests",
@@ -80,6 +87,7 @@
       "id": 5,
       "name": "Plan/Harness/Proof/Trace",
       "status": "completed",
+      "roadmapWeightPercent": 20,
       "completionPercent": 20,
       "proof": [
         "plan and harness tests",
@@ -92,15 +100,25 @@
     },
     {
       "id": 6,
-      "name": "Agent Bootstrap Migration",
-      "status": "not_started",
+      "name": "Native Migration And Legacy Retirement",
+      "status": "design_pending",
+      "roadmapWeightPercent": 8,
       "completionPercent": 0,
       "proof": []
     },
     {
       "id": 7,
+      "name": "Baron Capability Registry",
+      "status": "not_started",
+      "roadmapWeightPercent": 7,
+      "completionPercent": 0,
+      "proof": []
+    },
+    {
+      "id": 8,
       "name": "Release Hardening",
       "status": "not_started",
+      "roadmapWeightPercent": 5,
       "completionPercent": 0,
       "proof": []
     }

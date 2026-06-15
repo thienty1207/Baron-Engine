@@ -211,9 +211,12 @@ trace score for its risk lane.
 - automatic adapter instructions
 - full CLI and smoke coverage
 
-## Deferred
+## Deferred At The Time Of This Design
 
-- Agent-bootstrap migration remains Phase 6.
-- Release packaging remains Phase 7.
+- Native migration and legacy retirement remains Phase 6.
+- Baron Capability Registry was later inserted as Phase 7.
+- Release packaging moved to Phase 8.
+- The authoritative roadmap extension is
+  `notes/build-log/2026-06-15-phase-6-8-roadmap.md`.
 - Platform-specific executable hooks that require unstable external schemas are
   not hard-coded; adapters use durable instruction and command surfaces.

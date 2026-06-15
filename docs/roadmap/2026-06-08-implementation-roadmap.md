@@ -183,9 +183,11 @@ Verification:
 - repo/Vault mirror tests
 - execution CLI smoke
 
-## Phase 6 - Migration From Agent Bootstrap
+## Phase 6 - Native Migration And Legacy Retirement
 
-Goal: allow existing `agent-bootstrap` projects to move into Baron safely.
+Goal: recover useful data from legacy Agent Bootstrap projects, convert it into
+Baron-native structures, verify the conversion, and retire the legacy runtime.
+Baron must not carry Agent Bootstrap architecture forward.
 
 Commands:
 
@@ -196,14 +198,61 @@ baron migrate agent-bootstrap
 
 Deliverables:
 
-- read existing `vault.config.json`
-- preserve vault memory
-- preserve plans/harness/traces
-- preserve skills and agents
-- generate Baron adapters
-- keep rollback backups
+- read legacy config and inventory old managed assets in dry-run mode
+- back up the pre-migration project inside Vault migration artifacts
+- convert useful memory, plans, harness records, proof, and traces
+- validate custom skills and agents against Baron contracts
+- quarantine invalid or conflicting custom assets
+- generate Baron-native core assets, adapters, config, and indexes
+- verify imported counts and hashes before cleanup
+- remove Agent Bootstrap managed files and runtime after successful verification
+- support rollback without depending on Agent Bootstrap
 
-## Phase 7 - Hardening And Release
+Verification:
+
+- no-write inventory tests
+- representative legacy project fixtures
+- record-count and content-hash parity tests
+- invalid skill/agent quarantine tests
+- cleanup allowlist tests
+- rollback tests
+- zero Agent Bootstrap runtime dependency scan
+
+## Phase 7 - Baron Capability Registry
+
+Goal: let Baron know which tools are available, what capability each tool
+provides, whether the active agent can use it, and how missing tools affect
+proof confidence.
+
+Commands:
+
+```bash
+baron capability register
+baron capability check
+baron capability list
+baron capability remove
+```
+
+Deliverables:
+
+- capability-based provider registry
+- provider kinds for CLI, binary, MCP, skill, HTTP, and adapter
+- `present`, `missing`, and `unknown` presence states
+- active-adapter compatibility
+- clean fallback behavior for optional capabilities
+- bounded context summary
+- Proof/Trace confidence integration
+- execution evidence requirement before a tool-backed claim is accepted
+
+Verification:
+
+- provider-kind and presence-probe tests
+- capability lookup and adapter compatibility tests
+- graceful degradation tests
+- false tool-execution claim regression tests
+- bounded context and shared-Vault smoke tests
+
+## Phase 8 - Hardening And Release
 
 Goal: ship Baron as a reliable tool.
 
@@ -214,8 +263,10 @@ Deliverables:
 - macOS binary
 - checksum verification
 - smoke tests on old repos
+- smoke tests on very large repos
 - multi-project vault tests
 - adapter output tests
+- capability degradation tests
 - docs and install flow
 
 ## Release Rule
