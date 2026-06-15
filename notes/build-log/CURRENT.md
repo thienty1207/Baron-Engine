@@ -4,7 +4,7 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 8 - Release Hardening (not started).
+Phase 8 - Release Hardening (implementation in progress).
 
 ## What Is Being Built
 
@@ -15,10 +15,10 @@ Phase 8 - Release Hardening (not started).
 
 ## Current Status
 
-Phase 7 is implemented and verified on `codex/phase-7-capability-registry`.
-Baron now has a committed capability contract, machine-local presence cache,
-adapter-aware checks, bounded context, automatic adapter routing, and hard
-execution-evidence gates for required providers.
+Phase 7 is implemented, verified, merged, and pushed. Phase 8 design is locked
+on `codex/phase-8-release-hardening`. Implementation is starting with failing
+tests for version metadata, deterministic artifacts, checksums, installers, and
+the cross-platform release smoke matrix.
 
 ## Verification
 
@@ -69,7 +69,8 @@ execution-evidence gates for required providers.
 
 ## Next Action
 
-Design Phase 8 Release Hardening before implementation.
+Add failing release-contract tests, then implement the Rust release metadata
+contract and Baron `1.0.0` version source of truth.
 
 ## Phase 4-5 Feature Commits
 
@@ -95,6 +96,9 @@ Design Phase 8 Release Hardening before implementation.
 - Phase 7 design: `docs/superpowers/specs/2026-06-15-baron-capability-registry-design.md`
 - Phase 7 plan: `docs/superpowers/plans/2026-06-15-phase-7-capability-registry.md`
 - Phase 7 build log: `notes/build-log/2026-06-15-phase-7-capability-registry.md`
+- Phase 8 design: `docs/superpowers/specs/2026-06-15-release-hardening-design.md`
+- Phase 8 plan: `docs/superpowers/plans/2026-06-15-phase-8-release-hardening.md`
+- Phase 8 build log: `notes/build-log/2026-06-15-phase-8-release-hardening.md`
 
 ## Completed Phase 4-5 Work
 

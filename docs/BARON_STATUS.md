@@ -6,9 +6,9 @@ Last updated: 2026-06-15
 
 - Completion: 95%
 - Current phase: Phase 8 - Release Hardening
-- Current phase status: not_started
-- Current next action: design the cross-platform release and installer contract
-- Build confidence: Phase 7 registry, provider probes, adapter isolation, automatic routing, execution-evidence gates, full Rust tests, and Clippy are verified
+- Current phase status: implementation_in_progress
+- Current next action: add failing release metadata and checksum contract tests
+- Build confidence: Phase 7 is verified; Phase 8 design and clean full-suite baseline are verified
 
 ## What 100% Means
 
@@ -49,7 +49,7 @@ Completion requires:
 | 5 | Plan/Harness/Proof/Trace | completed | 20% / 20% | plan, harness, proof, trace, completion-gate and mirror tests |
 | 6 | Native Migration And Legacy Retirement | completed | 8% / 8% | transactional migration tests, rollback tests, core asset contracts, full suite, manual smoke |
 | 7 | Baron Capability Registry | completed | 7% / 7% | provider-kind, compatibility, degradation, context, proof/trace, CLI, and adapter automation tests |
-| 8 | Release Hardening | not_started | 0% / 5% | none |
+| 8 | Release Hardening | implementation_in_progress | 0% / 5% | design and pre-phase full-suite baseline |
 
 ## Completion Checklist
 
@@ -178,6 +178,9 @@ Completion requires:
 - Phase 7 design: `docs/superpowers/specs/2026-06-15-baron-capability-registry-design.md`
 - Phase 7 plan: `docs/superpowers/plans/2026-06-15-phase-7-capability-registry.md`
 - Phase 7 build log: `notes/build-log/2026-06-15-phase-7-capability-registry.md`
+- Phase 8 design: `docs/superpowers/specs/2026-06-15-release-hardening-design.md`
+- Phase 8 plan: `docs/superpowers/plans/2026-06-15-phase-8-release-hardening.md`
+- Phase 8 build log: `notes/build-log/2026-06-15-phase-8-release-hardening.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule

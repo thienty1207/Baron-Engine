@@ -3,9 +3,9 @@
   "lastUpdated": "2026-06-15",
   "overallCompletionPercent": 95,
   "currentPhase": "phase-8-release-hardening",
-  "currentPhaseStatus": "not_started",
-  "nextAction": "design-cross-platform-release-and-installer-contract",
-  "buildConfidence": "Phase 7 registry, provider probes, adapter isolation, automatic routing, execution-evidence gates, full Rust tests, and Clippy are verified",
+  "currentPhaseStatus": "implementation_in_progress",
+  "nextAction": "add-failing-release-metadata-and-checksum-contract-tests",
+  "buildConfidence": "Phase 7 is verified; Phase 8 design and clean full-suite baseline are verified",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -132,10 +132,14 @@
     {
       "id": 8,
       "name": "Release Hardening",
-      "status": "not_started",
+      "status": "implementation_in_progress",
       "roadmapWeightPercent": 5,
       "completionPercent": 0,
-      "proof": []
+      "proof": [
+        "release hardening design",
+        "pre-phase full workspace test baseline",
+        "pre-phase format baseline"
+      ]
     }
   ],
   "readFirst": [
