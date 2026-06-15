@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
+use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
 
@@ -80,7 +81,8 @@ fn memory_index_creates_vault_and_project_capsule() {
         .stdout(predicate::str::contains("Project slug: `tomoty`"))
         .stdout(predicate::str::contains("memory-index.sqlite"));
 
-    assert!(vault.join("Projects/tomoty/Facts.md").exists());
+    let context = vault_context_without_create(&vault, &repo).unwrap();
+    assert!(context.project_root.join("Facts.md").exists());
     assert!(vault.join("Artifacts/Baron/memory-index.sqlite").exists());
 }
 
@@ -102,8 +104,9 @@ fn memory_compact_prints_bounded_firewall_brief() {
         ])
         .assert()
         .success();
+    let context = vault_context_without_create(&vault, &repo).unwrap();
     write(
-        &vault.join("Projects/tomoty/Facts.md"),
+        &context.project_root.join("Facts.md"),
         "# Facts\n\n- Survey engine proof is verified.\n",
     );
 
@@ -153,12 +156,14 @@ fn recall_returns_current_project_before_other_project() {
         ])
         .assert()
         .success();
+    let tomoty_context = vault_context_without_create(&vault, &tomoty).unwrap();
+    let legacy_context = vault_context_without_create(&vault, &legacy).unwrap();
     write(
-        &vault.join("Projects/tomoty/Facts.md"),
+        &tomoty_context.project_root.join("Facts.md"),
         "# Facts\n\n- Auth login uses Rust Axum.\n",
     );
     write(
-        &vault.join("Projects/legacy-crm/Facts.md"),
+        &legacy_context.project_root.join("Facts.md"),
         "# Facts\n\n- Auth login uses legacy PHP.\n",
     );
 

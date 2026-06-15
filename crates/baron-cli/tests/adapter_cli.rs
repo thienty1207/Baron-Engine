@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use assert_cmd::Command;
+use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
 
@@ -36,7 +37,8 @@ fn non_shadow_init_installs_codex_and_configuration() {
     assert!(repo.join(".baron/local.toml").exists());
     assert!(repo.join("AGENTS.md").exists());
     assert!(repo.join(".codex/skills/superpowers/SKILL.md").exists());
-    assert!(vault.join("Projects/demo/Facts.md").exists());
+    let context = vault_context_without_create(&vault, &repo).unwrap();
+    assert!(context.project_root.join("Facts.md").exists());
 }
 
 #[test]

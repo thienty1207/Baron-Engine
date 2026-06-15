@@ -5,6 +5,8 @@ use anyhow::{Context, Result};
 
 const START: &str = "<!-- BARON:MANAGED:START -->";
 const END: &str = "<!-- BARON:MANAGED:END -->";
+const ROUTING_START: &str = "<!-- BARON:ROUTING:START -->";
+const ROUTING_END: &str = "<!-- BARON:ROUTING:END -->";
 
 pub fn upsert_managed_block(path: &Path, body: &str) -> Result<()> {
     let block = format!("{START}\n{}\n{END}", body.trim());
@@ -22,6 +24,32 @@ pub fn upsert_managed_block(path: &Path, body: &str) -> Result<()> {
 
 pub fn write_managed_file(path: &Path, content: &str) -> Result<()> {
     atomic_write(path, content)
+}
+
+pub fn upsert_routing_block(
+    path: &Path,
+    managed_body: &str,
+    custom_heading: &str,
+    custom_guidance: &str,
+) -> Result<()> {
+    let block = format!("{ROUTING_START}\n{}\n{ROUTING_END}", managed_body.trim());
+    let existing = fs::read_to_string(path).unwrap_or_default();
+    let preserved = match (existing.find(ROUTING_START), existing.find(ROUTING_END)) {
+        (Some(start), Some(end)) if end >= start => {
+            let end = end + ROUTING_END.len();
+            format!("{}{}", &existing[..start], &existing[end..])
+        }
+        _ => existing
+            .find(custom_heading)
+            .map(|index| existing[index..].to_string())
+            .unwrap_or(existing),
+    };
+    let preserved = if preserved.trim().is_empty() {
+        format!("{custom_heading}\n\n{custom_guidance}")
+    } else {
+        preserved.trim().to_string()
+    };
+    atomic_write(path, &format!("{block}\n\n{preserved}\n"))
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<()> {

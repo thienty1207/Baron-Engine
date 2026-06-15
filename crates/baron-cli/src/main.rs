@@ -1,7 +1,11 @@
+use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use baron_adapters::{install_adapter, shadow_preview, AgentAdapter};
+use baron_core::automation::{
+    automation_status, handle_hook, reconcile, record_lifecycle_event, AutomationEvent, HookAdapter,
+};
 use baron_core::capability::{
     check_capabilities, load_capability_state, load_registry, register_provider, remove_provider,
     CapabilityExecutionEvidence, CapabilityProvider, CheckOptions, Presence, ProviderKind,
@@ -116,6 +120,10 @@ enum Commands {
     Capability {
         #[command(subcommand)]
         command: CapabilityCommands,
+    },
+    Automation {
+        #[command(subcommand)]
+        command: AutomationCommands,
     },
     #[command(hide = true)]
     Release {
@@ -278,6 +286,23 @@ enum CapabilityCommands {
 }
 
 #[derive(Debug, Subcommand)]
+enum AutomationCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Reconcile {
+        repo_path: Option<PathBuf>,
+    },
+    Hook {
+        #[arg(value_enum)]
+        event: AutomationEventArg,
+        repo_path: Option<PathBuf>,
+        #[arg(long, value_enum)]
+        adapter: AdapterArg,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum ReleaseCommands {
     Metadata {
         artifacts_dir: PathBuf,
@@ -314,6 +339,19 @@ enum AdapterArg {
     Codex,
     Claude,
     Agent,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AutomationEventArg {
+    SessionStart,
+    Prompt,
+    Checkpoint,
+    ContextCompiled,
+    PlanStarted,
+    HarnessStarted,
+    ProofRecorded,
+    TraceScored,
+    Stop,
 }
 
 fn main() {
@@ -452,10 +490,15 @@ fn run() -> Result<()> {
             if why {
                 print!("{}", compile_context_why(repo_path, vault_path, target)?);
             } else {
-                print!(
-                    "{}",
-                    compile_context_for_task(repo_path, vault_path, target, task.as_deref(),)?
-                );
+                let output =
+                    compile_context_for_task(&repo_path, &vault_path, target, task.as_deref())?;
+                let vault_context = ensure_vault(&vault_path, &repo_path)?;
+                record_lifecycle_event(
+                    &vault_context,
+                    hook_adapter_for_repo(&repo_path),
+                    AutomationEvent::ContextCompiled,
+                )?;
+                print!("{}", output);
             }
         }
         Some(Commands::Plan { command }) => match command {
@@ -466,6 +509,11 @@ fn run() -> Result<()> {
             PlanCommands::Start { title, repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let plan = start_or_resume_plan(&repo_root, &vault, &title)?;
+                record_lifecycle_event(
+                    &vault,
+                    hook_adapter_for_repo(&repo_root),
+                    AutomationEvent::PlanStarted,
+                )?;
                 println!("# Baron Plan Start\n");
                 println!("- Title: {}", plan.title);
                 println!("- Risk: `{}`", plan.risk.as_str());
@@ -502,6 +550,11 @@ fn run() -> Result<()> {
             HarnessCommands::Intake { title, repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let story = start_or_resume_intake(&repo_root, &vault, &title)?;
+                record_lifecycle_event(
+                    &vault,
+                    hook_adapter_for_repo(&repo_root),
+                    AutomationEvent::HarnessStarted,
+                )?;
                 println!("# Baron Harness Intake\n");
                 println!("- Title: {}", story.title);
                 println!("- Risk: `{}`", story.risk.as_str());
@@ -546,6 +599,11 @@ fn run() -> Result<()> {
                         &capability_evidence,
                     )?
                 };
+                record_lifecycle_event(
+                    &vault,
+                    hook_adapter_for_repo(&repo_root),
+                    AutomationEvent::ProofRecorded,
+                )?;
                 println!("# Baron Proof Record\n");
                 println!("- Proof ID: `{}`", proof.id);
                 println!("- Evidence: {}", proof.summary);
@@ -577,6 +635,11 @@ fn run() -> Result<()> {
             TraceCommands::Score { repo_path, id } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let score = score_trace(&repo_root, &vault, id.as_deref())?;
+                record_lifecycle_event(
+                    &vault,
+                    hook_adapter_for_repo(&repo_root),
+                    AutomationEvent::TraceScored,
+                )?;
                 println!("# Baron Trace Score\n");
                 println!("- Achieved: `{}`", score.achieved.as_str());
                 println!("- Required: `{}`", score.required.as_str());
@@ -755,6 +818,33 @@ fn run() -> Result<()> {
                 println!("- Capability: `{}`", capability);
                 println!("- Provider: `{}`", name);
                 println!("- Removed: `{}`", if removed { "yes" } else { "no" });
+            }
+        },
+        Some(Commands::Automation { command }) => match command {
+            AutomationCommands::Status { repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                print!("{}", automation_status(&repo_root, &vault)?);
+            }
+            AutomationCommands::Reconcile { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                let report = reconcile(&repo_root)?;
+                println!("# Baron Automation Reconciliation\n");
+                println!("- Passed: `{}`", if report.passed { "yes" } else { "no" });
+                println!("- Active plan: `{}`", report.active_plan);
+                println!("- Gaps: {}", list_or_none(&report.gaps));
+            }
+            AutomationCommands::Hook {
+                event,
+                repo_path,
+                adapter,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let mut payload = String::new();
+                std::io::stdin().read_to_string(&mut payload)?;
+                println!(
+                    "{}",
+                    handle_hook(&repo_root, &vault, adapter.into(), event.into(), &payload)?
+                );
             }
         },
         Some(Commands::Release { command }) => match command {
@@ -1024,6 +1114,17 @@ fn execution_context(
     Ok((repo_root, vault))
 }
 
+fn hook_adapter_for_repo(repo_root: &std::path::Path) -> HookAdapter {
+    match load_project_config(repo_root)
+        .ok()
+        .and_then(|config| config.adapters.first().copied())
+    {
+        Some(AdapterKind::Codex) => HookAdapter::Codex,
+        Some(AdapterKind::Claude) => HookAdapter::Claude,
+        Some(AdapterKind::Generic) | None => HookAdapter::Agent,
+    }
+}
+
 impl From<OutcomeArg> for TraceOutcome {
     fn from(value: OutcomeArg) -> Self {
         match value {
@@ -1054,6 +1155,32 @@ impl From<AdapterArg> for AdapterKind {
             AdapterArg::Codex => AdapterKind::Codex,
             AdapterArg::Claude => AdapterKind::Claude,
             AdapterArg::Agent => AdapterKind::Generic,
+        }
+    }
+}
+
+impl From<AdapterArg> for HookAdapter {
+    fn from(value: AdapterArg) -> Self {
+        match value {
+            AdapterArg::Codex => HookAdapter::Codex,
+            AdapterArg::Claude => HookAdapter::Claude,
+            AdapterArg::Agent => HookAdapter::Agent,
+        }
+    }
+}
+
+impl From<AutomationEventArg> for AutomationEvent {
+    fn from(value: AutomationEventArg) -> Self {
+        match value {
+            AutomationEventArg::SessionStart => AutomationEvent::SessionStart,
+            AutomationEventArg::Prompt => AutomationEvent::Prompt,
+            AutomationEventArg::Checkpoint => AutomationEvent::Checkpoint,
+            AutomationEventArg::ContextCompiled => AutomationEvent::ContextCompiled,
+            AutomationEventArg::PlanStarted => AutomationEvent::PlanStarted,
+            AutomationEventArg::HarnessStarted => AutomationEvent::HarnessStarted,
+            AutomationEventArg::ProofRecorded => AutomationEvent::ProofRecorded,
+            AutomationEventArg::TraceScored => AutomationEvent::TraceScored,
+            AutomationEventArg::Stop => AutomationEvent::Stop,
         }
     }
 }

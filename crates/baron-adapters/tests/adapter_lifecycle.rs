@@ -30,6 +30,14 @@ fn codex_adapter_installs_core_and_optional_assets() {
     assert!(repo.join(".codex/agents/code-reviewer.toml").exists());
     assert!(repo.join(".codex/agents/security-auditor.toml").exists());
     assert!(repo.join(".codex/agents/test-engineer.toml").exists());
+    let hooks: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(repo.join(".codex/hooks.json")).unwrap()).unwrap();
+    assert!(hooks["hooks"]["SessionStart"]
+        .to_string()
+        .contains("baron automation hook session-start"));
+    assert!(hooks["hooks"]["Stop"]
+        .to_string()
+        .contains("baron automation hook stop"));
 }
 
 #[test]
@@ -48,6 +56,57 @@ fn claude_adapter_installs_same_core_in_claude_shapes() {
     assert!(repo.join(".claude/agents/code-reviewer.md").exists());
     assert!(repo.join(".claude/agents/security-auditor.md").exists());
     assert!(repo.join(".claude/agents/test-engineer.md").exists());
+    let hooks: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(repo.join(".claude/settings.json")).unwrap())
+            .unwrap();
+    assert!(hooks["hooks"]["SessionStart"]
+        .to_string()
+        .contains("baron automation hook session-start"));
+    assert!(hooks["hooks"]["Stop"]
+        .to_string()
+        .contains("baron automation hook stop"));
+}
+
+#[test]
+fn repeated_adapter_updates_preserve_custom_native_hooks() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    write(
+        &repo.join(".codex/hooks.json"),
+        r#"{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "custom-start-command"
+          }
+        ]
+      }
+    ]
+  }
+}
+"#,
+    );
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    let content = fs::read_to_string(repo.join(".codex/hooks.json")).unwrap();
+    assert!(content.contains("custom-start-command"));
+    let hooks: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let baron_groups = hooks["hooks"]["SessionStart"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| {
+            entry
+                .to_string()
+                .contains("baron automation hook session-start")
+        })
+        .count();
+    assert_eq!(baron_groups, 1);
 }
 
 #[test]
@@ -106,6 +165,30 @@ fn update_preserves_custom_skills_and_agents() {
 
     assert!(repo.join(".codex/skills/rust-api/SKILL.md").exists());
     assert!(repo.join(".codex/agents/backend-development.toml").exists());
+}
+
+#[test]
+fn update_preserves_custom_skill_and_agent_routing_entries() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    write(
+        &repo.join(".codex/skills/INDEX.md"),
+        "# Existing Routing\n\n## Custom Skills\n\n- `rust-api`: use for Axum backend work.\n",
+    );
+    write(
+        &repo.join(".codex/agents/INDEX.md"),
+        "# Existing Agent Routing\n\n## Custom Agents\n\n- `backend-development`: owns Rust API implementation.\n",
+    );
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    let skills = fs::read_to_string(repo.join(".codex/skills/INDEX.md")).unwrap();
+    let agents = fs::read_to_string(repo.join(".codex/agents/INDEX.md")).unwrap();
+    assert!(skills.contains("- `rust-api`: use for Axum backend work."));
+    assert!(agents.contains("- `backend-development`: owns Rust API implementation."));
+    assert_eq!(skills.matches("BARON:ROUTING:START").count(), 1);
+    assert_eq!(agents.matches("BARON:ROUTING:START").count(), 1);
 }
 
 #[test]

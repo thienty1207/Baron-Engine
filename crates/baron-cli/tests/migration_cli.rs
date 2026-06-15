@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
+use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
 
@@ -115,12 +116,11 @@ fn apply_installs_baron_imports_memory_and_retires_legacy_runtime() {
     assert!(repo.join(".codex/skills/rust-api/SKILL.md").exists());
     assert!(!repo.join("scripts/agent-memory.js").exists());
     assert!(!repo.join("vault.config.json").exists());
-    assert!(vault.join("Projects/legacy-app/Facts.md").exists());
-    assert!(
-        fs::read_to_string(vault.join("Projects/legacy-app/Facts.md"))
-            .unwrap()
-            .contains("Login uses email")
-    );
+    let context = vault_context_without_create(&vault, &repo).unwrap();
+    assert!(context.project_root.join("Facts.md").exists());
+    assert!(fs::read_to_string(context.project_root.join("Facts.md"))
+        .unwrap()
+        .contains("Login uses email"));
     let agents = fs::read_to_string(repo.join("AGENTS.md")).unwrap();
     assert!(agents.contains("Preserve this."));
     assert!(agents.contains("BARON:MANAGED:START"));
