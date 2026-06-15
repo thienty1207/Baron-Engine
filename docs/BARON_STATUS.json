@@ -3,8 +3,8 @@
   "lastUpdated": "2026-06-15",
   "overallCompletionPercent": 80,
   "currentPhase": "phase-6-native-migration-legacy-retirement",
-  "currentPhaseStatus": "design_pending",
-  "nextAction": "design-phase-6-baron-native-migration-without-agent-bootstrap-runtime",
+  "currentPhaseStatus": "implementation_in_progress",
+  "nextAction": "write-failing-migration-inventory-and-dry-run-tests",
   "buildConfidence": "full Rust tests, Clippy, format, JSON validation, three-adapter preservation smoke, and high-risk completion smoke are verified",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
@@ -101,10 +101,13 @@
     {
       "id": 6,
       "name": "Native Migration And Legacy Retirement",
-      "status": "design_pending",
+      "status": "implementation_in_progress",
       "roadmapWeightPercent": 8,
       "completionPercent": 0,
-      "proof": []
+      "proof": [
+        "approved native migration design",
+        "task-level implementation plan"
+      ]
     },
     {
       "id": 7,

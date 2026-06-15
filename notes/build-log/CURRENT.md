@@ -18,7 +18,8 @@ Phase 6 - Native Migration And Legacy Retirement.
 ## Current Status
 
 Phase 4-5 are implemented, verified, merged, and pushed at `e1e377d`.
-The roadmap now contains eight phases. Phase 6 design has not started.
+Phase 6 design is approved and implementation is in progress on
+`codex/phase-6-native-migration`.
 
 ## Verification
 
@@ -45,8 +46,9 @@ The roadmap now contains eight phases. Phase 6 design has not started.
 
 ## Next Action
 
-Write and approve the Phase 6 Baron-native migration design before
-implementation. Do not begin Phase 7 until Phase 6 is verified.
+Write failing migration inventory and dry-run tests. Then implement the
+read-only scanner before any migration writes. Do not begin Phase 7 until
+Phase 6 is verified.
 
 ## Phase 4-5 Feature Commits
 
@@ -66,6 +68,8 @@ implementation. Do not begin Phase 7 until Phase 6 is verified.
 - Phase 7: Baron Capability Registry
 - Phase 8: Release Hardening
 - Decision log: `notes/build-log/2026-06-15-phase-6-8-roadmap.md`
+- Phase 6 design: `docs/superpowers/specs/2026-06-15-native-migration-legacy-retirement-design.md`
+- Phase 6 plan: `docs/superpowers/plans/2026-06-15-phase-6-native-migration.md`
 
 ## Completed Phase 4-5 Work
 

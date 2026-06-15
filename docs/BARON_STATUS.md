@@ -6,8 +6,8 @@ Last updated: 2026-06-15
 
 - Completion: 80%
 - Current phase: Phase 6 - Native Migration And Legacy Retirement
-- Current phase status: design_pending
-- Current next action: design and implement Baron-native migration without carrying Agent Bootstrap runtime or architecture forward
+- Current phase status: implementation_in_progress
+- Current next action: write failing migration inventory and dry-run tests
 - Build confidence: full Rust tests, Clippy, format, JSON validation, three-adapter preservation smoke, and high-risk completion smoke are verified
 
 ## What 100% Means
@@ -47,7 +47,7 @@ Completion requires:
 | 3 | Context Compiler | completed | 15% / 15% | `cargo test`, context core/CLI tests, adapter/risk/why smoke |
 | 4 | Agent Adapters | completed | 15% / 15% | adapter lifecycle, preservation, multi-adapter and nested-path tests |
 | 5 | Plan/Harness/Proof/Trace | completed | 20% / 20% | plan, harness, proof, trace, completion-gate and mirror tests |
-| 6 | Native Migration And Legacy Retirement | design_pending | 0% / 8% | none |
+| 6 | Native Migration And Legacy Retirement | implementation_in_progress | 0% / 8% | approved design and implementation plan |
 | 7 | Baron Capability Registry | not_started | 0% / 7% | none |
 | 8 | Release Hardening | not_started | 0% / 5% | none |
 
@@ -171,6 +171,8 @@ Completion requires:
 - Adapter model: `docs/architecture/ADAPTERS.md`
 - Phase 4-5 design: `docs/superpowers/specs/2026-06-14-agent-adapters-execution-engine-design.md`
 - Phase 6-8 roadmap decision log: `notes/build-log/2026-06-15-phase-6-8-roadmap.md`
+- Phase 6 design: `docs/superpowers/specs/2026-06-15-native-migration-legacy-retirement-design.md`
+- Phase 6 plan: `docs/superpowers/plans/2026-06-15-phase-6-native-migration.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
