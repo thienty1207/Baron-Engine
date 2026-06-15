@@ -27,7 +27,8 @@ Implementation started. Read `docs/superpowers/plans/2026-06-16-phase-11-12-cont
 - control-plane route and gate evidence core/CLI tests: passed
 - adapter strict contract and preservation tests: passed
 - harness audit, drift, context-read, and intervention tests: passed
+- harness story verification, proposal, outcome core/CLI tests: passed
 
 ## Resume Point
 
-Start Task 5: add story verification, improvement proposals, and outcomes.
+Start Task 6: add bounded context summaries, docs, final verification, and merge.

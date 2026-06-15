@@ -23,6 +23,10 @@ use baron_core::firewall::{compact_memory_brief, recall, render_recall};
 use baron_core::harness::{
     harness_status, record_decision, record_friction, start_or_resume_intake,
 };
+use baron_core::harness_improvement::{
+    audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
+    verify_open_stories,
+};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
@@ -192,6 +196,14 @@ enum HarnessCommands {
     Status {
         repo_path: Option<PathBuf>,
     },
+    Audit {
+        repo_path: Option<PathBuf>,
+    },
+    VerifyAll {
+        repo_path: Option<PathBuf>,
+        #[arg(long, default_value_t = 25)]
+        limit: usize,
+    },
     Intake {
         title: String,
         repo_path: Option<PathBuf>,
@@ -202,6 +214,18 @@ enum HarnessCommands {
     },
     Friction {
         summary: String,
+        repo_path: Option<PathBuf>,
+    },
+    Intervention {
+        summary: String,
+        repo_path: Option<PathBuf>,
+    },
+    Propose {
+        repo_path: Option<PathBuf>,
+    },
+    Outcome {
+        proposal_id: String,
+        outcome: String,
         repo_path: Option<PathBuf>,
     },
 }
@@ -605,6 +629,21 @@ fn run() -> Result<()> {
                 let repo_root = configured_repo(repo_path)?;
                 print!("{}", harness_status(repo_root)?);
             }
+            HarnessCommands::Audit { repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let audit = audit_harness(&repo_root, &vault)?;
+                println!("# Baron Harness Audit\n");
+                println!("- Context-read score: {}", audit.context_read_score);
+                println!("- Open friction: {}", audit.open_friction_count);
+                println!("- Diagnostics: {}", list_or_none(&audit.diagnostics));
+            }
+            HarnessCommands::VerifyAll { repo_path, limit } => {
+                let repo_root = configured_repo(repo_path)?;
+                let report = verify_open_stories(&repo_root, limit)?;
+                println!("# Baron Harness Story Verification\n");
+                println!("- Checked stories: {}", report.checked_count);
+                println!("- Proof gaps: {}", list_or_none(&report.proof_gaps));
+            }
             HarnessCommands::Intake { title, repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let story = start_or_resume_intake(&repo_root, &vault, &title)?;
@@ -630,6 +669,35 @@ fn run() -> Result<()> {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 record_friction(&repo_root, &vault, &summary)?;
                 println!("# Baron Harness Friction\n\n- Friction recorded.");
+            }
+            HarnessCommands::Intervention { summary, repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let record = record_intervention(&repo_root, &vault, &summary)?;
+                println!("# Baron Harness Intervention\n");
+                println!("- Intervention recorded");
+                println!("- Repo: `{}`", record.repo_path.display());
+                println!("- Vault: `{}`", record.vault_path.display());
+            }
+            HarnessCommands::Propose { repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let proposal = propose_improvements(&repo_root, &vault)?;
+                println!("# Baron Harness Improvement Proposals\n");
+                println!("- Proposals: {}", proposal.proposal_count);
+                println!("- IDs: {}", list_or_none(&proposal.proposal_ids));
+                println!("- Human approval: human approval required before core policy or architecture changes");
+                println!("- Repo: `{}`", proposal.repo_path.display());
+                println!("- Vault: `{}`", proposal.vault_path.display());
+            }
+            HarnessCommands::Outcome {
+                proposal_id,
+                outcome,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                record_improvement_outcome(&repo_root, &vault, &proposal_id, &outcome)?;
+                println!("# Baron Harness Improvement Outcome\n");
+                println!("- Outcome recorded");
+                println!("- Proposal: `{proposal_id}`");
             }
         },
         Some(Commands::Proof { command }) => match command {

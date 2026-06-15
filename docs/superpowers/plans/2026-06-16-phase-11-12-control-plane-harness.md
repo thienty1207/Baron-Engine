@@ -86,13 +86,13 @@
 - Test: `crates/baron-core/tests/harness_improvement.rs`
 - Test: `crates/baron-cli/tests/harness_improvement_cli.rs`
 
-- [ ] Write failing tests proving open stories and proof gaps are verified in bounded batches.
-- [ ] Write failing tests proving repeated friction creates an improvement proposal.
-- [ ] Write failing tests proving proposals are not applied to core policy without human approval.
-- [ ] Write failing tests proving predicted impact and actual outcome can be recorded.
-- [ ] Implement `baron harness audit|verify-all|intervention|propose|outcome`.
-- [ ] Run focused tests until green.
-- [ ] Commit `feat: add harness improvement outcome loop`.
+- [x] Write failing tests proving open stories and proof gaps are verified in bounded batches.
+- [x] Write failing tests proving repeated friction creates an improvement proposal.
+- [x] Write failing tests proving proposals are not applied to core policy without human approval.
+- [x] Write failing tests proving predicted impact and actual outcome can be recorded.
+- [x] Implement `baron harness audit|verify-all|intervention|propose|outcome`.
+- [x] Run focused tests until green.
+- [x] Commit `feat: add harness improvement outcome loop`.
 
 ### Task 6: Context, Docs, Status, And Closure
 
