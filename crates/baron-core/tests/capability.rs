@@ -1,4 +1,5 @@
 use std::fs;
+use std::net::TcpListener;
 
 use baron_core::capability::{
     check_capabilities, load_capability_state, load_registry, normalize_identifier,
@@ -247,4 +248,61 @@ fn missing_optional_provider_degrades_cleanly_but_required_gap_is_explicit() {
 
     assert_eq!(state.required_gaps, vec!["deploy-verification"]);
     assert_eq!(state.optional_gaps, vec!["lint"]);
+}
+
+#[test]
+fn explicit_checks_cover_mcp_http_and_registered_agent_adapter_providers() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join(".tools/graph")).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let mut mcp = provider(
+        "code-graph",
+        "impact-analysis",
+        ProviderKind::Mcp,
+        Requirement::Optional,
+    );
+    mcp.scan_target = Some(".tools/graph".to_string());
+    mcp.adapters = vec![AdapterKind::Codex];
+    let mut http = provider(
+        "health-endpoint",
+        "deploy-verification",
+        ProviderKind::Http,
+        Requirement::Optional,
+    );
+    http.scan_target = Some(format!("http://{address}/health"));
+    let mut adapter = provider(
+        "codex-runtime",
+        "agent-runtime",
+        ProviderKind::AgentAdapter,
+        Requirement::Optional,
+    );
+    adapter.adapters = vec![AdapterKind::Codex];
+    for item in [mcp, http, adapter] {
+        register_provider(&repo, item).unwrap();
+    }
+
+    let state = check_capabilities(
+        &repo,
+        CheckOptions {
+            adapter: AdapterKind::Codex,
+            capability: None,
+            allow_network: true,
+        },
+    )
+    .unwrap();
+
+    for provider_name in ["code-graph", "health-endpoint", "codex-runtime"] {
+        let observation = state
+            .observations
+            .iter()
+            .find(|item| item.provider == provider_name)
+            .unwrap();
+        assert_eq!(observation.presence, Presence::Present);
+        assert!(observation.compatible);
+    }
 }

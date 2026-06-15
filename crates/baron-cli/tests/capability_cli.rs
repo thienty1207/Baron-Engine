@@ -195,3 +195,44 @@ fn missing_required_capability_is_reported_as_diagnostic_not_command_crash() {
             "Required gaps: deploy-verification",
         ));
 }
+
+#[test]
+fn list_does_not_reuse_presence_cache_from_another_adapter() {
+    let (_temp, repo, _vault) = init_project();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args([
+            "capability",
+            "register",
+            "security scan",
+            "--name",
+            "security-skill",
+            "--kind",
+            "skill",
+            "--scan",
+            ".codex/skills/vibe-security-scan",
+            "--adapter",
+            "codex",
+            "--description",
+            "Provides defensive repository security review guidance.",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["capability", "check", "--adapter", "codex"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["capability", "list", "--adapter", "claude"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "| security-scan | security-skill | skill | optional | unknown | unknown |",
+        ));
+}

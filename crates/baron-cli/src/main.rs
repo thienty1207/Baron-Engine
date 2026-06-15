@@ -793,6 +793,7 @@ fn render_capability_list(
     state: Option<&baron_core::capability::CapabilityState>,
     adapter: AdapterKind,
 ) -> String {
+    let state = state.filter(|state| state.adapter == adapter);
     let mut output = format!(
         "# Baron Capability Registry\n\n- Adapter view: `{}`\n",
         adapter_kind_name(adapter)
