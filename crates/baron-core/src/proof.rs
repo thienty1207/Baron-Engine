@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
+use crate::capability::{
+    default_adapter, evaluate_execution_evidence, CapabilityExecutionEvidence,
+};
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
 use crate::risk::RiskLane;
 use crate::vault::VaultContext;
@@ -14,12 +17,24 @@ pub struct ProofRecord {
     pub summary: String,
     pub repo_path: PathBuf,
     pub vault_path: PathBuf,
+    pub capability_gate_passed: bool,
+    pub capability_gaps: Vec<String>,
+    pub capability_warnings: Vec<String>,
 }
 
 pub fn record_proof(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
     summary: &str,
+) -> Result<ProofRecord> {
+    record_proof_with_capabilities(repo_root, vault, summary, &[])
+}
+
+pub fn record_proof_with_capabilities(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    summary: &str,
+    capability_evidence: &[CapabilityExecutionEvidence],
 ) -> Result<ProofRecord> {
     let repo_root = repo_root.as_ref();
     let id = Local::now().format("%Y%m%d%H%M%S%3f").to_string();
@@ -33,10 +48,21 @@ pub fn record_proof(
         .join("Proofs")
         .join(&date)
         .join(format!("{id}.md"));
-    let content = format!(
-        "# Baron Proof\n\n- Proof ID: `{id}`\n- Recorded: {}\n\n## Evidence\n\n{}\n",
-        now(),
-        summary.trim()
+    let capability_gate = match default_adapter(repo_root) {
+        Ok(adapter) => evaluate_execution_evidence(repo_root, adapter, capability_evidence)?,
+        Err(_) => crate::capability::CapabilityGate {
+            passed: true,
+            gaps: Vec::new(),
+            warnings: Vec::new(),
+        },
+    };
+    let content = render_proof(
+        &id,
+        summary,
+        capability_evidence,
+        capability_gate.passed,
+        &capability_gate.gaps,
+        &capability_gate.warnings,
     );
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
@@ -50,13 +76,17 @@ pub fn record_proof(
         "# Baron Proof Index\n\n",
         &format!("- `{id}` - {}", summary.trim()),
     )?;
-    let verified = proof_satisfies_risk(summary, current_harness_risk(repo_root));
+    let verified =
+        proof_satisfies_risk(summary, current_harness_risk(repo_root)) && capability_gate.passed;
     update_current_validation_evidence(repo_root, vault, summary.trim(), verified)?;
     Ok(ProofRecord {
         id,
         summary: summary.trim().to_string(),
         repo_path,
         vault_path,
+        capability_gate_passed: capability_gate.passed,
+        capability_gaps: capability_gate.gaps,
+        capability_warnings: capability_gate.warnings,
     })
 }
 
@@ -85,18 +115,81 @@ pub fn latest_proof(repo_root: &Path) -> Result<Option<ProofRecord>> {
         .and_then(|value| value.strip_suffix('`'))
         .unwrap_or("unknown")
         .to_string();
-    let summary = content
-        .split("## Evidence")
-        .nth(1)
-        .unwrap_or("")
-        .trim()
-        .to_string();
+    let summary = section_body(&content, "## Evidence");
+    let capability_gate_passed = !content.contains("- Capability gate: `failed`");
+    let capability_gaps = bullet_section(&content, "## Capability Gaps");
+    let capability_warnings = bullet_section(&content, "## Capability Warnings");
     Ok(Some(ProofRecord {
         id,
         summary,
         repo_path: path,
         vault_path: PathBuf::new(),
+        capability_gate_passed,
+        capability_gaps,
+        capability_warnings,
     }))
+}
+
+fn render_proof(
+    id: &str,
+    summary: &str,
+    capability_evidence: &[CapabilityExecutionEvidence],
+    gate_passed: bool,
+    gaps: &[String],
+    warnings: &[String],
+) -> String {
+    let mut content = format!(
+        "# Baron Proof\n\n- Proof ID: `{id}`\n- Recorded: {}\n- Capability gate: `{}`\n\n## Evidence\n\n{}\n\n## Capability Execution Evidence\n\n",
+        now(),
+        if gate_passed { "passed" } else { "failed" },
+        summary.trim()
+    );
+    if capability_evidence.is_empty() {
+        content.push_str("- none recorded\n");
+    } else {
+        for evidence in capability_evidence {
+            content.push_str(&format!(
+                "- `{}` via `{}` - {}\n",
+                evidence.capability.trim(),
+                evidence.provider.trim(),
+                evidence.summary.trim()
+            ));
+        }
+    }
+    content.push_str("\n## Capability Gaps\n\n");
+    push_bullets(&mut content, gaps);
+    content.push_str("\n## Capability Warnings\n\n");
+    push_bullets(&mut content, warnings);
+    content
+}
+
+fn push_bullets(content: &mut String, values: &[String]) {
+    if values.is_empty() {
+        content.push_str("- none\n");
+    } else {
+        for value in values {
+            content.push_str(&format!("- {value}\n"));
+        }
+    }
+}
+
+fn section_body(content: &str, heading: &str) -> String {
+    content
+        .split(heading)
+        .nth(1)
+        .and_then(|value| value.split("\n## ").next())
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+fn bullet_section(content: &str, heading: &str) -> Vec<String> {
+    section_body(content, heading)
+        .lines()
+        .filter_map(|line| line.strip_prefix("- "))
+        .filter(|value| *value != "none")
+        .map(str::to_string)
+        .collect()
 }
 
 pub fn proof_satisfies_risk(summary: &str, risk: RiskLane) -> bool {

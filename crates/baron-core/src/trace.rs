@@ -45,6 +45,7 @@ pub struct TraceScore {
     pub required: TraceTier,
     pub passed: bool,
     pub missing_fields: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 pub fn record_trace(
@@ -83,6 +84,14 @@ pub fn record_trace(
         plan: plan.as_deref(),
         story: story.as_deref(),
         proof: proof.as_ref().map(|value| value.summary.as_str()),
+        capability_gate_passed: proof
+            .as_ref()
+            .map(|value| value.capability_gate_passed)
+            .unwrap_or(true),
+        capability_warnings: proof
+            .as_ref()
+            .map(|value| value.capability_warnings.as_slice())
+            .unwrap_or(&[]),
         files: &files,
     });
     write(&repo_path, &content)?;
@@ -159,6 +168,10 @@ pub fn score_trace(
     if !proof_valid {
         missing.push("security/data-impact proof".to_string());
     }
+    if content.contains("- Capability gate: `failed`") {
+        missing.push("required capability execution evidence".to_string());
+    }
+    let warnings = trace_list_field(&content, "- Capability warnings: ");
     missing.sort();
     missing.dedup();
     let passed = achieved >= required && missing.is_empty();
@@ -167,6 +180,7 @@ pub fn score_trace(
         required,
         passed,
         missing_fields: missing,
+        warnings,
     };
     let updated = replace_score(&content, &score);
     write(&repo_path, &updated)?;
@@ -215,11 +229,20 @@ pub fn latest_trace_score(repo_root: impl AsRef<Path>) -> Result<Option<TraceSco
         .filter(|value| *value != "none")
         .map(str::to_string)
         .collect();
+    let warnings = section
+        .lines()
+        .find_map(|line| line.strip_prefix("- Warnings: "))
+        .unwrap_or("none")
+        .split(", ")
+        .filter(|value| *value != "none")
+        .map(str::to_string)
+        .collect();
     Ok(Some(TraceScore {
         achieved,
         required,
         passed,
         missing_fields: missing,
+        warnings,
     }))
 }
 
@@ -233,6 +256,8 @@ fn render_trace(view: TraceView<'_>) -> String {
 - Current plan: `{}`\n\
 - Current story: `{}`\n\
 - Proof: `{}`\n\
+- Capability gate: `{}`\n\
+- Capability warnings: {}\n\
 - Score status: `unscored`\n\n\
 ## Task Summary\n\n{}\n\n\
 ## Files Changed\n\n",
@@ -243,6 +268,16 @@ fn render_trace(view: TraceView<'_>) -> String {
         view.plan.unwrap_or("missing"),
         view.story.unwrap_or("missing"),
         view.proof.unwrap_or("missing"),
+        if view.capability_gate_passed {
+            "passed"
+        } else {
+            "failed"
+        },
+        if view.capability_warnings.is_empty() {
+            "none".to_string()
+        } else {
+            view.capability_warnings.join(", ")
+        },
         view.summary.trim()
     );
     if view.files.is_empty() {
@@ -263,6 +298,8 @@ struct TraceView<'a> {
     plan: Option<&'a str>,
     story: Option<&'a str>,
     proof: Option<&'a str>,
+    capability_gate_passed: bool,
+    capability_warnings: &'a [String],
     files: &'a [String],
 }
 
@@ -392,8 +429,13 @@ fn replace_score(content: &str, score: &TraceScore) -> String {
     } else {
         score.missing_fields.join(", ")
     };
+    let warnings = if score.warnings.is_empty() {
+        "none".to_string()
+    } else {
+        score.warnings.join(", ")
+    };
     let block = format!(
-        "{SCORE_START}\n## Trace Quality Score\n\n- Achieved: `{}`\n- Required: `{}`\n- Passed: `{}`\n- Missing: {missing}\n{SCORE_END}\n",
+        "{SCORE_START}\n## Trace Quality Score\n\n- Achieved: `{}`\n- Required: `{}`\n- Passed: `{}`\n- Missing: {missing}\n- Warnings: {warnings}\n{SCORE_END}\n",
         score.achieved.as_str(),
         score.required.as_str(),
         if score.passed { "yes" } else { "no" }
@@ -405,6 +447,17 @@ fn replace_score(content: &str, score: &TraceScore) -> String {
         }
         _ => format!("{}\n\n{}", content.trim_end(), block),
     }
+}
+
+fn trace_list_field(content: &str, prefix: &str) -> Vec<String> {
+    content
+        .lines()
+        .find_map(|line| line.strip_prefix(prefix))
+        .unwrap_or("none")
+        .split(", ")
+        .filter(|value| *value != "none")
+        .map(str::to_string)
+        .collect()
 }
 
 fn trace_field(content: &str, prefix: &str) -> Option<String> {

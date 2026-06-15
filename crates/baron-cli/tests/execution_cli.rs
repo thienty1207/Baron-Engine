@@ -210,3 +210,53 @@ fn trace_score_returns_failure_when_quality_gate_does_not_pass() {
         .stdout(predicate::str::contains("Passed: `no`"))
         .stderr(predicate::str::contains("Trace quality gate failed"));
 }
+
+#[test]
+fn proof_cli_accepts_structured_capability_execution_evidence() {
+    let (_temp, repo, _vault) = init_project();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args([
+            "capability",
+            "register",
+            "source control",
+            "--name",
+            "git-cli",
+            "--kind",
+            "cli",
+            "--required",
+            "--command",
+            "git",
+            "--description",
+            "Provides repository state and change evidence.",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["capability", "check"])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["harness", "intake", "fix README typo"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args([
+            "proof",
+            "record",
+            "README text verified",
+            "--capability-evidence",
+            "source-control|git-cli|git status completed and repository state inspected",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Capability gate: `passed`"));
+}

@@ -91,6 +91,20 @@ pub struct CheckOptions {
     pub allow_network: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapabilityExecutionEvidence {
+    pub capability: String,
+    pub provider: String,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityGate {
+    pub passed: bool,
+    pub gaps: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
 impl Default for CapabilityRegistry {
     fn default() -> Self {
         Self {
@@ -313,6 +327,80 @@ pub fn render_capability_summary(
     }
     output.push('\n');
     Ok(output)
+}
+
+pub fn evaluate_execution_evidence(
+    repo_root: impl AsRef<Path>,
+    adapter: AdapterKind,
+    evidence: &[CapabilityExecutionEvidence],
+) -> Result<CapabilityGate> {
+    let repo_root = repo_root.as_ref();
+    let registry = load_registry(repo_root)?;
+    let state = load_capability_state(repo_root)?;
+    let matching_state = state.as_ref().filter(|state| state.adapter == adapter);
+    let required_capabilities = registry
+        .providers
+        .iter()
+        .filter(|provider| provider.requirement == Requirement::Required)
+        .map(|provider| provider.capability.clone())
+        .collect::<BTreeSet<_>>();
+    let mut gaps = Vec::new();
+    for capability in required_capabilities {
+        let present_providers = matching_state
+            .map(|state| {
+                state
+                    .observations
+                    .iter()
+                    .filter(|observation| {
+                        observation.capability == capability
+                            && observation.requirement == Requirement::Required
+                            && observation.compatible
+                            && observation.presence == Presence::Present
+                    })
+                    .map(|observation| observation.provider.as_str())
+                    .collect::<BTreeSet<_>>()
+            })
+            .unwrap_or_default();
+        if present_providers.is_empty() {
+            gaps.push(format!(
+                "{capability} has no present compatible required provider"
+            ));
+            continue;
+        }
+        let executed = evidence.iter().any(|item| {
+            normalize_identifier(&item.capability).as_deref() == Some(capability.as_str())
+                && normalize_identifier(&item.provider)
+                    .as_deref()
+                    .map(|provider| present_providers.contains(provider))
+                    .unwrap_or(false)
+                && !item.summary.trim().is_empty()
+        });
+        if !executed {
+            gaps.push(format!("{capability} lacks execution evidence"));
+        }
+    }
+    let warnings = matching_state
+        .map(|state| {
+            state
+                .optional_gaps
+                .iter()
+                .map(|capability| format!("{capability} is degraded but optional"))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(CapabilityGate {
+        passed: gaps.is_empty(),
+        gaps,
+        warnings,
+    })
+}
+
+pub fn default_adapter(repo_root: impl AsRef<Path>) -> Result<AdapterKind> {
+    load_project_config(repo_root)?
+        .adapters
+        .first()
+        .copied()
+        .context("No registered adapter is available for capability evaluation")
 }
 
 fn validate_provider(provider: &CapabilityProvider) -> Result<()> {

@@ -1,8 +1,13 @@
 use std::fs;
 use std::process::Command;
 
+use baron_core::capability::{
+    check_capabilities, register_provider, CapabilityExecutionEvidence, CapabilityProvider,
+    CheckOptions, ProviderKind, Requirement,
+};
+use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::harness::start_or_resume_intake;
-use baron_core::proof::{proof_status, record_proof};
+use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome, TraceTier};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -236,4 +241,157 @@ fn scoring_updates_repo_and_vault_trace() {
             trace.id
         )));
     }
+}
+
+fn register_required_git(repo: &std::path::Path, vault: &std::path::Path) {
+    initialize_project(repo, AdapterKind::Codex, vault).unwrap();
+    register_provider(
+        repo,
+        CapabilityProvider {
+            name: "git-cli".to_string(),
+            capability: "source-control".to_string(),
+            kind: ProviderKind::Cli,
+            requirement: Requirement::Required,
+            command: Some("git".to_string()),
+            scan_target: None,
+            adapters: Vec::new(),
+            description: "Provides repository state and change evidence.".to_string(),
+        },
+    )
+    .unwrap();
+    check_capabilities(
+        repo,
+        CheckOptions {
+            adapter: AdapterKind::Codex,
+            capability: None,
+            allow_network: false,
+        },
+    )
+    .unwrap();
+}
+
+#[test]
+fn provider_presence_alone_does_not_satisfy_required_execution_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    register_required_git(&repo, &vault);
+    start_or_resume_intake(&repo, &context, "fix README typo").unwrap();
+
+    let proof = record_proof(&repo, &context, "README text verified").unwrap();
+    let content = fs::read_to_string(proof.repo_path).unwrap();
+
+    assert!(content.contains("- Capability gate: `failed`"));
+    assert!(content.contains("source-control lacks execution evidence"));
+    let matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    assert!(matrix.contains("| fix README typo | low | insufficient |"));
+}
+
+#[test]
+fn structured_execution_evidence_satisfies_present_required_capability() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    register_required_git(&repo, &vault);
+    start_or_resume_intake(&repo, &context, "fix README typo").unwrap();
+
+    let proof = record_proof_with_capabilities(
+        &repo,
+        &context,
+        "README text verified",
+        &[CapabilityExecutionEvidence {
+            capability: "source-control".to_string(),
+            provider: "git-cli".to_string(),
+            summary: "git status completed and repository state was inspected".to_string(),
+        }],
+    )
+    .unwrap();
+    let content = fs::read_to_string(proof.repo_path).unwrap();
+
+    assert!(content.contains("- Capability gate: `passed`"));
+    assert!(content.contains("source-control"));
+    assert!(content.contains("git status completed"));
+    let matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    assert!(matrix.contains("| fix README typo | low | verified |"));
+}
+
+#[test]
+fn trace_score_inherits_failed_required_capability_gate() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    register_required_git(&repo, &vault);
+    start_or_resume_intake(&repo, &context, "fix README typo").unwrap();
+    record_proof(&repo, &context, "README text verified").unwrap();
+
+    let trace = record_trace(
+        &repo,
+        &context,
+        "Corrected README typo",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
+
+    assert!(!score.passed);
+    assert!(score
+        .missing_fields
+        .contains(&"required capability execution evidence".to_string()));
+}
+
+#[test]
+fn missing_optional_capability_does_not_block_proof_or_trace() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    register_provider(
+        &repo,
+        CapabilityProvider {
+            name: "optional-linter".to_string(),
+            capability: "lint".to_string(),
+            kind: ProviderKind::Binary,
+            requirement: Requirement::Optional,
+            command: Some("baron-definitely-missing".to_string()),
+            scan_target: None,
+            adapters: Vec::new(),
+            description: "Provides optional project lint diagnostics.".to_string(),
+        },
+    )
+    .unwrap();
+    check_capabilities(
+        &repo,
+        CheckOptions {
+            adapter: AdapterKind::Codex,
+            capability: None,
+            allow_network: false,
+        },
+    )
+    .unwrap();
+    start_or_resume_intake(&repo, &context, "fix README typo").unwrap();
+    let proof = record_proof(&repo, &context, "README text verified").unwrap();
+    assert!(fs::read_to_string(proof.repo_path)
+        .unwrap()
+        .contains("- Capability gate: `passed`"));
+
+    let trace = record_trace(
+        &repo,
+        &context,
+        "Corrected README typo",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
 }

@@ -4,7 +4,8 @@ use anyhow::{bail, Context, Result};
 use baron_adapters::{install_adapter, shadow_preview, AgentAdapter};
 use baron_core::capability::{
     check_capabilities, load_capability_state, load_registry, register_provider, remove_provider,
-    CapabilityProvider, CheckOptions, Presence, ProviderKind, Requirement,
+    CapabilityExecutionEvidence, CapabilityProvider, CheckOptions, Presence, ProviderKind,
+    Requirement,
 };
 use baron_core::config::{
     find_project_root, initialize_project, load_project_config, resolve_vault_path_for_repo,
@@ -23,7 +24,7 @@ use baron_core::migration::{
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
-use baron_core::proof::{proof_status, record_proof};
+use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
 use baron_core::survey::{render_project_atlas, survey_repository};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
@@ -186,6 +187,8 @@ enum ProofCommands {
     Record {
         summary: String,
         repo_path: Option<PathBuf>,
+        #[arg(long = "capability-evidence")]
+        capability_evidence: Vec<String>,
     },
 }
 
@@ -503,12 +506,40 @@ fn run() -> Result<()> {
                 let repo_root = configured_repo(repo_path)?;
                 print!("{}", proof_status(repo_root)?);
             }
-            ProofCommands::Record { summary, repo_path } => {
+            ProofCommands::Record {
+                summary,
+                repo_path,
+                capability_evidence,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let proof = record_proof(&repo_root, &vault, &summary)?;
+                let capability_evidence = capability_evidence
+                    .iter()
+                    .map(|value| parse_capability_evidence(value))
+                    .collect::<Result<Vec<_>>>()?;
+                let proof = if capability_evidence.is_empty() {
+                    record_proof(&repo_root, &vault, &summary)?
+                } else {
+                    record_proof_with_capabilities(
+                        &repo_root,
+                        &vault,
+                        &summary,
+                        &capability_evidence,
+                    )?
+                };
                 println!("# Baron Proof Record\n");
                 println!("- Proof ID: `{}`", proof.id);
                 println!("- Evidence: {}", proof.summary);
+                println!(
+                    "- Capability gate: `{}`",
+                    if proof.capability_gate_passed {
+                        "passed"
+                    } else {
+                        "failed"
+                    }
+                );
+                if !proof.capability_gaps.is_empty() {
+                    println!("- Capability gaps: {}", proof.capability_gaps.join(", "));
+                }
             }
         },
         Some(Commands::Trace { command }) => match command {
@@ -536,6 +567,14 @@ fn run() -> Result<()> {
                         "none".to_string()
                     } else {
                         score.missing_fields.join(", ")
+                    }
+                );
+                println!(
+                    "- Warnings: {}",
+                    if score.warnings.is_empty() {
+                        "none".to_string()
+                    } else {
+                        score.warnings.join(", ")
                     }
                 );
                 if !score.passed {
@@ -829,6 +868,21 @@ fn list_or_none(values: &[String]) -> String {
     } else {
         values.join(", ")
     }
+}
+
+fn parse_capability_evidence(value: &str) -> Result<CapabilityExecutionEvidence> {
+    let mut parts = value.splitn(3, '|').map(str::trim);
+    let capability = parts.next().unwrap_or_default();
+    let provider = parts.next().unwrap_or_default();
+    let summary = parts.next().unwrap_or_default();
+    if capability.is_empty() || provider.is_empty() || summary.is_empty() {
+        bail!("Capability evidence must use `<capability>|<provider>|<result summary>`.");
+    }
+    Ok(CapabilityExecutionEvidence {
+        capability: capability.to_string(),
+        provider: provider.to_string(),
+        summary: summary.to_string(),
+    })
 }
 
 fn parse_context_target(
