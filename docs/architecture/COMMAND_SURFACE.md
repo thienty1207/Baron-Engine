@@ -124,3 +124,25 @@ baron release verify <artifacts-dir>
 
 They generate and verify `SHA256SUMS` plus `release-manifest.json` for the
 complete Windows, Linux, Intel macOS, and Apple Silicon macOS artifact set.
+
+## Phase 9
+
+```bash
+baron automation status [repo-path]
+baron automation reconcile [repo-path]
+baron automation hook <session-start|prompt|checkpoint|context-compiled|plan-started|harness-started|proof-recorded|trace-scored|stop> [repo-path] --adapter <codex|claude|agent>
+```
+
+`automation hook` is the adapter-facing native entrypoint and reads the hook
+payload from stdin. Normal users do not run it manually.
+
+## Phase 10
+
+```bash
+baron memory import-sessions [repo-path] --vault <vault-path>
+baron recall "<query>" [repo-path] --vault <vault-path>
+baron context [repo-path] --task "<task>" --codex|--claude|--agent --vault <vault-path>
+```
+
+Context automatically imports a bounded batch for initialized projects.
+`memory import-sessions` is the explicit inspection/recovery command.

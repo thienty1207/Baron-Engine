@@ -4,15 +4,13 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 9 - Automation Runtime And Project Identity (in progress), followed immediately by Phase 10 - Massive Memory And Semantic Recall.
+Phase 11 - Skill And Agent Control Plane (planned). Phase 9 and Phase 10 are
+implemented and fully verified.
 
 ## What Is Being Built
 
-Baron 2.0 is a six-phase continuation:
+Baron 2.0 continues with four remaining phases:
 
-- IDE-compatible automatic lifecycle behavior without requiring `baron run`
-- collision-resistant project identity
-- massive and meaning-aware memory
 - strict skill and agent control plane
 - self-improving Product Harness
 - extreme-scale certification and a hardened `v2.0.0` release
@@ -20,14 +18,14 @@ Baron 2.0 is a six-phase continuation:
 ## Current Status
 
 Phase 8 is merged to `main`, tagged `v1.0.0`, and published on GitHub. Phase 9
-and Phase 10 implementation started on branch `codex/phase-9-10` in an isolated
-worktree. The program design, Phase 9-14 roadmap, and the active Phase 9-10 plan
-are the source of truth for remaining work.
+and Phase 10 are implemented in an isolated worktree with stored project
+identity, native Codex/Claude hooks, lifecycle reconciliation, preserved custom
+routing, incremental indexing, multilingual task-aware recall, and automatic
+session import.
 
-The roadmap was extended after an adversarial audit confirmed duplicate-name
-project identity collisions, fixed scan limits, lexical-only recall, custom
-routing loss during update, instruction-heavy automation, missing live session
-ingestion, and an incomplete harness improvement loop.
+Baron 2.0 progress is 45%. The remaining blockers are the Phase 11 control
+plane, Phase 12 self-improving harness, Phase 13 extreme-scale certification,
+and Phase 14 cross-platform release hardening.
 
 ## Verification
 
@@ -79,11 +77,43 @@ ingestion, and an incomplete harness improvement loop.
 - Phase 8 main CI `27534650603`: passed
 - Phase 8 release workflow `27534923497`: passed
 - Published `v1.0.0` install/update/rollback/uninstall lifecycle: passed
+- duplicate-name project identity and move-preservation tests: passed
+- legacy slug capsule migration without Markdown loss: passed
+- Codex/Claude native hook merge and custom-hook preservation tests: passed
+- automation journal, checkpoint throttle, and Stop reconciliation tests: passed
+- custom skill/agent routing registration preservation tests: passed
+- incremental 350-source memory index reuse/change/delete tests: passed
+- risky surface detection beyond 6,000 repository entries: passed
+- same-slug project-ID firewall isolation test: passed
+- Vietnamese security query to Supabase RLS semantic recall test: passed
+- task-focused context selection test: passed
+- Codex/Claude session match, redaction, noise filtering, and dedupe tests: passed
+- automatic context session import test: passed
+- canonical Windows short-path and equivalent-path session matching regression: passed
+- two same-name repositories produced two isolated Vault capsules: passed
+- 1,008-source real Vault index smoke: passed
+- Vietnamese customer-data security query to English RLS memory smoke: passed
+- real session import redacted the secret and imported exactly once: passed
+- real Codex SessionStart hook injected context and journaled execution: passed
+- Phase 9-10 full `cargo test --workspace --all-targets`: passed
+- Phase 9-10 `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 9-10 `git diff --check`: passed
 
 ## Next Action
 
-Execute `docs/superpowers/plans/2026-06-15-phase-9-10-automation-memory.md`
-using TDD. Resume at the first unchecked task and record each verified batch.
+Design and plan Phase 11 - Skill And Agent Control Plane. Preserve all Phase
+9-10 identity, automation, memory, semantic recall, session privacy, and
+custom-routing contracts.
+
+## Phase 9-10 Feature Commits
+
+- `7d602b9 feat: add collision resistant project identity`
+- `8640e16 feat: add native automation and preserve routing`
+- `3e0bbbe feat: add incremental large memory index`
+- `e62c8a2 feat: add task aware multilingual recall`
+- `25f434e feat: add automatic session memory ingestion`
+- `aa089ee fix: match canonical session paths`
+- Completion documentation is recorded in the Phase 9-10 git history.
 
 ## Phase 4-5 Feature Commits
 

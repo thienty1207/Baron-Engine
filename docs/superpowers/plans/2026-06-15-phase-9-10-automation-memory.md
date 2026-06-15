@@ -36,13 +36,13 @@
 - Test: `crates/baron-core/tests/config.rs`
 - Test: `crates/baron-core/tests/vault_memory.rs`
 
-- [ ] Write failing tests proving two repositories named `same-app` receive different project IDs and Vault capsules.
-- [ ] Write a failing test proving a configured repository keeps its project ID after moving.
-- [ ] Write a failing test proving a legacy `<slug>` capsule migrates into the unique capsule without losing Markdown.
-- [ ] Run the focused tests and confirm failures come from basename-only identity.
-- [ ] Implement schema v2 project identity, unique capsule keys, metadata, and safe legacy migration.
-- [ ] Run focused tests until green.
-- [ ] Commit `feat: add collision resistant project identity`.
+- [x] Write failing tests proving two repositories named `same-app` receive different project IDs and Vault capsules.
+- [x] Write a failing test proving a configured repository keeps its project ID after moving.
+- [x] Write a failing test proving a legacy `<slug>` capsule migrates into the unique capsule without losing Markdown.
+- [x] Run the focused tests and confirm failures come from basename-only identity.
+- [x] Implement schema v2 project identity, unique capsule keys, metadata, and safe legacy migration.
+- [x] Run focused tests until green.
+- [x] Commit `feat: add collision resistant project identity`.
 
 ### Task 2: Phase 9 Native Automation Runtime
 
@@ -55,14 +55,14 @@
 - Test: `crates/baron-cli/tests/automation_cli.rs`
 - Test: `crates/baron-adapters/tests/adapter_lifecycle.rs`
 
-- [ ] Write failing tests for SessionStart journaling, context injection, checkpoint throttling, and Stop reconciliation.
-- [ ] Write failing adapter tests for `.codex/hooks.json` and `.claude/settings.json`.
-- [ ] Verify custom hook entries survive repeated Baron updates.
-- [ ] Implement lifecycle events `session_start`, `prompt`, `checkpoint`, `context_compiled`, `proof_recorded`, `trace_scored`, and `stop`.
-- [ ] Implement `baron automation status|reconcile|hook`.
-- [ ] Make Stop request continuation once when an active plan lacks required proof or a passing trace.
-- [ ] Run focused automation tests until green.
-- [ ] Commit `feat: add observable native automation runtime`.
+- [x] Write failing tests for SessionStart journaling, context injection, checkpoint throttling, and Stop reconciliation.
+- [x] Write failing adapter tests for `.codex/hooks.json` and `.claude/settings.json`.
+- [x] Verify custom hook entries survive repeated Baron updates.
+- [x] Implement lifecycle events `session_start`, `prompt`, `checkpoint`, `context_compiled`, `proof_recorded`, `trace_scored`, and `stop`.
+- [x] Implement `baron automation status|reconcile|hook`.
+- [x] Make Stop request continuation once when an active plan lacks required proof or a passing trace.
+- [x] Run focused automation tests until green.
+- [x] Commit `feat: add observable native automation runtime`.
 
 ### Task 3: Phase 9 Routing Preservation
 
@@ -71,11 +71,11 @@
 - Modify: `crates/baron-adapters/src/install.rs`
 - Test: `crates/baron-adapters/tests/adapter_lifecycle.rs`
 
-- [ ] Write failing tests proving custom skill and agent index entries survive update.
-- [ ] Verify managed core routing refreshes while custom blocks remain byte-for-byte.
-- [ ] Implement explicit managed markers for core skill/agent routing.
-- [ ] Run adapter tests until green.
-- [ ] Commit `fix: preserve custom routing during adapter updates`.
+- [x] Write failing tests proving custom skill and agent index entries survive update.
+- [x] Verify managed core routing refreshes while custom blocks remain byte-for-byte.
+- [x] Implement explicit managed markers for core skill/agent routing.
+- [x] Run adapter tests until green.
+- [x] Commit `fix: preserve custom routing during adapter updates`.
 
 ### Task 4: Phase 10 Incremental Massive Memory Index
 
@@ -86,14 +86,14 @@
 - Test: `crates/baron-core/tests/survey.rs`
 - Test: `crates/baron-cli/tests/release_smoke.rs`
 
-- [ ] Write a failing test indexing more than 300 Markdown sources and retrieving the final source.
-- [ ] Write failing tests for unchanged-source reuse, changed-source refresh, and deleted-source removal.
-- [ ] Write a failing survey test where a risky path appears after 6,000 entries.
-- [ ] Implement sorted complete source discovery, SQLite source metadata, transactional upsert, stale deletion, and cache reuse.
-- [ ] Store project ID, slug, modified time, and source metadata in the rebuildable index.
-- [ ] Remove silent repository traversal truncation.
-- [ ] Run focused index and survey tests until green.
-- [ ] Commit `feat: add incremental large memory index`.
+- [x] Write a failing test indexing more than 300 Markdown sources and retrieving the final source.
+- [x] Write failing tests for unchanged-source reuse, changed-source refresh, and deleted-source removal.
+- [x] Write a failing survey test where a risky path appears after 6,000 entries.
+- [x] Implement sorted complete source discovery, SQLite source metadata, transactional upsert, stale deletion, and cache reuse.
+- [x] Store project ID, slug, modified time, and source metadata in the rebuildable index.
+- [x] Remove silent repository traversal truncation.
+- [x] Run focused index and survey tests until green.
+- [x] Commit `feat: add incremental large memory index`.
 
 ### Task 5: Phase 10 Multilingual Semantic Recall
 
@@ -103,13 +103,13 @@
 - Test: `crates/baron-core/tests/vault_memory.rs`
 - Test: `crates/baron-core/tests/context_compiler.rs`
 
-- [ ] Write a failing test where `bảo mật dữ liệu khách hàng` retrieves `Supabase RLS tenant isolation`.
-- [ ] Write failing tests for current-project priority, global approval, stale demotion, recency, and explicit cross-project access.
-- [ ] Write a failing context test proving `--task` loads relevant memory rather than the first indexed records.
-- [ ] Implement Unicode tokenization, concept aliases, title/path/kind/evidence/recency scoring, and score explanations.
-- [ ] Add task-focused compact recall while retaining bounded output.
-- [ ] Run focused recall/context tests until green.
-- [ ] Commit `feat: add task aware multilingual recall`.
+- [x] Write a failing test where `bảo mật dữ liệu khách hàng` retrieves `Supabase RLS tenant isolation`.
+- [x] Write failing tests for current-project priority, global approval, stale demotion, recency, and explicit cross-project access.
+- [x] Write a failing context test proving `--task` loads relevant memory rather than the first indexed records.
+- [x] Implement Unicode tokenization, concept aliases, title/path/kind/evidence/recency scoring, and score explanations.
+- [x] Add task-focused compact recall while retaining bounded output.
+- [x] Run focused recall/context tests until green.
+- [x] Commit `feat: add task aware multilingual recall`.
 
 ### Task 6: Phase 10 Automatic Session Ingestion
 
@@ -120,14 +120,14 @@
 - Test: `crates/baron-core/tests/session.rs`
 - Test: `crates/baron-cli/tests/memory_cli.rs`
 
-- [ ] Write failing fixtures for matched Codex and Claude JSONL, unmatched projects, tool/system noise, duplicate imports, and secret values.
-- [ ] Verify `context` imports matched sessions automatically.
-- [ ] Verify imported Markdown excludes tool/system noise and redacts secrets.
-- [ ] Verify repeated runs do not duplicate notes.
-- [ ] Implement bounded root discovery, defensive parsing, confident repo matching, redaction, state tracking, and clean Markdown output.
-- [ ] Add `baron memory import-sessions`.
-- [ ] Run focused session tests until green.
-- [ ] Commit `feat: add automatic session memory ingestion`.
+- [x] Write failing fixtures for matched Codex and Claude JSONL, unmatched projects, tool/system noise, duplicate imports, and secret values.
+- [x] Verify `context` imports matched sessions automatically.
+- [x] Verify imported Markdown excludes tool/system noise and redacts secrets.
+- [x] Verify repeated runs do not duplicate notes.
+- [x] Implement bounded root discovery, defensive parsing, confident repo matching, redaction, state tracking, and clean Markdown output.
+- [x] Add `baron memory import-sessions`.
+- [x] Run focused session tests until green.
+- [x] Commit `feat: add automatic session memory ingestion`.
 
 ### Task 7: Integration, Documentation, And Phase Closure
 
@@ -142,14 +142,14 @@
 - Modify: `notes/build-log/CURRENT.md`
 - Create: `notes/build-log/2026-06-15-phase-9-10-automation-memory.md`
 
-- [ ] Document hook trust, generic fallback, project identity, incremental index, semantic recall, and session privacy behavior.
-- [ ] Mark Phase 9 and Phase 10 complete only after their acceptance tests pass.
-- [ ] Run `cargo fmt --all -- --check`.
-- [ ] Run `cargo test --workspace --all-targets`.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] Run duplicate-name, 6,000-file, 1,000-memory, semantic-query, session-import, and adapter-update smoke tests.
-- [ ] Run `git diff --check`.
-- [ ] Commit `docs: complete Baron phases 9 and 10`.
+- [x] Document hook trust, generic fallback, project identity, incremental index, semantic recall, and session privacy behavior.
+- [x] Mark Phase 9 and Phase 10 complete only after their acceptance tests pass.
+- [x] Run `cargo fmt --all -- --check`.
+- [x] Run `cargo test --workspace --all-targets`.
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] Run duplicate-name, 6,000-file, 1,000-memory, semantic-query, session-import, and adapter-update smoke tests.
+- [x] Run `git diff --check`.
+- [x] Commit `docs: complete Baron phases 9 and 10`.
 
 ## Self-Review
 
