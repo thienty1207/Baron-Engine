@@ -156,5 +156,5 @@
   Agent Bootstrap.
 - [x] Run `git diff --check`.
 - [x] Mark Phase 6 complete only after every command passes.
-- [ ] Commit, merge to `main`, and push `origin/main`.
+- [x] Commit, merge to `main`, and push `origin/main`.
 
