@@ -58,11 +58,11 @@
 - Modify: `crates/baron-adapters/src/install.rs`
 - Test: `crates/baron-adapters/tests/adapter_lifecycle.rs`
 
-- [ ] Write failing tests proving generated indexes include ownership, trigger, exclusion, evidence, and conflict rules.
-- [ ] Write failing tests proving custom routing survives while managed contract text refreshes.
-- [ ] Strengthen Codex, Claude, and generic startup contracts to call `baron control-plane route` and record gate evidence.
-- [ ] Run adapter tests until green.
-- [ ] Commit `feat: harden adapter skill and agent contracts`.
+- [x] Write failing tests proving generated indexes include ownership, trigger, exclusion, evidence, and conflict rules.
+- [x] Write failing tests proving custom routing survives while managed contract text refreshes.
+- [x] Strengthen Codex, Claude, and generic startup contracts to call `baron control-plane route` and record gate evidence.
+- [x] Run adapter tests until green.
+- [x] Commit `feat: harden adapter skill and agent contracts`.
 
 ### Task 4: Phase 12 Harness Audit And Intervention Records
 

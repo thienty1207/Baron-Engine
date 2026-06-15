@@ -25,7 +25,8 @@ Implementation started. Read `docs/superpowers/plans/2026-06-16-phase-11-12-cont
 - baseline full workspace tests: passed
 - control-plane validation RED/GREEN tests: passed
 - control-plane route and gate evidence core/CLI tests: passed
+- adapter strict contract and preservation tests: passed
 
 ## Resume Point
 
-Start Task 3: harden generated adapter contracts.
+Start Task 4: add self-improving harness audit and intervention records.
