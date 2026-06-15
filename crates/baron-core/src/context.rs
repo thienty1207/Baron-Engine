@@ -5,8 +5,9 @@ use anyhow::Result;
 
 use crate::capability::{load_registry, render_capability_summary};
 use crate::config::AdapterKind;
-use crate::firewall::compact_memory_brief;
+use crate::firewall::compact_memory_brief_for_task;
 use crate::memory::build_memory_index;
+use crate::session::import_sessions;
 use crate::survey::{survey_repository, ProjectType, RepoSurvey};
 use crate::vault::ensure_vault;
 
@@ -45,8 +46,14 @@ pub fn compile_context_for_task(
     let repo_path = repo_path.as_ref();
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
+    if repo_path.join(".baron/project.toml").exists()
+        || std::env::var_os("BARON_CODEX_SESSIONS_ROOT").is_some()
+        || std::env::var_os("BARON_CLAUDE_SESSIONS_ROOT").is_some()
+    {
+        import_sessions(repo_path, &vault, 5)?;
+    }
     build_memory_index(&vault)?;
-    let memory_brief = compact_memory_brief(&vault)?;
+    let memory_brief = compact_memory_brief_for_task(&vault, task)?;
     let risk = classify_risk(task, &survey);
 
     let mut output = String::new();

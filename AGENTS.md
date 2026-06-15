@@ -15,11 +15,11 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completes Phase 8 release hardening. Baron `v2.0.0` now spans
-Phase 9 through Phase 14. Phase 9, Automation Runtime And Project Identity, is
-planned and implementation has not started.
+Baron `v1.0.0` completes Phase 8 release hardening. Baron `v2.0.0` spans Phase
+9 through Phase 14. Phase 9 and Phase 10 are implemented in the current source;
+Phase 11, Skill And Agent Control Plane, is the next planned phase.
 
-The released command surface remains:
+The current source command surface is:
 
 - `baron survey`
 - `baron survey --json`
@@ -29,6 +29,7 @@ The released command surface remains:
 - `baron memory status [repo-path] --vault <vault-path>`
 - `baron memory index [repo-path] --vault <vault-path>`
 - `baron memory compact [repo-path] --vault <vault-path>`
+- `baron memory import-sessions [repo-path] --vault <vault-path>`
 - `baron recall "<query>" [repo-path] --vault <vault-path>`
 - `baron context [repo-path] --codex --vault <vault-path>`
 - `baron context [repo-path] --claude --vault <vault-path>`
@@ -43,16 +44,19 @@ The released command surface remains:
 - `baron migrate agent-bootstrap [repo-path]`
 - `baron migrate <status|rollback>`
 - `baron capability <register|check|list|remove>`
+- `baron automation <status|reconcile|hook>`
 
 Phase 6 imports useful legacy data into Baron-native structures, validates or
 quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
 runtime only after Baron passes. Phase 7 adds adapter-aware capability
 registration, presence checks, graceful degradation, and structured execution
 evidence. Phase 8 ships native releases, checksums, lifecycle installers, and
-cross-platform smoke proof without changing Baron's core. Phase 9-14 must add
-IDE-compatible observable automation, collision-resistant identity, massive
-semantic memory, a strict skill/agent control plane, a self-improving harness,
-extreme-scale certification, and Baron 2.0 release hardening.
+cross-platform smoke proof without changing Baron's core. Phase 9-10 add
+IDE-compatible observable automation, collision-resistant identity,
+incremental massive memory, multilingual task-aware recall, and automatic
+session ingestion. Phase 11-14 must add the strict skill/agent control plane,
+self-improving harness, extreme-scale certification, and Baron 2.0 release
+hardening.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -68,6 +72,11 @@ exact resume point.
   where hooks are unavailable, and reconciliation/evidence checks to detect
   missed automatic actions.
 - Do not call instruction-only behavior guaranteed automation.
+- Treat native hooks as observable accelerators: preserve custom hooks, report
+  trust requirements, and keep reconciliation available when hooks do not run.
+- Use project ID, not folder basename, as the memory isolation boundary.
+- Keep session import bounded, exact-repo-matched, redacted, and deduplicated.
+- Do not restore fixed file-count truncation in survey or memory indexing.
 - Vault Markdown remains the source of truth.
 - SQLite/cache/index files are accelerators only.
 - Baron must support old repos through shadow-first onboarding.

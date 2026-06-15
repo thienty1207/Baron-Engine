@@ -20,6 +20,8 @@ fn initialize_creates_shared_and_local_config() {
     let config = initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
 
     assert_eq!(config.project_slug, "tomoty");
+    assert_eq!(config.schema_version, 2);
+    assert!(!config.project_id.is_empty());
     assert_eq!(config.adapters, vec![AdapterKind::Codex]);
     assert!(config.automation.context);
     assert!(repo.join(".baron/project.toml").exists());
@@ -27,6 +29,39 @@ fn initialize_creates_shared_and_local_config() {
     assert!(repo.join(".baron/.gitignore").exists());
     let ignore = fs::read_to_string(repo.join(".baron/.gitignore")).unwrap();
     assert!(ignore.contains("local.toml"));
+}
+
+#[test]
+fn repositories_with_the_same_name_receive_different_project_ids() {
+    let temp = tempdir().unwrap();
+    let first = temp.path().join("one").join("same-app");
+    let second = temp.path().join("two").join("same-app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&first).unwrap();
+    fs::create_dir_all(&second).unwrap();
+
+    let first_config = initialize_project(&first, AdapterKind::Codex, &vault).unwrap();
+    let second_config = initialize_project(&second, AdapterKind::Codex, &vault).unwrap();
+
+    assert_eq!(first_config.project_slug, second_config.project_slug);
+    assert_ne!(first_config.project_id, second_config.project_id);
+}
+
+#[test]
+fn moving_a_configured_repository_preserves_project_identity() {
+    let temp = tempdir().unwrap();
+    let original = temp.path().join("original").join("demo");
+    let moved = temp.path().join("moved").join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&original).unwrap();
+
+    let before = initialize_project(&original, AdapterKind::Codex, &vault).unwrap();
+    fs::create_dir_all(moved.parent().unwrap()).unwrap();
+    fs::rename(&original, &moved).unwrap();
+    let after = load_project_config(&moved).unwrap();
+
+    assert_eq!(before.project_id, after.project_id);
+    assert_eq!(before.project_slug, after.project_slug);
 }
 
 #[test]

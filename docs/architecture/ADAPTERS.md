@@ -28,6 +28,7 @@ Outputs:
 - 3 core quality agents
 - optional frontend/security skills
 - managed root instructions that preserve user text outside Baron markers
+- native project hooks in `.codex/hooks.json`
 
 ### Claude
 
@@ -44,6 +45,7 @@ Outputs:
 - Claude-readable imports or command guidance
 - Baron context and harness instructions
 - Claude-readable Superpowers, optional domain skills, and quality agents
+- native project hooks in `.claude/settings.json`
 
 ### Generic Agent
 
@@ -66,6 +68,15 @@ Outputs:
 Adapters must not fork Baron behavior. They only translate Baron behavior.
 Every adapter requires automatic context, plan, harness, proof, and trace
 behavior. Platform-specific hooks are accelerators, not separate workflow truth.
+
+Codex and Claude hooks record SessionStart, prompt, edit checkpoint, and Stop
+events. SessionStart injects bounded context. Stop reconciliation blocks one
+premature completion attempt when active work lacks proof or a passing trace,
+then avoids a hook loop. Project hook trust remains controlled by the agent
+tool; Baron reports observed events instead of assuming hooks executed.
+
+Hook JSON and skill/agent indexes are merged through Baron-managed entries.
+Unknown user hook groups and custom routing text remain intact across update.
 
 ## Migration Boundary
 

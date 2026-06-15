@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
+use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
 
@@ -54,8 +55,9 @@ fn context_codex_outputs_bounded_bundle_without_writing_repo_files() {
         ])
         .assert()
         .success();
+    let context = vault_context_without_create(&vault, &repo).unwrap();
     write(
-        &vault.join("Projects/tomoty/Facts.md"),
+        &context.project_root.join("Facts.md"),
         "# Facts\n\n- TomoTy context proof is verified.\n",
     );
     let before = list_files(&repo);

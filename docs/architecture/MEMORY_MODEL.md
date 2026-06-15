@@ -5,9 +5,12 @@ Baron uses two layers:
 1. Markdown vault as source of truth.
 2. SQLite/cache/index as accelerator.
 
-Phase 2 implements the first working version of this model through
+Phase 2 implemented the first working version of this model through
 `baron memory status`, `baron memory index`, `baron memory compact`, and
-`baron recall`. Memory commands require `--vault <path>` or `BARON_VAULT`.
+`baron recall`. Phase 10 replaces full destructive rebuild behavior with an
+incremental source cache, project-ID isolation, multilingual concept ranking,
+task-focused context, and automatic session ingestion. Memory commands require
+`--vault <path>` or `BARON_VAULT`.
 
 ## Memory Classes
 
@@ -41,7 +44,8 @@ Vault/
   AGENTS.md
   Init.md
   Projects/
-    <project-slug>/
+    <project-slug>--<project-id-prefix>/
+      .baron-project.json
       README.md
       Facts.md
       Decisions.md
@@ -52,6 +56,7 @@ Vault/
       Proofs/
       Traces/
       Sessions/
+        Imported/
       Research/
       Notes/
       Open Questions.md
@@ -71,7 +76,7 @@ SQLite is disposable. Markdown is durable.
 
 - `memory status` inspects Vault health and does not create files.
 - `memory index` creates the Vault scaffold and project capsule, then rebuilds
-  `memory-index.sqlite` from Markdown.
+  or incrementally refreshes `memory-index.sqlite` from Markdown.
 - `memory compact` rebuilds the index and prints a bounded Memory Firewall Brief.
 - `recall` rebuilds the index and returns ranked memory after firewall gating.
 - Current-project memory is preferred over all other project memory.
@@ -83,6 +88,25 @@ SQLite is disposable. Markdown is durable.
   distinct memory kinds instead of becoming inert archive files.
 - Product Harness `TEST_MATRIX.md` ties the current story to proof status and
   evidence while remaining plain Markdown that can be rebuilt or inspected.
+
+## Phase 10 Behavior
+
+- `.baron/project.toml` schema v2 stores a stable project ID.
+- Vault capsules include the slug plus an ID prefix, preventing same-name
+  projects from sharing memory.
+- Existing slug-only capsules migrate to the identity capsule without deleting
+  Markdown.
+- SQLite tracks each Markdown source by path, modified time, size, and content
+  hash. Unchanged files are reused; changed and deleted files are reconciled.
+- Survey and memory discovery have no silent fixed file-count cutoff.
+- Recall combines Unicode lexical overlap, concept aliases, title/path/kind,
+  confidence, proof, recency, project identity, and firewall rules.
+- Common Vietnamese/English engineering concepts are matched locally without a
+  cloud model or API key.
+- Initialized projects import a bounded recent batch of confidently matched
+  Codex/Claude sessions during context startup.
+- Imported sessions are redacted, deduplicated, and stored as clean Markdown;
+  import state is rebuildable metadata under project `Artifacts/`.
 
 ## Legacy Import
 

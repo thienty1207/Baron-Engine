@@ -29,18 +29,57 @@ fn vault_scaffold_creates_root_and_project_capsule_without_overwriting() {
     let context = ensure_vault(&vault, &repo).unwrap();
 
     assert_eq!(context.project_slug, "my-legacy-app");
+    assert!(!context.project_id.is_empty());
     assert_eq!(read(&vault.join("Init.md")), "# My Existing Vault\n");
     assert!(vault.join("AGENTS.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/README.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Facts.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Decisions.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Tasks.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Plans").is_dir());
-    assert!(vault.join("Projects/my-legacy-app/ProductHarness").is_dir());
-    assert!(vault.join("Projects/my-legacy-app/Sessions").is_dir());
-    assert!(vault.join("Projects/my-legacy-app/Artifacts").is_dir());
+    assert!(context.project_root.join("README.md").exists());
+    assert!(context.project_root.join("Facts.md").exists());
+    assert!(context.project_root.join("Decisions.md").exists());
+    assert!(context.project_root.join("Tasks.md").exists());
+    assert!(context.project_root.join("Plans").is_dir());
+    assert!(context.project_root.join("ProductHarness").is_dir());
+    assert!(context.project_root.join("Sessions").is_dir());
+    assert!(context.project_root.join("Artifacts").is_dir());
+    assert!(context.project_root.join(".baron-project.json").exists());
     assert!(vault.join("Artifacts/Baron/APPROVED_GLOBAL.md").exists());
     assert!(vault.join("Artifacts/Baron/GLOBAL_CANDIDATES.md").exists());
+}
+
+#[test]
+fn repositories_with_the_same_name_use_different_vault_capsules() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let first = temp.path().join("one").join("same-app");
+    let second = temp.path().join("two").join("same-app");
+    fs::create_dir_all(&first).unwrap();
+    fs::create_dir_all(&second).unwrap();
+
+    let first_context = ensure_vault(&vault, &first).unwrap();
+    let second_context = ensure_vault(&vault, &second).unwrap();
+
+    assert_eq!(first_context.project_slug, second_context.project_slug);
+    assert_ne!(first_context.project_id, second_context.project_id);
+    assert_ne!(first_context.project_root, second_context.project_root);
+}
+
+#[test]
+fn legacy_slug_capsule_migrates_without_losing_markdown() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("legacy-app");
+    let legacy_capsule = vault.join("Projects/legacy-app");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&legacy_capsule).unwrap();
+    write(
+        &legacy_capsule.join("Facts.md"),
+        "# Facts\n\n- Existing legacy memory must survive.\n",
+    );
+
+    let context = ensure_vault(&vault, &repo).unwrap();
+
+    assert_ne!(context.project_root, legacy_capsule);
+    assert!(!legacy_capsule.exists());
+    assert!(read(&context.project_root.join("Facts.md")).contains("Existing legacy memory"));
 }
 
 #[test]
@@ -204,4 +243,118 @@ fn scanner_indexes_proof_and_trace_markdown() {
     assert!(records
         .iter()
         .any(|record| record.kind == MemoryKind::Trace));
+}
+
+#[test]
+fn index_has_no_fixed_markdown_source_limit() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("large-memory");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    for index in 0..350 {
+        write(
+            &context
+                .project_root
+                .join("Notes")
+                .join(format!("{index:04}.md")),
+            &format!("# Note\n\n- Durable memory record number {index:04}.\n"),
+        );
+    }
+
+    let report = build_memory_index(&context).unwrap();
+    let records = load_memory_records(&context).unwrap();
+
+    assert!(report.total_sources >= 350);
+    assert!(records
+        .iter()
+        .any(|record| record.excerpt.contains("number 0349")));
+}
+
+#[test]
+fn incremental_index_reuses_refreshes_and_removes_sources() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("incremental-memory");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let note = context.project_root.join("Notes/decision.md");
+    write(&note, "# Decision\n\n- First durable decision.\n");
+
+    let first = build_memory_index(&context).unwrap();
+    let second = build_memory_index(&context).unwrap();
+    write(
+        &note,
+        "# Decision\n\n- Updated durable decision with verified proof.\n",
+    );
+    let third = build_memory_index(&context).unwrap();
+    fs::remove_file(&note).unwrap();
+    let fourth = build_memory_index(&context).unwrap();
+
+    assert!(first.refreshed_sources > 0);
+    assert_eq!(second.refreshed_sources, 0);
+    assert!(second.reused_sources > 0);
+    assert_eq!(third.refreshed_sources, 1);
+    assert_eq!(fourth.deleted_sources, 1);
+    assert!(!load_memory_records(&context)
+        .unwrap()
+        .iter()
+        .any(|record| record.path.ends_with("Notes/decision.md")));
+}
+
+#[test]
+fn semantic_recall_bridges_vietnamese_security_and_rls_tenant_isolation() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("semantic-memory");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    write(
+        &context.project_root.join("Decisions.md"),
+        "# Decisions\n\n- Supabase RLS policies enforce tenant isolation for customer records.\n",
+    );
+    build_memory_index(&context).unwrap();
+
+    let result = recall(&context, "bảo mật dữ liệu khách hàng", 5).unwrap();
+
+    assert!(result.results.iter().any(|hit| hit
+        .record
+        .excerpt
+        .contains("Supabase RLS policies enforce tenant isolation")));
+    assert!(result.results[0]
+        .notes
+        .iter()
+        .any(|note| note.contains("concept")));
+}
+
+#[test]
+fn same_slug_memory_firewall_uses_project_identity_not_folder_name() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let first = temp.path().join("one/same-app");
+    let second = temp.path().join("two/same-app");
+    fs::create_dir_all(&first).unwrap();
+    fs::create_dir_all(&second).unwrap();
+    let first_context = ensure_vault(&vault, &first).unwrap();
+    let second_context = ensure_vault(&vault, &second).unwrap();
+    write(
+        &first_context.project_root.join("Facts.md"),
+        "# Facts\n\n- Auth implementation belongs to project one.\n",
+    );
+    write(
+        &second_context.project_root.join("Facts.md"),
+        "# Facts\n\n- Auth implementation belongs to project two.\n",
+    );
+    build_memory_index(&first_context).unwrap();
+
+    let result = recall(&first_context, "auth implementation", 10).unwrap();
+
+    assert!(result
+        .results
+        .iter()
+        .any(|hit| hit.record.excerpt.contains("belongs to project one")));
+    assert!(!result
+        .results
+        .iter()
+        .any(|hit| hit.record.excerpt.contains("belongs to project two")));
 }

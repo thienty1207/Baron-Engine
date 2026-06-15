@@ -121,6 +121,39 @@ fn task_focus_changes_risk_and_context_guidance() {
 }
 
 #[test]
+fn task_focus_selects_relevant_memory_instead_of_first_indexed_records() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    for index in 0..8 {
+        write(
+            &context
+                .project_root
+                .join("Notes")
+                .join(format!("a-{index}.md")),
+            &format!("# Note\n\n- Unrelated typography note number {index}.\n"),
+        );
+    }
+    write(
+        &context.project_root.join("Decisions.md"),
+        "# Decisions\n\n- Supabase RLS tenant isolation protects customer records.\n",
+    );
+
+    let output = compile_context_for_task(
+        &repo,
+        &vault,
+        ContextTarget::Codex,
+        Some("bảo mật dữ liệu khách hàng"),
+    )
+    .unwrap();
+
+    assert!(output.contains("Supabase RLS tenant isolation"));
+    assert!(!output.contains("Unrelated typography note number 7"));
+}
+
+#[test]
 fn context_loads_current_execution_state_without_loading_history() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

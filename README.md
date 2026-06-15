@@ -28,6 +28,12 @@ lifecycle are implemented.
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
 
+The current source has completed Baron 2.0 Phase 9 and Phase 10:
+collision-resistant project identity, observable native automation, an
+incremental large-memory index, multilingual task-aware recall, and automatic
+Codex/Claude session import. The published stable binary remains `1.0.0` until
+the remaining Baron 2.0 phases and cross-platform release gates pass.
+
 ## Install
 
 Windows PowerShell:
@@ -77,6 +83,7 @@ baron init [repo-path] --agent --shadow
 baron memory status [repo-path] --vault <vault-path>
 baron memory index [repo-path] --vault <vault-path>
 baron memory compact [repo-path] --vault <vault-path>
+baron memory import-sessions [repo-path] --vault <vault-path>
 baron recall "<query>" [repo-path] --vault <vault-path>
 baron context [repo-path] --codex --vault <vault-path>
 baron context [repo-path] --claude --vault <vault-path>
@@ -101,6 +108,8 @@ baron capability register "security scan" --name security-skill --kind skill --s
 baron capability check
 baron capability list
 baron capability remove "security scan" --name security-skill
+baron automation status [repo-path]
+baron automation reconcile [repo-path]
 baron migrate agent-bootstrap [repo-path] --dry-run
 baron migrate agent-bootstrap [repo-path]
 baron migrate status [repo-path]
@@ -110,8 +119,9 @@ baron migrate rollback --id <migration-id> [repo-path] --vault <vault-path>
 `survey`, `init --shadow`, `memory status`, `memory index`, `memory compact`,
 `recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, `trace`,
 Capability Registry, Agent Bootstrap migration, and release hardening are
-implemented. Maintainer-only release metadata commands are hidden from normal
-help.
+implemented. Baron 2.0 development also implements native automation hooks,
+session import, incremental indexing, and multilingual semantic recall.
+Maintainer-only release metadata commands are hidden from normal help.
 
 Memory and context commands require `--vault <path>` or `BARON_VAULT`. Baron
 does not guess where memory should live.
@@ -190,7 +200,59 @@ all registered adapters.
 - Generic agents receive `AGENT.md`, portable context files, and `.baron/core`.
 
 Managed root instructions use Baron markers. User text outside the markers,
-custom skills, and custom agents survive updates.
+custom skills, custom agents, custom routing entries, and non-Baron native
+hooks survive updates.
+
+## Observable Automatic Workflow
+
+Baron does not rely only on an instruction telling the AI to remember the
+workflow.
+
+- Codex receives project hooks in `.codex/hooks.json`.
+- Claude receives project hooks in `.claude/settings.json`.
+- Session start injects bounded Baron context automatically.
+- Prompt and edit checkpoints are written to a small automation journal.
+- Stop reconciliation checks active plan, proof, and trace state.
+- If meaningful work is unfinished, Baron asks the agent to continue or record
+  an interruption instead of silently claiming completion.
+
+Project hooks still require the agent tool to trust the project configuration.
+`baron automation status` shows what actually ran. Generic agents keep the
+managed startup contract and can use `baron automation reconcile` when their
+host has no native hook standard.
+
+## Large And Meaning-Aware Memory
+
+Each project receives a stored identity and a unique Vault capsule such as
+`tomoty--<project-id>`. Two folders named `tomoty` can no longer share memory by
+accident, and moving an initialized repo keeps the same identity.
+
+The SQLite index is incremental and rebuildable:
+
+- unchanged Markdown is reused
+- changed Markdown is refreshed
+- deleted Markdown is removed from the index
+- repository and memory scans no longer stop at hidden fixed file counts
+
+Recall combines exact words, engineering concepts, evidence quality, recency,
+memory kind, project identity, and the memory firewall. Common Vietnamese and
+English meanings are bridged, for example a request about `bảo mật dữ liệu
+khách hàng` can retrieve a verified note about `Supabase RLS tenant isolation`.
+`baron context --task "<task>"` uses the same ranking to load only the most
+useful memory.
+
+## Automatic Session Memory
+
+For initialized projects, normal context startup checks a bounded number of
+recent Codex and Claude session files. Baron imports only sessions that contain
+an exact match to the current repository path. It keeps useful user messages
+and assistant decisions, removes tool/system noise, redacts obvious secrets,
+deduplicates imports, and writes clean Markdown under
+`Sessions/Imported/` in the project Vault capsule.
+
+Users normally do not run import manually. `baron memory import-sessions`
+exists for inspection or recovery. Source overrides are available through
+`BARON_CODEX_SESSIONS_ROOT` and `BARON_CLAUDE_SESSIONS_ROOT`.
 
 ## Execution And Completion Gates
 

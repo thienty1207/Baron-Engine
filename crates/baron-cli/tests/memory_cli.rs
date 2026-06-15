@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
+use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
 
@@ -80,7 +81,8 @@ fn memory_index_creates_vault_and_project_capsule() {
         .stdout(predicate::str::contains("Project slug: `tomoty`"))
         .stdout(predicate::str::contains("memory-index.sqlite"));
 
-    assert!(vault.join("Projects/tomoty/Facts.md").exists());
+    let context = vault_context_without_create(&vault, &repo).unwrap();
+    assert!(context.project_root.join("Facts.md").exists());
     assert!(vault.join("Artifacts/Baron/memory-index.sqlite").exists());
 }
 
@@ -102,8 +104,9 @@ fn memory_compact_prints_bounded_firewall_brief() {
         ])
         .assert()
         .success();
+    let context = vault_context_without_create(&vault, &repo).unwrap();
     write(
-        &vault.join("Projects/tomoty/Facts.md"),
+        &context.project_root.join("Facts.md"),
         "# Facts\n\n- Survey engine proof is verified.\n",
     );
 
@@ -153,12 +156,14 @@ fn recall_returns_current_project_before_other_project() {
         ])
         .assert()
         .success();
+    let tomoty_context = vault_context_without_create(&vault, &tomoty).unwrap();
+    let legacy_context = vault_context_without_create(&vault, &legacy).unwrap();
     write(
-        &vault.join("Projects/tomoty/Facts.md"),
+        &tomoty_context.project_root.join("Facts.md"),
         "# Facts\n\n- Auth login uses Rust Axum.\n",
     );
     write(
-        &vault.join("Projects/legacy-crm/Facts.md"),
+        &legacy_context.project_root.join("Facts.md"),
         "# Facts\n\n- Auth login uses legacy PHP.\n",
     );
 
@@ -205,4 +210,42 @@ fn memory_commands_require_vault_path_or_environment() {
         .stderr(predicate::str::contains(
             "Provide --vault <path> or set BARON_VAULT",
         ));
+}
+
+#[test]
+fn memory_import_sessions_is_available_for_inspection() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("Vault");
+    let sessions = temp.path().join("sessions");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&sessions).unwrap();
+    let repo_text = repo.canonicalize().unwrap().to_string_lossy().to_string();
+    write(
+        &sessions.join("session.jsonl"),
+        &format!(
+            "{}\n{}",
+            serde_json::json!({"type":"session_meta","payload":{"cwd":repo_text}}),
+            serde_json::json!({"type":"response_item","payload":{"role":"user","content":"Keep this imported memory"}})
+        ),
+    );
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "memory",
+            "import-sessions",
+            repo.to_str().unwrap(),
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .env("BARON_CODEX_SESSIONS_ROOT", &sessions)
+        .env(
+            "BARON_CLAUDE_SESSIONS_ROOT",
+            temp.path().join("missing-claude"),
+        )
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Imported: 1"))
+        .stdout(predicate::str::contains("session-import-state.json"));
 }

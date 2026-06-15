@@ -59,6 +59,32 @@ fn cli_reports_the_release_version() {
 }
 
 #[test]
+fn help_exposes_phase_nine_and_ten_command_groups() {
+    Command::cargo_bin("baron")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("automation"))
+        .stdout(predicate::str::contains("memory"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["memory", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("import-sessions"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["automation", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("reconcile"))
+        .stdout(predicate::str::contains("hook"));
+}
+
+#[test]
 fn survey_prints_markdown_project_atlas() {
     let temp = fixture_repo();
 

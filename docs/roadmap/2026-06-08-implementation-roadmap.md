@@ -323,6 +323,8 @@ Every phase must end with:
 Goal: make automatic Baron behavior observable and IDE-compatible while
 eliminating all project identity collisions.
 
+Status: completed on 2026-06-15 on `codex/phase-9-10`.
+
 Deliverables:
 
 - stable project ID independent of the final folder name
@@ -333,10 +335,21 @@ Deliverables:
 - custom skill and agent routing preservation during update
 - duplicate-name, move, rename, and interrupted-lifecycle tests
 
+Delivered:
+
+- schema v2 stored project ID and unique slug-plus-ID Vault capsules
+- legacy capsule migration without Markdown loss
+- native Codex and Claude project hooks
+- automation journal, checkpoint throttling, and Stop reconciliation
+- lifecycle records for context, plan, harness, proof, and trace actions
+- custom hook and skill/agent routing preservation
+
 ## Phase 10 - Massive Memory And Semantic Recall
 
 Goal: support long-lived, shared Vaults without silent memory omission or weak
 word-only retrieval.
+
+Status: completed on 2026-06-15 on `codex/phase-9-10`.
 
 Deliverables:
 
@@ -347,6 +360,16 @@ Deliverables:
 - automatic supported-session import with redaction and deduplication
 - evidence, confidence, recency, status, scope, and project-aware ranking
 - bounded context compilation at large scale
+
+Delivered:
+
+- deterministic incremental SQLite source cache with stale deletion
+- no silent 200-memory or 5,000-repository-entry truncation
+- project-ID-aware memory firewall for same-name repositories
+- local hybrid lexical/concept ranking with Vietnamese/English aliases
+- task-focused compact context
+- automatic exact-repo-matched Codex/Claude session import
+- tool/system noise filtering, obvious-secret redaction, and deduplication
 
 ## Phase 11 - Skill And Agent Control Plane
 

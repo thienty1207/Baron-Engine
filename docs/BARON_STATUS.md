@@ -5,12 +5,12 @@ Last updated: 2026-06-15
 ## Overall
 
 - Stable release: `v1.0.0` (Phase 0-8 complete)
-- Baron 2.0 completion: 0%
-- Remaining phases: 6 (Phase 9 through Phase 14)
-- Current phase: Phase 9 - Automation Runtime And Project Identity
-- Current phase status: planned, implementation not started
-- Current next action: approve the Phase 9 design and implementation plan
-- Build confidence: `v1.0.0` release gates pass; Baron 2.0 claims remain unearned until Phase 9-14 verification passes
+- Baron 2.0 completion: 45%
+- Remaining phases: 4 (Phase 11 through Phase 14)
+- Current phase: Phase 11 - Skill And Agent Control Plane
+- Current phase status: planned
+- Current next action: design and plan Phase 11 from the completed Phase 9-10 baseline
+- Build confidence: Phase 9-10 local acceptance, full workspace tests, Clippy, and scale/session smokes pass; Baron 2.0 release claims remain unearned until Phase 11-14 and cross-platform gates pass
 
 ## Why The Roadmap Continues
 
@@ -18,13 +18,9 @@ The `v1.0.0` release is a working foundation, not the final long-horizon
 promise. An adversarial audit found release-blocking gaps for the Baron 2.0
 goal:
 
-- repositories with the same folder name can share one Vault capsule
-- fixed scan limits can omit repository files and memory files
-- recall does not yet understand close meanings across Vietnamese and English
-- adapter update can remove custom skill/agent routing registrations
-- automation relies too heavily on agents obeying startup instructions
-- live Codex/Claude session ingestion is not yet Baron-native
 - self-improving harness analysis is incomplete
+- skill/agent contracts and mandatory gate execution evidence are not yet complete
+- extreme-scale and cross-platform Baron 2.0 certification is not yet complete
 
 ## What Baron 2.0 100% Means
 
@@ -82,8 +78,8 @@ remaining-program weights:
 
 | Phase | Name | Status | Baron 2.0 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 9 | Automation Runtime And Project Identity | planned | 20% | collision, lifecycle, reconciliation, and custom-routing preservation tests |
-| 10 | Massive Memory And Semantic Recall | planned | 25% | unbounded incremental index, multilingual semantic recall, session import, and bounded-context tests |
+| 9 | Automation Runtime And Project Identity | completed | 20% | collision, lifecycle, reconciliation, native-hook, and custom-routing preservation tests |
+| 10 | Massive Memory And Semantic Recall | completed | 25% | incremental 350-source index, 6,000-file survey, multilingual recall, session import, and bounded-context tests |
 | 11 | Skill And Agent Control Plane | planned | 20% | contract validation, conflict detection, explainable routing, quality-gate execution evidence |
 | 12 | Self-Improving Harness | planned | 15% | context score, drift audit, interventions, verify-all, proposal, and outcome-loop tests |
 | 13 | Extreme Scale Certification | planned | 15% | large-repo, large-memory, multi-project, interruption, corruption, move, rename, and soak tests |
@@ -201,24 +197,24 @@ remaining-program weights:
 
 ### Phase 9 - Automation Runtime And Project Identity
 
-- [ ] Replace basename-only project identity with a stable collision-resistant ID.
-- [ ] Migrate existing Vault capsules without memory loss or cross-project merging.
-- [ ] Add IDE-compatible lifecycle events without requiring `baron run`.
-- [ ] Use native hooks where supported and observable reconciliation where hooks are absent.
-- [ ] Record which automatic actions actually ran instead of trusting instructions.
-- [ ] Preserve custom skill/agent routing registrations during every adapter update.
-- [ ] Add duplicate-name, moved-project, renamed-project, and missed-lifecycle regression tests.
+- [x] Replace basename-only project identity with a stable collision-resistant ID.
+- [x] Migrate existing Vault capsules without memory loss or cross-project merging.
+- [x] Add IDE-compatible lifecycle events without requiring `baron run`.
+- [x] Use native hooks where supported and observable reconciliation where hooks are absent.
+- [x] Record which automatic actions actually ran instead of trusting instructions.
+- [x] Preserve custom skill/agent routing registrations during every adapter update.
+- [x] Add duplicate-name, moved-project, renamed-project, and missed-lifecycle regression tests.
 
 ### Phase 10 - Massive Memory And Semantic Recall
 
-- [ ] Remove fixed project-memory and repository-entry truncation.
-- [ ] Add deterministic incremental indexing with deletion and rename handling.
-- [ ] Add recency, evidence, confidence, status, kind, project, and source metadata.
-- [ ] Add hybrid lexical, concept, and optional local-semantic retrieval.
-- [ ] Support common Vietnamese/English engineering meaning matches.
-- [ ] Import supported Codex/Claude sessions automatically with redaction and deduplication.
-- [ ] Compile task-aware bounded context from very large Vaults.
-- [ ] Rebuild all disposable indexes from Markdown without memory loss.
+- [x] Remove fixed project-memory and repository-entry truncation.
+- [x] Add deterministic incremental indexing with deletion and rename handling.
+- [x] Add recency, evidence, confidence, status, kind, project, and source metadata.
+- [x] Add hybrid lexical and concept-semantic retrieval without a mandatory model.
+- [x] Support common Vietnamese/English engineering meaning matches.
+- [x] Import supported Codex/Claude sessions automatically with redaction and deduplication.
+- [x] Compile task-aware bounded context from very large Vaults.
+- [x] Rebuild all disposable indexes from Markdown without memory loss.
 
 ### Phase 11 - Skill And Agent Control Plane
 
@@ -285,8 +281,8 @@ remaining-program weights:
 
 ## Current Rule
 
-Baron `1.0.0` is complete against the Phase 0-8 roadmap. Baron `2.0.0` requires
-Phase 9-14 and is currently 0% complete. Future work must preserve the released
-memory, adapter, proof, capability, and data-safety contracts while replacing
-the known scale, identity, automation, recall, and routing weaknesses. Read this
-file and `notes/build-log/CURRENT.md` before starting a new phase.
+Baron `1.0.0` is complete against the Phase 0-8 roadmap. Baron `2.0.0` is 45%
+complete after Phase 9-10. Future work must preserve the verified identity,
+native automation, incremental memory, semantic recall, adapter, proof,
+capability, and data-safety contracts. Read this file and
+`notes/build-log/CURRENT.md` before starting Phase 11.

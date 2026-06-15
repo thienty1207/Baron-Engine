@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use assert_cmd::Command;
-use baron_core::vault::project_slug;
+use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
 
@@ -134,14 +134,14 @@ fn shared_vault_keeps_weak_cross_project_memory_out() {
     init(&alpha, &vault, "--agent");
     init(&beta, &vault, "--agent");
 
-    let alpha_slug = project_slug(&alpha);
-    let beta_slug = project_slug(&beta);
+    let alpha_context = vault_context_without_create(&vault, &alpha).unwrap();
+    let beta_context = vault_context_without_create(&vault, &beta).unwrap();
     write(
-        &vault.join(format!("Projects/{alpha_slug}/Facts.md")),
+        &alpha_context.project_root.join("Facts.md"),
         "# Facts\n\nAlpha authentication uses signed sessions.\n",
     );
     write(
-        &vault.join(format!("Projects/{beta_slug}/Facts.md")),
+        &beta_context.project_root.join("Facts.md"),
         "# Facts\n\nBeta authentication secret must never leak into Alpha.\n",
     );
     Command::cargo_bin("baron")

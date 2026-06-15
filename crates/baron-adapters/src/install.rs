@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 
-use crate::managed::{upsert_managed_block, write_managed_file};
+use crate::managed::{upsert_managed_block, upsert_routing_block, write_managed_file};
 use crate::AgentAdapter;
 
 static CORE_ASSETS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../assets/core");
@@ -32,13 +32,21 @@ pub fn install_adapter(
 fn install_codex(repo: &Path) -> Result<InstallReport> {
     upsert_managed_block(&repo.join("AGENTS.md"), &startup_contract("Codex", "codex"))?;
     write_managed_file(&repo.join(".codex/INDEX.md"), &codex_index())?;
-    write_managed_file(
+    upsert_routing_block(
         &repo.join(".codex/skills/INDEX.md"),
         &skills_index(".codex/skills"),
+        "## Custom Skills",
+        "Register project-specific skills below. Custom skills must not duplicate Superpowers workflow ownership.",
     )?;
-    write_managed_file(&repo.join(".codex/agents/INDEX.md"), &agents_index())?;
+    upsert_routing_block(
+        &repo.join(".codex/agents/INDEX.md"),
+        &agents_index(),
+        "## Custom Agents",
+        "Register optional project-specific agents below without replacing the core gates.",
+    )?;
     write_asset_subtree("skills", &repo.join(".codex/skills"))?;
     write_asset_subtree("agents", &repo.join(".codex/agents"))?;
+    install_native_hooks(&repo.join(".codex/hooks.json"), "codex")?;
     Ok(report(
         "codex",
         &[
@@ -46,6 +54,7 @@ fn install_codex(repo: &Path) -> Result<InstallReport> {
             ".codex/INDEX.md",
             ".codex/skills/INDEX.md",
             ".codex/agents/INDEX.md",
+            ".codex/hooks.json",
         ],
     ))
 }
@@ -63,12 +72,15 @@ fn install_claude(repo: &Path) -> Result<InstallReport> {
         &repo.join(".claude/commands/baron-status.md"),
         "# Baron Status\n\nRun `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score.\n",
     )?;
-    write_managed_file(
+    upsert_routing_block(
         &repo.join(".claude/skills/INDEX.md"),
         &skills_index(".claude/skills"),
+        "## Custom Skills",
+        "Register project-specific skills below. Custom skills must not duplicate Superpowers workflow ownership.",
     )?;
     write_asset_subtree("skills", &repo.join(".claude/skills"))?;
     write_claude_agents(repo)?;
+    install_native_hooks(&repo.join(".claude/settings.json"), "claude")?;
     Ok(report(
         "claude",
         &[
@@ -76,8 +88,60 @@ fn install_claude(repo: &Path) -> Result<InstallReport> {
             ".claude/commands/baron-context.md",
             ".claude/commands/baron-status.md",
             ".claude/skills/INDEX.md",
+            ".claude/settings.json",
         ],
     ))
+}
+
+fn install_native_hooks(path: &Path, adapter: &str) -> Result<()> {
+    let mut root = fs::read_to_string(path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if !root.is_object() {
+        root = serde_json::json!({});
+    }
+    let root_object = root
+        .as_object_mut()
+        .context("Native hook configuration must be a JSON object")?;
+    let hooks = root_object
+        .entry("hooks")
+        .or_insert_with(|| serde_json::json!({}));
+    if !hooks.is_object() {
+        *hooks = serde_json::json!({});
+    }
+    let hooks = hooks
+        .as_object_mut()
+        .context("Native hook registry must be a JSON object")?;
+
+    for (event, command, matcher) in [
+        ("SessionStart", "session-start", None),
+        ("UserPromptSubmit", "prompt", None),
+        ("PostToolUse", "checkpoint", Some("Edit|Write|apply_patch")),
+        ("Stop", "stop", None),
+    ] {
+        let entries = hooks.entry(event).or_insert_with(|| serde_json::json!([]));
+        if !entries.is_array() {
+            *entries = serde_json::json!([]);
+        }
+        let entries = entries
+            .as_array_mut()
+            .context("Native hook event must contain an array")?;
+        entries.retain(|entry| !entry.to_string().contains("baron automation hook"));
+        let mut group = serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": format!("baron automation hook {command} --adapter {adapter}"),
+                "commandWindows": format!("baron automation hook {command} --adapter {adapter}"),
+                "timeout": 120
+            }]
+        });
+        if let Some(matcher) = matcher {
+            group["matcher"] = serde_json::Value::String(matcher.to_string());
+        }
+        entries.push(group);
+    }
+    write_managed_file(path, &format!("{}\n", serde_json::to_string_pretty(&root)?))
 }
 
 fn install_generic(repo: &Path) -> Result<InstallReport> {
@@ -100,11 +164,18 @@ fn install_generic(repo: &Path) -> Result<InstallReport> {
             "sourceOfTruth": ["repository", "vault-markdown"]
         }))?,
     )?;
-    write_managed_file(
+    upsert_routing_block(
         &repo.join(".baron/core/skills/INDEX.md"),
         &skills_index(".baron/core/skills"),
+        "## Custom Skills",
+        "Register project-specific skills below. Custom skills must not duplicate Superpowers workflow ownership.",
     )?;
-    write_managed_file(&repo.join(".baron/core/agents/INDEX.md"), &agents_index())?;
+    upsert_routing_block(
+        &repo.join(".baron/core/agents/INDEX.md"),
+        &agents_index(),
+        "## Custom Agents",
+        "Register optional project-specific agents below without replacing the core gates.",
+    )?;
     write_asset_subtree("skills", &repo.join(".baron/core/skills"))?;
     write_asset_subtree("agents", &repo.join(".baron/core/agents"))?;
     Ok(report(
@@ -151,9 +222,7 @@ Do not recursively load every skill. Match the task, then read only the narrow s
 | Superpowers | workflow core | planning, TDD, debugging, review, verification |\n\
 | `frontend-design` | optional domain | UI, layout, responsive, accessibility, browser-facing flows |\n\
 | `vibe-security-scan` | optional domain | auth, API, secrets, RLS, uploads, payment, dependencies, permissions |\n\n\
-Skill root: `{root}`.\n\n\
-## Custom Skills\n\n\
-Register project-specific skills below. Custom skills must not duplicate Superpowers workflow ownership.\n"
+Skill root: `{root}`.\n"
     )
 }
 
@@ -164,9 +233,7 @@ Use the three core quality agents as gates, not as workflow owners. Do not dispa
 | --- | --- |\n\
 | `code-reviewer` | correctness, regressions, maintainability, architecture |\n\
 | `security-auditor` | exploitable security and sensitive-memory risks |\n\
-| `test-engineer` | verification evidence and missing coverage |\n\n\
-## Custom Agents\n\n\
-Register optional project-specific agents below without replacing the core gates.\n"
+| `test-engineer` | verification evidence and missing coverage |\n"
         .to_string()
 }
 
@@ -225,7 +292,12 @@ fn write_claude_agents(repo: &Path) -> Result<()> {
             &content,
         )?;
     }
-    write_managed_file(&repo.join(".claude/agents/INDEX.md"), &agents_index())
+    upsert_routing_block(
+        &repo.join(".claude/agents/INDEX.md"),
+        &agents_index(),
+        "## Custom Agents",
+        "Register optional project-specific agents below without replacing the core gates.",
+    )
 }
 
 fn report(adapter: &str, files: &[&str]) -> InstallReport {

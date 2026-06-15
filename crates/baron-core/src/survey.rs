@@ -189,7 +189,6 @@ fn collect_entries(root: &Path) -> Result<Vec<Entry>> {
     for result in builder
         .filter_entry(|entry| !is_heavy_path(entry.path()))
         .build()
-        .take(5000)
     {
         let entry = match result {
             Ok(entry) => entry,
