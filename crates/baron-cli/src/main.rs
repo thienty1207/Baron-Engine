@@ -25,6 +25,7 @@ use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
+use baron_core::release::{load_and_verify_release_metadata, write_release_metadata};
 use baron_core::survey::{render_project_atlas, survey_repository};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
@@ -32,7 +33,7 @@ use baron_core::{phase, product_name};
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Parser)]
-#[command(name = "baron", about = "Baron Engine")]
+#[command(name = "baron", about = "Baron Engine", version)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -115,6 +116,11 @@ enum Commands {
     Capability {
         #[command(subcommand)]
         command: CapabilityCommands,
+    },
+    #[command(hide = true)]
+    Release {
+        #[command(subcommand)]
+        command: ReleaseCommands,
     },
 }
 
@@ -268,6 +274,20 @@ enum CapabilityCommands {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         name: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ReleaseCommands {
+    Metadata {
+        artifacts_dir: PathBuf,
+        #[arg(long)]
+        release_version: Option<String>,
+        #[arg(long)]
+        source_revision: String,
+    },
+    Verify {
+        artifacts_dir: PathBuf,
     },
 }
 
@@ -735,6 +755,29 @@ fn run() -> Result<()> {
                 println!("- Capability: `{}`", capability);
                 println!("- Provider: `{}`", name);
                 println!("- Removed: `{}`", if removed { "yes" } else { "no" });
+            }
+        },
+        Some(Commands::Release { command }) => match command {
+            ReleaseCommands::Metadata {
+                artifacts_dir,
+                release_version,
+                source_revision,
+            } => {
+                let version =
+                    release_version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
+                let manifest = write_release_metadata(&artifacts_dir, &version, &source_revision)?;
+                println!("# Baron Release Metadata\n");
+                println!("- Release metadata generated");
+                println!("- Version: `{}`", manifest.version);
+                println!("- Source revision: `{}`", manifest.source_revision);
+                println!("- Artifacts: {}", manifest.artifacts.len());
+            }
+            ReleaseCommands::Verify { artifacts_dir } => {
+                let manifest = load_and_verify_release_metadata(&artifacts_dir)?;
+                println!("# Baron Release Verification\n");
+                println!("- Release assets verified");
+                println!("- Version: `{}`", manifest.version);
+                println!("- Artifacts: {}", manifest.artifacts.len());
             }
         },
         None => {

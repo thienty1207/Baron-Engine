@@ -12,11 +12,16 @@ baron-cli
        -> harness engine
        -> proof engine
        -> trace engine
+       -> release metadata and checksum verifier
   -> baron-adapters
        -> codex adapter
        -> claude adapter
        -> generic agent adapter
 ```
+
+GitHub Actions builds the same `baron-cli` on four native runner targets.
+Installers are thin lifecycle clients around those verified archives; they are
+not another runtime and never own project or Vault data.
 
 ## Data Flow
 
@@ -46,3 +51,6 @@ repo + vault + user task
 - Adapter files use managed markers where possible.
 - Baron must never mark completion without verification evidence.
 - Baron must never promote cross-project memory as truth without confidence.
+- Release installers must verify SHA-256 and staged binary version before
+  replacing the active executable.
+- Rollback and uninstall must never traverse into project or Vault paths.

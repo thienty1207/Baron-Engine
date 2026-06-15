@@ -1,0 +1,149 @@
+name: Baron Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  verify-version:
+    name: Verify release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Match tag to Cargo version
+        id: version
+        shell: bash
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "baron-cli") | .version')"
+          if [[ "v$version" != "$GITHUB_REF_NAME" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match Baron workspace version $version." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Verify source before packaging
+        run: cargo test --workspace --all-targets
+
+  build-native:
+    name: Build ${{ matrix.target }}
+    needs: verify-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            archive: tar.gz
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build native release binary
+        run: cargo build --release --locked -p baron-cli
+      - name: Smoke native release binary
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ./target/release/baron.exe --version
+          else
+            ./target/release/baron --version
+          fi
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "baron-v${{ needs.verify-version.outputs.version }}-${{ matrix.target }}.zip"
+          Compress-Archive -LiteralPath target/release/baron.exe -DestinationPath $name -Force
+      - name: Package Unix archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          name="baron-v${{ needs.verify-version.outputs.version }}-${{ matrix.target }}.tar.gz"
+          tar -czf "$name" -C target/release baron
+      - name: Upload native archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: baron-${{ matrix.target }}
+          path: baron-v${{ needs.verify-version.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Verify and publish release assets
+    needs:
+      - verify-version
+      - build-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download native archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: baron-*
+          path: release-assets
+          merge-multiple: true
+      - name: Build release verifier
+        run: cargo build --release --locked -p baron-cli
+      - name: Generate checksums and release manifest
+        run: |
+          ./target/release/baron release metadata release-assets \
+            --release-version "${{ needs.verify-version.outputs.version }}" \
+            --source-revision "$GITHUB_SHA"
+      - name: Verify assembled release assets
+        run: |
+          test -f release-assets/SHA256SUMS
+          test -f release-assets/release-manifest.json
+          ./target/release/baron release verify release-assets
+      - name: Add checksum-verifying installers
+        run: |
+          cp installers/install.ps1 release-assets/install.ps1
+          cp installers/install.sh release-assets/install.sh
+      - name: Smoke shell install lifecycle from assembled assets
+        run: |
+          install_dir="$RUNNER_TEMP/baron-bin"
+          sh installers/install.sh --action install \
+            --version "${{ needs.verify-version.outputs.version }}" \
+            --install-dir "$install_dir" \
+            --source-dir release-assets
+          sh installers/install.sh --action update \
+            --version "${{ needs.verify-version.outputs.version }}" \
+            --install-dir "$install_dir" \
+            --source-dir release-assets
+          sh installers/install.sh --action rollback \
+            --version "${{ needs.verify-version.outputs.version }}" \
+            --install-dir "$install_dir"
+          sh installers/install.sh --action uninstall \
+            --version "${{ needs.verify-version.outputs.version }}" \
+            --install-dir "$install_dir"
+      - name: Upload verified release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: baron-release-${{ needs.verify-version.outputs.version }}
+          path: release-assets/*
+          if-no-files-found: error
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --title "Baron ${{ needs.verify-version.outputs.version }}" \
+            --generate-notes \
+            --verify-tag

@@ -15,10 +15,10 @@ Phase 8 - Release Hardening (implementation in progress).
 
 ## Current Status
 
-Phase 7 is implemented, verified, merged, and pushed. Phase 8 design is locked
-on `codex/phase-8-release-hardening`. Implementation is starting with failing
-tests for version metadata, deterministic artifacts, checksums, installers, and
-the cross-platform release smoke matrix.
+Phase 8 implementation is complete locally on
+`codex/phase-8-release-hardening`. Release metadata, checksums, lifecycle
+installers, CI/release workflows, docs, and release smoke tests pass on Windows.
+Hosted Linux and macOS proof remains before the phase can be marked complete.
 
 ## Verification
 
@@ -69,8 +69,8 @@ the cross-platform release smoke matrix.
 
 ## Next Action
 
-Add failing release-contract tests, then implement the Rust release metadata
-contract and Baron `1.0.0` version source of truth.
+Push the Phase 8 branch and inspect the GitHub-hosted Windows, Linux, Intel
+macOS, and Apple Silicon macOS matrix.
 
 ## Phase 4-5 Feature Commits
 

@@ -7,8 +7,8 @@ Last updated: 2026-06-15
 - Completion: 95%
 - Current phase: Phase 8 - Release Hardening
 - Current phase status: implementation_in_progress
-- Current next action: add failing release metadata and checksum contract tests
-- Build confidence: Phase 7 is verified; Phase 8 design and clean full-suite baseline are verified
+- Current next action: push Phase 8 and verify the four-platform GitHub Actions matrix
+- Build confidence: all Phase 8 local tests, Clippy, format, Windows installer lifecycle, and release smoke scenarios pass
 
 ## What 100% Means
 
@@ -49,7 +49,7 @@ Completion requires:
 | 5 | Plan/Harness/Proof/Trace | completed | 20% / 20% | plan, harness, proof, trace, completion-gate and mirror tests |
 | 6 | Native Migration And Legacy Retirement | completed | 8% / 8% | transactional migration tests, rollback tests, core asset contracts, full suite, manual smoke |
 | 7 | Baron Capability Registry | completed | 7% / 7% | provider-kind, compatibility, degradation, context, proof/trace, CLI, and adapter automation tests |
-| 8 | Release Hardening | implementation_in_progress | 0% / 5% | design and pre-phase full-suite baseline |
+| 8 | Release Hardening | implementation_in_progress | 0% / 5% | local release gates pass; hosted Linux and macOS proof pending |
 
 ## Completion Checklist
 

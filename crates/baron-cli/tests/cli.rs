@@ -49,6 +49,16 @@ fn fixture_repo() -> tempfile::TempDir {
 }
 
 #[test]
+fn cli_reports_the_release_version() {
+    Command::cargo_bin("baron")
+        .unwrap()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("baron 1.0.0"));
+}
+
+#[test]
 fn survey_prints_markdown_project_atlas() {
     let temp = fixture_repo();
 

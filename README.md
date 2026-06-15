@@ -16,17 +16,38 @@ one durable engine:
 - capability-aware tool routing and evidence
 - adapter-specific output for Codex, Claude, Cursor, and generic agents
 
-## Phase
+## Stable Release
 
-Current completed phase: `7 - Baron Capability Registry`.
+Current version: `1.0.0`.
 
 Survey, Vault Memory Firewall, Context Compiler, multi-agent adapters, Active
 Plan State, Product Harness, proof gates, trace quality, and transactional
-legacy migration, and the Baron Capability Registry are implemented. Phase 8
-is release hardening.
+legacy migration, the Baron Capability Registry, and the native release
+lifecycle are implemented.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
+
+## Install
+
+Windows PowerShell:
+
+```powershell
+$installer = Join-Path $env:TEMP "baron-install.ps1"
+Invoke-WebRequest https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.ps1 -OutFile $installer
+& $installer
+```
+
+Linux or macOS:
+
+```bash
+curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.sh | sh
+```
+
+The installer verifies the downloaded archive against `SHA256SUMS` before
+replacing any executable. Update keeps a rollback binary. Uninstall never
+deletes project files or Vault memory. See [docs/RELEASE.md](docs/RELEASE.md)
+for update, rollback, uninstall, offline install, and manual checksum steps.
 
 ## Core Promise
 
@@ -88,8 +109,9 @@ baron migrate rollback --id <migration-id> [repo-path] --vault <vault-path>
 
 `survey`, `init --shadow`, `memory status`, `memory index`, `memory compact`,
 `recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, `trace`,
-Capability Registry, and Agent Bootstrap migration are implemented. Release
-commands remain roadmap contracts until Phase 8.
+Capability Registry, Agent Bootstrap migration, and release hardening are
+implemented. Maintainer-only release metadata commands are hidden from normal
+help.
 
 Memory and context commands require `--vault <path>` or `BARON_VAULT`. Baron
 does not guess where memory should live.
@@ -230,6 +252,16 @@ source Vault is never deleted.
 - SQLite/cache/index files are rebuildable accelerators only.
 - Rust is the main engine runtime.
 - Agent-specific files are adapters, not separate brains.
+
+## Release Safety
+
+- The Cargo workspace version is the only Baron release version.
+- Windows, Linux, Intel macOS, and Apple Silicon macOS build on native runners.
+- Release archives use stable target-specific names.
+- `SHA256SUMS` and `release-manifest.json` cover every native archive.
+- Install and update verify checksum and binary version before replacement.
+- Rollback affects only the Baron executable.
+- Uninstall leaves repositories, adapters, `.baron/`, and Vault Markdown intact.
 
 ## Temporary Build Notes
 

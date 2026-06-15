@@ -11,8 +11,8 @@ install/update/rollback/uninstall behavior and cross-platform proof.
 
 - Branch: `codex/phase-8-release-hardening`
 - Worktree: `C:\Users\Ho Thien Ty\.config\superpowers\worktrees\Baron-Engine\phase-8-release-hardening`
-- Status: design locked; implementation starting with failing release-contract
-  tests.
+- Status: implementation and all local release gates pass; hosted native-runner
+  proof is next.
 
 ## Baseline Proof
 
@@ -31,6 +31,38 @@ install/update/rollback/uninstall behavior and cross-platform proof.
 - Installer rollback data is separate from project and Vault data.
 - Phase 8 stays below 100% until hosted platform and release-asset proof pass.
 
+## Implemented
+
+- workspace version `1.0.0` and `baron --version`
+- stable four-target archive contract
+- Rust SHA-256 and release manifest generation/verification
+- hidden maintainer release metadata commands
+- checksum-verifying PowerShell and POSIX installers
+- install, update, rollback, uninstall, offline source, and mirror support
+- Windows, Linux, Intel macOS, and Apple Silicon macOS CI matrix
+- tag/version validation and GitHub Release workflow
+- fresh, old, large-repo, shared-Vault, multi-adapter, and degradation smoke
+- install and release documentation
+
+## Local Verification
+
+- `cargo test --workspace --all-targets`: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Windows installer install/update/rollback/uninstall: passed
+- release manifest/checksum tamper regression: passed
+- 2,000-file repository bounded survey/context smoke: passed
+- shared-Vault cross-project isolation smoke: passed
+- Codex/Claude/generic adapter smoke: passed
+- optional capability degradation smoke: passed
+- `docs/BARON_STATUS.json` parse: passed
+- `git diff --check`: passed
+- PowerShell parser check: passed
+- local POSIX shell parser: unavailable because this Windows machine has no WSL
+  distribution; the hosted Linux/macOS matrix is the required proof.
+
 ## Exact Resume Point
 
-Add failing release-contract tests before implementation.
+Push `codex/phase-8-release-hardening`, inspect the four-platform GitHub Actions
+matrix, fix any hosted-runner issue, then merge, tag `v1.0.0`, and verify the
+published release assets before marking Baron 100%.
