@@ -1,11 +1,15 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-15",
-  "overallCompletionPercent": 100,
-  "currentPhase": "phase-8-release-hardening",
-  "currentPhaseStatus": "completed",
-  "nextAction": "maintain-v1.0.0-and-triage-verified-user-feedback",
-  "buildConfidence": "Local gates, four-platform native CI, release packaging, and the published Windows installer lifecycle pass",
+  "stableRelease": "1.0.0",
+  "stableReleaseCompletionPercent": 100,
+  "targetRelease": "2.0.0",
+  "targetReleaseCompletionPercent": 0,
+  "remainingPhaseCount": 6,
+  "currentPhase": "phase-9-automation-runtime-project-identity",
+  "currentPhaseStatus": "planned",
+  "nextAction": "approve-phase-9-design-and-implementation-plan",
+  "buildConfidence": "Version 1.0.0 release gates pass. Version 2.0.0 claims remain unearned until phases 9 through 14 pass.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -22,7 +26,16 @@
     "legacy project migration converts useful data into Baron-native structures",
     "legacy runtime and managed files are retired after verified migration",
     "capability registry prevents false tool-execution claims",
-    "release binaries and smoke tests pass"
+    "release binaries and smoke tests pass",
+    "duplicate repository names never share project memory",
+    "memory and repository indexing do not silently truncate at fixed file counts",
+    "task-aware recall supports close meanings and common Vietnamese English engineering concepts",
+    "supported agent sessions are imported with redaction and deduplication",
+    "custom skill and agent files plus routing registrations survive updates",
+    "skill and agent routing is validated narrow explainable and evidence backed",
+    "missed automatic lifecycle actions are detected instead of assumed",
+    "harness drift context gaps repeated friction and improvement outcomes are measured",
+    "extreme scale interruption corruption move rename and cross-platform tests pass"
   ],
   "phases": [
     {
@@ -150,11 +163,98 @@
         "GitHub release workflow 27534923497 passed",
         "published v1.0.0 assets and Windows install update rollback uninstall lifecycle passed"
       ]
+    },
+    {
+      "id": 9,
+      "name": "Automation Runtime And Project Identity",
+      "status": "planned",
+      "targetReleaseWeightPercent": 20,
+      "completionPercent": 0,
+      "requiredProof": [
+        "collision resistant project identity tests",
+        "existing capsule migration and memory preservation tests",
+        "IDE compatible lifecycle automation tests",
+        "automation reconciliation and execution evidence tests",
+        "custom skill and agent routing preservation tests",
+        "duplicate name move rename and interruption regressions"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Massive Memory And Semantic Recall",
+      "status": "planned",
+      "targetReleaseWeightPercent": 25,
+      "completionPercent": 0,
+      "requiredProof": [
+        "incremental index without fixed file count truncation",
+        "delete move rename and rebuild tests",
+        "hybrid multilingual semantic recall tests",
+        "automatic session import redaction and deduplication tests",
+        "large Vault bounded context tests"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Skill And Agent Control Plane",
+      "status": "planned",
+      "targetReleaseWeightPercent": 20,
+      "completionPercent": 0,
+      "requiredProof": [
+        "skill and agent contract validation tests",
+        "trigger exclusion ownership conflict and dependency routing tests",
+        "Superpowers ownership and three core quality gate tests",
+        "explainable narrow routing tests",
+        "mandatory quality gate execution evidence tests"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Self-Improving Harness",
+      "status": "planned",
+      "targetReleaseWeightPercent": 15,
+      "completionPercent": 0,
+      "requiredProof": [
+        "context read scoring tests",
+        "documentation drift contradiction and entropy audit tests",
+        "intervention and batch story verification tests",
+        "friction pattern and improvement proposal tests",
+        "predicted impact and actual outcome loop tests"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Extreme Scale Certification",
+      "status": "planned",
+      "targetReleaseWeightPercent": 15,
+      "completionPercent": 0,
+      "requiredProof": [
+        "very large monorepo tests",
+        "hundreds of projects shared Vault isolation tests",
+        "large multi year memory corpus tests",
+        "interruption corruption deletion move rename and duplicate name recovery tests",
+        "cross platform time memory context and rebuild budget tests"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Baron 2.0 Release Hardening",
+      "status": "planned",
+      "targetReleaseWeightPercent": 5,
+      "completionPercent": 0,
+      "requiredProof": [
+        "verified v1 to v2 migration and rollback",
+        "synchronized CLI adapter Vault architecture and user documentation",
+        "deterministic native release assets and checksum verified installers",
+        "complete phase 9 through 13 acceptance suite on all supported platforms",
+        "published v2.0.0 with no open identity memory automation routing or evidence blocker"
+      ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
     "notes/build-log/CURRENT.md",
+    "docs/superpowers/specs/2026-06-15-baron-2-program-design.md",
+    "notes/build-log/2026-06-15-baron-2-roadmap.md",
     "docs/specs/2026-06-08-baron-product-spec-1.0.md",
     "docs/roadmap/2026-06-08-implementation-roadmap.md",
     "docs/architecture/ARCHITECTURE.md"

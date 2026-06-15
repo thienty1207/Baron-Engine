@@ -15,9 +15,11 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completes Phase 8 release hardening on top of the Survey Engine,
-Vault + Memory Firewall, bounded Context Compiler, multi-agent adapters, and
-execution-state gates:
+Baron `v1.0.0` completes Phase 8 release hardening. Baron `v2.0.0` now spans
+Phase 9 through Phase 14. Phase 9, Automation Runtime And Project Identity, is
+planned and implementation has not started.
+
+The released command surface remains:
 
 - `baron survey`
 - `baron survey --json`
@@ -47,7 +49,10 @@ quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
 runtime only after Baron passes. Phase 7 adds adapter-aware capability
 registration, presence checks, graceful degradation, and structured execution
 evidence. Phase 8 ships native releases, checksums, lifecycle installers, and
-cross-platform smoke proof without changing Baron's core.
+cross-platform smoke proof without changing Baron's core. Phase 9-14 must add
+IDE-compatible observable automation, collision-resistant identity, massive
+semantic memory, a strict skill/agent control plane, a self-improving harness,
+extreme-scale certification, and Baron 2.0 release hardening.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -57,6 +62,12 @@ exact resume point.
 ## Non-Negotiables
 
 - Rust is the primary engine language.
+- Do not require a Baron launcher for normal use; users may open agents through
+  an IDE or the agent tool directly.
+- Use native lifecycle hooks where supported, managed adapter instructions
+  where hooks are unavailable, and reconciliation/evidence checks to detect
+  missed automatic actions.
+- Do not call instruction-only behavior guaranteed automation.
 - Vault Markdown remains the source of truth.
 - SQLite/cache/index files are accelerators only.
 - Baron must support old repos through shadow-first onboarding.
@@ -88,7 +99,7 @@ exact resume point.
 - `.baron/project.toml` is shared project routing, never memory.
 - `.baron/local.toml` is machine-local Vault routing and must stay ignored.
 - Adapter updates must preserve user text outside Baron markers and unknown
-  custom skills/agents.
+  custom skills/agents, including their routing registrations.
 - High-risk plans must not complete without valid proof and a detailed passing
   trace.
 - Product Harness intake must maintain `docs/baron/harness/TEST_MATRIX.md`;

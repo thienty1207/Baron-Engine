@@ -4,22 +4,29 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 8 - Release Hardening (completed).
+Phase 9 - Automation Runtime And Project Identity (planned; implementation not started).
 
 ## What Is Being Built
 
-- cross-platform release binaries
-- checksum-verifying installers
-- install, update, rollback, and uninstall lifecycle
-- large-repo, shared-Vault, multi-adapter, and degraded-capability release smoke
+Baron 2.0 is a six-phase continuation:
+
+- IDE-compatible automatic lifecycle behavior without requiring `baron run`
+- collision-resistant project identity
+- massive and meaning-aware memory
+- strict skill and agent control plane
+- self-improving Product Harness
+- extreme-scale certification and a hardened `v2.0.0` release
 
 ## Current Status
 
-Phase 8 is merged to `main`, tagged `v1.0.0`, and published on GitHub. Release
-metadata, checksums, lifecycle installers, CI/release workflows, docs, and
-release smoke tests pass. Windows, Linux, Intel macOS, and Apple Silicon macOS
-native jobs pass. The published PowerShell installer completed isolated
-install, update, rollback, and uninstall lifecycle verification.
+Phase 8 is merged to `main`, tagged `v1.0.0`, and published on GitHub. Baron
+2.0 implementation has not started. The program design and Phase 9-14 roadmap
+are now the source of truth for remaining work.
+
+The roadmap was extended after an adversarial audit confirmed duplicate-name
+project identity collisions, fixed scan limits, lexical-only recall, custom
+routing loss during update, instruction-heavy automation, missing live session
+ingestion, and an incomplete harness improvement loop.
 
 ## Verification
 
@@ -74,8 +81,9 @@ install, update, rollback, and uninstall lifecycle verification.
 
 ## Next Action
 
-Maintain the stable `v1.0.0` release and open a new plan only for verified
-follow-up work.
+Write and approve the detailed Phase 9 design and implementation plan. Begin
+implementation with failing regressions for duplicate project names, custom
+routing preservation, and observable IDE-compatible lifecycle automation.
 
 ## Phase 4-5 Feature Commits
 
@@ -104,6 +112,17 @@ follow-up work.
 - Phase 8 design: `docs/superpowers/specs/2026-06-15-release-hardening-design.md`
 - Phase 8 plan: `docs/superpowers/plans/2026-06-15-phase-8-release-hardening.md`
 - Phase 8 build log: `notes/build-log/2026-06-15-phase-8-release-hardening.md`
+
+## Baron 2.0 Roadmap Extension
+
+- Phase 9: Automation Runtime And Project Identity
+- Phase 10: Massive Memory And Semantic Recall
+- Phase 11: Skill And Agent Control Plane
+- Phase 12: Self-Improving Harness
+- Phase 13: Extreme Scale Certification
+- Phase 14: Baron 2.0 Release Hardening
+- Program design: `docs/superpowers/specs/2026-06-15-baron-2-program-design.md`
+- Decision log: `notes/build-log/2026-06-15-baron-2-roadmap.md`
 
 ## Completed Phase 4-5 Work
 

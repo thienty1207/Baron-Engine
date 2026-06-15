@@ -1,7 +1,8 @@
 # Baron Implementation Roadmap
 
 Date: 2026-06-14
-Status: phases 0 through 8 completed; Baron `v1.0.0` released
+Updated: 2026-06-15
+Status: phases 0 through 8 completed; Baron `v1.0.0` released; phases 9 through 14 planned for Baron `v2.0.0`
 
 ## Phase 0 - Foundation Skeleton
 
@@ -316,3 +317,91 @@ Every phase must end with:
 - tests or smoke checks
 - clear next action
 - commit
+
+## Phase 9 - Automation Runtime And Project Identity
+
+Goal: make automatic Baron behavior observable and IDE-compatible while
+eliminating all project identity collisions.
+
+Deliverables:
+
+- stable project ID independent of the final folder name
+- safe migration for existing project capsules
+- native adapter hooks where supported
+- adapter lifecycle instructions plus reconciliation where hooks are unavailable
+- automation journal recording what actually ran
+- custom skill and agent routing preservation during update
+- duplicate-name, move, rename, and interrupted-lifecycle tests
+
+## Phase 10 - Massive Memory And Semantic Recall
+
+Goal: support long-lived, shared Vaults without silent memory omission or weak
+word-only retrieval.
+
+Deliverables:
+
+- deterministic incremental indexing without fixed file-count truncation
+- file update, deletion, move, and rename tracking
+- task-aware hybrid lexical/concept/semantic recall
+- Vietnamese/English engineering concept matching
+- automatic supported-session import with redaction and deduplication
+- evidence, confidence, recency, status, scope, and project-aware ranking
+- bounded context compilation at large scale
+
+## Phase 11 - Skill And Agent Control Plane
+
+Goal: make Baron skill and agent routing stricter, safer, and more explainable
+than Agent Bootstrap.
+
+Deliverables:
+
+- validated skill and agent manifests
+- trigger, exclusion, ownership, conflict, dependency, input, output, and evidence contracts
+- deterministic narrow routing with selection explanations
+- Superpowers workflow ownership protection
+- mandatory risk-aware use of the three core quality agents
+- custom routing preservation and conflict diagnostics
+- execution evidence for mandatory quality gates
+
+## Phase 12 - Self-Improving Harness
+
+Goal: let Baron learn from recurring workflow failures without silently changing
+its own core rules.
+
+Deliverables:
+
+- context-read scoring
+- documentation drift and contradiction audit
+- intervention records
+- bounded batch story verification
+- repeated-friction analysis
+- evidence-backed improvement proposals
+- predicted-impact versus actual-outcome tracking
+- human approval gate for core policy changes
+
+## Phase 13 - Extreme Scale Certification
+
+Goal: prove Baron under the repository and memory sizes it claims to support.
+
+Deliverables:
+
+- very large monorepo fixtures and real-repo smoke tests
+- hundreds-of-projects shared-Vault isolation tests
+- large multi-year memory corpus tests
+- interruption, corruption, deletion, move, rename, and duplicate-name recovery
+- explicit time, memory, context, and rebuild budgets
+- Windows, Linux, Intel macOS, and Apple Silicon macOS soak proof
+
+## Phase 14 - Baron 2.0 Release Hardening
+
+Goal: release Baron `v2.0.0` only after the complete long-horizon contract is
+proven.
+
+Deliverables:
+
+- safe v1-to-v2 migration and rollback
+- synchronized CLI, adapter, Vault, architecture, and user documentation
+- deterministic native archives, checksums, installers, and manifests
+- complete Phase 9-13 acceptance suite on all supported platforms
+- published `v2.0.0` release with no open identity, memory, automation, routing,
+  or evidence-gate blocker
