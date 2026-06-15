@@ -185,6 +185,8 @@ Verification:
 
 ## Phase 6 - Native Migration And Legacy Retirement
 
+Status: completed on 2026-06-15.
+
 Goal: recover useful data from legacy Agent Bootstrap projects, convert it into
 Baron-native structures, verify the conversion, and retire the legacy runtime.
 Baron must not carry Agent Bootstrap architecture forward.
@@ -217,6 +219,17 @@ Verification:
 - cleanup allowlist tests
 - rollback tests
 - zero Agent Bootstrap runtime dependency scan
+
+Delivered:
+
+- transactional dry-run/apply/status/rollback lifecycle
+- Vault-contained backup manifest, receipt, and failure record
+- memory, plans, Product Harness, research, notes, questions, handoff, and
+  session import
+- strict custom skill/agent validation and quarantine
+- Baron-native adapter/core asset regeneration
+- content-hash and imported-content verification before cleanup
+- automatic rollback on failed install or verification
 
 ## Phase 7 - Baron Capability Registry
 

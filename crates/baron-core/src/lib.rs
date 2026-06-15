@@ -16,7 +16,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-0-foundation"
+    "phase-6-native-migration"
 }
 
 #[cfg(test)]
@@ -24,8 +24,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn exposes_phase_zero_identity() {
+    fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-0-foundation");
+        assert_eq!(phase(), "phase-6-native-migration");
     }
 }

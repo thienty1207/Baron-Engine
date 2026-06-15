@@ -18,14 +18,12 @@ one durable engine:
 
 ## Phase
 
-Current phase: `6 - Native Migration And Legacy Retirement design pending`.
+Current completed phase: `6 - Native Migration And Legacy Retirement`.
 
-This repository intentionally starts with a product spec, roadmap, architecture
-skeleton, and a Rust workspace. Survey, Vault Memory Firewall, Context Compiler,
-multi-agent adapters, Active Plan State, Product Harness, proof gates, and trace
-quality are implemented. Next, Baron will convert useful legacy project data
-into Baron-native structures and retire Agent Bootstrap managed assets. Phase 7
-adds the Baron Capability Registry. Phase 8 is release hardening.
+Survey, Vault Memory Firewall, Context Compiler, multi-agent adapters, Active
+Plan State, Product Harness, proof gates, trace quality, and transactional
+legacy migration are implemented. Phase 7 adds the Baron Capability Registry.
+Phase 8 is release hardening.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
@@ -76,12 +74,16 @@ baron proof status
 baron proof record "<verification>"
 baron trace record "<summary>" --outcome completed
 baron trace score
+baron migrate agent-bootstrap [repo-path] --dry-run
+baron migrate agent-bootstrap [repo-path]
+baron migrate status [repo-path]
+baron migrate rollback --id <migration-id> [repo-path] --vault <vault-path>
 ```
 
 `survey`, `init --shadow`, `memory status`, `memory index`, `memory compact`,
 `recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, and
-`trace` are implemented. Migration and release commands remain roadmap
-contracts until their phases are completed.
+`trace`, and Agent Bootstrap migration are implemented. Release commands remain
+roadmap contracts until Phase 8.
 
 Memory and context commands require `--vault <path>` or `BARON_VAULT`. Baron
 does not guess where memory should live.
@@ -157,6 +159,38 @@ returns a failing process status when the required tier is not met, so an agent
 cannot silently continue past a weak trace.
 Baron's own generated state and adapter files do not count as product-file
 changes for detailed traces.
+
+## Native Legacy Migration
+
+Baron can take over a project previously managed by Agent Bootstrap without
+keeping the old runtime alive.
+
+Start with:
+
+```bash
+baron migrate agent-bootstrap <repo-path> --dry-run
+```
+
+Dry-run only shows what Baron would import, preserve, quarantine, replace, or
+remove. It writes nothing.
+
+The apply command performs the same inventory again, creates a rollback backup
+inside `Vault/Artifacts/Baron/Migrations/`, imports useful memory and execution
+history, validates custom skills and agents, installs fresh Baron assets, and
+only then retires verified legacy files.
+
+```bash
+baron migrate agent-bootstrap <repo-path>
+```
+
+Custom assets that are weak, conflicting, or still depend on Agent Bootstrap
+are preserved under `.baron/quarantine/<migration-id>/`; they are not silently
+activated or deleted. If installation or verification fails, Baron rolls the
+transaction back automatically.
+
+Use `baron migrate status` to inspect the latest result. A manual rollback is
+also available through the migration id printed by the apply command. The old
+source Vault is never deleted.
 
 ## Source Of Truth
 

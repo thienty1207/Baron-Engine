@@ -21,7 +21,7 @@
 
 - [x] Write the approved design with import, preserve, quarantine, cleanup, and rollback boundaries.
 - [x] Record the exact resume point as migration tests first.
-- [ ] Commit the design and plan.
+- [x] Commit the design and plan.
 
 ### Task 2: Add Failing Inventory And Dry-Run Tests
 
@@ -31,15 +31,15 @@
 - Create: `crates/baron-core/src/migration.rs`
 - Modify: `crates/baron-core/src/lib.rs`
 
-- [ ] Test that dry-run detects `vault.config.json`, the scaffold manifest,
+- [x] Test that dry-run detects `vault.config.json`, the scaffold manifest,
   runtime script, managed hook, legacy Vault capsule, plan/harness data, and
   custom assets.
-- [ ] Test that dry-run classifies bundled assets separately from custom assets.
-- [ ] Test that dry-run writes nothing to repo or Vault.
-- [ ] Run `cargo test -p baron-core --test migration` and confirm failure because
+- [x] Test that dry-run classifies bundled assets separately from custom assets.
+- [x] Test that dry-run writes nothing to repo or Vault.
+- [x] Run `cargo test -p baron-core --test migration` and confirm failure because
   the migration API does not exist.
-- [ ] Implement only the inventory model and read-only scanner.
-- [ ] Run the core and CLI dry-run tests until they pass.
+- [x] Implement only the inventory model and read-only scanner.
+- [x] Run the core and CLI dry-run tests until they pass.
 
 ### Task 3: Add Transactional Backup And Import
 
@@ -47,17 +47,17 @@
 - Modify: `crates/baron-core/src/migration.rs`
 - Modify: `crates/baron-core/tests/migration.rs`
 
-- [ ] Test that backup copies every candidate repo file and touched Vault path
+- [x] Test that backup copies every candidate repo file and touched Vault path
   under `Artifacts/Baron/Migrations/<id>/`.
-- [ ] Test that existing backup files are immutable.
-- [ ] Test that memory files and nested folders import without overwriting
+- [x] Test that existing backup files are immutable.
+- [x] Test that memory files and nested folders import without overwriting
   existing Baron Markdown.
-- [ ] Test normalized conversions from legacy plan/harness paths into
+- [x] Test normalized conversions from legacy plan/harness paths into
   `docs/baron/`.
-- [ ] Run tests and confirm the new behaviors fail.
-- [ ] Implement backup manifest, copy helpers, collision-safe import, and hash
+- [x] Run tests and confirm the new behaviors fail.
+- [x] Implement backup manifest, copy helpers, collision-safe import, and hash
   verification.
-- [ ] Run the migration tests until they pass.
+- [x] Run the migration tests until they pass.
 
 ### Task 4: Validate And Quarantine Custom Assets
 
@@ -65,14 +65,14 @@
 - Modify: `crates/baron-core/src/migration.rs`
 - Modify: `crates/baron-core/tests/migration.rs`
 
-- [ ] Test a valid custom Rust skill and backend agent are activated.
-- [ ] Test missing metadata, workflow ownership conflicts, recursive agent
+- [x] Test a valid custom Rust skill and backend agent are activated.
+- [x] Test missing metadata, workflow ownership conflicts, recursive agent
   orchestration, and Agent Bootstrap commands are quarantined.
-- [ ] Test quarantine reports exact reasons and preserves original bytes.
-- [ ] Run tests and confirm failure.
-- [ ] Implement skill frontmatter checks, TOML agent checks, conflict checks,
+- [x] Test quarantine reports exact reasons and preserves original bytes.
+- [x] Run tests and confirm failure.
+- [x] Implement skill frontmatter checks, TOML agent checks, conflict checks,
   and quarantine copying.
-- [ ] Run migration tests until they pass.
+- [x] Run migration tests until they pass.
 
 ### Task 5: Install Baron And Retire Legacy Runtime
 
@@ -83,16 +83,16 @@
 - Modify: `crates/baron-adapters/src/install.rs`
 - Modify: `crates/baron-adapters/src/managed.rs`
 
-- [ ] Test `baron migrate agent-bootstrap --dry-run`.
-- [ ] Test `baron migrate agent-bootstrap` creates Baron config and Codex
+- [x] Test `baron migrate agent-bootstrap --dry-run`.
+- [x] Test `baron migrate agent-bootstrap` creates Baron config and Codex
   adapter assets, preserves user text, and removes only verified legacy files.
-- [ ] Test modified or unknown legacy-looking files survive cleanup.
-- [ ] Test migration receipt records imported, quarantined, removed, and
+- [x] Test modified or unknown legacy-looking files survive cleanup.
+- [x] Test migration receipt records imported, quarantined, removed, and
   preserved counts.
-- [ ] Run CLI tests and confirm failure.
-- [ ] Add CLI parsing and orchestration.
-- [ ] Add managed-block removal support and allowlisted cleanup.
-- [ ] Run core, adapter, and CLI migration tests until they pass.
+- [x] Run CLI tests and confirm failure.
+- [x] Add CLI parsing and orchestration.
+- [x] Add managed-block removal support and allowlisted cleanup.
+- [x] Run core, adapter, and CLI migration tests until they pass.
 
 ### Task 6: Add Status And Rollback
 
@@ -102,14 +102,14 @@
 - Modify: `crates/baron-core/tests/migration.rs`
 - Modify: `crates/baron-cli/tests/migration_cli.rs`
 
-- [ ] Test `baron migrate status` for never-run, completed, and rolled-back
+- [x] Test `baron migrate status` for never-run, completed, and rolled-back
   migrations.
-- [ ] Test `baron migrate rollback --id <id>` restores recorded paths and does
+- [x] Test `baron migrate rollback --id <id>` restores recorded paths and does
   not touch unrelated post-migration files.
-- [ ] Test an injected verification failure triggers automatic rollback.
-- [ ] Run tests and confirm failure.
-- [ ] Implement state lookup, rollback manifest replay, and failure receipts.
-- [ ] Run migration tests until they pass.
+- [x] Test an injected verification failure triggers automatic rollback.
+- [x] Run tests and confirm failure.
+- [x] Implement state lookup, rollback manifest replay, and failure receipts.
+- [x] Run migration tests until they pass.
 
 ### Task 7: Rewrite Core Assets As Baron-Native
 
@@ -124,13 +124,13 @@
 - Modify: `assets/core/skills/vibe-security-scan/workflows/large-review-sequential.md`
 - Modify: `crates/baron-adapters/tests/adapter_lifecycle.rs`
 
-- [ ] Add contract tests proving all core agents name Baron, Superpowers,
+- [x] Add contract tests proving all core agents name Baron, Superpowers,
   evidence, Vault firewall, proof/trace gates, and no recursive orchestration.
-- [ ] Add static tests proving active core assets contain no Agent Bootstrap
+- [x] Add static tests proving active core assets contain no Agent Bootstrap
   runtime wording.
-- [ ] Run adapter tests and confirm failure.
-- [ ] Rewrite the assets without changing third-party attribution.
-- [ ] Run adapter tests until they pass.
+- [x] Run adapter tests and confirm failure.
+- [x] Rewrite the assets without changing third-party attribution.
+- [x] Run adapter tests until they pass.
 
 ### Task 8: Documentation, Status, And Full Verification
 
@@ -145,16 +145,16 @@
 - Modify: `notes/build-log/CURRENT.md`
 - Create: `notes/build-log/2026-06-15-phase-6-native-migration.md`
 
-- [ ] Document migration, dry-run, automatic backup, quarantine, rollback, and
+- [x] Document migration, dry-run, automatic backup, quarantine, rollback, and
   legacy retirement in natural language.
-- [ ] Run `cargo fmt --all -- --check`.
-- [ ] Run `cargo test --workspace --all-targets`.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] Run a fresh temp migration smoke with memory, custom assets, cleanup, and
+- [x] Run `cargo fmt --all -- --check`.
+- [x] Run `cargo test --workspace --all-targets`.
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] Run a fresh temp migration smoke with memory, custom assets, cleanup, and
   rollback.
-- [ ] Run a static scan proving active Baron runtime/assets do not depend on
+- [x] Run a static scan proving active Baron runtime/assets do not depend on
   Agent Bootstrap.
-- [ ] Run `git diff --check`.
-- [ ] Mark Phase 6 complete only after every command passes.
+- [x] Run `git diff --check`.
+- [x] Mark Phase 6 complete only after every command passes.
 - [ ] Commit, merge to `main`, and push `origin/main`.
 

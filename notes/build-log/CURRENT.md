@@ -4,22 +4,20 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 6 - Native Migration And Legacy Retirement.
+Phase 7 - Baron Capability Registry (design pending).
 
 ## What Is Being Built
 
-- Baron-native migration from legacy Agent Bootstrap projects
-- Vault-contained rollback backups
-- custom skill and agent contract validation
-- quarantine for invalid or conflicting legacy assets
-- verified removal of Agent Bootstrap managed runtime and files
-- Phase 7 Capability Registry design after migration is complete
+- capability-based tool registration
+- provider presence and compatibility evidence
+- bounded capability summaries for context
+- proof/trace confidence reduction when required tools are unavailable
 
 ## Current Status
 
-Phase 4-5 are implemented, verified, merged, and pushed at `e1e377d`.
-Phase 6 design is approved and implementation is in progress on
-`codex/phase-6-native-migration`.
+Phase 6 is implemented and verified on `codex/phase-6-native-migration`.
+The migration supports dry-run, apply, status, rollback, quarantine, separate
+source/destination Vaults, and recall of imported research.
 
 ## Verification
 
@@ -43,12 +41,21 @@ Phase 6 design is approved and implementation is in progress on
 - Phase 6-8 roadmap/status synchronization: passed
 - `docs/BARON_STATUS.json` parse after roadmap extension: passed
 - static phase-reference scan after roadmap extension: passed
+- Phase 6 migration core tests: passed
+- Phase 6 migration CLI tests: passed
+- Baron-native core agent/skill contract tests: passed
+- separate source/destination Vault migration: passed
+- automatic rollback after injected install failure: passed
+- malicious manifest path traversal and unsafe slug regressions: passed
+- file-granular rollback preserves post-migration plans and memory: passed
+- manual dry-run/apply/recall/status/rollback smoke: passed
+- Phase 6 full `cargo test --workspace --all-targets`: passed
+- Phase 6 `cargo clippy --workspace --all-targets -- -D warnings`: passed
 
 ## Next Action
 
-Write failing migration inventory and dry-run tests. Then implement the
-read-only scanner before any migration writes. Do not begin Phase 7 until
-Phase 6 is verified.
+Write and approve the Phase 7 Baron Capability Registry design before
+implementation.
 
 ## Phase 4-5 Feature Commits
 
@@ -70,6 +77,7 @@ Phase 6 is verified.
 - Decision log: `notes/build-log/2026-06-15-phase-6-8-roadmap.md`
 - Phase 6 design: `docs/superpowers/specs/2026-06-15-native-migration-legacy-retirement-design.md`
 - Phase 6 plan: `docs/superpowers/plans/2026-06-15-phase-6-native-migration.md`
+- Phase 6 build log: `notes/build-log/2026-06-15-phase-6-native-migration.md`
 
 ## Completed Phase 4-5 Work
 

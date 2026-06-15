@@ -1,11 +1,11 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-15",
-  "overallCompletionPercent": 80,
-  "currentPhase": "phase-6-native-migration-legacy-retirement",
-  "currentPhaseStatus": "implementation_in_progress",
-  "nextAction": "write-failing-migration-inventory-and-dry-run-tests",
-  "buildConfidence": "full Rust tests, Clippy, format, JSON validation, three-adapter preservation smoke, and high-risk completion smoke are verified",
+  "overallCompletionPercent": 88,
+  "currentPhase": "phase-7-baron-capability-registry",
+  "currentPhaseStatus": "design_pending",
+  "nextAction": "design-baron-native-capability-contract-before-implementation",
+  "buildConfidence": "Phase 6 full Rust tests, Clippy, formatting, migration rollback, cross-Vault import, recall, and end-to-end smoke are verified",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -101,18 +101,22 @@
     {
       "id": 6,
       "name": "Native Migration And Legacy Retirement",
-      "status": "implementation_in_progress",
+      "status": "completed",
       "roadmapWeightPercent": 8,
-      "completionPercent": 0,
+      "completionPercent": 8,
       "proof": [
-        "approved native migration design",
-        "task-level implementation plan"
+        "transactional migration core and CLI tests",
+        "automatic and manual rollback tests",
+        "custom asset validation and quarantine tests",
+        "Baron-native core asset contract tests",
+        "full workspace tests and Clippy",
+        "manual dry-run apply recall status rollback smoke"
       ]
     },
     {
       "id": 7,
       "name": "Baron Capability Registry",
-      "status": "not_started",
+      "status": "design_pending",
       "roadmapWeightPercent": 7,
       "completionPercent": 0,
       "proof": []

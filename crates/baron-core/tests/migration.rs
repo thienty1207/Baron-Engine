@@ -5,6 +5,7 @@ use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
     rollback_migration, MigrationAction, MigrationAssetKind,
 };
+use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
 fn write(path: &Path, content: &str) {
@@ -83,6 +84,14 @@ fn legacy_fixture() -> (tempfile::TempDir, PathBuf, PathBuf) {
     write(
         &repo.join("docs/product/PRODUCT.md"),
         "# Product\n\nLegacy product contract.\n",
+    );
+    write(
+        &repo.join("docs/product/traces/legacy-trace.md"),
+        "# Legacy Trace\n\n- verified auth implementation path\n",
+    );
+    write(
+        &repo.join("docs/product/proofs/legacy-proof.md"),
+        "# Legacy Proof\n\n- auth test passed\n",
     );
     write(
         &repo.join(".codex/skills/rust-api/SKILL.md"),
@@ -167,6 +176,8 @@ fn migration_imports_data_quarantines_invalid_assets_and_retires_runtime() {
         .join("docs/baron/plans/2026-05-21/2026-05-21-auth.md")
         .exists());
     assert!(repo.join("docs/baron/harness/product/PRODUCT.md").exists());
+    assert!(repo.join("docs/baron/traces/legacy-trace.md").exists());
+    assert!(repo.join("docs/baron/proofs/legacy-proof.md").exists());
     assert!(vault.join("Projects/demo/Facts.md").exists());
     assert!(vault.join("Projects/demo/Research/backend.md").exists());
     assert!(repo.join(".codex/skills/rust-api/SKILL.md").exists());
@@ -196,6 +207,14 @@ fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
     })
     .unwrap();
     write(&repo.join("after-migration.txt"), "keep me\n");
+    write(
+        &repo.join("docs/baron/plans/post-migration-plan.md"),
+        "# New Baron Plan\n",
+    );
+    write(
+        &vault.join("Projects/demo/post-migration-memory.md"),
+        "# New Baron Memory\n",
+    );
 
     let report = rollback_migration(&repo, &vault, &receipt.migration_id).unwrap();
 
@@ -204,10 +223,20 @@ fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
     assert!(repo.join("scripts/agent-memory.js").exists());
     assert!(repo.join(".codex/agents/unsafe-agent.toml").exists());
     assert!(!repo.join(".baron/project.toml").exists());
+    assert!(!repo
+        .join(".baron/quarantine")
+        .join(&receipt.migration_id)
+        .exists());
     assert_eq!(
         fs::read_to_string(repo.join("after-migration.txt")).unwrap(),
         "keep me\n"
     );
+    assert!(repo
+        .join("docs/baron/plans/post-migration-plan.md")
+        .exists());
+    assert!(vault
+        .join("Projects/demo/post-migration-memory.md")
+        .exists());
     assert!(migration_status(&repo).unwrap().contains("rolled_back"));
 }
 
@@ -262,4 +291,78 @@ fn failed_install_rolls_back_automatically() {
         .any(|entry| entry.unwrap().path().join("failure.json").exists());
     assert!(failure_exists);
     assert!(migration_status(&repo).unwrap().contains("rolled_back"));
+}
+
+#[test]
+fn explicit_vault_is_destination_while_legacy_config_remains_the_source() {
+    let (temp, repo, source_vault) = legacy_fixture();
+    let destination_vault = temp.path().join("BaronVault");
+
+    let receipt =
+        execute_agent_bootstrap_migration(&repo, Some(&destination_vault), |repo, _vault| {
+            write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(receipt.source_vault, source_vault);
+    assert_eq!(receipt.destination_vault, destination_vault);
+    assert!(receipt
+        .destination_vault
+        .join("Projects/demo/Facts.md")
+        .exists());
+    assert!(receipt
+        .backup_root
+        .join("source-vault/legacy-demo/Facts.md")
+        .exists());
+}
+
+#[test]
+fn manifest_paths_cannot_escape_the_repo() {
+    let (temp, repo, _vault) = legacy_fixture();
+    let outside = temp.path().join("outside.txt");
+    write(&outside, "must survive\n");
+    let hash = format!("{:x}", Sha256::digest(fs::read(&outside).unwrap()));
+    write(
+        &repo.join(".agent-bootstrap-manifest.json"),
+        &serde_json::to_string_pretty(&serde_json::json!({
+            "version": 1,
+            "entries": {
+                "../outside.txt": {
+                    "syncedHash": hash,
+                    "status": "managed"
+                }
+            }
+        }))
+        .unwrap(),
+    );
+
+    let inventory = inventory_agent_bootstrap(&repo, None).unwrap();
+    assert!(!inventory
+        .items
+        .iter()
+        .any(|item| item.relative_path == "../outside.txt"));
+    execute_agent_bootstrap_migration(&repo, None, |repo, _vault| {
+        write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(fs::read_to_string(outside).unwrap(), "must survive\n");
+}
+
+#[test]
+fn unsafe_legacy_project_slug_is_rejected() {
+    let (_temp, repo, vault) = legacy_fixture();
+    write(
+        &repo.join("vault.config.json"),
+        &serde_json::to_string_pretty(&serde_json::json!({
+            "vault_root": vault,
+            "project_slug": "../escape",
+            "project_root": vault.join("Projects/legacy-demo")
+        }))
+        .unwrap(),
+    );
+
+    let error = inventory_agent_bootstrap(&repo, None).unwrap_err();
+    assert!(error.to_string().contains("unsafe legacy project slug"));
 }

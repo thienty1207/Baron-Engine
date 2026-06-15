@@ -52,6 +52,10 @@ Vault/
       Proofs/
       Traces/
       Sessions/
+      Research/
+      Notes/
+      Open Questions.md
+      Handoff.md
       Artifacts/
   Artifacts/
     Baron/
@@ -75,5 +79,17 @@ SQLite is disposable. Markdown is durable.
 - `GLOBAL_CANDIDATES.md` is indexed for diagnostics but not trusted as fact.
 - Plan, Product Harness, proof, and trace Markdown are indexed as distinct
   memory kinds so later sessions can recall both intent and verification.
+- Migrated research, notes, open questions, and handoff Markdown are indexed as
+  distinct memory kinds instead of becoming inert archive files.
 - Product Harness `TEST_MATRIX.md` ties the current story to proof status and
   evidence while remaining plain Markdown that can be rebuilt or inspected.
+
+## Legacy Import
+
+Migration reads the source Vault from `vault.config.json`. An explicit
+`--vault` is the Baron destination, so old and new Vaults may be different.
+
+The source capsule is copied into the migration backup before import. Existing
+Baron Markdown wins on conflict; compatible legacy Markdown is merged with an
+explicit import marker, while non-Markdown conflicts are preserved separately.
+SQLite is rebuilt from the resulting Markdown and remains disposable.

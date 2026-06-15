@@ -4,11 +4,11 @@ Last updated: 2026-06-15
 
 ## Overall
 
-- Completion: 80%
-- Current phase: Phase 6 - Native Migration And Legacy Retirement
-- Current phase status: implementation_in_progress
-- Current next action: write failing migration inventory and dry-run tests
-- Build confidence: full Rust tests, Clippy, format, JSON validation, three-adapter preservation smoke, and high-risk completion smoke are verified
+- Completion: 88%
+- Current phase: Phase 7 - Baron Capability Registry
+- Current phase status: design_pending
+- Current next action: design the Baron-native capability contract before implementation
+- Build confidence: Phase 6 full Rust tests, Clippy, formatting, migration rollback, cross-Vault import, recall, and end-to-end smoke are verified
 
 ## What 100% Means
 
@@ -47,8 +47,8 @@ Completion requires:
 | 3 | Context Compiler | completed | 15% / 15% | `cargo test`, context core/CLI tests, adapter/risk/why smoke |
 | 4 | Agent Adapters | completed | 15% / 15% | adapter lifecycle, preservation, multi-adapter and nested-path tests |
 | 5 | Plan/Harness/Proof/Trace | completed | 20% / 20% | plan, harness, proof, trace, completion-gate and mirror tests |
-| 6 | Native Migration And Legacy Retirement | implementation_in_progress | 0% / 8% | approved design and implementation plan |
-| 7 | Baron Capability Registry | not_started | 0% / 7% | none |
+| 6 | Native Migration And Legacy Retirement | completed | 8% / 8% | transactional migration tests, rollback tests, core asset contracts, full suite, manual smoke |
+| 7 | Baron Capability Registry | design_pending | 0% / 7% | none |
 | 8 | Release Hardening | not_started | 0% / 5% | none |
 
 ## Completion Checklist
@@ -121,17 +121,17 @@ Completion requires:
 
 ### Phase 6 - Native Migration And Legacy Retirement
 
-- [ ] Dry-run inventories legacy project and Vault assets without writing.
-- [ ] Baron creates a rollback backup inside the Vault migration artifacts.
-- [ ] Useful memory, plans, harness records, proofs, and traces are converted into Baron-native structures.
-- [ ] Custom skills and agents pass Baron contract validation before activation.
-- [ ] Invalid, weak, or conflicting custom assets are quarantined and reported.
-- [ ] Baron regenerates its own core skills, core agents, adapters, config, and indexes.
-- [ ] Imported record counts and content hashes are verified before cleanup.
-- [ ] Agent Bootstrap managed files and runtime are removed only after Baron verification passes.
-- [ ] Rollback restores the pre-migration project when verification fails.
-- [ ] Migration leaves no runtime dependency on Agent Bootstrap.
-- [ ] Migration smoke tests pass against representative old projects.
+- [x] Dry-run inventories legacy project and Vault assets without writing.
+- [x] Baron creates a rollback backup inside the Vault migration artifacts.
+- [x] Useful memory, plans, harness records, proofs, and traces are converted into Baron-native structures.
+- [x] Custom skills and agents pass Baron contract validation before activation.
+- [x] Invalid, weak, or conflicting custom assets are quarantined and reported.
+- [x] Baron regenerates its own core skills, core agents, adapters, config, and indexes.
+- [x] Imported record counts and content hashes are verified before cleanup.
+- [x] Agent Bootstrap managed files and runtime are removed only after Baron verification passes.
+- [x] Rollback restores the pre-migration project when verification fails.
+- [x] Migration leaves no runtime dependency on Agent Bootstrap.
+- [x] Migration smoke tests pass against representative old projects.
 
 ### Phase 7 - Baron Capability Registry
 
@@ -173,6 +173,7 @@ Completion requires:
 - Phase 6-8 roadmap decision log: `notes/build-log/2026-06-15-phase-6-8-roadmap.md`
 - Phase 6 design: `docs/superpowers/specs/2026-06-15-native-migration-legacy-retirement-design.md`
 - Phase 6 plan: `docs/superpowers/plans/2026-06-15-phase-6-native-migration.md`
+- Phase 6 build log: `notes/build-log/2026-06-15-phase-6-native-migration.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule

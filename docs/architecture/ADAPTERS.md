@@ -66,3 +66,17 @@ Outputs:
 Adapters must not fork Baron behavior. They only translate Baron behavior.
 Every adapter requires automatic context, plan, harness, proof, and trace
 behavior. Platform-specific hooks are accelerators, not separate workflow truth.
+
+## Migration Boundary
+
+Agent Bootstrap migration does not reuse a legacy adapter. Baron inventories
+and backs up the old workspace, imports user-owned data, then installs a fresh
+Baron adapter.
+
+The Codex takeover preserves user text outside legacy managed markers and keeps
+validated custom skills/agents. Baron bundled assets and the three core quality
+agents are regenerated from `assets/core/`; invalid custom assets are
+quarantined and never enter routing indexes.
+
+After verification, the active adapter contains Baron commands only. The legacy
+Node runtime, config, manifest, and managed hook are retired.

@@ -15,7 +15,7 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 5 has completed the Survey Engine, Vault + Memory Firewall, bounded
+Phase 6 has completed the Survey Engine, Vault + Memory Firewall, bounded
 Context Compiler, multi-agent adapters, and execution-state gates:
 
 - `baron survey`
@@ -36,12 +36,14 @@ Context Compiler, multi-agent adapters, and execution-state gates:
 - `baron harness <status|intake|decision|friction>`
 - `baron proof <status|record>`
 - `baron trace <record|score>`
+- `baron migrate agent-bootstrap [repo-path] --dry-run`
+- `baron migrate agent-bootstrap [repo-path]`
+- `baron migrate <status|rollback>`
 
-The current phase is Phase 6 - Native Migration And Legacy Retirement. It must
-import useful legacy data into Baron-native structures, validate or quarantine
-custom assets, verify parity, and remove Agent Bootstrap managed runtime only
-after Baron passes. Phase 7 is Baron Capability Registry. Phase 8 is Release
-Hardening.
+Phase 6 imports useful legacy data into Baron-native structures, validates or
+quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
+runtime only after Baron passes. The next phase is Phase 7 - Baron Capability
+Registry. Phase 8 is Release Hardening.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -58,6 +60,10 @@ exact resume point.
 - Baron must preserve Superpowers as the workflow core.
 - Baron must never depend on Agent Bootstrap runtime after migration.
 - Legacy migration imports data and user-owned assets, not old architecture.
+- Legacy migration must remain transactional: inventory, backup, import,
+  validation, native install, verification, cleanup, receipt.
+- Modified legacy runtime and invalid custom assets must be quarantined rather
+  than deleted.
 - Skills and agents must pass Baron-native contracts before activation.
 - Tool-backed proof requires execution evidence; configured or detected presence
   alone is not proof that a check ran.

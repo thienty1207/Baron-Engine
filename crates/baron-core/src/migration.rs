@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
@@ -151,7 +151,7 @@ struct MigrationState {
 
 pub fn inventory_agent_bootstrap(
     repo_path: impl AsRef<Path>,
-    vault_override: Option<&Path>,
+    _vault_override: Option<&Path>,
 ) -> Result<MigrationInventory> {
     let repo_root = canonical_directory(repo_path.as_ref())?;
     let config_path = repo_root.join(LEGACY_CONFIG);
@@ -161,13 +161,15 @@ pub fn inventory_agent_bootstrap(
             config_path.display()
         )
     })?;
-    let source_vault = vault_override
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| config.vault_root.clone());
+    if !is_safe_component(&config.project_slug) {
+        bail!("unsafe legacy project slug: {}", config.project_slug);
+    }
+    let source_vault = config.vault_root.clone();
     let source_project_root = config
         .project_root
         .clone()
         .unwrap_or_else(|| source_vault.join("Projects").join(&config.project_slug));
+    validate_source_project_root(&source_vault, &source_project_root)?;
     let manifest = read_legacy_manifest(&repo_root.join(LEGACY_MANIFEST));
     let mut items = Vec::new();
 
@@ -436,6 +438,16 @@ fn create_backup_manifest(
     migration_id: &str,
 ) -> Result<BackupManifest> {
     fs::create_dir_all(backup_root)?;
+    if inventory.source_project_root.exists() {
+        copy_path(
+            &inventory.source_project_root,
+            &backup_root
+                .join("source-vault")
+                .join(&inventory.project_slug),
+            false,
+            None,
+        )?;
+    }
     let destination_slug = project_slug(&inventory.repo_root);
     let destination_project = destination_vault.join("Projects").join(destination_slug);
     let mut repo_paths = BTreeSet::new();
@@ -452,13 +464,11 @@ fn create_backup_manifest(
         ".codex/INDEX.md",
         ".codex/skills/INDEX.md",
         ".codex/agents/INDEX.md",
-        "docs/baron/plans",
-        "docs/baron/harness",
-        "docs/baron/proofs",
-        "docs/baron/traces",
     ] {
         repo_paths.insert(path.to_string());
     }
+    add_repo_import_targets(&inventory.repo_root, &mut repo_paths)?;
+    repo_paths.insert(format!(".baron/quarantine/{migration_id}"));
     for skill in BUNDLED_SKILLS {
         repo_paths.insert(format!(".codex/skills/{skill}"));
     }
@@ -482,14 +492,22 @@ fn create_backup_manifest(
     }
 
     let mut vault_paths = BTreeSet::new();
-    if let Ok(relative) = inventory
-        .source_project_root
-        .strip_prefix(&inventory.source_vault)
-    {
-        vault_paths.insert(normalize(relative));
+    let destination_relative = destination_project
+        .strip_prefix(destination_vault)
+        .map(normalize)
+        .unwrap_or_else(|_| format!("Projects/{}", project_slug(&inventory.repo_root)));
+    for file in ["README.md", "Facts.md", "Decisions.md", "Tasks.md"] {
+        vault_paths.insert(format!("{destination_relative}/{file}"));
     }
-    if let Ok(relative) = destination_project.strip_prefix(destination_vault) {
-        vault_paths.insert(normalize(relative));
+    if inventory.source_project_root.exists() {
+        let mut source_files = Vec::new();
+        collect_files(&inventory.source_project_root, &mut source_files)?;
+        for source in source_files {
+            let relative = source
+                .strip_prefix(&inventory.source_project_root)
+                .unwrap_or(&source);
+            vault_paths.insert(format!("{destination_relative}/{}", normalize(relative)));
+        }
     }
     for relative in [
         "AGENTS.md",
@@ -516,6 +534,30 @@ fn create_backup_manifest(
         vault_root: destination_vault.to_path_buf(),
         entries,
     })
+}
+
+fn add_repo_import_targets(repo_root: &Path, paths: &mut BTreeSet<String>) -> Result<()> {
+    for (source, destination) in [
+        ("docs/superpowers/plans", "docs/baron/plans"),
+        ("docs/product/traces", "docs/baron/traces"),
+        ("docs/product/proofs", "docs/baron/proofs"),
+        ("docs/product", "docs/baron/harness/product"),
+        ("docs/stories", "docs/baron/harness/stories"),
+        ("docs/validation", "docs/baron/harness/validation"),
+        ("docs/decisions", "docs/baron/harness/decisions"),
+    ] {
+        let source_root = repo_root.join(source);
+        if !source_root.exists() {
+            continue;
+        }
+        let mut files = Vec::new();
+        collect_files(&source_root, &mut files)?;
+        for file in files {
+            let relative = file.strip_prefix(&source_root).unwrap_or(&file);
+            paths.insert(format!("{destination}/{}", normalize(relative)));
+        }
+    }
+    Ok(())
 }
 
 fn backup_entry(
@@ -564,6 +606,8 @@ fn import_repo_data(
 ) -> Result<()> {
     for (source, destination) in [
         ("docs/superpowers/plans", "docs/baron/plans"),
+        ("docs/product/traces", "docs/baron/traces"),
+        ("docs/product/proofs", "docs/baron/proofs"),
         ("docs/product", "docs/baron/harness/product"),
         ("docs/stories", "docs/baron/harness/stories"),
         ("docs/validation", "docs/baron/harness/validation"),
@@ -869,6 +913,9 @@ fn add_manifest_owned_assets(
 ) -> Result<()> {
     for (relative, entry) in &manifest.entries {
         if entry.status != "managed" {
+            continue;
+        }
+        if !is_safe_relative_path(relative) {
             continue;
         }
         let path = repo_root.join(relative);
@@ -1182,6 +1229,45 @@ fn canonical_directory(path: &Path) -> Result<PathBuf> {
         bail!("Repo path is not a directory: {}", canonical.display());
     }
     Ok(canonical)
+}
+
+fn validate_source_project_root(vault_root: &Path, project_root: &Path) -> Result<()> {
+    if !project_root.exists() || !vault_root.exists() {
+        return Ok(());
+    }
+    let vault = vault_root
+        .canonicalize()
+        .with_context(|| format!("Could not resolve source Vault: {}", vault_root.display()))?;
+    let project = project_root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve legacy project capsule: {}",
+            project_root.display()
+        )
+    })?;
+    if !project.starts_with(&vault) {
+        bail!(
+            "legacy project capsule is outside the configured source Vault: {}",
+            project.display()
+        );
+    }
+    Ok(())
+}
+
+fn is_safe_component(value: &str) -> bool {
+    !value.trim().is_empty()
+        && Path::new(value)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        && !value.contains('/')
+        && !value.contains('\\')
+}
+
+fn is_safe_relative_path(value: &str) -> bool {
+    let path = Path::new(value);
+    !path.as_os_str().is_empty()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
 }
 
 fn migration_id(repo_root: &Path) -> String {
