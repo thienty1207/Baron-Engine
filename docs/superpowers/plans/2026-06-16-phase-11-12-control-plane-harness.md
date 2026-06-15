@@ -27,13 +27,13 @@
 - Modify: `crates/baron-core/src/lib.rs`
 - Test: `crates/baron-core/tests/control_plane.rs`
 
-- [ ] Write failing tests proving core skills and agents have validated contracts.
-- [ ] Write failing tests proving Superpowers is the only workflow owner.
-- [ ] Write failing tests proving duplicate workflow ownership and recursive subagent orchestration are diagnosed.
-- [ ] Implement contract parsing from installed repo assets plus embedded Baron assumptions.
-- [ ] Implement `validate_control_plane(repo_root)` with diagnostics and pass/fail status.
-- [ ] Run focused tests until green.
-- [ ] Commit `feat: add skill and agent control plane validation`.
+- [x] Write failing tests proving core skills and agents have validated contracts.
+- [x] Write failing tests proving Superpowers is the only workflow owner.
+- [x] Write failing tests proving duplicate workflow ownership and recursive subagent orchestration are diagnosed.
+- [x] Implement contract parsing from installed repo assets plus embedded Baron assumptions.
+- [x] Implement `validate_control_plane(repo_root)` with diagnostics and pass/fail status.
+- [x] Run focused tests until green.
+- [x] Commit `feat: add skill and agent control plane validation`.
 
 ### Task 2: Phase 11 Narrow Routing And Gate Evidence
 

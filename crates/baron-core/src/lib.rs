@@ -2,6 +2,7 @@ pub mod automation;
 pub mod capability;
 pub mod config;
 pub mod context;
+pub mod control_plane;
 pub mod firewall;
 pub mod harness;
 pub mod identity;

@@ -23,7 +23,8 @@ Implementation started. Read `docs/superpowers/plans/2026-06-16-phase-11-12-cont
 ## Verification
 
 - baseline full workspace tests: passed
+- control-plane validation RED/GREEN tests: passed
 
 ## Resume Point
 
-Start Task 1: write failing control-plane validation tests.
+Start Task 2: add explainable routing and quality-gate evidence.
