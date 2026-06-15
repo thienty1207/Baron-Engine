@@ -252,6 +252,69 @@ pub fn load_capability_state(repo_root: impl AsRef<Path>) -> Result<Option<Capab
     Ok(Some(state))
 }
 
+pub fn render_capability_summary(
+    repo_root: impl AsRef<Path>,
+    adapter: AdapterKind,
+    limit: usize,
+) -> Result<String> {
+    let repo_root = repo_root.as_ref();
+    let registry = load_registry(repo_root)?;
+    let state = load_capability_state(repo_root)?;
+    let matching_state = state.as_ref().filter(|state| state.adapter == adapter);
+    let mut output = String::new();
+    output.push_str("## Capability Summary\n\n");
+    output.push_str(&format!("- Adapter: `{}`\n", adapter_name(adapter)));
+    output.push_str(
+        "- Presence does not prove execution; proof requires task-specific execution evidence.\n",
+    );
+    if registry.providers.is_empty() {
+        output.push_str("- No providers registered; optional capability routing is inactive.\n\n");
+        return Ok(output);
+    }
+    if matching_state.is_none() {
+        output.push_str(
+            "- Presence cache: missing or for another adapter; status remains unknown.\n",
+        );
+    }
+    for provider in registry.providers.iter().take(limit) {
+        let observation = matching_state.and_then(|state| {
+            state
+                .observations
+                .iter()
+                .find(|observation| observation.provider == provider.name)
+        });
+        let presence = observation
+            .map(|observation| presence_name(observation.presence))
+            .unwrap_or("unknown");
+        let compatible = observation
+            .map(|observation| observation.compatible)
+            .unwrap_or_else(|| provider_compatible(provider, adapter));
+        output.push_str(&format!(
+            "- `{}` via `{}` - {} - Presence: `{}` - Compatible: `{}`\n",
+            provider.capability,
+            provider.name,
+            requirement_name(provider.requirement),
+            presence,
+            if compatible { "yes" } else { "no" }
+        ));
+    }
+    if registry.providers.len() > limit {
+        output.push_str(&format!(
+            "- {} additional providers skipped to keep context bounded.\n",
+            registry.providers.len() - limit
+        ));
+    }
+    if let Some(state) = matching_state {
+        output.push_str(&format!(
+            "- Required gaps: {}\n- Optional gaps: {}\n",
+            values_or_none(&state.required_gaps),
+            values_or_none(&state.optional_gaps)
+        ));
+    }
+    output.push('\n');
+    Ok(output)
+}
+
 fn validate_provider(provider: &CapabilityProvider) -> Result<()> {
     if !(10..=200).contains(&provider.description.chars().count()) {
         bail!("Provider description must be between 10 and 200 characters");
@@ -564,6 +627,29 @@ fn adapter_name(adapter: AdapterKind) -> &'static str {
         AdapterKind::Codex => "codex",
         AdapterKind::Claude => "claude",
         AdapterKind::Generic => "agent",
+    }
+}
+
+fn presence_name(presence: Presence) -> &'static str {
+    match presence {
+        Presence::Present => "present",
+        Presence::Missing => "missing",
+        Presence::Unknown => "unknown",
+    }
+}
+
+fn requirement_name(requirement: Requirement) -> &'static str {
+    match requirement {
+        Requirement::Optional => "optional",
+        Requirement::Required => "required",
+    }
+}
+
+fn values_or_none(values: &[String]) -> String {
+    if values.is_empty() {
+        "none".to_string()
+    } else {
+        values.join(", ")
     }
 }
 

@@ -3,6 +3,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use crate::capability::{load_registry, render_capability_summary};
+use crate::config::AdapterKind;
 use crate::firewall::compact_memory_brief;
 use crate::memory::build_memory_index;
 use crate::survey::{survey_repository, ProjectType, RepoSurvey};
@@ -72,6 +74,11 @@ pub fn compile_context_for_task(
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_execution_state(repo_path));
     output.push_str(&render_execution_evidence(repo_path));
+    output.push_str(&render_capability_summary(
+        repo_path,
+        target.adapter_kind(),
+        8,
+    )?);
 
     output.push_str(&memory_brief.replacen(
         "# Memory Firewall Brief",
@@ -120,6 +127,14 @@ pub fn compile_context_why(
     if repo_path.join("docs/baron/harness/CURRENT.md").is_file() {
         output
             .push_str("- Loaded: bounded Product Harness state because a current story exists.\n");
+    }
+    if !load_registry(repo_path)?.providers.is_empty() {
+        output.push_str(
+            "- Loaded: bounded Capability Registry and presence cache for the active adapter.\n",
+        );
+        output.push_str(
+            "- Skipped: tool execution evidence because provider presence never proves a task check ran.\n",
+        );
     }
     output.push_str(&format!(
         "- Loaded: {} adapter guidance because output shape changes by agent tool.\n\n",
@@ -356,6 +371,14 @@ fn project_type_label(project_type: ProjectType) -> &'static str {
 }
 
 impl ContextTarget {
+    fn adapter_kind(self) -> AdapterKind {
+        match self {
+            ContextTarget::Codex => AdapterKind::Codex,
+            ContextTarget::Claude => AdapterKind::Claude,
+            ContextTarget::Generic => AdapterKind::Generic,
+        }
+    }
+
     pub fn slug(self) -> &'static str {
         match self {
             ContextTarget::Codex => "codex",

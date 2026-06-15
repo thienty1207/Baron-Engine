@@ -1,6 +1,11 @@
 use std::fs;
 use std::path::Path;
 
+use baron_core::capability::{
+    check_capabilities, register_provider, CapabilityProvider, CheckOptions, ProviderKind,
+    Requirement,
+};
+use baron_core::config::AdapterKind;
 use baron_core::context::{
     compile_context, compile_context_for_task, compile_context_why, ContextTarget,
 };
@@ -189,4 +194,72 @@ fn context_prefers_baron_plan_and_loads_bounded_execution_evidence() {
     assert!(bundle.contains("## Proof And Trace State"));
     assert!(bundle.contains("latest auth tests passed"));
     assert!(bundle.contains("latest detailed trace passed"));
+}
+
+#[test]
+fn context_loads_bounded_cached_capability_summary_for_active_adapter() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    register_provider(
+        &repo,
+        CapabilityProvider {
+            name: "git-cli".to_string(),
+            capability: "source-control".to_string(),
+            kind: ProviderKind::Cli,
+            requirement: Requirement::Required,
+            command: Some("git".to_string()),
+            scan_target: None,
+            adapters: Vec::new(),
+            description: "Provides repository state and change evidence.".to_string(),
+        },
+    )
+    .unwrap();
+    check_capabilities(
+        &repo,
+        CheckOptions {
+            adapter: AdapterKind::Codex,
+            capability: None,
+            allow_network: false,
+        },
+    )
+    .unwrap();
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Capability Summary"));
+    assert!(bundle.contains("source-control"));
+    assert!(bundle.contains("git-cli"));
+    assert!(bundle.contains("Presence: `present`"));
+    assert!(bundle.contains("Presence does not prove execution"));
+    assert!(bundle.chars().count() <= 20_000);
+}
+
+#[test]
+fn context_why_explains_capability_cache_without_claiming_execution() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    register_provider(
+        &repo,
+        CapabilityProvider {
+            name: "security-skill".to_string(),
+            capability: "security-scan".to_string(),
+            kind: ProviderKind::Skill,
+            requirement: Requirement::Optional,
+            command: None,
+            scan_target: Some(".codex/skills/vibe-security-scan".to_string()),
+            adapters: vec![AdapterKind::Codex],
+            description: "Provides defensive repository security review guidance.".to_string(),
+        },
+    )
+    .unwrap();
+
+    let why = compile_context_why(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(why.contains("Capability Registry"));
+    assert!(why.contains("presence cache"));
+    assert!(why.contains("tool execution evidence"));
 }
