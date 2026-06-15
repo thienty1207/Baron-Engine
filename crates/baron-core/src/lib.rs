@@ -7,6 +7,7 @@ pub mod memory;
 pub mod migration;
 pub mod plan;
 pub mod proof;
+pub mod release;
 pub mod risk;
 pub mod survey;
 pub mod trace;
@@ -17,7 +18,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-7-capability-registry"
+    "phase-8-release-hardening"
 }
 
 #[cfg(test)]
@@ -27,6 +28,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-7-capability-registry");
+        assert_eq!(phase(), "phase-8-release-hardening");
     }
 }

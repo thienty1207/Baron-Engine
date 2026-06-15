@@ -4,7 +4,7 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 8 - Release Hardening (not started).
+Phase 8 - Release Hardening (implementation in progress).
 
 ## What Is Being Built
 
@@ -15,10 +15,13 @@ Phase 8 - Release Hardening (not started).
 
 ## Current Status
 
-Phase 7 is implemented and verified on `codex/phase-7-capability-registry`.
-Baron now has a committed capability contract, machine-local presence cache,
-adapter-aware checks, bounded context, automatic adapter routing, and hard
-execution-evidence gates for required providers.
+Phase 8 implementation is complete locally on
+`codex/phase-8-release-hardening`. Release metadata, checksums, lifecycle
+installers, CI/release workflows, docs, and release smoke tests pass on Windows.
+Hosted Linux and macOS proof remains before the phase can be marked complete.
+The first hosted run exposed a Windows Server 2025 compatibility gap:
+`Get-FileHash` was unavailable. The installer now uses the standard .NET
+SHA-256 implementation and is ready for a second hosted run.
 
 ## Verification
 
@@ -69,7 +72,8 @@ execution-evidence gates for required providers.
 
 ## Next Action
 
-Design Phase 8 Release Hardening before implementation.
+Push the Phase 8 branch and inspect the GitHub-hosted Windows, Linux, Intel
+macOS, and Apple Silicon macOS matrix.
 
 ## Phase 4-5 Feature Commits
 
@@ -95,6 +99,9 @@ Design Phase 8 Release Hardening before implementation.
 - Phase 7 design: `docs/superpowers/specs/2026-06-15-baron-capability-registry-design.md`
 - Phase 7 plan: `docs/superpowers/plans/2026-06-15-phase-7-capability-registry.md`
 - Phase 7 build log: `notes/build-log/2026-06-15-phase-7-capability-registry.md`
+- Phase 8 design: `docs/superpowers/specs/2026-06-15-release-hardening-design.md`
+- Phase 8 plan: `docs/superpowers/plans/2026-06-15-phase-8-release-hardening.md`
+- Phase 8 build log: `notes/build-log/2026-06-15-phase-8-release-hardening.md`
 
 ## Completed Phase 4-5 Work
 

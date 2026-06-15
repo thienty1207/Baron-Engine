@@ -108,3 +108,19 @@ Capability definitions are committed in `.baron/capabilities.toml`. Presence
 checks write only `.baron/cache/capability-state.json`. Presence and adapter
 compatibility do not count as task execution; structured proof evidence is
 required before a registered required capability can support completion.
+
+## Phase 8
+
+Normal users install Baron through the checksum-verifying PowerShell or shell
+installer documented in `docs/RELEASE.md`. Install, update, rollback, and
+uninstall are installer actions rather than project commands.
+
+Release automation uses two hidden maintainer commands:
+
+```bash
+baron release metadata <artifacts-dir> --release-version <version> --source-revision <git-sha>
+baron release verify <artifacts-dir>
+```
+
+They generate and verify `SHA256SUMS` plus `release-manifest.json` for the
+complete Windows, Linux, Intel macOS, and Apple Silicon macOS artifact set.

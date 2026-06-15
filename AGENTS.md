@@ -15,7 +15,7 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Phase 7 has completed the Survey Engine, Vault + Memory Firewall, bounded
+Phase 8 release hardening builds on the completed Survey Engine, Vault + Memory Firewall, bounded
 Context Compiler, multi-agent adapters, and execution-state gates:
 
 - `baron survey`
@@ -45,7 +45,8 @@ Phase 6 imports useful legacy data into Baron-native structures, validates or
 quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
 runtime only after Baron passes. Phase 7 adds adapter-aware capability
 registration, presence checks, graceful degradation, and structured execution
-evidence. The next phase is Phase 8 - Release Hardening.
+evidence. Phase 8 adds native releases, checksums, lifecycle installers, and
+cross-platform smoke proof without changing Baron's core.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -95,6 +96,11 @@ exact resume point.
 - A failed trace score is a hard automation stop, not an informational warning.
 - Baron-managed plan, harness, adapter, and config files do not count as
   product-file changes for detailed trace quality.
+- Release installers must verify checksum and staged binary version before
+  replacement.
+- Release rollback and uninstall must never delete project or Vault data.
+- Do not call Phase 8 complete from local Windows proof alone; hosted Windows,
+  Linux, Intel macOS, and Apple Silicon macOS jobs must pass.
 
 ## Read Order
 
@@ -121,7 +127,7 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For the current foundation through Phase 7, verify:
+For the current foundation through Phase 8, verify:
 
 ```bash
 cargo fmt --all
@@ -146,7 +152,13 @@ cargo run -p baron-cli -- proof status
 cargo run -p baron-cli -- trace score
 cargo run -p baron-cli -- capability list
 cargo run -p baron-cli -- capability check
+cargo test -p baron-core --test release
+cargo test -p baron-cli --test lifecycle_scripts
+cargo test -p baron-cli --test release_smoke
+cargo test -p baron-cli --test workflow_contract
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Later phases must add deeper smoke tests for `survey`, `init`, `context`,
-`recall`, `memory`, `plan`, `harness`, and adapter outputs.
+Release completion also requires the GitHub Actions native runner matrix and a
+tagged GitHub Release with verified archives, checksums, manifest, and
+installers.
