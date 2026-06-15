@@ -19,6 +19,9 @@ Phase 8 implementation is complete locally on
 `codex/phase-8-release-hardening`. Release metadata, checksums, lifecycle
 installers, CI/release workflows, docs, and release smoke tests pass on Windows.
 Hosted Linux and macOS proof remains before the phase can be marked complete.
+The first hosted run exposed a Windows Server 2025 compatibility gap:
+`Get-FileHash` was unavailable. The installer now uses the standard .NET
+SHA-256 implementation and is ready for a second hosted run.
 
 ## Verification
 

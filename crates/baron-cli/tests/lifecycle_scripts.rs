@@ -101,6 +101,8 @@ fn installer_scripts_enforce_checksum_and_data_safety_contracts() {
                 .find("Move-Item -LiteralPath $stagedBinary")
                 .unwrap()
     );
+    assert!(powershell.contains("System.Security.Cryptography.SHA256"));
+    assert!(!powershell.contains("Get-FileHash"));
     assert!(shell.find("checksum").unwrap() < shell.find("mv \"$staged_binary\"").unwrap());
     assert!(!powershell.contains("Projects\\"));
     assert!(!shell.contains("/Projects/"));

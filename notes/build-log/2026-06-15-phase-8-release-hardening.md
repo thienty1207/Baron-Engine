@@ -66,3 +66,16 @@ install/update/rollback/uninstall behavior and cross-platform proof.
 Push `codex/phase-8-release-hardening`, inspect the four-platform GitHub Actions
 matrix, fix any hosted-runner issue, then merge, tag `v1.0.0`, and verify the
 published release assets before marking Baron 100%.
+
+## Hosted Runner Findings
+
+- First CI run `27534169756`:
+  - Linux x64: passed
+  - macOS Apple Silicon: passed
+  - Format and Clippy: passed
+  - Windows x64: failed because the newest minimal Windows Server runner did
+    not expose the `Get-FileHash` cmdlet
+  - macOS Intel: still running when the Windows fix was prepared
+- Fix: PowerShell installer now computes SHA-256 directly with
+  `System.Security.Cryptography.SHA256`, removing the cmdlet dependency.
+- Local installer lifecycle and PowerShell parser checks pass after the fix.

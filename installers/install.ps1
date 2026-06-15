@@ -40,6 +40,18 @@ function Update-UserPath([bool]$Add) {
     [Environment]::SetEnvironmentVariable("Path", ($parts -join ";"), "User")
 }
 
+function Get-Sha256([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $sha256.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($bytes)).Replace("-", "").ToLowerInvariant()
+    } finally {
+        $sha256.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Invoke-Rollback {
     New-Item -ItemType Directory -Force -Path $InstallDir, $backupDir | Out-Null
     $backup = Get-ChildItem -LiteralPath $backupDir -Filter "baron-*.exe" -File |
@@ -122,7 +134,7 @@ try {
         throw "SHA256SUMS does not contain $archiveName."
     }
     $expectedChecksum = ($checksumLine -split "\s+")[0].ToLowerInvariant()
-    $actualChecksum = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actualChecksum = Get-Sha256 $archivePath
     if ($actualChecksum -ne $expectedChecksum) {
         throw "Baron checksum verification failed for $archiveName."
     }
