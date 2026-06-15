@@ -1,11 +1,14 @@
 use std::fs;
 use std::path::Path;
+use std::sync::Mutex;
 
 use baron_core::config::{
     find_project_root, initialize_project, load_project_config, resolve_vault_path_for_repo,
     AdapterKind,
 };
 use tempfile::tempdir;
+
+static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn initialize_creates_shared_and_local_config() {
@@ -64,6 +67,7 @@ fn nested_paths_discover_project_root_and_local_vault() {
 
 #[test]
 fn explicit_vault_wins_over_environment_and_local_config() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let local_vault = temp.path().join("LocalVault");
@@ -81,6 +85,7 @@ fn explicit_vault_wins_over_environment_and_local_config() {
 
 #[test]
 fn environment_vault_wins_over_local_config() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let local_vault = temp.path().join("LocalVault");
