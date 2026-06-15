@@ -4,7 +4,7 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 7 - Baron Capability Registry (design pending).
+Phase 7 - Baron Capability Registry (implementation in progress).
 
 ## What Is Being Built
 
@@ -15,9 +15,9 @@ Phase 7 - Baron Capability Registry (design pending).
 
 ## Current Status
 
-Phase 6 is implemented and verified on `codex/phase-6-native-migration`.
-The migration supports dry-run, apply, status, rollback, quarantine, separate
-source/destination Vaults, and recall of imported research.
+Phase 6 is implemented, merged, and pushed. Phase 7 has an approved
+Baron-native design and a test-first implementation plan. The clean Phase 6
+baseline passes in the isolated Phase 7 worktree.
 
 ## Verification
 
@@ -54,8 +54,7 @@ source/destination Vaults, and recall of imported research.
 
 ## Next Action
 
-Write and approve the Phase 7 Baron Capability Registry design before
-implementation.
+Write failing core registry tests before adding production code.
 
 ## Phase 4-5 Feature Commits
 
@@ -78,6 +77,9 @@ implementation.
 - Phase 6 design: `docs/superpowers/specs/2026-06-15-native-migration-legacy-retirement-design.md`
 - Phase 6 plan: `docs/superpowers/plans/2026-06-15-phase-6-native-migration.md`
 - Phase 6 build log: `notes/build-log/2026-06-15-phase-6-native-migration.md`
+- Phase 7 design: `docs/superpowers/specs/2026-06-15-baron-capability-registry-design.md`
+- Phase 7 plan: `docs/superpowers/plans/2026-06-15-phase-7-capability-registry.md`
+- Phase 7 build log: `notes/build-log/2026-06-15-phase-7-capability-registry.md`
 
 ## Completed Phase 4-5 Work
 

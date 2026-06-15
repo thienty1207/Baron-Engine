@@ -6,8 +6,8 @@ Last updated: 2026-06-15
 
 - Completion: 88%
 - Current phase: Phase 7 - Baron Capability Registry
-- Current phase status: design_pending
-- Current next action: design the Baron-native capability contract before implementation
+- Current phase status: implementation_in_progress
+- Current next action: write failing core capability registry tests
 - Build confidence: Phase 6 full Rust tests, Clippy, formatting, migration rollback, cross-Vault import, recall, and end-to-end smoke are verified
 
 ## What 100% Means
@@ -48,7 +48,7 @@ Completion requires:
 | 4 | Agent Adapters | completed | 15% / 15% | adapter lifecycle, preservation, multi-adapter and nested-path tests |
 | 5 | Plan/Harness/Proof/Trace | completed | 20% / 20% | plan, harness, proof, trace, completion-gate and mirror tests |
 | 6 | Native Migration And Legacy Retirement | completed | 8% / 8% | transactional migration tests, rollback tests, core asset contracts, full suite, manual smoke |
-| 7 | Baron Capability Registry | design_pending | 0% / 7% | none |
+| 7 | Baron Capability Registry | implementation_in_progress | 0% / 7% | design and TDD plan recorded; baseline suite passes |
 | 8 | Release Hardening | not_started | 0% / 5% | none |
 
 ## Completion Checklist
@@ -174,6 +174,9 @@ Completion requires:
 - Phase 6 design: `docs/superpowers/specs/2026-06-15-native-migration-legacy-retirement-design.md`
 - Phase 6 plan: `docs/superpowers/plans/2026-06-15-phase-6-native-migration.md`
 - Phase 6 build log: `notes/build-log/2026-06-15-phase-6-native-migration.md`
+- Phase 7 design: `docs/superpowers/specs/2026-06-15-baron-capability-registry-design.md`
+- Phase 7 plan: `docs/superpowers/plans/2026-06-15-phase-7-capability-registry.md`
+- Phase 7 build log: `notes/build-log/2026-06-15-phase-7-capability-registry.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
