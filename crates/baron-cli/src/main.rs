@@ -12,6 +12,10 @@ use baron_core::harness::{
     harness_status, record_decision, record_friction, start_or_resume_intake,
 };
 use baron_core::memory::{build_memory_index, load_memory_records};
+use baron_core::migration::{
+    execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
+    render_migration_inventory, rollback_migration,
+};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
@@ -99,6 +103,10 @@ enum Commands {
         #[command(subcommand)]
         command: TraceCommands,
     },
+    Migrate {
+        #[command(subcommand)]
+        command: MigrationCommands,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -185,6 +193,27 @@ enum TraceCommands {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         id: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum MigrationCommands {
+    AgentBootstrap {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Rollback {
+        #[arg(long)]
+        id: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
     },
 }
 
@@ -448,6 +477,60 @@ fn run() -> Result<()> {
                         score.achieved.as_str()
                     );
                 }
+            }
+        },
+        Some(Commands::Migrate { command }) => match command {
+            MigrationCommands::AgentBootstrap {
+                repo_path,
+                dry_run,
+                vault,
+            } => {
+                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                if dry_run {
+                    let inventory = inventory_agent_bootstrap(&repo_path, vault.as_deref())?;
+                    print!("{}", render_migration_inventory(&inventory));
+                } else {
+                    let receipt = execute_agent_bootstrap_migration(
+                        &repo_path,
+                        vault.as_deref(),
+                        |repo_root, vault_root| {
+                            initialize_project(repo_root, AdapterKind::Codex, vault_root)?;
+                            install_adapter(repo_root, AgentAdapter::Codex)?;
+                            let context = ensure_vault(vault_root, repo_root)?;
+                            build_memory_index(&context)?;
+                            Ok(())
+                        },
+                    )?;
+                    println!("# Baron Agent Bootstrap Migration\n");
+                    println!("- Migration ID: `{}`", receipt.migration_id);
+                    println!("- Status: `{}`", receipt.status);
+                    println!("- Imported: {}", receipt.imported_count);
+                    println!("- Quarantined: {}", receipt.quarantined_count);
+                    println!("- Removed: {}", receipt.removed_count);
+                    println!("- Backup: `{}`", receipt.backup_root.display());
+                    println!("- Runtime dependency on Agent Bootstrap: none");
+                }
+            }
+            MigrationCommands::Status { repo_path } => {
+                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                print!("{}", migration_status(repo_path)?);
+            }
+            MigrationCommands::Rollback {
+                id,
+                repo_path,
+                vault,
+            } => {
+                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                let vault = if let Some(vault) = vault {
+                    vault
+                } else {
+                    resolve_vault_path_for_repo(None, &repo_path)?
+                };
+                let report = rollback_migration(&repo_path, &vault, &id)?;
+                println!("# Baron Migration Rollback\n");
+                println!("- Migration ID: `{}`", report.migration_id);
+                println!("- Status: `{}`", report.status);
+                println!("- Restored paths: {}", report.restored_count);
             }
         },
         None => {
