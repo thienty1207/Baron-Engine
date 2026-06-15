@@ -1,6 +1,6 @@
 # Chunking Strategy
 
-Cách chia file thành chunks cho LARGE mode. Agent Bootstrap xử lý các chunk tuần tự để giữ context nhỏ và không tạo thêm subagent từ optional security skill.
+Cách chia file thành chunks cho LARGE mode. Baron xử lý các chunk tuần tự để giữ context nhỏ và không tạo thêm subagent từ optional security skill.
 
 ## Mục tiêu
 

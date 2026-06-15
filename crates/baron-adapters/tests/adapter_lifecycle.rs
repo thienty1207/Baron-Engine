@@ -125,3 +125,55 @@ fn skills_and_agents_indexes_route_narrowly() {
     assert!(agents.contains("security-auditor"));
     assert!(agents.contains("test-engineer"));
 }
+
+#[test]
+fn core_agents_are_baron_native_and_enforce_quality_gates() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    for file in [
+        "code-reviewer.toml",
+        "security-auditor.toml",
+        "test-engineer.toml",
+    ] {
+        let content = fs::read_to_string(repo.join(".codex/agents").join(file)).unwrap();
+        let lower = content.to_lowercase();
+        assert!(content.contains("Baron"));
+        assert!(content.contains("Superpowers"));
+        assert!(lower.contains("vault"));
+        assert!(lower.contains("evidence"));
+        assert!(lower.contains("proof"));
+        assert!(lower.contains("trace"));
+        assert!(lower.contains("do not invoke other subagents"));
+        assert!(!lower.contains("agent-bootstrap"));
+        assert!(!lower.contains("agent bootstrap"));
+    }
+}
+
+#[test]
+fn bundled_domain_skills_do_not_depend_on_agent_bootstrap_runtime() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    for skill in ["frontend-design", "vibe-security-scan"] {
+        let root = repo.join(".codex/skills").join(skill);
+        let mut stack = vec![root];
+        while let Some(path) = stack.pop() {
+            for entry in fs::read_dir(path).unwrap() {
+                let entry = entry.unwrap();
+                if entry.file_type().unwrap().is_dir() {
+                    stack.push(entry.path());
+                    continue;
+                }
+                let content = fs::read_to_string(entry.path()).unwrap();
+                let lower = content.to_lowercase();
+                assert!(!lower.contains("agent-bootstrap"));
+                assert!(!lower.contains("agent bootstrap"));
+            }
+        }
+    }
+}

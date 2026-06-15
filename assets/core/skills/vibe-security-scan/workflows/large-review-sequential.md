@@ -6,7 +6,7 @@ Sequential chunking workflow cho repo lớn (>20 main-lang files HOẶC >30 tota
 
 ## Tại sao sequential?
 
-Agent Bootstrap không tạo subagent từ optional security skill này. Ta chia file thành chunks để giữ context nhỏ, rồi xử lý lần lượt. Trade-off: chậm hơn parallel scan nhưng ổn định và portable hơn.
+Baron không tạo subagent từ optional security skill này. Ta chia file thành chunks để giữ context nhỏ, rồi xử lý lần lượt. Trade-off: chậm hơn parallel scan nhưng ổn định và portable hơn.
 
 ## Inputs (đã có sẵn từ SKILL.md context)
 

@@ -187,21 +187,21 @@ pub fn inventory_agent_bootstrap(
         MigrationAction::Remove,
         "legacy scaffold ownership metadata",
     )?;
-    push_file_item(
+    push_runtime_item(
         &mut items,
         &repo_root,
         "scripts/agent-memory.js",
         MigrationAssetKind::LegacyRuntime,
-        MigrationAction::Remove,
         "Baron replaces the generated Node runtime",
+        &["agent-bootstrap", "vault.config.json"],
     )?;
-    push_file_item(
+    push_runtime_item(
         &mut items,
         &repo_root,
         ".githooks/post-commit",
         MigrationAssetKind::LegacyHook,
-        MigrationAction::Remove,
         "legacy hook invokes the generated Node runtime",
+        &["scripts/agent-memory.js", "agent-bootstrap"],
     )?;
     if repo_root.join("AGENTS.md").exists() {
         items.push(MigrationItem {
@@ -704,7 +704,12 @@ fn cleanup_legacy_runtime(inventory: &MigrationInventory) -> Result<usize> {
 
 fn verify_imports(records: &[ImportRecord]) -> Result<()> {
     for record in records {
-        if record.source_hash != record.destination_hash {
+        if record.source_hash == record.destination_hash {
+            continue;
+        }
+        let source = fs::read_to_string(&record.source).unwrap_or_default();
+        let destination = fs::read_to_string(&record.destination).unwrap_or_default();
+        if source.trim().is_empty() || !destination.contains(source.trim()) {
             bail!(
                 "Migration hash mismatch: {} -> {}",
                 record.source,
@@ -929,6 +934,40 @@ fn push_file_item(
     Ok(())
 }
 
+fn push_runtime_item(
+    items: &mut Vec<MigrationItem>,
+    repo_root: &Path,
+    relative: &str,
+    kind: MigrationAssetKind,
+    reason: &str,
+    managed_signatures: &[&str],
+) -> Result<()> {
+    let path = repo_root.join(relative);
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = fs::read_to_string(&path).unwrap_or_default();
+    let managed = managed_signatures
+        .iter()
+        .any(|signature| content.contains(signature));
+    items.push(MigrationItem {
+        relative_path: relative.to_string(),
+        kind,
+        action: if managed {
+            MigrationAction::Remove
+        } else {
+            MigrationAction::Quarantine
+        },
+        reason: if managed {
+            reason.to_string()
+        } else {
+            format!("{reason}; file was customized, so Baron preserves it in quarantine")
+        },
+        content_hash: hash_path(&path)?,
+    });
+    Ok(())
+}
+
 fn copy_path(
     source: &Path,
     destination: &Path,
@@ -957,6 +996,20 @@ fn copy_path(
     let final_destination = if merge && destination.exists() {
         let existing_hash = hash_file(destination)?;
         if existing_hash == source_hash {
+            destination.to_path_buf()
+        } else if is_markdown(source) && is_markdown(destination) {
+            let source_content = fs::read_to_string(source)?;
+            let destination_content = fs::read_to_string(destination)?;
+            if is_placeholder_markdown(&destination_content) {
+                fs::copy(source, destination)?;
+            } else if !destination_content.contains(source_content.trim()) {
+                let merged = format!(
+                    "{}\n\n<!-- BARON:LEGACY-IMPORT -->\n\n{}\n",
+                    destination_content.trim_end(),
+                    source_content.trim()
+                );
+                atomic_write(destination, merged.as_bytes())?;
+            }
             destination.to_path_buf()
         } else {
             let conflict = destination
@@ -988,6 +1041,24 @@ fn copy_path(
         });
     }
     Ok(())
+}
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension().and_then(|value| value.to_str()) == Some("md")
+}
+
+fn is_placeholder_markdown(content: &str) -> bool {
+    let meaningful = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect::<Vec<_>>();
+    meaningful.is_empty()
+        || meaningful.iter().all(|line| {
+            line.contains("stores durable memory")
+                || line.contains("Only durable lessons")
+                || line.contains("Candidates are not loaded")
+        })
 }
 
 fn remove_legacy_managed_block(path: &Path) -> Result<()> {

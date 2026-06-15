@@ -28,6 +28,10 @@ pub enum MemoryKind {
     Proof,
     Trace,
     Session,
+    Research,
+    Note,
+    Question,
+    Handoff,
     Global,
 }
 
@@ -240,6 +244,14 @@ fn scan_project_records(
         MemoryKind::Session,
         &mut files,
     )?;
+    collect_markdown_files(
+        &project_root.join("Research"),
+        MemoryKind::Research,
+        &mut files,
+    )?;
+    collect_markdown_files(&project_root.join("Notes"), MemoryKind::Note, &mut files)?;
+    files.push((project_root.join("Open Questions.md"), MemoryKind::Question));
+    files.push((project_root.join("Handoff.md"), MemoryKind::Handoff));
     collect_markdown_files(&project_root.join("Proofs"), MemoryKind::Proof, &mut files)?;
     collect_markdown_files(&project_root.join("Traces"), MemoryKind::Trace, &mut files)?;
 
@@ -433,6 +445,10 @@ impl MemoryKind {
             MemoryKind::Proof => "proof",
             MemoryKind::Trace => "trace",
             MemoryKind::Session => "session",
+            MemoryKind::Research => "research",
+            MemoryKind::Note => "note",
+            MemoryKind::Question => "question",
+            MemoryKind::Handoff => "handoff",
             MemoryKind::Global => "global",
         }
     }
@@ -446,6 +462,10 @@ impl MemoryKind {
             "proof" => MemoryKind::Proof,
             "trace" => MemoryKind::Trace,
             "session" => MemoryKind::Session,
+            "research" => MemoryKind::Research,
+            "note" => MemoryKind::Note,
+            "question" => MemoryKind::Question,
+            "handoff" => MemoryKind::Handoff,
             "global" => MemoryKind::Global,
             _ => MemoryKind::Fact,
         }

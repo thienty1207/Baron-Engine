@@ -6,7 +6,7 @@ license: MIT; adapted from tanviet12/vbsec
 
 # Vibe Security Scan
 
-This bundled optional domain skill provides a defensive appsec scan for AI-assisted codebases. It is adapted from `tanviet12/vbsec` and tuned for Agent Bootstrap projects.
+This bundled optional domain skill provides a defensive appsec scan for AI-assisted codebases. It is adapted from `tanviet12/vbsec` and tuned for Baron-managed projects.
 
 Public source: https://github.com/tanviet12/vbsec
 License: MIT, copyright Bui Tan Viet. See `LICENSE.txt`.
@@ -16,6 +16,8 @@ License: MIT, copyright Bui Tan Viet. See `LICENSE.txt`.
 - Superpowers remains the workflow authority for planning, TDD, debugging, review, and verification.
 - This skill is a security scan playbook, not a workflow skill and not a replacement for Superpowers.
 - The core `security-auditor` remains the final independent security gate when the parent task needs review.
+- Findings must feed Baron proof and trace quality gates before high-risk work can be called complete.
+- Respect the Baron Memory Firewall: keep project findings inside the current project capsule and never promote unverified findings to global memory.
 - Follow `AGENTS.md`, `.codex/INDEX.md`, `.codex/skills/INDEX.md`, and `.codex/agents/INDEX.md` first.
 - Do not attack live systems, bypass authorization, exfiltrate data, or provide weaponized exploit steps.
 - Never write secrets, private tokens, cookies, session data, or sensitive user data into reports or vault memory.

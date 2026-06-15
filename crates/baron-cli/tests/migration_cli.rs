@@ -63,6 +63,10 @@ fn fixture() -> (tempfile::TempDir, PathBuf, PathBuf) {
         "# Facts\n\n- Login uses email.\n",
     );
     write(
+        &legacy_project.join("Research/backend.md"),
+        "# Backend Research\n\n- Axum tower middleware handles request tracing.\n",
+    );
+    write(
         &repo.join(".codex/skills/rust-api/SKILL.md"),
         "---\nname: rust-api\ndescription: Use when implementing Rust APIs.\n---\n\nRequire test evidence.\n",
     );
@@ -112,6 +116,11 @@ fn apply_installs_baron_imports_memory_and_retires_legacy_runtime() {
     assert!(!repo.join("scripts/agent-memory.js").exists());
     assert!(!repo.join("vault.config.json").exists());
     assert!(vault.join("Projects/legacy-app/Facts.md").exists());
+    assert!(
+        fs::read_to_string(vault.join("Projects/legacy-app/Facts.md"))
+            .unwrap()
+            .contains("Login uses email")
+    );
     let agents = fs::read_to_string(repo.join("AGENTS.md")).unwrap();
     assert!(agents.contains("Preserve this."));
     assert!(agents.contains("BARON:MANAGED:START"));
@@ -123,6 +132,13 @@ fn apply_installs_baron_imports_memory_and_retires_legacy_runtime() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Status: `completed`"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["recall", "Axum tower middleware", repo.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Axum tower middleware"));
 }
 
 #[test]

@@ -210,3 +210,56 @@ fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
     );
     assert!(migration_status(&repo).unwrap().contains("rolled_back"));
 }
+
+#[test]
+fn modified_legacy_runtime_is_quarantined_instead_of_deleted() {
+    let (_temp, repo, _vault) = legacy_fixture();
+    write(
+        &repo.join("scripts/agent-memory.js"),
+        "// user-customized bridge that must be preserved\n",
+    );
+
+    let inventory = inventory_agent_bootstrap(&repo, None).unwrap();
+    assert!(inventory.items.iter().any(|item| {
+        item.relative_path == "scripts/agent-memory.js"
+            && item.action == MigrationAction::Quarantine
+    }));
+
+    let receipt = execute_agent_bootstrap_migration(&repo, None, |repo, _vault| {
+        write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
+        Ok(())
+    })
+    .unwrap();
+
+    assert!(!repo.join("scripts/agent-memory.js").exists());
+    assert_eq!(
+        fs::read_to_string(
+            repo.join(".baron/quarantine")
+                .join(receipt.migration_id)
+                .join("scripts/agent-memory.js")
+        )
+        .unwrap(),
+        "// user-customized bridge that must be preserved\n"
+    );
+}
+
+#[test]
+fn failed_install_rolls_back_automatically() {
+    let (_temp, repo, vault) = legacy_fixture();
+
+    let result = execute_agent_bootstrap_migration(&repo, None, |repo, _vault| {
+        write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
+        anyhow::bail!("injected install failure")
+    });
+
+    assert!(result.is_err());
+    assert!(repo.join("vault.config.json").exists());
+    assert!(repo.join("scripts/agent-memory.js").exists());
+    assert!(!repo.join(".baron/project.toml").exists());
+    let migrations = vault.join("Artifacts/Baron/Migrations");
+    let failure_exists = fs::read_dir(migrations)
+        .unwrap()
+        .any(|entry| entry.unwrap().path().join("failure.json").exists());
+    assert!(failure_exists);
+    assert!(migration_status(&repo).unwrap().contains("rolled_back"));
+}

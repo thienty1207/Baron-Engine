@@ -68,7 +68,7 @@ See `references/language-detection.md` for the detection heuristic. In short:
 | PHP | `php/` | 5 | Stable (v0.1) |
 | TypeScript/JavaScript | `typescript/` | 10 | Stable (v0.2) — includes both `.ts` and `.js` files |
 | Python | `python/` | 9 | Stable (v0.4) — `.py` and `.pyw` |
-| Rust | `rust/` | 7 | Agent Bootstrap overlay — `.rs` |
+| Rust | `rust/` | 7 | Baron overlay — `.rs` |
 
 **Phase v0.5+** (planned): Ruby, Java/Kotlin.
 

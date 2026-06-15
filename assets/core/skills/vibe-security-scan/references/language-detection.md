@@ -47,7 +47,7 @@ Cách detect ngôn ngữ code chính trong repo để chọn rule overlay.
 | `php` | ✅ v0.1 | mysqli vs PDO, `$_GET/$_POST` direct, `eval`/`include` variable, Laravel CSRF, `unserialize` |
 | `typescript` | ✅ v0.2 | Sequelize/Prisma/TypeORM/Mongoose SQLi+NoSQLi, React/Vue/Angular XSS, Express/NestJS/Next.js mass-assignment/SSRF/CSRF/CORS, js-yaml deserialize, child_process injection, JWT none/algorithm-confusion |
 | `python` | ✅ v0.4 | SQLAlchemy text() + Django .raw/.extra, pickle/yaml.load (RCE), subprocess shell=True, Flask Werkzeug debugger RCE, Django DEBUG/FastAPI debug, Django ModelForm/Flask `**request.json`/FastAPI Pydantic mass-assignment, PyJWT algorithms allowlist, flask-cors/django-cors-headers/FastAPI CORSMiddleware, Django CSRF middleware |
-| `rust` | ✅ Agent Bootstrap | SQLx/Diesel SQLi, reqwest/hyper SSRF, PathBuf traversal, tower-http/Actix/Rocket CORS, backtrace/error leaks, Command injection, unsafe/unbounded deserialization |
+| `rust` | ✅ Baron overlay | SQLx/Diesel SQLi, reqwest/hyper SSRF, PathBuf traversal, tower-http/Actix/Rocket CORS, backtrace/error leaks, Command injection, unsafe/unbounded deserialization |
 | Khác | Phase v0.5+ | Ruby, Java theo nhu cầu cộng đồng |
 
 ## Frontend framework detection (sub-classification)
