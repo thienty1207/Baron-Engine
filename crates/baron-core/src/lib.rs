@@ -5,6 +5,7 @@ pub mod context;
 pub mod control_plane;
 pub mod firewall;
 pub mod harness;
+pub mod harness_improvement;
 pub mod identity;
 pub mod memory;
 pub mod migration;

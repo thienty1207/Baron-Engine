@@ -71,12 +71,12 @@
 - Modify: `crates/baron-core/src/lib.rs`
 - Test: `crates/baron-core/tests/harness_improvement.rs`
 
-- [ ] Write failing tests proving context-read score reports observed/missing startup actions.
-- [ ] Write failing tests proving documentation drift and contradiction diagnostics are bounded.
-- [ ] Write failing tests proving intervention records are mirrored to Vault.
-- [ ] Implement `audit_harness`, `record_intervention`, and drift/friction/proof-gap summaries.
-- [ ] Run focused tests until green.
-- [ ] Commit `feat: add self-improving harness audit`.
+- [x] Write failing tests proving context-read score reports observed/missing startup actions.
+- [x] Write failing tests proving documentation drift and contradiction diagnostics are bounded.
+- [x] Write failing tests proving intervention records are mirrored to Vault.
+- [x] Implement `audit_harness`, `record_intervention`, and drift/friction/proof-gap summaries.
+- [x] Run focused tests until green.
+- [x] Commit `feat: add self-improving harness audit`.
 
 ### Task 5: Phase 12 Story Verification, Proposals, And Outcomes
 
