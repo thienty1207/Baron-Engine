@@ -1,3 +1,4 @@
+pub mod capability;
 pub mod config;
 pub mod context;
 pub mod firewall;
@@ -16,7 +17,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-6-native-migration"
+    "phase-7-capability-registry"
 }
 
 #[cfg(test)]
@@ -26,6 +27,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-6-native-migration");
+        assert_eq!(phase(), "phase-7-capability-registry");
     }
 }
