@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use baron_core::identity::{capsule_key, project_id_for_path};
 use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
     rollback_migration, MigrationAction, MigrationAssetKind,
 };
+use baron_core::vault::project_slug;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
@@ -13,6 +15,12 @@ fn write(path: &Path, content: &str) {
         fs::create_dir_all(parent).unwrap();
     }
     fs::write(path, content).unwrap();
+}
+
+fn capsule_root(vault: &Path, repo: &Path) -> PathBuf {
+    let slug = project_slug(repo);
+    let project_id = project_id_for_path(repo).unwrap();
+    vault.join("Projects").join(capsule_key(&slug, &project_id))
 }
 
 fn snapshot(root: &Path) -> Vec<(String, Vec<u8>)> {
@@ -178,8 +186,9 @@ fn migration_imports_data_quarantines_invalid_assets_and_retires_runtime() {
     assert!(repo.join("docs/baron/harness/product/PRODUCT.md").exists());
     assert!(repo.join("docs/baron/traces/legacy-trace.md").exists());
     assert!(repo.join("docs/baron/proofs/legacy-proof.md").exists());
-    assert!(vault.join("Projects/demo/Facts.md").exists());
-    assert!(vault.join("Projects/demo/Research/backend.md").exists());
+    let project_root = capsule_root(&vault, &repo);
+    assert!(project_root.join("Facts.md").exists());
+    assert!(project_root.join("Research/backend.md").exists());
     assert!(repo.join(".codex/skills/rust-api/SKILL.md").exists());
     assert!(!repo.join(".codex/agents/unsafe-agent.toml").exists());
     assert!(repo
@@ -211,8 +220,9 @@ fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
         &repo.join("docs/baron/plans/post-migration-plan.md"),
         "# New Baron Plan\n",
     );
+    let project_root = capsule_root(&vault, &repo);
     write(
-        &vault.join("Projects/demo/post-migration-memory.md"),
+        &project_root.join("post-migration-memory.md"),
         "# New Baron Memory\n",
     );
 
@@ -234,9 +244,7 @@ fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
     assert!(repo
         .join("docs/baron/plans/post-migration-plan.md")
         .exists());
-    assert!(vault
-        .join("Projects/demo/post-migration-memory.md")
-        .exists());
+    assert!(project_root.join("post-migration-memory.md").exists());
     assert!(migration_status(&repo).unwrap().contains("rolled_back"));
 }
 
@@ -307,10 +315,8 @@ fn explicit_vault_is_destination_while_legacy_config_remains_the_source() {
 
     assert_eq!(receipt.source_vault, source_vault);
     assert_eq!(receipt.destination_vault, destination_vault);
-    assert!(receipt
-        .destination_vault
-        .join("Projects/demo/Facts.md")
-        .exists());
+    let project_root = capsule_root(&receipt.destination_vault, &repo);
+    assert!(project_root.join("Facts.md").exists());
     assert!(receipt
         .backup_root
         .join("source-vault/legacy-demo/Facts.md")

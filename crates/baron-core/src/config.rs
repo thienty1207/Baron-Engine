@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::identity::project_id_for_path;
 use crate::vault::project_slug;
 
 const PROJECT_CONFIG_PATH: &str = ".baron/project.toml";
@@ -29,6 +30,8 @@ pub struct AutomationConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectConfig {
     pub schema_version: u32,
+    #[serde(default)]
+    pub project_id: String,
     pub project_slug: String,
     pub adapters: Vec<AdapterKind>,
     pub automation: AutomationConfig,
@@ -66,12 +69,17 @@ pub fn initialize_project(
         load_project_config(&repo_root)?
     } else {
         ProjectConfig {
-            schema_version: 1,
+            schema_version: 2,
+            project_id: project_id_for_path(&repo_root)?,
             project_slug: project_slug(&repo_root),
             adapters: Vec::new(),
             automation: AutomationConfig::default(),
         }
     };
+    if config.project_id.is_empty() {
+        config.project_id = project_id_for_path(&repo_root)?;
+    }
+    config.schema_version = 2;
     if !config.adapters.contains(&adapter) {
         config.adapters.push(adapter);
     }

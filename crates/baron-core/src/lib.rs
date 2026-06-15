@@ -3,6 +3,7 @@ pub mod config;
 pub mod context;
 pub mod firewall;
 pub mod harness;
+pub mod identity;
 pub mod memory;
 pub mod migration;
 pub mod plan;

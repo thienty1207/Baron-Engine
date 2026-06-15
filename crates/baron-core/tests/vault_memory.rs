@@ -29,18 +29,57 @@ fn vault_scaffold_creates_root_and_project_capsule_without_overwriting() {
     let context = ensure_vault(&vault, &repo).unwrap();
 
     assert_eq!(context.project_slug, "my-legacy-app");
+    assert!(!context.project_id.is_empty());
     assert_eq!(read(&vault.join("Init.md")), "# My Existing Vault\n");
     assert!(vault.join("AGENTS.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/README.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Facts.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Decisions.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Tasks.md").exists());
-    assert!(vault.join("Projects/my-legacy-app/Plans").is_dir());
-    assert!(vault.join("Projects/my-legacy-app/ProductHarness").is_dir());
-    assert!(vault.join("Projects/my-legacy-app/Sessions").is_dir());
-    assert!(vault.join("Projects/my-legacy-app/Artifacts").is_dir());
+    assert!(context.project_root.join("README.md").exists());
+    assert!(context.project_root.join("Facts.md").exists());
+    assert!(context.project_root.join("Decisions.md").exists());
+    assert!(context.project_root.join("Tasks.md").exists());
+    assert!(context.project_root.join("Plans").is_dir());
+    assert!(context.project_root.join("ProductHarness").is_dir());
+    assert!(context.project_root.join("Sessions").is_dir());
+    assert!(context.project_root.join("Artifacts").is_dir());
+    assert!(context.project_root.join(".baron-project.json").exists());
     assert!(vault.join("Artifacts/Baron/APPROVED_GLOBAL.md").exists());
     assert!(vault.join("Artifacts/Baron/GLOBAL_CANDIDATES.md").exists());
+}
+
+#[test]
+fn repositories_with_the_same_name_use_different_vault_capsules() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let first = temp.path().join("one").join("same-app");
+    let second = temp.path().join("two").join("same-app");
+    fs::create_dir_all(&first).unwrap();
+    fs::create_dir_all(&second).unwrap();
+
+    let first_context = ensure_vault(&vault, &first).unwrap();
+    let second_context = ensure_vault(&vault, &second).unwrap();
+
+    assert_eq!(first_context.project_slug, second_context.project_slug);
+    assert_ne!(first_context.project_id, second_context.project_id);
+    assert_ne!(first_context.project_root, second_context.project_root);
+}
+
+#[test]
+fn legacy_slug_capsule_migrates_without_losing_markdown() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("legacy-app");
+    let legacy_capsule = vault.join("Projects/legacy-app");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&legacy_capsule).unwrap();
+    write(
+        &legacy_capsule.join("Facts.md"),
+        "# Facts\n\n- Existing legacy memory must survive.\n",
+    );
+
+    let context = ensure_vault(&vault, &repo).unwrap();
+
+    assert_ne!(context.project_root, legacy_capsule);
+    assert!(!legacy_capsule.exists());
+    assert!(read(&context.project_root.join("Facts.md")).contains("Existing legacy memory"));
 }
 
 #[test]

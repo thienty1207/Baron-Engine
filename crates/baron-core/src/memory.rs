@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use crate::vault::VaultContext;
+use crate::vault::{load_capsule_metadata, VaultContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -203,7 +203,9 @@ fn scan_vault_records(context: &VaultContext) -> Result<Vec<MemoryRecord>> {
             if !entry.file_type()?.is_dir() {
                 continue;
             }
-            let project_slug = entry.file_name().to_string_lossy().to_string();
+            let project_slug = load_capsule_metadata(&entry.path())?
+                .map(|metadata| metadata.project_slug)
+                .unwrap_or_else(|| entry.file_name().to_string_lossy().to_string());
             records.extend(scan_project_records(context, &project_slug, &entry.path())?);
         }
     }
