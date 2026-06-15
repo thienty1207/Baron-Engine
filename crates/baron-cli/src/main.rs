@@ -2,6 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use baron_adapters::{install_adapter, shadow_preview, AgentAdapter};
+use baron_core::capability::{
+    check_capabilities, load_capability_state, load_registry, register_provider, remove_provider,
+    CapabilityProvider, CheckOptions, Presence, ProviderKind, Requirement,
+};
 use baron_core::config::{
     find_project_root, initialize_project, load_project_config, resolve_vault_path_for_repo,
     AdapterKind,
@@ -106,6 +110,10 @@ enum Commands {
     Migrate {
         #[command(subcommand)]
         command: MigrationCommands,
+    },
+    Capability {
+        #[command(subcommand)]
+        command: CapabilityCommands,
     },
 }
 
@@ -217,12 +225,72 @@ enum MigrationCommands {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum CapabilityCommands {
+    Register {
+        capability: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        name: String,
+        #[arg(long, value_enum)]
+        kind: ProviderKindArg,
+        #[arg(long)]
+        required: bool,
+        #[arg(long)]
+        command: Option<String>,
+        #[arg(long = "scan")]
+        scan_target: Option<String>,
+        #[arg(long = "adapter", value_enum)]
+        adapters: Vec<AdapterArg>,
+        #[arg(long)]
+        description: String,
+    },
+    Check {
+        capability: Option<String>,
+        repo_path: Option<PathBuf>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        json: bool,
+    },
+    List {
+        repo_path: Option<PathBuf>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        json: bool,
+    },
+    Remove {
+        capability: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        name: String,
+    },
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum OutcomeArg {
     Completed,
     Partial,
     Blocked,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ProviderKindArg {
+    Cli,
+    Binary,
+    Mcp,
+    Skill,
+    Http,
+    AgentAdapter,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AdapterArg {
+    Codex,
+    Claude,
+    Agent,
 }
 
 fn main() {
@@ -533,12 +601,234 @@ fn run() -> Result<()> {
                 println!("- Restored paths: {}", report.restored_count);
             }
         },
+        Some(Commands::Capability { command }) => match command {
+            CapabilityCommands::Register {
+                capability,
+                repo_path,
+                name,
+                kind,
+                required,
+                command,
+                scan_target,
+                adapters,
+                description,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let normalized_name = baron_core::capability::normalize_identifier(&name)
+                    .context("Provider name must contain letters or numbers")?;
+                let provider = CapabilityProvider {
+                    name,
+                    capability,
+                    kind: kind.into(),
+                    requirement: if required {
+                        Requirement::Required
+                    } else {
+                        Requirement::Optional
+                    },
+                    command,
+                    scan_target,
+                    adapters: adapters.into_iter().map(Into::into).collect(),
+                    description,
+                };
+                let registry = register_provider(&repo_root, provider)?;
+                let registered = registry
+                    .providers
+                    .iter()
+                    .find(|provider| provider.name == normalized_name)
+                    .context("Provider was not registered")?;
+                println!("# Baron Capability Register\n");
+                println!("- Capability: `{}`", registered.capability);
+                println!("- Provider: `{}`", registered.name);
+                println!("- Kind: `{}`", provider_kind_name(registered.kind));
+                println!(
+                    "- Requirement: `{}`",
+                    requirement_name(registered.requirement)
+                );
+            }
+            CapabilityCommands::Check {
+                capability,
+                repo_path,
+                adapter,
+                json,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let adapter = resolve_capability_adapter(&repo_root, adapter)?;
+                let state = check_capabilities(
+                    &repo_root,
+                    CheckOptions {
+                        adapter,
+                        capability,
+                        allow_network: true,
+                    },
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&state)?);
+                } else {
+                    print!("{}", render_capability_check(&state));
+                }
+            }
+            CapabilityCommands::List {
+                repo_path,
+                adapter,
+                json,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let registry = load_registry(&repo_root)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&registry)?);
+                } else {
+                    let adapter = resolve_capability_adapter(&repo_root, adapter)?;
+                    let state = load_capability_state(&repo_root)?;
+                    print!(
+                        "{}",
+                        render_capability_list(&registry, state.as_ref(), adapter)
+                    );
+                }
+            }
+            CapabilityCommands::Remove {
+                capability,
+                repo_path,
+                name,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let removed = remove_provider(&repo_root, &capability, &name)?;
+                println!("# Baron Capability Remove\n");
+                println!("- Capability: `{}`", capability);
+                println!("- Provider: `{}`", name);
+                println!("- Removed: `{}`", if removed { "yes" } else { "no" });
+            }
+        },
         None => {
             println!("{} {}", product_name(), phase());
             println!("Run `baron --help` for commands.");
         }
     }
     Ok(())
+}
+
+fn resolve_capability_adapter(
+    repo_root: &std::path::Path,
+    requested: Option<AdapterArg>,
+) -> Result<AdapterKind> {
+    if let Some(adapter) = requested {
+        return Ok(adapter.into());
+    }
+    load_project_config(repo_root)?
+        .adapters
+        .first()
+        .copied()
+        .context("No registered adapter is available for capability checks")
+}
+
+fn render_capability_check(state: &baron_core::capability::CapabilityState) -> String {
+    let mut output = format!(
+        "# Baron Capability Check\n\n- Adapter: `{}`\n- Checked: {}\n",
+        adapter_kind_name(state.adapter),
+        state.checked_at
+    );
+    if state.observations.is_empty() {
+        output.push_str("- No providers registered.\n");
+    }
+    for observation in &state.observations {
+        output.push_str(&format!(
+            "\n## {} / {}\n\n- Kind: `{}`\n- Requirement: `{}`\n- Presence: `{}`\n- Compatible: `{}`\n- Evidence: {}\n",
+            observation.capability,
+            observation.provider,
+            provider_kind_name(observation.kind),
+            requirement_name(observation.requirement),
+            presence_name(observation.presence),
+            if observation.compatible { "yes" } else { "no" },
+            observation.evidence
+        ));
+    }
+    output.push_str(&format!(
+        "\n- Required gaps: {}\n- Optional gaps: {}\n",
+        list_or_none(&state.required_gaps),
+        list_or_none(&state.optional_gaps)
+    ));
+    output
+}
+
+fn render_capability_list(
+    registry: &baron_core::capability::CapabilityRegistry,
+    state: Option<&baron_core::capability::CapabilityState>,
+    adapter: AdapterKind,
+) -> String {
+    let mut output = format!(
+        "# Baron Capability Registry\n\n- Adapter view: `{}`\n",
+        adapter_kind_name(adapter)
+    );
+    if registry.providers.is_empty() {
+        output.push_str("- No providers registered.\n");
+        return output;
+    }
+    output.push_str(
+        "\n| Capability | Provider | Kind | Requirement | Last presence | Compatible |\n| --- | --- | --- | --- | --- | --- |\n",
+    );
+    for provider in &registry.providers {
+        let observation = state.and_then(|state| {
+            state
+                .observations
+                .iter()
+                .find(|item| item.provider == provider.name)
+        });
+        output.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} |\n",
+            provider.capability,
+            provider.name,
+            provider_kind_name(provider.kind),
+            requirement_name(provider.requirement),
+            observation
+                .map(|item| presence_name(item.presence))
+                .unwrap_or("unknown"),
+            observation
+                .map(|item| if item.compatible { "yes" } else { "no" })
+                .unwrap_or("unknown")
+        ));
+    }
+    output
+}
+
+fn provider_kind_name(kind: ProviderKind) -> &'static str {
+    match kind {
+        ProviderKind::Cli => "cli",
+        ProviderKind::Binary => "binary",
+        ProviderKind::Mcp => "mcp",
+        ProviderKind::Skill => "skill",
+        ProviderKind::Http => "http",
+        ProviderKind::AgentAdapter => "agent_adapter",
+    }
+}
+
+fn requirement_name(requirement: Requirement) -> &'static str {
+    match requirement {
+        Requirement::Optional => "optional",
+        Requirement::Required => "required",
+    }
+}
+
+fn presence_name(presence: Presence) -> &'static str {
+    match presence {
+        Presence::Present => "present",
+        Presence::Missing => "missing",
+        Presence::Unknown => "unknown",
+    }
+}
+
+fn adapter_kind_name(adapter: AdapterKind) -> &'static str {
+    match adapter {
+        AdapterKind::Codex => "codex",
+        AdapterKind::Claude => "claude",
+        AdapterKind::Generic => "agent",
+    }
+}
+
+fn list_or_none(values: &[String]) -> String {
+    if values.is_empty() {
+        "none".to_string()
+    } else {
+        values.join(", ")
+    }
 }
 
 fn parse_context_target(
@@ -643,6 +933,29 @@ impl From<OutcomeArg> for TraceOutcome {
             OutcomeArg::Partial => TraceOutcome::Partial,
             OutcomeArg::Blocked => TraceOutcome::Blocked,
             OutcomeArg::Failed => TraceOutcome::Failed,
+        }
+    }
+}
+
+impl From<ProviderKindArg> for ProviderKind {
+    fn from(value: ProviderKindArg) -> Self {
+        match value {
+            ProviderKindArg::Cli => ProviderKind::Cli,
+            ProviderKindArg::Binary => ProviderKind::Binary,
+            ProviderKindArg::Mcp => ProviderKind::Mcp,
+            ProviderKindArg::Skill => ProviderKind::Skill,
+            ProviderKindArg::Http => ProviderKind::Http,
+            ProviderKindArg::AgentAdapter => ProviderKind::AgentAdapter,
+        }
+    }
+}
+
+impl From<AdapterArg> for AdapterKind {
+    fn from(value: AdapterArg) -> Self {
+        match value {
+            AdapterArg::Codex => AdapterKind::Codex,
+            AdapterArg::Claude => AdapterKind::Claude,
+            AdapterArg::Agent => AdapterKind::Generic,
         }
     }
 }
