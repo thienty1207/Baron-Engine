@@ -109,14 +109,14 @@
 - Modify: `notes/build-log/CURRENT.md`
 - Create: `notes/build-log/2026-06-16-phase-11-12-control-plane-harness.md`
 
-- [ ] Write failing context/docs tests proving compact context contains bounded control-plane and harness audit summaries.
-- [ ] Update docs to mark Phase 11 and Phase 12 complete only after proof passes.
-- [ ] Run `cargo fmt --all -- --check`.
-- [ ] Run `cargo test --workspace --all-targets`.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] Smoke a temp repo: init, route security task, record three gates, audit, intervention, propose, outcome, context.
-- [ ] Run `git diff --check`.
-- [ ] Commit `docs: complete Baron phases 11 and 12`.
+- [x] Write failing context/docs tests proving compact context contains bounded control-plane and harness audit summaries.
+- [x] Update docs to mark Phase 11 and Phase 12 complete only after proof passes.
+- [x] Run `cargo fmt --all -- --check`.
+- [x] Run `cargo test --workspace --all-targets`.
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] Smoke a temp repo: init, route security task, record three gates, audit, intervention, propose, outcome, context.
+- [x] Run `git diff --check`.
+- [x] Commit `docs: complete Baron phases 11 and 12`.
 
 ## Self-Review
 

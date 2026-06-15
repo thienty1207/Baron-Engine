@@ -9,6 +9,7 @@ use baron_core::config::AdapterKind;
 use baron_core::context::{
     compile_context, compile_context_for_task, compile_context_why, ContextTarget,
 };
+use baron_core::harness::record_friction;
 use baron_core::memory::build_memory_index;
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -295,4 +296,36 @@ fn context_why_explains_capability_cache_without_claiming_execution() {
     assert!(why.contains("Capability Registry"));
     assert!(why.contains("presence cache"));
     assert!(why.contains("tool execution evidence"));
+}
+
+#[test]
+fn context_includes_bounded_control_plane_and_harness_improvement_summary() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join(".codex/skills/superpowers")).unwrap();
+    fs::create_dir_all(repo.join(".codex/agents")).unwrap();
+    write(
+        &repo.join(".codex/skills/superpowers/SKILL.md"),
+        "---\nname: superpowers\ndescription: Baron workflow core for planning, TDD, debugging, review, and verification.\n---\n# Superpowers\n",
+    );
+    for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
+        write(
+            &repo.join(".codex/agents").join(format!("{agent}.toml")),
+            &format!(
+                "name = \"{agent}\"\ndescription = \"Core Baron quality gate.\"\ndeveloper_instructions = \"\"\"\nSuperpowers is the workflow brain. Do not invoke other subagents. Report proof and trace evidence.\n\"\"\"\n"
+            ),
+        );
+    }
+    let context = ensure_vault(&vault, &repo).unwrap();
+    record_friction(&repo, &context, "proof command was unclear").unwrap();
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Control Plane Summary"));
+    assert!(bundle.contains("Workflow owner: `superpowers`"));
+    assert!(bundle.contains("## Harness Improvement Summary"));
+    assert!(bundle.contains("Context-read score"));
+    assert!(bundle.contains("Open friction: 1"));
+    assert!(bundle.len() <= 20_000);
 }

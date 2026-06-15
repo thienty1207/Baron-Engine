@@ -68,6 +68,9 @@ Outputs:
 Adapters must not fork Baron behavior. They only translate Baron behavior.
 Every adapter requires automatic context, plan, harness, proof, and trace
 behavior. Platform-specific hooks are accelerators, not separate workflow truth.
+Every adapter must also route work through `baron control-plane route` before
+loading optional skills or dispatching quality gates. A mandatory quality gate
+does not count until `baron control-plane record-gate` records evidence.
 
 Codex and Claude hooks record SessionStart, prompt, edit checkpoint, and Stop
 events. SessionStart injects bounded context. Stop reconciliation blocks one
@@ -77,6 +80,9 @@ tool; Baron reports observed events instead of assuming hooks executed.
 
 Hook JSON and skill/agent indexes are merged through Baron-managed entries.
 Unknown user hook groups and custom routing text remain intact across update.
+Skill and agent indexes include ownership, trigger, exclusion, evidence, and
+conflict fields so custom routing can be preserved without weakening Baron
+contracts.
 
 ## Migration Boundary
 

@@ -18,7 +18,7 @@ Implement Baron 2.0 Phase 11 and Phase 12:
 
 ## Current Status
 
-Implementation started. Read `docs/superpowers/plans/2026-06-16-phase-11-12-control-plane-harness.md` before resuming.
+Phase 11 and Phase 12 are implemented and locally verified.
 
 ## Verification
 
@@ -28,7 +28,23 @@ Implementation started. Read `docs/superpowers/plans/2026-06-16-phase-11-12-cont
 - adapter strict contract and preservation tests: passed
 - harness audit, drift, context-read, and intervention tests: passed
 - harness story verification, proposal, outcome core/CLI tests: passed
+- compact context control-plane and harness-improvement summary tests: passed
+- real temp-repo smoke for route, gate evidence, audit, verify-all, intervention, propose, outcome, and context summaries: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- `docs/BARON_STATUS.json` parse: passed
+- `git diff --check`: passed
+
+## Commits
+
+- `1ab4d9b feat: add skill and agent control plane validation`
+- `500eb4f feat: add explainable quality gate routing`
+- `9b3d160 feat: harden adapter skill and agent contracts`
+- `873a0fd feat: add self-improving harness audit`
+- `b6fe5d6 feat: add harness improvement outcome loop`
+- completion documentation is recorded in the Phase 11-12 git history.
 
 ## Resume Point
 
-Start Task 6: add bounded context summaries, docs, final verification, and merge.
+Start Phase 13 from `docs/BARON_STATUS.md` and preserve the Phase 11-12 contracts.

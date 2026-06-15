@@ -59,14 +59,16 @@ fn cli_reports_the_release_version() {
 }
 
 #[test]
-fn help_exposes_phase_nine_and_ten_command_groups() {
+fn help_exposes_phase_nine_through_twelve_command_groups() {
     Command::cargo_bin("baron")
         .unwrap()
         .arg("--help")
         .assert()
         .success()
         .stdout(predicate::str::contains("automation"))
-        .stdout(predicate::str::contains("memory"));
+        .stdout(predicate::str::contains("memory"))
+        .stdout(predicate::str::contains("control-plane"))
+        .stdout(predicate::str::contains("harness"));
 
     Command::cargo_bin("baron")
         .unwrap()
@@ -82,6 +84,23 @@ fn help_exposes_phase_nine_and_ten_command_groups() {
         .success()
         .stdout(predicate::str::contains("reconcile"))
         .stdout(predicate::str::contains("hook"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["control-plane", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("route"))
+        .stdout(predicate::str::contains("record-gate"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["harness", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("audit"))
+        .stdout(predicate::str::contains("verify-all"))
+        .stdout(predicate::str::contains("propose"));
 }
 
 #[test]

@@ -28,11 +28,13 @@ lifecycle are implemented.
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
 
-The current source has completed Baron 2.0 Phase 9 and Phase 10:
+The current source has completed Baron 2.0 Phase 9 through Phase 12:
 collision-resistant project identity, observable native automation, an
 incremental large-memory index, multilingual task-aware recall, and automatic
-Codex/Claude session import. The published stable binary remains `1.0.0` until
-the remaining Baron 2.0 phases and cross-platform release gates pass.
+Codex/Claude session import, strict skill/agent routing, mandatory gate
+evidence, and self-improving harness proposals. The published stable binary
+remains `1.0.0` until the remaining Baron 2.0 phases and cross-platform release
+gates pass.
 
 ## Install
 
@@ -110,6 +112,15 @@ baron capability list
 baron capability remove "security scan" --name security-skill
 baron automation status [repo-path]
 baron automation reconcile [repo-path]
+baron control-plane status [repo-path]
+baron control-plane route "<task>" [repo-path] --risk <low|medium|high>
+baron control-plane record-gate <agent> "<evidence summary>" [repo-path]
+baron control-plane evidence [repo-path] --required <agent>
+baron harness audit [repo-path]
+baron harness verify-all [repo-path]
+baron harness intervention "<summary>" [repo-path]
+baron harness propose [repo-path]
+baron harness outcome <proposal-id> "<actual outcome>" [repo-path]
 baron migrate agent-bootstrap [repo-path] --dry-run
 baron migrate agent-bootstrap [repo-path]
 baron migrate status [repo-path]
@@ -120,7 +131,8 @@ baron migrate rollback --id <migration-id> [repo-path] --vault <vault-path>
 `recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, `trace`,
 Capability Registry, Agent Bootstrap migration, and release hardening are
 implemented. Baron 2.0 development also implements native automation hooks,
-session import, incremental indexing, and multilingual semantic recall.
+session import, incremental indexing, multilingual semantic recall, strict
+control-plane routing, and self-improving harness audits.
 Maintainer-only release metadata commands are hidden from normal help.
 
 Memory and context commands require `--vault <path>` or `BARON_VAULT`. Baron
@@ -220,6 +232,41 @@ Project hooks still require the agent tool to trust the project configuration.
 `baron automation status` shows what actually ran. Generic agents keep the
 managed startup contract and can use `baron automation reconcile` when their
 host has no native hook standard.
+
+## Skill And Agent Control Plane
+
+Baron does not let the agent recursively scan every skill or invent a routing
+rule from vibes.
+
+- `baron control-plane route "<task>"` explains which skills and quality gates
+  match the task.
+- Superpowers remains the only workflow core.
+- `frontend-design` and `vibe-security-scan` remain optional domain skills.
+- `code-reviewer`, `security-auditor`, and `test-engineer` remain quality
+  gates, not planners or routers.
+- `baron control-plane record-gate` records evidence that a mandatory gate
+  actually ran.
+
+If a custom skill or agent tries to claim workflow ownership, duplicates another
+asset, or asks subagents to orchestrate each other recursively, Baron reports a
+control-plane diagnostic instead of silently trusting it.
+
+## Self-Improving Harness
+
+Baron now measures workflow friction without silently rewriting its own core
+rules.
+
+- `baron harness audit` checks context-read evidence, proof gaps, trace gaps,
+  open friction, and documentation drift.
+- `baron harness verify-all` scans the validation matrix for pending or weak
+  proof in bounded batches.
+- `baron harness intervention` records human, reviewer, CI, or agent
+  corrections.
+- `baron harness propose` groups repeated friction into improvement proposals.
+- `baron harness outcome` records whether a proposal actually helped.
+
+Core policy and architecture changes still require human approval. Baron may
+propose improvements automatically; it does not rewrite the rules by itself.
 
 ## Large And Meaning-Aware Memory
 

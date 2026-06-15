@@ -376,6 +376,8 @@ Delivered:
 Goal: make Baron skill and agent routing stricter, safer, and more explainable
 than Agent Bootstrap.
 
+Status: completed on 2026-06-16.
+
 Deliverables:
 
 - validated skill and agent manifests
@@ -386,10 +388,22 @@ Deliverables:
 - custom routing preservation and conflict diagnostics
 - execution evidence for mandatory quality gates
 
+Delivered:
+
+- validated installed skill and agent contracts
+- Superpowers workflow ownership protection
+- recursive subagent orchestration diagnostics
+- explainable `baron control-plane route`
+- `baron control-plane record-gate` evidence before mandatory gates count
+- stricter generated adapter routing indexes with ownership, trigger,
+  exclusion, evidence, and conflict fields
+
 ## Phase 12 - Self-Improving Harness
 
 Goal: let Baron learn from recurring workflow failures without silently changing
 its own core rules.
+
+Status: completed on 2026-06-16.
 
 Deliverables:
 
@@ -401,6 +415,16 @@ Deliverables:
 - evidence-backed improvement proposals
 - predicted-impact versus actual-outcome tracking
 - human approval gate for core policy changes
+
+Delivered:
+
+- context-read score from observed automation events
+- documentation drift and proof/trace gap diagnostics
+- intervention records mirrored to Vault
+- bounded validation-matrix verification
+- repeated-friction improvement proposals
+- outcome tracking for accepted improvements
+- human approval gate text for core policy and architecture changes
 
 ## Phase 13 - Extreme Scale Certification
 

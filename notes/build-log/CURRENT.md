@@ -4,15 +4,13 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 11-12 - Control Plane And Self-Improving Harness (in progress).
-Phase 9 and Phase 10 are implemented and fully verified.
+Phase 13 - Extreme Scale Certification (planned). Phase 11 and Phase 12 are
+implemented and fully verified.
 
 ## What Is Being Built
 
-Baron 2.0 continues with Phase 11-12 in progress and two later release-blocking phases:
+Baron 2.0 continues with two release-blocking phases:
 
-- strict skill and agent control plane
-- self-improving Product Harness
 - extreme-scale certification and a hardened `v2.0.0` release
 
 ## Current Status
@@ -23,10 +21,8 @@ identity, native Codex/Claude hooks, lifecycle reconciliation, preserved custom
 routing, incremental indexing, multilingual task-aware recall, and automatic
 session import.
 
-Baron 2.0 progress remains 45% until Phase 11-12 pass implementation, smoke,
-and final verification. The remaining blockers are the Phase 11 control plane,
-Phase 12 self-improving harness, Phase 13 extreme-scale certification, and
-Phase 14 cross-platform release hardening.
+Baron 2.0 progress is 80%. The remaining blockers are Phase 13 extreme-scale
+certification and Phase 14 cross-platform release hardening.
 
 ## Verification
 
@@ -99,13 +95,24 @@ Phase 14 cross-platform release hardening.
 - Phase 9-10 full `cargo test --workspace --all-targets`: passed
 - Phase 9-10 `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - Phase 9-10 `git diff --check`: passed
+- Phase 11 control-plane validation and conflict tests: passed
+- Phase 11 explainable routing and gate-evidence tests: passed
+- Phase 11 adapter contract hardening tests: passed
+- Phase 12 context-read, drift, intervention, story verification, proposal, and outcome tests: passed
+- Phase 12 CLI audit/verify/propose/outcome tests: passed
+- Phase 11-12 compact context summary tests: passed
+- Phase 11-12 route/gate/audit/propose/outcome/context smoke: passed
+- Phase 11-12 `cargo fmt --all -- --check`: passed
+- Phase 11-12 `cargo test --workspace --all-targets`: passed
+- Phase 11-12 `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 11-12 `docs/BARON_STATUS.json` parse: passed
+- Phase 11-12 `git diff --check`: passed
 
 ## Next Action
 
-Implement the Phase 11-12 plan:
-`docs/superpowers/plans/2026-06-16-phase-11-12-control-plane-harness.md`.
-Preserve all Phase 9-10 identity, automation, memory, semantic recall, session
-privacy, and custom-routing contracts.
+Design and plan Phase 13 - Extreme Scale Certification. Preserve all Phase
+9-12 identity, automation, memory, semantic recall, session privacy,
+control-plane, self-improving harness, and custom-routing contracts.
 
 ## Phase 9-10 Feature Commits
 
@@ -116,6 +123,15 @@ privacy, and custom-routing contracts.
 - `25f434e feat: add automatic session memory ingestion`
 - `aa089ee fix: match canonical session paths`
 - Completion documentation is recorded in the Phase 9-10 git history.
+
+## Phase 11-12 Feature Commits
+
+- `1ab4d9b feat: add skill and agent control plane validation`
+- `500eb4f feat: add explainable quality gate routing`
+- `9b3d160 feat: harden adapter skill and agent contracts`
+- `873a0fd feat: add self-improving harness audit`
+- `b6fe5d6 feat: add harness improvement outcome loop`
+- Completion documentation is recorded in the Phase 11-12 git history.
 
 ## Phase 4-5 Feature Commits
 

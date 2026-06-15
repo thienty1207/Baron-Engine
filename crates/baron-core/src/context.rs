@@ -5,7 +5,9 @@ use anyhow::Result;
 
 use crate::capability::{load_registry, render_capability_summary};
 use crate::config::AdapterKind;
+use crate::control_plane::validate_control_plane;
 use crate::firewall::compact_memory_brief_for_task;
+use crate::harness_improvement::audit_harness;
 use crate::memory::build_memory_index;
 use crate::session::import_sessions;
 use crate::survey::{survey_repository, ProjectType, RepoSurvey};
@@ -86,6 +88,8 @@ pub fn compile_context_for_task(
         target.adapter_kind(),
         8,
     )?);
+    output.push_str(&render_control_plane_summary(repo_path));
+    output.push_str(&render_harness_improvement_summary(repo_path, &vault));
 
     output.push_str(&memory_brief.replacen(
         "# Memory Firewall Brief",
@@ -299,6 +303,74 @@ fn render_execution_evidence(repo_path: &Path) -> String {
         "- no trace recorded\n",
     ));
     output.push('\n');
+    output
+}
+
+fn render_control_plane_summary(repo_path: &Path) -> String {
+    let mut output = String::new();
+    output.push_str("## Control Plane Summary\n\n");
+    match validate_control_plane(repo_path) {
+        Ok(report) => {
+            output.push_str(&format!(
+                "- Passed: `{}`\n",
+                if report.passed { "yes" } else { "no" }
+            ));
+            output.push_str(&format!(
+                "- Workflow owner: `{}`\n",
+                report
+                    .workflow_owner
+                    .unwrap_or_else(|| "missing".to_string())
+            ));
+            output.push_str(&format!(
+                "- Mandatory agents: {}\n",
+                if report.mandatory_agents.is_empty() {
+                    "none".to_string()
+                } else {
+                    report.mandatory_agents.join(", ")
+                }
+            ));
+            output.push_str(&format!(
+                "- Diagnostics: {}\n\n",
+                if report.diagnostics.is_empty() {
+                    "none".to_string()
+                } else {
+                    report.diagnostics.join("; ")
+                }
+            ));
+        }
+        Err(error) => output.push_str(&format!("- unavailable: {error}\n\n")),
+    }
+    output
+}
+
+fn render_harness_improvement_summary(
+    repo_path: &Path,
+    vault: &crate::vault::VaultContext,
+) -> String {
+    let mut output = String::new();
+    output.push_str("## Harness Improvement Summary\n\n");
+    match audit_harness(repo_path, vault) {
+        Ok(audit) => {
+            output.push_str(&format!(
+                "- Context-read score: {}\n",
+                audit.context_read_score
+            ));
+            output.push_str(&format!("- Open friction: {}\n", audit.open_friction_count));
+            let diagnostics = if audit.diagnostics.is_empty() {
+                "none".to_string()
+            } else {
+                audit
+                    .diagnostics
+                    .iter()
+                    .take(6)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            };
+            output.push_str(&format!("- Diagnostics: {diagnostics}\n\n"));
+        }
+        Err(error) => output.push_str(&format!("- unavailable: {error}\n\n")),
+    }
     output
 }
 
