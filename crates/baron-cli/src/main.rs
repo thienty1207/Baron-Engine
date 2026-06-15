@@ -30,6 +30,7 @@ use baron_core::plan::{
 };
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
 use baron_core::release::{load_and_verify_release_metadata, write_release_metadata};
+use baron_core::session::{import_sessions, import_state_summary};
 use baron_core::survey::{render_project_atlas, survey_repository};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
@@ -145,6 +146,11 @@ enum MemoryCommands {
         vault: Option<PathBuf>,
     },
     Compact {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    ImportSessions {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -457,6 +463,21 @@ fn run() -> Result<()> {
                 let context = ensure_vault(vault_path, repo_path)?;
                 build_memory_index(&context)?;
                 print!("{}", compact_memory_brief(&context)?);
+            }
+            MemoryCommands::ImportSessions { repo_path, vault } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = ensure_vault(vault_path, &repo_path)?;
+                let report = import_sessions(&repo_path, &context, 20)?;
+                build_memory_index(&context)?;
+                println!("# Baron Session Import\n");
+                println!("- Roots checked: {}", report.roots_checked);
+                println!("- Files checked: {}", report.files_checked);
+                println!("- Imported: {}", report.imported);
+                println!("- Deduplicated: {}", report.deduplicated);
+                println!("- Skipped unmatched: {}", report.skipped_unmatched);
+                println!("- Skipped noise: {}", report.skipped_noise);
+                println!("- State: `{}`", report.state_path.display());
             }
         },
         Some(Commands::Recall {
@@ -1213,6 +1234,17 @@ fn print_memory_status(repo_path: PathBuf, vault_path: PathBuf) -> Result<()> {
         if index_exists { "yes" } else { "no" }
     );
     println!("- Records: {}", records.len());
+    let (imported_sessions, skipped_sessions, last_import) = if project_exists {
+        import_state_summary(&context)?
+    } else {
+        (0, 0, None)
+    };
+    println!("- Imported sessions: {}", imported_sessions);
+    println!("- Skipped session sources: {}", skipped_sessions);
+    println!(
+        "- Last session import: {}",
+        last_import.unwrap_or_else(|| "never".to_string())
+    );
     println!("- Firewall: current project first, approved global second, cross-project blocked unless explicit");
     println!("\nNo files were written.");
     Ok(())

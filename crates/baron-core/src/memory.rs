@@ -456,6 +456,7 @@ fn parse_source(
 ) -> Vec<MemoryRecord> {
     let mut title = String::from("Memory");
     let mut records = Vec::new();
+    let mut in_frontmatter = false;
     let updated_at = metadata
         .modified()
         .ok()
@@ -463,6 +464,13 @@ fn parse_source(
         .map(|value| value.to_rfc3339_opts(SecondsFormat::Secs, true));
     for line in content.lines() {
         let trimmed = line.trim();
+        if trimmed == "---" {
+            in_frontmatter = !in_frontmatter;
+            continue;
+        }
+        if in_frontmatter {
+            continue;
+        }
         if trimmed.starts_with('#') {
             title = trimmed.trim_start_matches('#').trim().to_string();
             continue;
@@ -475,6 +483,8 @@ fn parse_source(
         if excerpt.is_empty()
             || excerpt.starts_with("Only durable")
             || excerpt.starts_with("Candidates are")
+            || excerpt.starts_with("Source file:")
+            || excerpt.starts_with("Secrets:")
             || excerpt.len() < 8
         {
             continue;

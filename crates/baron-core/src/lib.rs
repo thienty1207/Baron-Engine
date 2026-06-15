@@ -11,6 +11,7 @@ pub mod plan;
 pub mod proof;
 pub mod release;
 pub mod risk;
+pub mod session;
 pub mod survey;
 pub mod trace;
 pub mod vault;

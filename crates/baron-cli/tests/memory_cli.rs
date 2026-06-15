@@ -211,3 +211,41 @@ fn memory_commands_require_vault_path_or_environment() {
             "Provide --vault <path> or set BARON_VAULT",
         ));
 }
+
+#[test]
+fn memory_import_sessions_is_available_for_inspection() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("Vault");
+    let sessions = temp.path().join("sessions");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&sessions).unwrap();
+    let repo_text = repo.canonicalize().unwrap().to_string_lossy().to_string();
+    write(
+        &sessions.join("session.jsonl"),
+        &format!(
+            "{}\n{}",
+            serde_json::json!({"type":"session_meta","payload":{"cwd":repo_text}}),
+            serde_json::json!({"type":"response_item","payload":{"role":"user","content":"Keep this imported memory"}})
+        ),
+    );
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "memory",
+            "import-sessions",
+            repo.to_str().unwrap(),
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .env("BARON_CODEX_SESSIONS_ROOT", &sessions)
+        .env(
+            "BARON_CLAUDE_SESSIONS_ROOT",
+            temp.path().join("missing-claude"),
+        )
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Imported: 1"))
+        .stdout(predicate::str::contains("session-import-state.json"));
+}
