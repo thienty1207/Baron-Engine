@@ -123,3 +123,26 @@ fn missing_build_and_test_commands_are_unknowns_not_guesses() {
         .iter()
         .any(|item| item == "No test command detected"));
 }
+
+#[test]
+fn survey_does_not_hide_risky_paths_after_six_thousand_entries() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("large-repo");
+    fs::create_dir_all(repo.join("src/generated")).unwrap();
+    for index in 0..6_050 {
+        fs::write(
+            repo.join("src/generated").join(format!("{index:05}.txt")),
+            "generated",
+        )
+        .unwrap();
+    }
+    fs::create_dir_all(repo.join("zzz/security")).unwrap();
+    fs::write(repo.join("zzz/security/payment-upload.rs"), "fn main() {}").unwrap();
+
+    let survey = survey_repository(&repo).unwrap();
+
+    assert!(survey
+        .risky_surfaces
+        .iter()
+        .any(|surface| surface.path.contains("payment-upload.rs")));
+}

@@ -1223,10 +1223,14 @@ fn render_memory_index(
     report: &baron_core::memory::MemoryIndexReport,
 ) -> String {
     format!(
-        "# Baron Memory Index\n\n- Vault: `{}`\n- Project slug: `{}`\n- Index: `{}`\n- Total records: {}\n- Current project records: {}\n- Cross-project records: {}\n- Approved global records: {}\n- Global candidate records: {}\n- Wrote Vault cache only; target repo files were not written.\n",
+        "# Baron Memory Index\n\n- Vault: `{}`\n- Project slug: `{}`\n- Index: `{}`\n- Total sources: {}\n- Reused sources: {}\n- Refreshed sources: {}\n- Deleted sources: {}\n- Total records: {}\n- Current project records: {}\n- Cross-project records: {}\n- Approved global records: {}\n- Global candidate records: {}\n- Wrote Vault cache only; target repo files were not written.\n",
         context.vault_root.display(),
         context.project_slug,
         context.index_path.display(),
+        report.total_sources,
+        report.reused_sources,
+        report.refreshed_sources,
+        report.deleted_sources,
         report.total_records,
         report.current_project_records,
         report.cross_project_records,

@@ -244,3 +244,60 @@ fn scanner_indexes_proof_and_trace_markdown() {
         .iter()
         .any(|record| record.kind == MemoryKind::Trace));
 }
+
+#[test]
+fn index_has_no_fixed_markdown_source_limit() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("large-memory");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    for index in 0..350 {
+        write(
+            &context
+                .project_root
+                .join("Notes")
+                .join(format!("{index:04}.md")),
+            &format!("# Note\n\n- Durable memory record number {index:04}.\n"),
+        );
+    }
+
+    let report = build_memory_index(&context).unwrap();
+    let records = load_memory_records(&context).unwrap();
+
+    assert!(report.total_sources >= 350);
+    assert!(records
+        .iter()
+        .any(|record| record.excerpt.contains("number 0349")));
+}
+
+#[test]
+fn incremental_index_reuses_refreshes_and_removes_sources() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("incremental-memory");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let note = context.project_root.join("Notes/decision.md");
+    write(&note, "# Decision\n\n- First durable decision.\n");
+
+    let first = build_memory_index(&context).unwrap();
+    let second = build_memory_index(&context).unwrap();
+    write(
+        &note,
+        "# Decision\n\n- Updated durable decision with verified proof.\n",
+    );
+    let third = build_memory_index(&context).unwrap();
+    fs::remove_file(&note).unwrap();
+    let fourth = build_memory_index(&context).unwrap();
+
+    assert!(first.refreshed_sources > 0);
+    assert_eq!(second.refreshed_sources, 0);
+    assert!(second.reused_sources > 0);
+    assert_eq!(third.refreshed_sources, 1);
+    assert_eq!(fourth.deleted_sources, 1);
+    assert!(!load_memory_records(&context)
+        .unwrap()
+        .iter()
+        .any(|record| record.path.ends_with("Notes/decision.md")));
+}
