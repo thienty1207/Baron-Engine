@@ -71,73 +71,106 @@ Baron should help an AI agent answer these questions before it edits code:
 - Which registered capability providers are present and compatible?
 - Which tool-backed claims have real execution evidence?
 
-## Initial Commands
+## Normal User Flow
 
-Target command surface:
+Most users should not copy a giant command list. Use this flow instead.
+
+### 1. Install Baron
+
+Install once, then confirm the binary is available:
 
 ```bash
-baron survey [repo-path]
-baron survey [repo-path] --json
-baron init [repo-path] --codex --shadow
-baron init [repo-path] --claude --shadow
-baron init [repo-path] --agent --shadow
-baron memory status [repo-path] --vault <vault-path>
-baron memory index [repo-path] --vault <vault-path>
-baron memory compact [repo-path] --vault <vault-path>
-baron memory import-sessions [repo-path] --vault <vault-path>
-baron recall "<query>" [repo-path] --vault <vault-path>
-baron context [repo-path] --codex --vault <vault-path>
-baron context [repo-path] --claude --vault <vault-path>
-baron context [repo-path] --agent --vault <vault-path>
-baron context [repo-path] --codex --task "<task>" --vault <vault-path>
-baron context [repo-path] --why --vault <vault-path>
-baron update [repo-path]
-baron plan status
-baron plan start "<title>"
-baron plan update "<note>"
-baron plan interrupt "<state>"
-baron plan complete "<verification>"
-baron harness status
-baron harness intake "<title>"
-baron harness decision "<summary>"
-baron harness friction "<summary>"
-baron proof status
-baron proof record "<verification>"
-baron trace record "<summary>" --outcome completed
-baron trace score
-baron capability register "security scan" --name security-skill --kind skill --scan .codex/skills/vibe-security-scan --adapter codex --description "Provides defensive repository security review guidance."
-baron capability check
-baron capability list
-baron capability remove "security scan" --name security-skill
-baron automation status [repo-path]
-baron automation reconcile [repo-path]
-baron control-plane status [repo-path]
-baron control-plane route "<task>" [repo-path] --risk <low|medium|high>
-baron control-plane record-gate <agent> "<evidence summary>" [repo-path]
-baron control-plane evidence [repo-path] --required <agent>
-baron harness audit [repo-path]
-baron harness verify-all [repo-path]
-baron harness intervention "<summary>" [repo-path]
-baron harness propose [repo-path]
-baron harness outcome <proposal-id> "<actual outcome>" [repo-path]
-baron certify run [repo-path] --vault <vault-path> --profile <smoke|release|extreme>
-baron certify status [repo-path]
-baron migrate agent-bootstrap [repo-path] --dry-run
-baron migrate agent-bootstrap [repo-path]
-baron migrate status [repo-path]
-baron migrate rollback --id <migration-id> [repo-path] --vault <vault-path>
+baron --version
 ```
 
-`survey`, `init --shadow`, `memory status`, `memory index`, `memory compact`,
-`recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, `trace`,
-Capability Registry, Agent Bootstrap migration, and release hardening are
-implemented. Baron 2.0 also implements native automation hooks, session import,
-incremental indexing, multilingual semantic recall, strict control-plane
-routing, self-improving harness audits, and certification gates.
-Maintainer-only release metadata commands are hidden from normal help.
+### 2. Choose The Vault
 
-Memory and context commands require `--vault <path>` or `BARON_VAULT`. Baron
-does not guess where memory should live.
+The Vault is Baron's long-term memory folder. Pick one durable folder that can be
+shared by many projects:
+
+```powershell
+$env:BARON_VAULT = "D:\work\AgentMemory"
+```
+
+You can also pass it directly:
+
+```bash
+baron memory status <project-path> --vault <vault-path>
+```
+
+Baron never guesses a Vault path. Memory and context commands require
+`--vault <path>`, `BARON_VAULT`, or an initialized `.baron/local.toml`.
+
+### 3. Inspect A Repo Before Writing
+
+Use survey first when you want Baron to read the project and explain what it
+sees:
+
+```bash
+baron survey <project-path>
+baron survey <project-path> --json
+```
+
+Preview what an adapter would install without writing files:
+
+```bash
+baron init <project-path> --codex --shadow
+baron init <project-path> --claude --shadow
+baron init <project-path> --agent --shadow
+```
+
+Baron detects project shape from the repo itself: web, mobile, backend, tool,
+fullstack, desktop, or unknown. There is no separate `--web` or `--mobile` flag
+because the Survey Engine derives that from files such as `package.json`,
+`Cargo.toml`, `go.mod`, mobile folders, build configs, and entrypoints.
+
+### 4. Initialize A Project
+
+Choose the agent surface the project will use:
+
+```bash
+baron init <project-path> --codex --vault <vault-path>
+baron init <project-path> --claude --vault <vault-path>
+baron init <project-path> --agent --vault <vault-path>
+```
+
+Repeat `init` with another adapter when the same project should support more
+than one agent tool. Baron preserves user text, custom skills, custom agents,
+custom routing entries, and non-Baron hooks.
+
+### 5. Update An Existing Baron Project
+
+Refresh managed Baron files after installing a newer Baron binary:
+
+```bash
+baron update <project-path>
+```
+
+Refresh only one registered adapter when needed:
+
+```bash
+baron update <project-path> --codex
+baron update <project-path> --claude
+baron update <project-path> --agent
+```
+
+### 6. Manual Inspection When Needed
+
+These commands are useful when you want to inspect the system yourself:
+
+```bash
+baron context <project-path> --codex --task "<task>" --vault <vault-path>
+baron recall "<query>" <project-path> --vault <vault-path>
+baron memory compact <project-path> --vault <vault-path>
+baron memory import-sessions <project-path> --vault <vault-path>
+baron certify run <project-path> --vault <vault-path> --profile smoke
+baron certify status <project-path>
+```
+
+Plan, harness, proof, trace, capability, control-plane, and automation commands
+exist for the agent runtime and for diagnostics. Normal users do not need to run
+them by hand during daily work; installed adapters and hooks guide the AI to run
+them at the right time.
 
 ## Capability Registry
 
