@@ -31,7 +31,7 @@
 - [x] Write failing tests proving the report checks large repo survey, shared Vault isolation, memory index rebuild, cache corruption recovery, automation evidence, control-plane status, and release readiness.
 - [x] Implement certification report types and `run_certification`.
 - [x] Run focused certification tests until green.
-- [ ] Commit `feat: add Baron certification gate`.
+- [x] Commit `feat: add Baron certification gate`.
 
 ### Task 2: Phase 13 Certification CLI
 
@@ -40,10 +40,10 @@
 - Create: `crates/baron-cli/tests/certification_cli.rs`
 - Modify: `crates/baron-cli/tests/cli.rs`
 
-- [ ] Write failing tests proving `baron certify run` prints a Baron Certification report and writes report files.
-- [ ] Write failing tests proving `baron certify status` reads the latest certification without creating new project files.
-- [ ] Add `certify run|status` command handling.
-- [ ] Run focused CLI tests until green.
+- [x] Write failing tests proving `baron certify run` prints a Baron Certification report and writes report files.
+- [x] Write failing tests proving `baron certify status` reads the latest certification without creating new project files.
+- [x] Add `certify run|status` command handling.
+- [x] Run focused CLI tests until green.
 - [ ] Commit `feat: expose certification CLI`.
 
 ### Task 3: Phase 14 Version And Release Gate

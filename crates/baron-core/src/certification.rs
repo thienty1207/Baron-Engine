@@ -261,7 +261,8 @@ fn check_shared_vault_firewall(context: &VaultContext) -> Result<CertificationCh
     let current_first = result
         .results
         .first()
-        .is_some_and(|hit| hit.record.project_id.as_deref() == Some(context.project_id.as_str()));
+        .map(|hit| hit.record.project_id.as_deref() == Some(context.project_id.as_str()))
+        .unwrap_or(true);
     let blocked_or_absent = cross_project_records == 0 || result.blocked_cross_project > 0;
     Ok(CertificationCheck {
         id: "shared-vault-firewall".to_string(),

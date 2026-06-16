@@ -11,6 +11,10 @@ use baron_core::capability::{
     CapabilityExecutionEvidence, CapabilityProvider, CheckOptions, Presence, ProviderKind,
     Requirement,
 };
+use baron_core::certification::{
+    latest_certification_status, render_certification_report, run_certification,
+    CertificationProfile,
+};
 use baron_core::config::{
     find_project_root, initialize_project, load_project_config, resolve_vault_path_for_repo,
     AdapterKind,
@@ -132,6 +136,10 @@ enum Commands {
     ControlPlane {
         #[command(subcommand)]
         command: ControlPlaneCommands,
+    },
+    Certify {
+        #[command(subcommand)]
+        command: CertifyCommands,
     },
     Automation {
         #[command(subcommand)]
@@ -346,6 +354,20 @@ enum ControlPlaneCommands {
 }
 
 #[derive(Debug, Subcommand)]
+enum CertifyCommands {
+    Run {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: PathBuf,
+        #[arg(long, value_enum, default_value_t = CertificationProfileArg::Smoke)]
+        profile: CertificationProfileArg,
+    },
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum AutomationCommands {
     Status {
         repo_path: Option<PathBuf>,
@@ -406,6 +428,13 @@ enum AdapterArg {
     Codex,
     Claude,
     Agent,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum CertificationProfileArg {
+    Smoke,
+    Release,
+    Extreme,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -1029,6 +1058,26 @@ fn run() -> Result<()> {
                 println!("- Missing: {}", list_or_none(&status.missing_agents));
             }
         },
+        Some(Commands::Certify { command }) => match command {
+            CertifyCommands::Run {
+                repo_path,
+                vault,
+                profile,
+            } => {
+                let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let report = run_certification(&repo_root, &vault, profile.into())?;
+                print!("{}", render_certification_report(&report));
+                println!("- Markdown report: `{}`", report.markdown_path.display());
+                println!("- JSON report: `{}`", report.json_path.display());
+                if !report.passed {
+                    bail!("Baron certification failed");
+                }
+            }
+            CertifyCommands::Status { repo_path } => {
+                let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                print!("{}", latest_certification_status(repo_root)?);
+            }
+        },
         Some(Commands::Automation { command }) => match command {
             AutomationCommands::Status { repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
@@ -1384,6 +1433,16 @@ impl From<AdapterArg> for HookAdapter {
             AdapterArg::Codex => HookAdapter::Codex,
             AdapterArg::Claude => HookAdapter::Claude,
             AdapterArg::Agent => HookAdapter::Agent,
+        }
+    }
+}
+
+impl From<CertificationProfileArg> for CertificationProfile {
+    fn from(value: CertificationProfileArg) -> Self {
+        match value {
+            CertificationProfileArg::Smoke => Self::Smoke,
+            CertificationProfileArg::Release => Self::Release,
+            CertificationProfileArg::Extreme => Self::Extreme,
         }
     }
 }

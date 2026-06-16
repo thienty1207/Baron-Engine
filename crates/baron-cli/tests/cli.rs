@@ -59,7 +59,7 @@ fn cli_reports_the_release_version() {
 }
 
 #[test]
-fn help_exposes_phase_nine_through_twelve_command_groups() {
+fn help_exposes_phase_nine_through_fourteen_command_groups() {
     Command::cargo_bin("baron")
         .unwrap()
         .arg("--help")
@@ -68,7 +68,8 @@ fn help_exposes_phase_nine_through_twelve_command_groups() {
         .stdout(predicate::str::contains("automation"))
         .stdout(predicate::str::contains("memory"))
         .stdout(predicate::str::contains("control-plane"))
-        .stdout(predicate::str::contains("harness"));
+        .stdout(predicate::str::contains("harness"))
+        .stdout(predicate::str::contains("certify"));
 
     Command::cargo_bin("baron")
         .unwrap()

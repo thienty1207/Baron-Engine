@@ -25,7 +25,11 @@ Implementation started. No Phase 13-14 completion claim is valid until the certi
 - baseline full workspace tests: passed
 - certification core RED test: failed because `baron_core::certification` did not exist
 - certification core GREEN test: `cargo test -p baron-core --test certification` passed
+- committed certification core: `f4ea35c feat: add Baron certification gate`
+- certification CLI RED test: failed because `certify` was an unrecognized subcommand
+- certification CLI GREEN tests: `cargo test -p baron-cli --test certification_cli --test cli` passed
+- certification core regression after CLI: `cargo test -p baron-core --test certification` passed
 
 ## Resume Point
 
-Task 1 core implementation is green. Next: commit `feat: add Baron certification gate`, then write failing CLI tests for `baron certify run|status`.
+Task 2 CLI implementation is green. Next: commit `feat: expose certification CLI`, then write failing release/version tests for `2.0.0`.
