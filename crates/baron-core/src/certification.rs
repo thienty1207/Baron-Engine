@@ -73,12 +73,13 @@ pub fn run_certification(
     let context = ensure_vault(vault_path, &repo_root)?;
     let generated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
 
-    let mut checks = Vec::new();
-    checks.push(check_large_repo_survey(&repo_root, profile)?);
-    checks.push(check_cache_rebuild(&context)?);
-    checks.push(check_shared_vault_firewall(&context)?);
-    checks.push(check_context_budget(&context)?);
-    checks.push(check_automation_state(&repo_root)?);
+    let mut checks = vec![
+        check_large_repo_survey(&repo_root, profile)?,
+        check_cache_rebuild(&context)?,
+        check_shared_vault_firewall(&context)?,
+        check_context_budget(&context)?,
+        check_automation_state(&repo_root)?,
+    ];
     checks.push(check_release_readiness(&checks));
 
     let passed = checks.iter().all(|check| check.passed);
@@ -87,8 +88,7 @@ pub fn run_certification(
     fs::create_dir_all(&report_dir)?;
     fs::create_dir_all(&vault_dir)?;
     let stamp = generated_at
-        .replace(':', "")
-        .replace('-', "")
+        .replace([':', '-'], "")
         .replace(['T', 'Z'], "-")
         .trim_end_matches('-')
         .to_string();

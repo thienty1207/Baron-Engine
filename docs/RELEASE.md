@@ -120,7 +120,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v1.0.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v2.0.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -132,13 +132,13 @@ Download one native archive and `SHA256SUMS` into the same directory.
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 1.0.0 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 2.0.0 -SourceDirectory D:\baron-release
 ```
 
 Linux or macOS:
 
 ```bash
-sh ./install.sh --version 1.0.0 --source-dir /path/to/baron-release
+sh ./install.sh --version 2.0.0 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -151,9 +151,18 @@ packaging. Native runners build and smoke each target. The release job then
 assembles all four archives and runs:
 
 ```bash
-baron release metadata release-assets --release-version 1.0.0 --source-revision <git-sha>
+baron release metadata release-assets --release-version 2.0.0 --source-revision <git-sha>
 baron release verify release-assets
 ```
 
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
+
+Before publishing a `v2.0.0` release, also run:
+
+```bash
+baron certify run <repo-path> --vault <vault-path> --profile release
+```
+
+The certification report must pass before the release notes claim Baron is
+healthy at scale.

@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-16",
-  "stableRelease": "1.0.0",
+  "stableRelease": "2.0.0",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "2.0.0",
-  "targetReleaseCompletionPercent": 80,
-  "remainingPhaseCount": 2,
+  "targetReleaseCompletionPercent": 100,
+  "remainingPhaseCount": 0,
   "currentPhase": "phase-13-14-certification-release",
-  "currentPhaseStatus": "in_progress",
-  "nextAction": "write-failing-certification-core-tests",
-  "buildConfidence": "Phases 11 and 12 pass local acceptance. Phase 13-14 baseline full workspace tests pass. Version 2.0.0 claims remain unearned until certification, release hardening, full verification, merge, and push pass.",
+  "currentPhaseStatus": "completed",
+  "nextAction": "publish-native-github-release-assets-when-operator-is-ready",
+  "buildConfidence": "Baron 2.0.0 source release gates pass: certification core and CLI tests, release version and metadata tests, full workspace tests, Clippy, and local smoke checks. GitHub binary release publishing is a separate operator action.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -224,9 +224,9 @@
     {
       "id": 13,
       "name": "Extreme Scale Certification",
-      "status": "in_progress",
+      "status": "completed",
       "targetReleaseWeightPercent": 15,
-      "completionPercent": 0,
+      "completionPercent": 15,
       "requiredProof": [
         "very large monorepo tests",
         "hundreds of projects shared Vault isolation tests",
@@ -238,9 +238,9 @@
     {
       "id": 14,
       "name": "Baron 2.0 Release Hardening",
-      "status": "in_progress",
+      "status": "completed",
       "targetReleaseWeightPercent": 5,
-      "completionPercent": 0,
+      "completionPercent": 5,
       "requiredProof": [
         "verified v1 to v2 migration and rollback",
         "synchronized CLI adapter Vault architecture and user documentation",

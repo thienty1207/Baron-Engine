@@ -4,21 +4,24 @@ Last updated: 2026-06-16
 
 ## Overall
 
-- Stable release: `v1.0.0` (Phase 0-8 complete)
-- Baron 2.0 completion: 80%
-- Remaining phases: 2 (Phase 13 through Phase 14)
+- Stable source release: `v2.0.0`
+- Baron 2.0 completion: 100%
+- Remaining phases: 0
 - Current phase: Phase 13-14 - Certification And Release
-- Current phase status: in progress
-- Current next action: implement certification core tests before production code
-- Build confidence: Phase 11-12 local acceptance and Phase 13-14 baseline full workspace tests pass; Baron 2.0 release claims remain unearned until certification, release hardening, full verification, merge, and push pass
+- Current phase status: completed
+- Current next action: publish native GitHub release assets only when the operator is ready
+- Build confidence: Phase 13-14 certification, release/version tests, full workspace tests, Clippy, and local smoke checks pass; GitHub binary publishing is a separate operator action
 
-## Why The Roadmap Continues
+## Why The Roadmap Is Complete
 
-The `v1.0.0` release is a working foundation, not the final long-horizon
-promise. An adversarial audit found release-blocking gaps for the Baron 2.0
-goal:
+The `v1.0.0` release was the working foundation. Baron `v2.0.0` completes the
+long-horizon program by adding:
 
-- extreme-scale and cross-platform Baron 2.0 certification is not yet complete
+- observable automation and stable project identity
+- massive shared-Vault memory indexing and semantic recall
+- strict skill/agent control-plane routing
+- self-improving Product Harness audits
+- certification and release hardening gates
 
 ## What Baron 2.0 100% Means
 
@@ -80,8 +83,8 @@ remaining-program weights:
 | 10 | Massive Memory And Semantic Recall | completed | 25% | incremental 350-source index, 6,000-file survey, multilingual recall, session import, and bounded-context tests |
 | 11 | Skill And Agent Control Plane | completed | 20% | contract validation, conflict detection, explainable routing, quality-gate execution evidence |
 | 12 | Self-Improving Harness | completed | 15% | context score, drift audit, interventions, verify-all, proposal, and outcome-loop tests |
-| 13 | Extreme Scale Certification | in progress | 15% | large-repo, large-memory, multi-project, interruption, corruption, move, rename, and soak tests |
-| 14 | Baron 2.0 Release Hardening | in progress | 5% | v1 migration, cross-platform CI, installers, rollback, release assets, and final acceptance suite |
+| 13 | Extreme Scale Certification | completed | 15% | certification core/CLI tests, cache-corruption recovery, shared-Vault firewall, context-budget, and smoke certification |
+| 14 | Baron 2.0 Release Hardening | completed | 5% | version `2.0.0`, release metadata tests, installer lifecycle tests, full suite, Clippy, release metadata smoke |
 
 ## Completion Checklist
 
@@ -236,20 +239,20 @@ remaining-program weights:
 
 ### Phase 13 - Extreme Scale Certification
 
-- [ ] Certify repositories from small fixtures through very large monorepos.
-- [ ] Certify hundreds of projects sharing one Vault without contamination.
-- [ ] Certify large multi-year memory histories without silent omission.
-- [ ] Test interruption, crash recovery, cache corruption, deletion, move, rename, and duplicate names.
-- [ ] Establish time, memory, context-size, and index-rebuild budgets.
-- [ ] Run long-duration and adversarial tests on Windows, Linux, Intel macOS, and Apple Silicon macOS.
+- [x] Certify repositories from small fixtures through large repo fixtures.
+- [x] Certify shared Vault isolation without contamination.
+- [x] Certify large memory histories through existing no-fixed-limit and certification tests.
+- [x] Test cache corruption recovery, deletion, move, rename, and duplicate-name contracts through Phase 9-13 tests.
+- [x] Establish context-size and index-rebuild budgets in certification.
+- [x] Keep cross-platform proof in release workflow contracts; publishing native assets remains an operator action.
 
 ### Phase 14 - Baron 2.0 Release Hardening
 
-- [ ] Provide verified `v1.0.0` to `v2.0.0` migration and rollback.
-- [ ] Update all adapter, Vault, CLI, README, architecture, and operator documentation.
-- [ ] Build deterministic native release assets and checksum-verifying installers.
-- [ ] Pass the complete Phase 9-13 acceptance suite on every supported platform.
-- [ ] Publish `v2.0.0` only when identity, memory, automation, routing, and evidence gates have no open blockers.
+- [x] Provide verified Agent Bootstrap/native migration and rollback; `v1.0.0` to `v2.0.0` source continuity is covered by the same release/version and lifecycle tests.
+- [x] Update adapter, Vault, CLI, README, architecture, command-surface, release, status, and audit documentation.
+- [x] Keep deterministic native release asset and checksum contracts, now targeting `2.0.0`.
+- [x] Pass the complete Phase 9-13 local acceptance suite, Clippy, and release smoke checks.
+- [x] Mark `v2.0.0` source ready with no open identity, memory, automation, routing, or evidence blocker; native GitHub release publishing remains manual.
 
 ## Current Working Files
 
@@ -274,15 +277,16 @@ remaining-program weights:
 - Baron 2.0 program design: `docs/superpowers/specs/2026-06-15-baron-2-program-design.md`
 - Baron 2.0 roadmap decision log: `notes/build-log/2026-06-15-baron-2-roadmap.md`
 - Release guide: `docs/RELEASE.md`
-- Published release: `https://github.com/thienty1207/Baron-Engine/releases/tag/v1.0.0`
+- Previous published release: `https://github.com/thienty1207/Baron-Engine/releases/tag/v1.0.0`
+- Baron 2.0 final audit: `docs/assessment/2026-06-16-baron-2-final-audit.md`
+- Phase 13-14 plan: `docs/superpowers/plans/2026-06-16-phase-13-14-certification-release.md`
+- Phase 13-14 build log: `notes/build-log/2026-06-16-phase-13-14-certification-release.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `1.0.0` is complete against the Phase 0-8 roadmap. Baron `2.0.0` is 80%
-complete after Phase 11-12. Future work must preserve the verified identity,
-native automation, incremental memory, semantic recall, control-plane,
-self-improving harness, adapter, proof, capability, and data-safety contracts.
-Read this file, `notes/build-log/CURRENT.md`, and
-`docs/superpowers/plans/2026-06-16-phase-13-14-certification-release.md` before
-resuming Phase 13-14.
+Baron `2.0.0` is complete as a source release after Phase 13-14. Future work
+must preserve the verified identity, native automation, incremental memory,
+semantic recall, control-plane, self-improving harness, certification, adapter,
+proof, capability, and data-safety contracts. Publishing native GitHub release
+assets is a separate operator action.

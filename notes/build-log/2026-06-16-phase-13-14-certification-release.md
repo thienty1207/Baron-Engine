@@ -32,7 +32,15 @@ Implementation started. No Phase 13-14 completion claim is valid until the certi
 - committed certification CLI: `ab07cf7 feat: expose certification CLI`
 - release version RED test: `cargo test -p baron-cli --test cli cli_reports_the_release_version` failed because binary still reported `baron 1.0.0`
 - release version GREEN tests: CLI version, core release tests, and release CLI tests passed after bumping the workspace to `2.0.0`
+- committed version bump: `6f7c7c2 chore: bump Baron to 2.0.0`
+- focused docs/status checks: `docs/BARON_STATUS.json` parse passed
+- static stale-active-version scan: only historical Phase 8 spec examples mention `v1.0.0`
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- temp repo smoke for init, memory index, context, control-plane route, harness audit, certify run/status, release metadata, and release verify: passed
+- `git diff --check`: passed
 
 ## Resume Point
 
-Task 3 version and release gate is green. Next: commit `chore: bump Baron to 2.0.0`, then update docs/status/final audit.
+Implementation is locally complete. Next: commit docs/status, merge `codex/phase-13-14` into `main`, and push `origin/main`.

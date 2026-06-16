@@ -61,7 +61,7 @@
 - [x] Bump workspace version to `2.0.0`.
 - [x] Update installer/release tests to use the `2.0.0` contract.
 - [x] Run focused release/version tests until green.
-- [ ] Commit `chore: bump Baron to 2.0.0`.
+- [x] Commit `chore: bump Baron to 2.0.0`.
 
 ### Task 4: Docs, Status, And Final Audit
 
@@ -79,10 +79,10 @@
 - Modify: `notes/build-log/CURRENT.md`
 - Create: `notes/build-log/2026-06-16-phase-13-14-certification-release.md`
 
-- [ ] Update docs to describe certification, release gate, and Baron 2.0 status.
-- [ ] Add final audit explaining where Baron exceeds Agent Bootstrap and repository-harness.
-- [ ] Mark Phase 13 and Phase 14 complete only after verification passes.
-- [ ] Run docs/static scans.
+- [x] Update docs to describe certification, release gate, and Baron 2.0 status.
+- [x] Add final audit explaining where Baron exceeds Agent Bootstrap and repository-harness.
+- [x] Mark Phase 13 and Phase 14 complete only after verification passes.
+- [x] Run docs/static scans.
 - [ ] Commit `docs: complete Baron 2.0 certification and release`.
 
 ### Task 5: Final Verification, Merge, And Push
@@ -90,11 +90,11 @@
 **Files:**
 - All touched files
 
-- [ ] Run `cargo fmt --all -- --check`.
-- [ ] Run `cargo test --workspace --all-targets`.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] Smoke a temp repo and Vault: init, memory index, context, control-plane route, harness audit, certify run, certify status, release metadata verify.
-- [ ] Run `git diff --check`.
+- [x] Run `cargo fmt --all -- --check`.
+- [x] Run `cargo test --workspace --all-targets`.
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] Smoke a temp repo and Vault: init, memory index, context, control-plane route, harness audit, certify run, certify status, release metadata verify.
+- [x] Run `git diff --check`.
 - [ ] Merge `codex/phase-13-14` into `main`.
 - [ ] Push `origin/main`.
 

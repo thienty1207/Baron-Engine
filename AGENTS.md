@@ -15,9 +15,9 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completes Phase 8 release hardening. Baron `v2.0.0` spans Phase
-9 through Phase 14. Phase 9 through Phase 12 are implemented in the current
-source; Phase 13, Extreme Scale Certification, is the next planned phase.
+Baron `v1.0.0` completed the first stable foundation. Baron `v2.0.0` spans
+Phase 9 through Phase 14 and is the current long-horizon release target in this
+source.
 
 The current source command surface is:
 
@@ -47,6 +47,7 @@ The current source command surface is:
 - `baron automation <status|reconcile|hook>`
 - `baron control-plane <status|route|record-gate|evidence>`
 - `baron harness <audit|verify-all|intervention|propose|outcome>`
+- `baron certify <run|status>`
 
 Phase 6 imports useful legacy data into Baron-native structures, validates or
 quarantines custom assets, verifies parity, and removes Agent Bootstrap managed
@@ -58,8 +59,8 @@ IDE-compatible observable automation, collision-resistant identity,
 incremental massive memory, multilingual task-aware recall, and automatic
 session ingestion. Phase 11-12 add strict skill/agent contracts, explainable
 routing, mandatory gate evidence, context-read scoring, drift audits,
-interventions, improvement proposals, and outcome tracking. Phase 13-14 must
-add extreme-scale certification and Baron 2.0 release hardening.
+interventions, improvement proposals, and outcome tracking. Phase 13-14 add
+extreme-scale certification and Baron 2.0 release hardening.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -185,6 +186,7 @@ cargo run -p baron-cli -- capability check
 cargo test -p baron-core --test release
 cargo test -p baron-cli --test lifecycle_scripts
 cargo test -p baron-cli --test release_smoke
+cargo test -p baron-cli --test certification_cli
 cargo test -p baron-cli --test workflow_contract
 cargo clippy --workspace --all-targets -- -D warnings
 ```

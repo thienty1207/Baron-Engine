@@ -14,6 +14,7 @@ baron-cli
        -> trace engine
        -> control-plane engine
        -> harness improvement engine
+       -> certification engine
        -> release metadata and checksum verifier
   -> baron-adapters
        -> codex adapter
@@ -34,6 +35,7 @@ repo + vault + user task
   -> active plan and harness state
   -> control-plane route and quality-gate evidence
   -> harness audit and improvement loop
+  -> certification gate when release confidence matters
   -> adapter-specific context output
   -> agent work
   -> proof + trace + memory write-back

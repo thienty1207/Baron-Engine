@@ -18,23 +18,22 @@ one durable engine:
 
 ## Stable Release
 
-Current version: `1.0.0`.
+Current version: `2.0.0`.
 
 Survey, Vault Memory Firewall, Context Compiler, multi-agent adapters, Active
 Plan State, Product Harness, proof gates, trace quality, and transactional
 legacy migration, the Baron Capability Registry, and the native release
-lifecycle are implemented.
+lifecycle are implemented. Baron 2.0 adds observable automation, stable project
+identity, massive-memory indexing, multilingual recall, automatic session
+import, strict skill/agent control-plane routing, self-improving harness audits,
+and certification gates.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
 
-The current source has completed Baron 2.0 Phase 9 through Phase 12:
-collision-resistant project identity, observable native automation, an
-incremental large-memory index, multilingual task-aware recall, and automatic
-Codex/Claude session import, strict skill/agent routing, mandatory gate
-evidence, and self-improving harness proposals. The published stable binary
-remains `1.0.0` until the remaining Baron 2.0 phases and cross-platform release
-gates pass.
+Baron 2.0 is the long-horizon version of the engine. It is built for old
+projects, many projects sharing one Vault, direct IDE/agent use, and strict
+completion claims backed by proof.
 
 ## Install
 
@@ -121,6 +120,8 @@ baron harness verify-all [repo-path]
 baron harness intervention "<summary>" [repo-path]
 baron harness propose [repo-path]
 baron harness outcome <proposal-id> "<actual outcome>" [repo-path]
+baron certify run [repo-path] --vault <vault-path> --profile <smoke|release|extreme>
+baron certify status [repo-path]
 baron migrate agent-bootstrap [repo-path] --dry-run
 baron migrate agent-bootstrap [repo-path]
 baron migrate status [repo-path]
@@ -130,9 +131,9 @@ baron migrate rollback --id <migration-id> [repo-path] --vault <vault-path>
 `survey`, `init --shadow`, `memory status`, `memory index`, `memory compact`,
 `recall`, `context`, adapter `init/update`, `plan`, `harness`, `proof`, `trace`,
 Capability Registry, Agent Bootstrap migration, and release hardening are
-implemented. Baron 2.0 development also implements native automation hooks,
-session import, incremental indexing, multilingual semantic recall, strict
-control-plane routing, and self-improving harness audits.
+implemented. Baron 2.0 also implements native automation hooks, session import,
+incremental indexing, multilingual semantic recall, strict control-plane
+routing, self-improving harness audits, and certification gates.
 Maintainer-only release metadata commands are hidden from normal help.
 
 Memory and context commands require `--vault <path>` or `BARON_VAULT`. Baron
@@ -268,6 +269,23 @@ rules.
 Core policy and architecture changes still require human approval. Baron may
 propose improvements automatically; it does not rewrite the rules by itself.
 
+## Certification Gate
+
+`baron certify run` is Baron's release-confidence check. It is not another
+memory source and it does not replace tests. It asks whether the repo and Vault
+are still healthy under pressure:
+
+- repository survey stays bounded
+- SQLite memory cache can be rebuilt from Vault Markdown
+- shared-Vault memory firewall keeps the current project isolated
+- compact memory context stays small
+- Baron project automation is configured
+- release readiness has no open certification blocker
+
+The report is written under `docs/baron/certification/` and mirrored into the
+project Vault capsule. `baron certify status` reads the latest report so future
+agents can see whether the last certification passed.
+
 ## Large And Meaning-Aware Memory
 
 Each project receives a stored identity and a unique Vault capsule such as
@@ -371,6 +389,7 @@ source Vault is never deleted.
 - Install and update verify checksum and binary version before replacement.
 - Rollback affects only the Baron executable.
 - Uninstall leaves repositories, adapters, `.baron/`, and Vault Markdown intact.
+- `baron certify run` must pass before a release claim is trusted.
 
 ## Temporary Build Notes
 

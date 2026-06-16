@@ -24,7 +24,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-12-self-improving-harness"
+    "phase-14-baron-2-release"
 }
 
 #[cfg(test)]
@@ -34,6 +34,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-12-self-improving-harness");
+        assert_eq!(phase(), "phase-14-baron-2-release");
     }
 }

@@ -174,3 +174,23 @@ The self-improving harness audits context reads, proof gaps, trace gaps,
 documentation drift, interventions, friction patterns, and proposal outcomes.
 It proposes improvements but does not rewrite core policy without human
 approval.
+
+## Phase 13
+
+```bash
+baron certify run [repo-path] --vault <vault-path> --profile <smoke|release|extreme>
+baron certify status [repo-path]
+```
+
+Certification writes a Markdown and JSON report under
+`docs/baron/certification/` and mirrors the Markdown report into the project
+Vault capsule. It checks repository survey boundedness, memory-cache rebuild,
+shared-Vault firewall behavior, compact context budget, automation readiness,
+and release readiness.
+
+## Phase 14
+
+Baron 2.0 release hardening keeps the hidden maintainer release metadata
+commands from Phase 8 and adds the public certification gate above. A release
+claim is not trusted unless `baron certify run`, full tests, Clippy, release
+metadata verification, and installer lifecycle tests pass.
