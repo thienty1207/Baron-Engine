@@ -15,14 +15,18 @@ baron init [repo-path] --agent --shadow
 ## Phase 2
 
 ```bash
+baron setup --vault [vault-path]
 baron memory status [repo-path] --vault <vault-path>
 baron memory index [repo-path] --vault <vault-path>
 baron memory compact [repo-path] --vault <vault-path>
 baron recall "<query>" [repo-path] --vault <vault-path>
 ```
 
-All Phase 2 memory commands also accept `BARON_VAULT`. If neither `--vault` nor
-`BARON_VAULT` is provided, Baron fails clearly instead of guessing.
+`baron setup --vault` with no path uses the current directory as the machine
+default Vault and stores it in `~/.baron/config.toml`. All Phase 2 memory
+commands also accept `BARON_VAULT`. If neither `--vault`, `BARON_VAULT`, a
+project-local `.baron/local.toml`, nor machine setup is available, Baron fails
+clearly instead of guessing.
 
 ## Phase 3
 
@@ -45,15 +49,27 @@ adapter files.
 baron init --codex
 baron init --claude
 baron init --agent
+baron init --frontend
+baron init --backend
+baron init --fullstack
+baron init --mobile
+baron init --desktop
+baron init --tool
+baron init --library
+baron init --data
+baron init --cloud
+baron init --codex --fullstack
 baron update --codex
 baron update --claude
 baron update --agent
 ```
 
 Implemented syntax accepts optional `[repo-path]`. `init` accepts
-`--vault <vault-path>` or `BARON_VAULT`; later commands may use
-`.baron/local.toml`. `update` without an adapter refreshes all registered
-adapters.
+`--vault <vault-path>`, `BARON_VAULT`, or the machine Vault configured by
+`baron setup --vault`; later commands may use `.baron/local.toml`. Platform
+flags store focus in `.baron/project.toml` so AI agents prioritize the right
+domain knowledge without creating new workflow ownership. `update` without an
+adapter refreshes all registered adapters.
 
 ## Phase 5
 

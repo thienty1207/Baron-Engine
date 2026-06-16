@@ -196,6 +196,7 @@ fn startup_contract(agent: &str, adapter: &str) -> String {
 You are using Baron through the {agent} adapter.\n\n\
 - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
 - At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\
+- Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
 - Before selecting skills or agents for meaningful work, silently run `baron control-plane route \"<task>\"` and follow the selected/skipped explanation.\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\

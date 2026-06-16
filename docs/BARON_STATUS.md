@@ -4,13 +4,13 @@ Last updated: 2026-06-16
 
 ## Overall
 
-- Stable source release: `v2.0.0`
+- Stable source release: `v2.1.0`
 - Baron 2.0 completion: 100%
 - Remaining phases: 0
-- Current phase: Phase 13-14 - Certification And Release
+- Current phase: Phase 15 - Simple User Flow
 - Current phase status: completed
 - Current next action: publish native GitHub release assets only when the operator is ready
-- Build confidence: Phase 13-14 certification, release/version tests, full workspace tests, Clippy, and local smoke checks pass; GitHub binary publishing is a separate operator action
+- Build confidence: Baron 2.1.0 keeps the 2.0 engine intact while simplifying the normal user flow to install, setup Vault, init agent surface, choose platform, and update.
 
 ## Why The Roadmap Is Complete
 
@@ -85,6 +85,7 @@ remaining-program weights:
 | 12 | Self-Improving Harness | completed | 15% | context score, drift audit, interventions, verify-all, proposal, and outcome-loop tests |
 | 13 | Extreme Scale Certification | completed | 15% | certification core/CLI tests, cache-corruption recovery, shared-Vault firewall, context-budget, and smoke certification |
 | 14 | Baron 2.0 Release Hardening | completed | 5% | version `2.0.0`, release metadata tests, installer lifecycle tests, full suite, Clippy, release metadata smoke |
+| 15 | Simple User Flow | completed | additive | user-facing setup/init/platform flow, hidden automation command help, README simplification, targeted setup/init/context tests |
 
 ## Completion Checklist
 
@@ -254,6 +255,15 @@ remaining-program weights:
 - [x] Pass the complete Phase 9-13 local acceptance suite, Clippy, and release smoke checks.
 - [x] Mark `v2.0.0` source ready with no open identity, memory, automation, routing, or evidence blocker; native GitHub release publishing remains manual.
 
+### Phase 15 - Simple User Flow
+
+- [x] Add `baron setup --vault`, defaulting to the current folder when no Vault path is passed.
+- [x] Let `baron init --codex`, `baron init --claude`, and `baron init --agent` use the machine default Vault after setup.
+- [x] Add platform focus flags such as `--frontend`, `--backend`, `--fullstack`, `--mobile`, `--desktop`, `--tool`, `--library`, `--data`, and `--cloud`.
+- [x] Support shortcut init such as `baron init --codex --fullstack`.
+- [x] Keep top-level help and README focused on normal user commands while keeping advanced commands available for AI automation and diagnostics.
+- [x] Surface platform focus in generated context and adapter startup guidance.
+
 ## Current Working Files
 
 - Product spec: `docs/specs/2026-06-08-baron-product-spec-1.0.md`
@@ -285,8 +295,9 @@ remaining-program weights:
 
 ## Current Rule
 
-Baron `2.0.0` is complete as a source release after Phase 13-14. Future work
-must preserve the verified identity, native automation, incremental memory,
-semantic recall, control-plane, self-improving harness, certification, adapter,
-proof, capability, and data-safety contracts. Publishing native GitHub release
-assets is a separate operator action.
+Baron `2.1.0` keeps the full 2.0 engine and adds the simplified user-facing
+flow. Future work must preserve the verified identity, native automation,
+incremental memory, semantic recall, control-plane, self-improving harness,
+certification, adapter, proof, capability, and data-safety contracts while
+keeping normal users away from internal automation command clutter. Publishing
+native GitHub release assets is a separate operator action.

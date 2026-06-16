@@ -105,6 +105,37 @@ fn detects_security_and_data_risky_surfaces() {
 }
 
 #[test]
+fn ignores_agent_asset_directories_when_detecting_project_risk() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+
+    write(
+        &root.join("package.json"),
+        r#"{"scripts":{"test":"vitest"}}"#,
+    );
+    write(
+        &root.join(".codex/skills/vibe-security-scan/rules/generic/01-hardcoded-secret.md"),
+        "# Hardcoded Secret\n",
+    );
+    write(
+        &root.join(".claude/commands/security-check.md"),
+        "# Security Check\n",
+    );
+    write(
+        &root.join(".baron/core/agents/security-auditor.toml"),
+        "name = \"security-auditor\"\n",
+    );
+
+    let survey = survey_repository(root).unwrap();
+
+    assert!(
+        survey.risky_surfaces.is_empty(),
+        "agent assets must not be reported as project risky surfaces: {:?}",
+        survey.risky_surfaces
+    );
+}
+
+#[test]
 fn missing_build_and_test_commands_are_unknowns_not_guesses() {
     let temp = tempdir().unwrap();
     let root = temp.path();

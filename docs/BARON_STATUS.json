@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-16",
-  "stableRelease": "2.0.0",
+  "stableRelease": "2.1.0",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "2.0.0",
+  "targetRelease": "2.1.0",
   "targetReleaseCompletionPercent": 100,
   "remainingPhaseCount": 0,
-  "currentPhase": "phase-13-14-certification-release",
+  "currentPhase": "phase-15-simple-user-flow",
   "currentPhaseStatus": "completed",
   "nextAction": "publish-native-github-release-assets-when-operator-is-ready",
-  "buildConfidence": "Baron 2.0.0 source release gates pass: certification core and CLI tests, release version and metadata tests, full workspace tests, Clippy, and local smoke checks. GitHub binary release publishing is a separate operator action.",
+  "buildConfidence": "Baron 2.1.0 keeps the Baron 2.0 engine intact while simplifying normal user setup, adapter init, platform focus, and top-level help.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -35,7 +35,9 @@
     "skill and agent routing is validated narrow explainable and evidence backed",
     "missed automatic lifecycle actions are detected instead of assumed",
     "harness drift context gaps repeated friction and improvement outcomes are measured",
-    "extreme scale interruption corruption move rename and cross-platform tests pass"
+    "extreme scale interruption corruption move rename and cross-platform tests pass",
+    "normal users only need install setup Vault init agent surface choose platform and update",
+    "advanced survey context memory plan harness proof trace control-plane and automation commands stay available for AI automation without crowding the primary help flow"
   ],
   "phases": [
     {
@@ -247,6 +249,21 @@
         "deterministic native release assets and checksum verified installers",
         "complete phase 9 through 13 acceptance suite on all supported platforms",
         "published v2.0.0 with no open identity memory automation routing or evidence blocker"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Simple User Flow",
+      "status": "completed",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "setup vault current-directory CLI test",
+        "init adapter from project directory using machine Vault test",
+        "platform focus standalone and shortcut init tests",
+        "top-level help hides automation command clutter",
+        "context surfaces configured platform focus",
+        "README keeps normal user flow to install setup init platform and update"
       ]
     }
   ],

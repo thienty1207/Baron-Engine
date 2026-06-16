@@ -15,17 +15,20 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completed the first stable foundation. Baron `v2.0.0` spans
-Phase 9 through Phase 14 and is the current long-horizon release target in this
-source.
+Baron `v1.0.0` completed the first stable foundation. Baron `v2.1.0` keeps the
+Baron 2.x engine and adds the simple user setup flow: install, setup Vault,
+init adapter, choose platform focus.
 
 The current source command surface is:
 
 - `baron survey`
 - `baron survey --json`
+- `baron setup --vault [vault-path]`
 - `baron init --codex --shadow`
 - `baron init --claude --shadow`
 - `baron init --agent --shadow`
+- `baron init --codex|--claude|--agent`
+- `baron init --frontend|--backend|--fullstack|--mobile|--desktop|--tool|--library|--data|--cloud`
 - `baron memory status [repo-path] --vault <vault-path>`
 - `baron memory index [repo-path] --vault <vault-path>`
 - `baron memory compact [repo-path] --vault <vault-path>`
@@ -61,6 +64,9 @@ session ingestion. Phase 11-12 add strict skill/agent contracts, explainable
 routing, mandatory gate evidence, context-read scoring, drift audits,
 interventions, improvement proposals, and outcome tracking. Phase 13-14 add
 extreme-scale certification and Baron 2.0 release hardening.
+Phase 15 keeps those internals available but hides the command clutter from the
+normal README and top-level help so users only handle install, Vault setup,
+adapter init, platform focus, and update.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or

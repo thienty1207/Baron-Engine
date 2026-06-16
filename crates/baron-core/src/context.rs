@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::capability::{load_registry, render_capability_summary};
-use crate::config::AdapterKind;
+use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
 use crate::control_plane::validate_control_plane;
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
@@ -79,6 +79,7 @@ pub fn compile_context_for_task(
     }
     output.push_str(&format!("- Risk lane: `{}`\n", risk.label()));
     output.push_str(&format!("- {}\n\n", risk.guidance()));
+    output.push_str(&render_platform_focus(repo_path));
 
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_execution_state(repo_path));
@@ -110,6 +111,50 @@ pub fn compile_context_for_task(
     output.push_str("- No target repo files were written.\n");
 
     Ok(truncate_context(output))
+}
+
+fn render_platform_focus(repo_path: &Path) -> String {
+    let platform = load_project_config(repo_path)
+        .ok()
+        .and_then(|config| config.platform);
+    let Some(platform) = platform else {
+        return String::new();
+    };
+    format!(
+        "## Platform Focus\n\n- Configured focus: `{}`\n- Agent priority: {}\n\n",
+        platform_name(platform),
+        platform_guidance(platform)
+    )
+}
+
+fn platform_name(platform: ProjectPlatform) -> &'static str {
+    match platform {
+        ProjectPlatform::Frontend => "frontend",
+        ProjectPlatform::Backend => "backend",
+        ProjectPlatform::Fullstack => "fullstack",
+        ProjectPlatform::Mobile => "mobile",
+        ProjectPlatform::Desktop => "desktop",
+        ProjectPlatform::Tool => "tool",
+        ProjectPlatform::Library => "library",
+        ProjectPlatform::Data => "data",
+        ProjectPlatform::Cloud => "cloud",
+        ProjectPlatform::Unknown => "unknown",
+    }
+}
+
+fn platform_guidance(platform: ProjectPlatform) -> &'static str {
+    match platform {
+        ProjectPlatform::Frontend => "prioritize UI flows, components, accessibility, responsive behavior, and browser proof.",
+        ProjectPlatform::Backend => "prioritize APIs, auth, data access, migrations, queues, and server-side proof.",
+        ProjectPlatform::Fullstack => "prioritize frontend, backend, database, cloud/API boundaries, auth, and end-to-end proof.",
+        ProjectPlatform::Mobile => "prioritize mobile flows, device constraints, platform permissions, and emulator/device proof.",
+        ProjectPlatform::Desktop => "prioritize desktop shell behavior, filesystem/OS integration, installers, and cross-platform proof.",
+        ProjectPlatform::Tool => "prioritize CLI UX, automation, release safety, installers, and cross-platform smoke proof.",
+        ProjectPlatform::Library => "prioritize public API contracts, compatibility, examples, and regression tests.",
+        ProjectPlatform::Data => "prioritize data pipelines, schemas, migrations, reproducibility, and data-quality proof.",
+        ProjectPlatform::Cloud => "prioritize infrastructure, deployment, secrets, permissions, observability, and rollback proof.",
+        ProjectPlatform::Unknown => "use repo evidence first, keep unknown facts unknown, and avoid assuming a product shape.",
+    }
 }
 
 pub fn compile_context_why(

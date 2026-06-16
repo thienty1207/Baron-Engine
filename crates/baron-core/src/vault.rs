@@ -33,6 +33,46 @@ pub fn resolve_vault_path(cli_vault: Option<PathBuf>) -> Result<PathBuf> {
     bail!("Provide --vault <path> or set BARON_VAULT");
 }
 
+pub fn ensure_vault_root(vault_path: impl AsRef<Path>) -> Result<PathBuf> {
+    let vault_root = vault_path.as_ref().to_path_buf();
+    fs::create_dir_all(&vault_root)
+        .with_context(|| format!("Could not create vault root: {}", vault_root.display()))?;
+    let vault_root = vault_root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve vault root: {}",
+            vault_path.as_ref().display()
+        )
+    })?;
+    let baron_artifacts_root = vault_root.join("Artifacts").join("Baron");
+    fs::create_dir_all(&baron_artifacts_root).with_context(|| {
+        format!(
+            "Could not create Baron artifacts folder: {}",
+            baron_artifacts_root.display()
+        )
+    })?;
+    write_if_missing(
+        &vault_root.join("AGENTS.md"),
+        "# Vault Agent Guide\n\nBaron Vault Markdown is the source of truth. SQLite files are rebuildable indexes.\n",
+    )?;
+    write_if_missing(
+        &vault_root.join("Init.md"),
+        "# Baron Vault\n\nUse this vault as durable memory for Baron-managed projects.\n",
+    )?;
+    write_if_missing(
+        &baron_artifacts_root.join("APPROVED_GLOBAL.md"),
+        "# Approved Global Memory\n\nOnly durable lessons that are safe across projects belong here.\n",
+    )?;
+    write_if_missing(
+        &baron_artifacts_root.join("GLOBAL_CANDIDATES.md"),
+        "# Global Memory Candidates\n\nCandidates are not loaded as facts until promoted.\n",
+    )?;
+    write_if_missing(
+        &baron_artifacts_root.join("memory-engine-state.json"),
+        "{\n  \"engine\": \"baron-memory-firewall\",\n  \"schemaVersion\": 1\n}\n",
+    )?;
+    Ok(vault_root)
+}
+
 pub fn project_slug(repo_path: &Path) -> String {
     let name = repo_path
         .file_name()
@@ -72,12 +112,7 @@ pub fn ensure_vault(
         baron_artifacts_root: baron_artifacts_root.clone(),
     };
 
-    fs::create_dir_all(&context.vault_root).with_context(|| {
-        format!(
-            "Could not create vault root: {}",
-            context.vault_root.display()
-        )
-    })?;
+    ensure_vault_root(&context.vault_root)?;
     fs::create_dir_all(&context.project_root).with_context(|| {
         format!(
             "Could not create project capsule: {}",
@@ -85,21 +120,6 @@ pub fn ensure_vault(
         )
     })?;
     write_capsule_metadata(&context)?;
-    fs::create_dir_all(&context.baron_artifacts_root).with_context(|| {
-        format!(
-            "Could not create Baron artifacts folder: {}",
-            context.baron_artifacts_root.display()
-        )
-    })?;
-
-    write_if_missing(
-        &context.vault_root.join("AGENTS.md"),
-        "# Vault Agent Guide\n\nBaron Vault Markdown is the source of truth. SQLite files are rebuildable indexes.\n",
-    )?;
-    write_if_missing(
-        &context.vault_root.join("Init.md"),
-        "# Baron Vault\n\nUse this vault as durable memory for Baron-managed projects.\n",
-    )?;
     write_if_missing(
         &context.project_root.join("README.md"),
         &format!(
@@ -124,19 +144,6 @@ pub fn ensure_vault(
     ] {
         fs::create_dir_all(context.project_root.join(directory))?;
     }
-
-    write_if_missing(
-        &context.approved_global_path,
-        "# Approved Global Memory\n\nOnly durable lessons that are safe across projects belong here.\n",
-    )?;
-    write_if_missing(
-        &context.global_candidates_path,
-        "# Global Memory Candidates\n\nCandidates are not loaded as facts until promoted.\n",
-    )?;
-    write_if_missing(
-        &context.state_path,
-        "{\n  \"engine\": \"baron-memory-firewall\",\n  \"schemaVersion\": 1\n}\n",
-    )?;
 
     Ok(context)
 }

@@ -5,7 +5,7 @@ use baron_core::capability::{
     check_capabilities, register_provider, CapabilityProvider, CheckOptions, ProviderKind,
     Requirement,
 };
-use baron_core::config::AdapterKind;
+use baron_core::config::{initialize_project_with_options, AdapterKind, ProjectPlatform};
 use baron_core::context::{
     compile_context, compile_context_for_task, compile_context_why, ContextTarget,
 };
@@ -119,6 +119,27 @@ fn task_focus_changes_risk_and_context_guidance() {
     assert!(bundle.contains("Task: `implement auth login and tenant permissions`"));
     assert!(bundle.contains("Risk lane: `high`"));
     assert!(bundle.contains("security evidence"));
+}
+
+#[test]
+fn context_includes_configured_platform_focus() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Codex),
+        &vault,
+        Some(ProjectPlatform::Fullstack),
+    )
+    .unwrap();
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Platform Focus"));
+    assert!(bundle.contains("Configured focus: `fullstack`"));
+    assert!(bundle.contains("frontend, backend, database, cloud/API boundaries"));
 }
 
 #[test]

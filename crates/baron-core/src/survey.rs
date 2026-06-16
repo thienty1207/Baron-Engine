@@ -223,6 +223,9 @@ fn is_heavy_path(path: &Path) -> bool {
             matches!(
                 name,
                 ".git"
+                    | ".baron"
+                    | ".claude"
+                    | ".codex"
                     | "node_modules"
                     | "target"
                     | "dist"

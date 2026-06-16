@@ -16,8 +16,9 @@ use baron_core::certification::{
     CertificationProfile,
 };
 use baron_core::config::{
-    find_project_root, initialize_project, load_project_config, resolve_vault_path_for_repo,
-    AdapterKind,
+    find_project_root, initialize_project, initialize_project_with_options, load_project_config,
+    resolve_vault_path_for_repo, set_project_platform, setup_machine_vault, AdapterKind,
+    ProjectPlatform,
 };
 use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
 use baron_core::control_plane::{
@@ -57,6 +58,11 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    Setup {
+        #[arg(long, num_args = 0..=1, default_missing_value = ".")]
+        vault: Option<PathBuf>,
+    },
+    #[command(hide = true)]
     Survey {
         repo_path: Option<PathBuf>,
         #[arg(long = "json")]
@@ -74,6 +80,26 @@ enum Commands {
         shadow: bool,
         #[arg(long)]
         vault: Option<PathBuf>,
+        #[arg(long)]
+        frontend: bool,
+        #[arg(long)]
+        backend: bool,
+        #[arg(long)]
+        fullstack: bool,
+        #[arg(long)]
+        mobile: bool,
+        #[arg(long)]
+        desktop: bool,
+        #[arg(long = "tool")]
+        tool_platform: bool,
+        #[arg(long)]
+        library: bool,
+        #[arg(long)]
+        data: bool,
+        #[arg(long)]
+        cloud: bool,
+        #[arg(long)]
+        unknown: bool,
     },
     Update {
         repo_path: Option<PathBuf>,
@@ -84,16 +110,19 @@ enum Commands {
         #[arg(long = "agent")]
         agent: bool,
     },
+    #[command(hide = true)]
     Memory {
         #[command(subcommand)]
         command: MemoryCommands,
     },
+    #[command(hide = true)]
     Recall {
         query: String,
         repo_path: Option<PathBuf>,
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    #[command(hide = true)]
     Context {
         repo_path: Option<PathBuf>,
         #[arg(long)]
@@ -109,38 +138,47 @@ enum Commands {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    #[command(hide = true)]
     Plan {
         #[command(subcommand)]
         command: PlanCommands,
     },
+    #[command(hide = true)]
     Harness {
         #[command(subcommand)]
         command: HarnessCommands,
     },
+    #[command(hide = true)]
     Proof {
         #[command(subcommand)]
         command: ProofCommands,
     },
+    #[command(hide = true)]
     Trace {
         #[command(subcommand)]
         command: TraceCommands,
     },
+    #[command(hide = true)]
     Migrate {
         #[command(subcommand)]
         command: MigrationCommands,
     },
+    #[command(hide = true)]
     Capability {
         #[command(subcommand)]
         command: CapabilityCommands,
     },
+    #[command(hide = true)]
     ControlPlane {
         #[command(subcommand)]
         command: ControlPlaneCommands,
     },
+    #[command(hide = true)]
     Certify {
         #[command(subcommand)]
         command: CertifyCommands,
     },
+    #[command(hide = true)]
     Automation {
         #[command(subcommand)]
         command: AutomationCommands,
@@ -460,6 +498,14 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Some(Commands::Setup { vault }) => {
+            let vault_path = vault.unwrap_or(std::env::current_dir()?);
+            let configured = setup_machine_vault(&vault_path)?;
+            println!("# Baron Setup\n");
+            println!("- Default Vault: `{}`", configured.display());
+            println!("- Machine config: `~/.baron/config.toml`");
+            println!("- Next: run `baron init --codex --fullstack` inside a project folder.");
+        }
         Some(Commands::Survey { repo_path, json }) => {
             let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
             let survey = survey_repository(repo_path)?;
@@ -476,16 +522,45 @@ fn run() -> Result<()> {
             agent,
             shadow,
             vault,
+            frontend,
+            backend,
+            fullstack,
+            mobile,
+            desktop,
+            tool_platform,
+            library,
+            data,
+            cloud,
+            unknown,
         }) => {
-            let adapter = parse_adapter(codex, claude, agent)?;
+            let adapter = selected_adapter(codex, claude, agent)?;
+            let platform = parse_platform(
+                frontend,
+                backend,
+                fullstack,
+                mobile,
+                desktop,
+                tool_platform,
+                library,
+                data,
+                cloud,
+                unknown,
+            )?;
             let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
-            let _survey = survey_repository(&repo_path)?;
             if shadow {
+                let adapter = adapter.context(
+                    "Choose exactly one adapter for shadow init: --codex, --claude, or --agent",
+                )?;
                 print!("{}", shadow_preview(adapter).to_markdown());
-            } else {
+            } else if let Some(adapter) = adapter {
                 let repo_root = repo_path.canonicalize()?;
                 let vault_path = resolve_vault_path_for_repo(vault, &repo_root)?;
-                initialize_project(&repo_root, adapter_kind(adapter), &vault_path)?;
+                let config = initialize_project_with_options(
+                    &repo_root,
+                    Some(adapter_kind(adapter)),
+                    &vault_path,
+                    platform,
+                )?;
                 let context = ensure_vault(&vault_path, &repo_root)?;
                 build_memory_index(&context)?;
                 let report = install_adapter(&repo_root, adapter)?;
@@ -493,8 +568,25 @@ fn run() -> Result<()> {
                 println!("- Project: `{}`", context.project_slug);
                 println!("- Adapter initialized: `{}`", report.adapter);
                 println!("- Vault: `{}`", context.vault_root.display());
+                println!(
+                    "- Platform focus: `{}`",
+                    config
+                        .platform
+                        .map(platform_name)
+                        .unwrap_or("auto-detected")
+                );
                 println!("- Managed files: {}", report.managed_files.len());
                 println!("- Custom assets preserved: yes");
+            } else if let Some(platform) = platform {
+                let config = set_project_platform(&repo_path, platform)?;
+                println!("# Baron Platform Focus\n");
+                println!("- Project: `{}`", config.project_slug);
+                println!("- Platform focus: `{}`", platform_name(platform));
+                println!("- Adapter files were not changed.");
+            } else {
+                bail!(
+                    "Choose an adapter (--codex, --claude, --agent), a platform (--fullstack, --backend, --frontend, --mobile, --desktop, --tool, --library, --data, --cloud), or both."
+                );
             }
         }
         Some(Commands::Update {
@@ -1305,13 +1397,53 @@ fn selected_adapter(codex: bool, claude: bool, agent: bool) -> Result<Option<Age
     }
 }
 
-fn parse_adapter(codex: bool, claude: bool, agent: bool) -> Result<AgentAdapter> {
-    match (codex as u8) + (claude as u8) + (agent as u8) {
-        1 if codex => Ok(AgentAdapter::Codex),
-        1 if claude => Ok(AgentAdapter::Claude),
-        1 if agent => Ok(AgentAdapter::Generic),
-        0 => bail!("Choose one adapter: --codex, --claude, or --agent."),
-        _ => bail!("Choose only one adapter: --codex, --claude, or --agent."),
+#[allow(clippy::too_many_arguments)]
+fn parse_platform(
+    frontend: bool,
+    backend: bool,
+    fullstack: bool,
+    mobile: bool,
+    desktop: bool,
+    tool: bool,
+    library: bool,
+    data: bool,
+    cloud: bool,
+    unknown: bool,
+) -> Result<Option<ProjectPlatform>> {
+    let selected = [
+        (frontend, ProjectPlatform::Frontend),
+        (backend, ProjectPlatform::Backend),
+        (fullstack, ProjectPlatform::Fullstack),
+        (mobile, ProjectPlatform::Mobile),
+        (desktop, ProjectPlatform::Desktop),
+        (tool, ProjectPlatform::Tool),
+        (library, ProjectPlatform::Library),
+        (data, ProjectPlatform::Data),
+        (cloud, ProjectPlatform::Cloud),
+        (unknown, ProjectPlatform::Unknown),
+    ]
+    .into_iter()
+    .filter_map(|(enabled, platform)| enabled.then_some(platform))
+    .collect::<Vec<_>>();
+    match selected.len() {
+        0 => Ok(None),
+        1 => Ok(selected.first().copied()),
+        _ => bail!("Choose at most one platform focus flag."),
+    }
+}
+
+fn platform_name(platform: ProjectPlatform) -> &'static str {
+    match platform {
+        ProjectPlatform::Frontend => "frontend",
+        ProjectPlatform::Backend => "backend",
+        ProjectPlatform::Fullstack => "fullstack",
+        ProjectPlatform::Mobile => "mobile",
+        ProjectPlatform::Desktop => "desktop",
+        ProjectPlatform::Tool => "tool",
+        ProjectPlatform::Library => "library",
+        ProjectPlatform::Data => "data",
+        ProjectPlatform::Cloud => "cloud",
+        ProjectPlatform::Unknown => "unknown",
     }
 }
 

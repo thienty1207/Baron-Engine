@@ -18,20 +18,17 @@ one durable engine:
 
 ## Stable Release
 
-Current version: `2.0.0`.
+Current version: `2.1.0`.
 
 Survey, Vault Memory Firewall, Context Compiler, multi-agent adapters, Active
-Plan State, Product Harness, proof gates, trace quality, and transactional
-legacy migration, the Baron Capability Registry, and the native release
-lifecycle are implemented. Baron 2.0 adds observable automation, stable project
-identity, massive-memory indexing, multilingual recall, automatic session
-import, strict skill/agent control-plane routing, self-improving harness audits,
-and certification gates.
+Plan State, Product Harness, proof gates, trace quality, transactional legacy
+migration, capability routing, release lifecycle, and the simple user setup flow
+are implemented.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
 
-Baron 2.0 is the long-horizon version of the engine. It is built for old
+Baron 2.x is the long-horizon version of the engine. It is built for old
 projects, many projects sharing one Vault, direct IDE/agent use, and strict
 completion claims backed by proof.
 
@@ -71,341 +68,142 @@ Baron should help an AI agent answer these questions before it edits code:
 - Which registered capability providers are present and compatible?
 - Which tool-backed claims have real execution evidence?
 
-## Normal User Flow
+## Quick Start
 
-Most users should not copy a giant command list. Use this flow instead.
+Normal users only need these steps.
 
-### 1. Install Baron
-
-Install once, then confirm the binary is available:
+### 1. Install
 
 ```bash
 baron --version
 ```
 
-### 2. Choose The Vault
+### 2. Set Up The Vault
 
-The Vault is Baron's long-term memory folder. Pick one durable folder that can be
-shared by many projects:
+Stand inside the folder you want to use as Baron's long-term memory Vault:
 
 ```powershell
-$env:BARON_VAULT = "D:\work\AgentMemory"
+cd D:\work\AgentMemory
+baron setup --vault
 ```
 
-You can also pass it directly:
+Or pass the Vault path directly:
+
+```powershell
+baron setup --vault "D:\work\AgentMemory"
+```
+
+This writes the machine default Vault to `~/.baron/config.toml`, so future
+projects do not need `--vault` every time.
+
+### 3. Initialize The Agent Tool
+
+Stand inside the project:
+
+```powershell
+cd D:\work\IT\Web\TomoTy
+```
+
+Choose the agent surface:
 
 ```bash
-baron memory status <project-path> --vault <vault-path>
+baron init --codex
+baron init --claude
+baron init --agent
 ```
 
-Baron never guesses a Vault path. Memory and context commands require
-`--vault <path>`, `BARON_VAULT`, or an initialized `.baron/local.toml`.
+You can register more than one adapter in the same project by repeating `init`.
 
-### 3. Inspect A Repo Before Writing
+### 4. Choose The Platform Focus
 
-Use survey first when you want Baron to read the project and explain what it
-sees:
+Platform focus tells Baron what kind of knowledge the AI should prioritize. It
+does not replace Superpowers, skills, agents, proof, or repository evidence.
 
 ```bash
-baron survey <project-path>
-baron survey <project-path> --json
+baron init --frontend
+baron init --backend
+baron init --fullstack
+baron init --mobile
+baron init --desktop
+baron init --tool
+baron init --library
+baron init --data
+baron init --cloud
 ```
 
-Preview what an adapter would install without writing files:
+Fast path:
 
 ```bash
-baron init <project-path> --codex --shadow
-baron init <project-path> --claude --shadow
-baron init <project-path> --agent --shadow
+baron init --codex --fullstack
+baron init --claude --backend
+baron init --agent --tool
 ```
 
-Baron detects project shape from the repo itself: web, mobile, backend, tool,
-fullstack, desktop, or unknown. There is no separate `--web` or `--mobile` flag
-because the Survey Engine derives that from files such as `package.json`,
-`Cargo.toml`, `go.mod`, mobile folders, build configs, and entrypoints.
-
-### 4. Initialize A Project
-
-Choose the agent surface the project will use:
+### 5. Update Later
 
 ```bash
-baron init <project-path> --codex --vault <vault-path>
-baron init <project-path> --claude --vault <vault-path>
-baron init <project-path> --agent --vault <vault-path>
+baron update
 ```
 
-Repeat `init` with another adapter when the same project should support more
-than one agent tool. Baron preserves user text, custom skills, custom agents,
-custom routing entries, and non-Baron hooks.
+## What The AI Runs Automatically
 
-### 5. Update An Existing Baron Project
+After init, the user should not need to manually run survey, context, memory,
+plan, harness, proof, trace, control-plane, or automation commands during normal
+work. Baron installs adapter instructions and native hooks where supported, so
+AI agents load context, route skills, check memory, record proof, score traces,
+and preserve execution state when the task requires it.
 
-Refresh managed Baron files after installing a newer Baron binary:
+The full advanced command surface is documented in
+[docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).
 
-```bash
-baron update <project-path>
-```
+## How Baron Stays Smart Under The Hood
 
-Refresh only one registered adapter when needed:
+Baron keeps the visible user flow small, but the engine underneath is still large. After init, the adapter instructions and supported hooks tell the AI to do the background work automatically when the task needs it.
 
-```bash
-baron update <project-path> --codex
-baron update <project-path> --claude
-baron update <project-path> --agent
-```
+The hidden engine handles:
 
-### 6. Manual Inspection When Needed
+- reading the repository shape before editing
+- loading a bounded context brief instead of flooding the agent
+- keeping project memory separate inside a shared Vault
+- importing useful agent session history with redaction and deduplication
+- tracking the active plan, product intent, proof, traces, and friction
+- routing Superpowers, optional domain skills, and the three quality agents through a strict control plane
+- checking whether tool-backed claims have real execution evidence
 
-These commands are useful when you want to inspect the system yourself:
-
-```bash
-baron context <project-path> --codex --task "<task>" --vault <vault-path>
-baron recall "<query>" <project-path> --vault <vault-path>
-baron memory compact <project-path> --vault <vault-path>
-baron memory import-sessions <project-path> --vault <vault-path>
-baron certify run <project-path> --vault <vault-path> --profile smoke
-baron certify status <project-path>
-```
-
-Plan, harness, proof, trace, capability, control-plane, and automation commands
-exist for the agent runtime and for diagnostics. Normal users do not need to run
-them by hand during daily work; installed adapters and hooks guide the AI to run
-them at the right time.
-
-## Capability Registry
-
-Baron can use optional project tools without becoming dependent on them. A
-project registers the ability it needs, such as `security-scan`,
-`impact-analysis`, or `deploy-verification`, and then lists one or more
-providers for that ability.
-
-Baron keeps three facts separate:
-
-- registered: the project intends to use this provider
-- present: the current machine appears equipped to use it
-- executed: the provider actually ran for this task and produced recorded
-  evidence
-
-This prevents a common AI mistake: seeing that a tool is installed and then
-claiming its check passed without running it.
-
-Provider definitions live in `.baron/capabilities.toml`. Current-machine checks
-live in the rebuildable `.baron/cache/capability-state.json`. CLI, binary, MCP,
-skill, HTTP, and agent-adapter providers are supported.
-
-Agents automatically run `baron capability check` before compact context.
-Missing optional tools produce a visible fallback warning. Missing required
-tools, or required tools without execution evidence, make Proof insufficient
-and prevent Trace from passing.
-
-## Context Compiler
-
-The Context Compiler turns the Survey Engine and Memory Firewall into one
-bounded brief for the active agent tool. It prints to stdout and does not
-install or overwrite agent files.
-
-It includes:
-
-- adapter-specific guidance for Codex, Claude, or a generic agent
-- the current Project Atlas
-- detected commands, entrypoints, risky surfaces, and unknowns
-- a bounded current execution-state excerpt when one exists
-- current-project memory plus relevant approved global memory
-- a visible list of context intentionally skipped
-
-Use `--task "<task>"` when the caller knows the current task. Baron then adds a
-low, medium, or high risk lane and proportional verification guidance. Use
-`--why` to inspect why context was loaded or skipped. Adapter file generation
-and managed-file updates are handled by `baron init` and `baron update`.
+This is why normal users should not need to learn the internal command list. The advanced command surface exists for AI automation, recovery, diagnostics, and maintainers, and is documented in [docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).
 
 ## Automatic Project Configuration
 
-Baron writes two small configuration files:
+Baron writes small map files under `.baron/` so the project remembers its identity, selected adapters, selected platform focus, and machine Vault path. They are not the memory itself.
 
-- `.baron/project.toml` is safe to commit. It stores project identity,
-  registered adapters, and automatic behavior switches.
-- `.baron/local.toml` stores the Vault path for the current machine and is
-  ignored by `.baron/.gitignore`.
+Memory, decisions, plans, proof, traces, and session history remain Markdown in the repository and the Vault. SQLite/cache files are rebuildable accelerators.
 
-These files are maps, not memory. Facts, decisions, plans, proof, traces, and
-session history remain Markdown in the repo and Vault. After initialization,
-Baron commands work from nested folders without repeating `--vault`.
+## Agent Surfaces
 
-Vault resolution order is explicit `--vault`, then `BARON_VAULT`, then
-`.baron/local.toml`.
+`baron init` installs the right surface for the agent tool you choose:
 
-## Multi-Agent Adapters
-
-Run `baron init --codex`, `--claude`, or `--agent` with a Vault path. Repeating
-init registers another adapter for the same project. `baron update` refreshes
-all registered adapters.
-
-- Codex receives `AGENTS.md`, `.codex/`, Superpowers, optional domain skills,
-  and the three core quality agents.
+- Codex receives `AGENTS.md`, `.codex/`, Superpowers, optional domain skills, and the three core quality agents.
 - Claude receives `CLAUDE.md`, Claude commands, skills, and quality agents.
 - Generic agents receive `AGENT.md`, portable context files, and `.baron/core`.
 
-Managed root instructions use Baron markers. User text outside the markers,
-custom skills, custom agents, custom routing entries, and non-Baron native
-hooks survive updates.
+Managed root instructions use Baron markers. User text outside the markers, custom skills, custom agents, custom routing entries, and non-Baron native hooks survive updates.
 
-## Observable Automatic Workflow
+## Memory, Proof, And Safety
 
-Baron does not rely only on an instruction telling the AI to remember the
-workflow.
+Baron is designed for many old and new projects sharing one Vault without turning memory into soup.
 
-- Codex receives project hooks in `.codex/hooks.json`.
-- Claude receives project hooks in `.claude/settings.json`.
-- Session start injects bounded Baron context automatically.
-- Prompt and edit checkpoints are written to a small automation journal.
-- Stop reconciliation checks active plan, proof, and trace state.
-- If meaningful work is unfinished, Baron asks the agent to continue or record
-  an interruption instead of silently claiming completion.
+- Current-project memory is preferred.
+- Approved global memory can help across projects.
+- Cross-project memory is blocked unless the task clearly asks for it.
+- Draft, stale, interrupted, or imported-session-only memory is treated with lower confidence.
+- Medium and high-risk work needs real proof before completion is trusted.
+- Trace quality helps the next agent understand what happened and what remains.
 
-Project hooks still require the agent tool to trust the project configuration.
-`baron automation status` shows what actually ran. Generic agents keep the
-managed startup contract and can use `baron automation reconcile` when their
-host has no native hook standard.
+The user normally sees none of this as command work. The AI uses it as the background discipline that keeps long projects from drifting.
 
-## Skill And Agent Control Plane
+## Legacy Migration
 
-Baron does not let the agent recursively scan every skill or invent a routing
-rule from vibes.
-
-- `baron control-plane route "<task>"` explains which skills and quality gates
-  match the task.
-- Superpowers remains the only workflow core.
-- `frontend-design` and `vibe-security-scan` remain optional domain skills.
-- `code-reviewer`, `security-auditor`, and `test-engineer` remain quality
-  gates, not planners or routers.
-- `baron control-plane record-gate` records evidence that a mandatory gate
-  actually ran.
-
-If a custom skill or agent tries to claim workflow ownership, duplicates another
-asset, or asks subagents to orchestrate each other recursively, Baron reports a
-control-plane diagnostic instead of silently trusting it.
-
-## Self-Improving Harness
-
-Baron now measures workflow friction without silently rewriting its own core
-rules.
-
-- `baron harness audit` checks context-read evidence, proof gaps, trace gaps,
-  open friction, and documentation drift.
-- `baron harness verify-all` scans the validation matrix for pending or weak
-  proof in bounded batches.
-- `baron harness intervention` records human, reviewer, CI, or agent
-  corrections.
-- `baron harness propose` groups repeated friction into improvement proposals.
-- `baron harness outcome` records whether a proposal actually helped.
-
-Core policy and architecture changes still require human approval. Baron may
-propose improvements automatically; it does not rewrite the rules by itself.
-
-## Certification Gate
-
-`baron certify run` is Baron's release-confidence check. It is not another
-memory source and it does not replace tests. It asks whether the repo and Vault
-are still healthy under pressure:
-
-- repository survey stays bounded
-- SQLite memory cache can be rebuilt from Vault Markdown
-- shared-Vault memory firewall keeps the current project isolated
-- compact memory context stays small
-- Baron project automation is configured
-- release readiness has no open certification blocker
-
-The report is written under `docs/baron/certification/` and mirrored into the
-project Vault capsule. `baron certify status` reads the latest report so future
-agents can see whether the last certification passed.
-
-## Large And Meaning-Aware Memory
-
-Each project receives a stored identity and a unique Vault capsule such as
-`tomoty--<project-id>`. Two folders named `tomoty` can no longer share memory by
-accident, and moving an initialized repo keeps the same identity.
-
-The SQLite index is incremental and rebuildable:
-
-- unchanged Markdown is reused
-- changed Markdown is refreshed
-- deleted Markdown is removed from the index
-- repository and memory scans no longer stop at hidden fixed file counts
-
-Recall combines exact words, engineering concepts, evidence quality, recency,
-memory kind, project identity, and the memory firewall. Common Vietnamese and
-English meanings are bridged, for example a request about `bảo mật dữ liệu
-khách hàng` can retrieve a verified note about `Supabase RLS tenant isolation`.
-`baron context --task "<task>"` uses the same ranking to load only the most
-useful memory.
-
-## Automatic Session Memory
-
-For initialized projects, normal context startup checks a bounded number of
-recent Codex and Claude session files. Baron imports only sessions that contain
-an exact match to the current repository path. It keeps useful user messages
-and assistant decisions, removes tool/system noise, redacts obvious secrets,
-deduplicates imports, and writes clean Markdown under
-`Sessions/Imported/` in the project Vault capsule.
-
-Users normally do not run import manually. `baron memory import-sessions`
-exists for inspection or recovery. Source overrides are available through
-`BARON_CODEX_SESSIONS_ROOT` and `BARON_CLAUDE_SESSIONS_ROOT`.
-
-## Execution And Completion Gates
-
-Baron keeps current execution state under `docs/baron/` and mirrors it into the
-project capsule in the Vault.
-
-- Plan answers what is active and where work stopped.
-- Product Harness answers what the feature must achieve and how risky it is.
-- Validation Matrix connects each Product Harness story to its latest proof and
-  labels weak evidence as insufficient instead of verified.
-- Proof records verification that actually ran.
-- Trace records what happened, files changed, and evidence quality.
-
-Low-risk work requires minimal trace quality. Medium-risk work requires
-standard quality. Auth, permissions, tenant/RLS, payment, migration, security,
-secrets, uploads, external providers, and destructive-data work require
-detailed traces plus explicit security/data-impact proof. `baron plan complete`
-refuses completion when these gates are missing. `baron trace score` also
-returns a failing process status when the required tier is not met, so an agent
-cannot silently continue past a weak trace.
-Baron's own generated state and adapter files do not count as product-file
-changes for detailed traces.
-
-## Native Legacy Migration
-
-Baron can take over a project previously managed by Agent Bootstrap without
-keeping the old runtime alive.
-
-Start with:
-
-```bash
-baron migrate agent-bootstrap <repo-path> --dry-run
-```
-
-Dry-run only shows what Baron would import, preserve, quarantine, replace, or
-remove. It writes nothing.
-
-The apply command performs the same inventory again, creates a rollback backup
-inside `Vault/Artifacts/Baron/Migrations/`, imports useful memory and execution
-history, validates custom skills and agents, installs fresh Baron assets, and
-only then retires verified legacy files.
-
-```bash
-baron migrate agent-bootstrap <repo-path>
-```
-
-Custom assets that are weak, conflicting, or still depend on Agent Bootstrap
-are preserved under `.baron/quarantine/<migration-id>/`; they are not silently
-activated or deleted. If installation or verification fails, Baron rolls the
-transaction back automatically.
-
-Use `baron migrate status` to inspect the latest result. A manual rollback is
-also available through the migration id printed by the apply command. The old
-source Vault is never deleted.
-
+Baron can take over projects that used Agent Bootstrap, but migration is an advanced maintenance flow. It inventories the old project, imports useful memory and execution history, validates custom skills and agents, quarantines weak or conflicting assets, and keeps rollback data in the Vault. The old source Vault is never deleted automatically.
 ## Source Of Truth
 
 - Vault Markdown is the durable source of truth.
@@ -422,7 +220,7 @@ source Vault is never deleted.
 - Install and update verify checksum and binary version before replacement.
 - Rollback affects only the Baron executable.
 - Uninstall leaves repositories, adapters, `.baron/`, and Vault Markdown intact.
-- `baron certify run` must pass before a release claim is trusted.
+- A Baron certification run must pass before a release claim is trusted.
 
 ## Temporary Build Notes
 

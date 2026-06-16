@@ -1,10 +1,13 @@
 use std::fs;
 use std::path::Path;
+use std::sync::Mutex;
 
 use assert_cmd::Command;
 use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
+
+static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn write(path: &Path, content: &str) {
     if let Some(parent) = path.parent() {
@@ -39,6 +42,93 @@ fn non_shadow_init_installs_codex_and_configuration() {
     assert!(repo.join(".codex/skills/superpowers/SKILL.md").exists());
     let context = vault_context_without_create(&vault, &repo).unwrap();
     assert!(context.project_root.join("Facts.md").exists());
+}
+
+#[test]
+fn setup_vault_then_init_codex_from_project_directory() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    let home = temp.path().join("home");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&vault).unwrap();
+    std::env::set_var("BARON_HOME", &home);
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&vault)
+        .args(["setup", "--vault"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("# Baron Setup"))
+        .stdout(predicate::str::contains("Default Vault"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["init", "--codex"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Adapter initialized: `codex`"));
+
+    std::env::remove_var("BARON_HOME");
+    assert!(home.join("config.toml").exists());
+    assert!(repo.join(".baron/project.toml").exists());
+    assert!(repo.join("AGENTS.md").exists());
+    let context = vault_context_without_create(&vault, &repo).unwrap();
+    assert!(context.project_root.join("Facts.md").exists());
+}
+
+#[test]
+fn init_can_set_platform_focus_separately_or_with_adapter() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let second = temp.path().join("second");
+    let vault = temp.path().join("Vault");
+    let home = temp.path().join("home");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&second).unwrap();
+    fs::create_dir_all(&vault).unwrap();
+    std::env::set_var("BARON_HOME", &home);
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&vault)
+        .args(["setup", "--vault"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["init", "--codex"])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["init", "--fullstack"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Platform focus: `fullstack`"));
+
+    let config = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(config.contains("platform = \"fullstack\""));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&second)
+        .args(["init", "--codex", "--tool"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Adapter initialized: `codex`"))
+        .stdout(predicate::str::contains("Platform focus: `tool`"));
+
+    std::env::remove_var("BARON_HOME");
+    let second_config = fs::read_to_string(second.join(".baron/project.toml")).unwrap();
+    assert!(second_config.contains("platform = \"tool\""));
 }
 
 #[test]

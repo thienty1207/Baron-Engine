@@ -1,18 +1,23 @@
 # Current Build Note
 
-Date: 2026-06-15
+Date: 2026-06-16
 
 ## Current Phase
 
-Phase 13-14 - Certification And Release (completed). Baron 2.0.0 source release
-gates are implemented and locally verified.
+Phase 15 - Simple User Flow (completed). Baron 2.1.0 keeps the 2.0 engine
+but makes the normal user path simple: setup Vault, init agent surface, choose
+platform focus, and update.
 
 ## What Is Being Built
 
-Baron 2.0 final batch delivered:
+Baron 2.1.0 current batch:
 
-- extreme-scale certification
-- hardened `v2.0.0` release
+- `baron setup --vault` can store a machine default Vault.
+- `baron init --codex`, `--claude`, or `--agent` can use that machine Vault.
+- Platform focus can be set with flags such as `--fullstack`.
+- Shortcut init supports `baron init --codex --fullstack`.
+- Top-level help and README are simplified for normal users.
+- Internal commands remain available for AI automation and diagnostics.
 
 ## Current Status
 
@@ -22,8 +27,9 @@ identity, native Codex/Claude hooks, lifecycle reconciliation, preserved custom
 routing, incremental indexing, multilingual task-aware recall, and automatic
 session import.
 
-Baron 2.0 progress is 100% as a source release. Native GitHub release asset
-publishing remains a separate operator action.
+Baron 2.0 progress is 100% as a source release. Phase 15 is an additive
+usability release on top of that engine. Native GitHub release asset publishing
+remains a separate operator action.
 
 ## Verification
 
@@ -111,6 +117,14 @@ publishing remains a separate operator action.
 - Phase 13 certification core RED/GREEN tests: passed
 - Phase 13 certification CLI RED/GREEN tests: passed
 - Phase 14 release version RED/GREEN tests: passed
+- Phase 15 setup/init/platform RED/GREEN tests: passed
+- Phase 15 top-level help simplification tests: passed
+- Phase 15 platform context test: passed
+- Phase 15 generated-agent-asset survey regression test: passed
+- Phase 15 full `cargo test --workspace --all-targets`: passed
+- Phase 15 `cargo fmt --all -- --check`: passed
+- Phase 15 `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 15 setup/init/context smoke: passed
 - `cargo fmt --all -- --check`: passed
 - `cargo test --workspace --all-targets`: passed
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed

@@ -3,8 +3,9 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use baron_core::config::{
-    find_project_root, initialize_project, load_project_config, resolve_vault_path_for_repo,
-    AdapterKind,
+    find_project_root, initialize_project, initialize_project_with_options, load_project_config,
+    resolve_vault_path_for_repo, set_project_platform, setup_machine_vault, AdapterKind,
+    ProjectPlatform,
 };
 use tempfile::tempdir;
 
@@ -20,7 +21,7 @@ fn initialize_creates_shared_and_local_config() {
     let config = initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
 
     assert_eq!(config.project_slug, "tomoty");
-    assert_eq!(config.schema_version, 2);
+    assert_eq!(config.schema_version, 3);
     assert!(!config.project_id.is_empty());
     assert_eq!(config.adapters, vec![AdapterKind::Codex]);
     assert!(config.automation.context);
@@ -29,6 +30,51 @@ fn initialize_creates_shared_and_local_config() {
     assert!(repo.join(".baron/.gitignore").exists());
     let ignore = fs::read_to_string(repo.join(".baron/.gitignore")).unwrap();
     assert!(ignore.contains("local.toml"));
+}
+
+#[test]
+fn machine_vault_setup_becomes_default_for_project_init() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    let home = temp.path().join("home");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&vault).unwrap();
+    std::env::set_var("BARON_HOME", &home);
+
+    let configured = setup_machine_vault(&vault).unwrap();
+    let resolved = resolve_vault_path_for_repo(None, &repo).unwrap();
+
+    std::env::remove_var("BARON_HOME");
+    assert_eq!(configured, vault.canonicalize().unwrap());
+    assert_eq!(resolved, vault.canonicalize().unwrap());
+    assert!(home.join("config.toml").exists());
+    assert!(vault.join("AGENTS.md").exists());
+    assert!(vault.join("Artifacts/Baron/APPROVED_GLOBAL.md").exists());
+}
+
+#[test]
+fn project_platform_focus_is_stored_and_updateable() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    let config = initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Codex),
+        &vault,
+        Some(ProjectPlatform::Fullstack),
+    )
+    .unwrap();
+    assert_eq!(config.platform, Some(ProjectPlatform::Fullstack));
+
+    let updated = set_project_platform(&repo, ProjectPlatform::Tool).unwrap();
+
+    assert_eq!(updated.platform, Some(ProjectPlatform::Tool));
+    let content = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(content.contains("platform = \"tool\""));
 }
 
 #[test]

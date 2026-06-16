@@ -55,22 +55,38 @@ fn cli_reports_the_release_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 2.0.0"));
+        .stdout(predicate::str::contains("baron 2.1.0"));
 }
 
 #[test]
-fn help_exposes_phase_nine_through_fourteen_command_groups() {
+fn top_level_help_stays_focused_on_user_commands() {
     Command::cargo_bin("baron")
         .unwrap()
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("automation"))
-        .stdout(predicate::str::contains("memory"))
-        .stdout(predicate::str::contains("control-plane"))
-        .stdout(predicate::str::contains("harness"))
-        .stdout(predicate::str::contains("certify"));
+        .stdout(predicate::str::contains("setup"))
+        .stdout(predicate::str::contains("init"))
+        .stdout(predicate::str::contains("update"))
+        .stdout(predicate::str::contains("memory").not())
+        .stdout(predicate::str::contains("automation").not())
+        .stdout(predicate::str::contains("control-plane").not())
+        .stdout(predicate::str::contains("harness").not());
 
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["init", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--codex"))
+        .stdout(predicate::str::contains("--claude"))
+        .stdout(predicate::str::contains("--agent"))
+        .stdout(predicate::str::contains("--fullstack"))
+        .stdout(predicate::str::contains("--tool"));
+}
+
+#[test]
+fn hidden_automation_commands_remain_available_for_agents() {
     Command::cargo_bin("baron")
         .unwrap()
         .args(["memory", "--help"])
