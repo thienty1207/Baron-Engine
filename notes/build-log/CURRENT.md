@@ -4,14 +4,15 @@ Date: 2026-06-15
 
 ## Current Phase
 
-Phase 13 - Extreme Scale Certification (planned). Phase 11 and Phase 12 are
-implemented and fully verified.
+Phase 13-14 - Certification And Release (in progress). Phase 11 and Phase 12
+are implemented and fully verified.
 
 ## What Is Being Built
 
-Baron 2.0 continues with two release-blocking phases:
+Baron 2.0 is now in its final release-blocking implementation batch:
 
-- extreme-scale certification and a hardened `v2.0.0` release
+- extreme-scale certification
+- hardened `v2.0.0` release
 
 ## Current Status
 
@@ -21,8 +22,9 @@ identity, native Codex/Claude hooks, lifecycle reconciliation, preserved custom
 routing, incremental indexing, multilingual task-aware recall, and automatic
 session import.
 
-Baron 2.0 progress is 80%. The remaining blockers are Phase 13 extreme-scale
-certification and Phase 14 cross-platform release hardening.
+Baron 2.0 progress is 80%. Phase 13-14 implementation is in progress. The
+remaining blocker is proof: certification, release hardening, full tests,
+Clippy, smoke checks, merge, and push.
 
 ## Verification
 
@@ -110,9 +112,10 @@ certification and Phase 14 cross-platform release hardening.
 
 ## Next Action
 
-Design and plan Phase 13 - Extreme Scale Certification. Preserve all Phase
-9-12 identity, automation, memory, semantic recall, session privacy,
-control-plane, self-improving harness, and custom-routing contracts.
+Implement Task 1 in
+`docs/superpowers/plans/2026-06-16-phase-13-14-certification-release.md`.
+Preserve all Phase 9-12 identity, automation, memory, semantic recall, session
+privacy, control-plane, self-improving harness, and custom-routing contracts.
 
 ## Phase 9-10 Feature Commits
 

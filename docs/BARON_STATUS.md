@@ -7,10 +7,10 @@ Last updated: 2026-06-16
 - Stable release: `v1.0.0` (Phase 0-8 complete)
 - Baron 2.0 completion: 80%
 - Remaining phases: 2 (Phase 13 through Phase 14)
-- Current phase: Phase 13 - Extreme Scale Certification
-- Current phase status: planned
-- Current next action: design and plan Phase 13 from the completed Phase 11-12 baseline
-- Build confidence: Phase 11-12 local acceptance, full workspace tests, Clippy, and control-plane/harness smokes pass; Baron 2.0 release claims remain unearned until Phase 13-14 and cross-platform gates pass
+- Current phase: Phase 13-14 - Certification And Release
+- Current phase status: in progress
+- Current next action: implement certification core tests before production code
+- Build confidence: Phase 11-12 local acceptance and Phase 13-14 baseline full workspace tests pass; Baron 2.0 release claims remain unearned until certification, release hardening, full verification, merge, and push pass
 
 ## Why The Roadmap Continues
 
@@ -80,8 +80,8 @@ remaining-program weights:
 | 10 | Massive Memory And Semantic Recall | completed | 25% | incremental 350-source index, 6,000-file survey, multilingual recall, session import, and bounded-context tests |
 | 11 | Skill And Agent Control Plane | completed | 20% | contract validation, conflict detection, explainable routing, quality-gate execution evidence |
 | 12 | Self-Improving Harness | completed | 15% | context score, drift audit, interventions, verify-all, proposal, and outcome-loop tests |
-| 13 | Extreme Scale Certification | planned | 15% | large-repo, large-memory, multi-project, interruption, corruption, move, rename, and soak tests |
-| 14 | Baron 2.0 Release Hardening | planned | 5% | v1 migration, cross-platform CI, installers, rollback, release assets, and final acceptance suite |
+| 13 | Extreme Scale Certification | in progress | 15% | large-repo, large-memory, multi-project, interruption, corruption, move, rename, and soak tests |
+| 14 | Baron 2.0 Release Hardening | in progress | 5% | v1 migration, cross-platform CI, installers, rollback, release assets, and final acceptance suite |
 
 ## Completion Checklist
 
@@ -283,4 +283,6 @@ Baron `1.0.0` is complete against the Phase 0-8 roadmap. Baron `2.0.0` is 80%
 complete after Phase 11-12. Future work must preserve the verified identity,
 native automation, incremental memory, semantic recall, control-plane,
 self-improving harness, adapter, proof, capability, and data-safety contracts.
-Read this file and `notes/build-log/CURRENT.md` before starting Phase 13.
+Read this file, `notes/build-log/CURRENT.md`, and
+`docs/superpowers/plans/2026-06-16-phase-13-14-certification-release.md` before
+resuming Phase 13-14.

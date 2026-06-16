@@ -6,10 +6,10 @@
   "targetRelease": "2.0.0",
   "targetReleaseCompletionPercent": 80,
   "remainingPhaseCount": 2,
-  "currentPhase": "phase-13-extreme-scale-certification",
-  "currentPhaseStatus": "planned",
-  "nextAction": "design-and-plan-phase-13",
-  "buildConfidence": "Phases 11 and 12 pass local acceptance, full workspace tests, Clippy, and control-plane/harness smokes. Version 2.0.0 claims remain unearned until phases 13 through 14 and cross-platform gates pass.",
+  "currentPhase": "phase-13-14-certification-release",
+  "currentPhaseStatus": "in_progress",
+  "nextAction": "write-failing-certification-core-tests",
+  "buildConfidence": "Phases 11 and 12 pass local acceptance. Phase 13-14 baseline full workspace tests pass. Version 2.0.0 claims remain unearned until certification, release hardening, full verification, merge, and push pass.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -224,7 +224,7 @@
     {
       "id": 13,
       "name": "Extreme Scale Certification",
-      "status": "planned",
+      "status": "in_progress",
       "targetReleaseWeightPercent": 15,
       "completionPercent": 0,
       "requiredProof": [
@@ -238,7 +238,7 @@
     {
       "id": 14,
       "name": "Baron 2.0 Release Hardening",
-      "status": "planned",
+      "status": "in_progress",
       "targetReleaseWeightPercent": 5,
       "completionPercent": 0,
       "requiredProof": [

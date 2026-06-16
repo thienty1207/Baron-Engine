@@ -1,5 +1,6 @@
 pub mod automation;
 pub mod capability;
+pub mod certification;
 pub mod config;
 pub mod context;
 pub mod control_plane;
