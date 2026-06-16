@@ -55,7 +55,7 @@ fn cli_reports_the_release_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 1.0.0"));
+        .stdout(predicate::str::contains("baron 2.0.0"));
 }
 
 #[test]

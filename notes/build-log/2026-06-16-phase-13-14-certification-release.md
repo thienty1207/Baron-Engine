@@ -29,7 +29,10 @@ Implementation started. No Phase 13-14 completion claim is valid until the certi
 - certification CLI RED test: failed because `certify` was an unrecognized subcommand
 - certification CLI GREEN tests: `cargo test -p baron-cli --test certification_cli --test cli` passed
 - certification core regression after CLI: `cargo test -p baron-core --test certification` passed
+- committed certification CLI: `ab07cf7 feat: expose certification CLI`
+- release version RED test: `cargo test -p baron-cli --test cli cli_reports_the_release_version` failed because binary still reported `baron 1.0.0`
+- release version GREEN tests: CLI version, core release tests, and release CLI tests passed after bumping the workspace to `2.0.0`
 
 ## Resume Point
 
-Task 2 CLI implementation is green. Next: commit `feat: expose certification CLI`, then write failing release/version tests for `2.0.0`.
+Task 3 version and release gate is green. Next: commit `chore: bump Baron to 2.0.0`, then update docs/status/final audit.

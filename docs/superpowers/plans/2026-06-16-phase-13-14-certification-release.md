@@ -44,7 +44,7 @@
 - [x] Write failing tests proving `baron certify status` reads the latest certification without creating new project files.
 - [x] Add `certify run|status` command handling.
 - [x] Run focused CLI tests until green.
-- [ ] Commit `feat: expose certification CLI`.
+- [x] Commit `feat: expose certification CLI`.
 
 ### Task 3: Phase 14 Version And Release Gate
 
@@ -57,10 +57,10 @@
 - Modify: `crates/baron-cli/tests/release_cli.rs`
 - Modify: `crates/baron-cli/tests/release_smoke.rs`
 
-- [ ] Write failing tests expecting CLI version and release metadata to be `2.0.0`.
-- [ ] Bump workspace version to `2.0.0`.
-- [ ] Update installer/release tests to use the `2.0.0` contract.
-- [ ] Run focused release/version tests until green.
+- [x] Write failing tests expecting CLI version and release metadata to be `2.0.0`.
+- [x] Bump workspace version to `2.0.0`.
+- [x] Update installer/release tests to use the `2.0.0` contract.
+- [x] Run focused release/version tests until green.
 - [ ] Commit `chore: bump Baron to 2.0.0`.
 
 ### Task 4: Docs, Status, And Final Audit

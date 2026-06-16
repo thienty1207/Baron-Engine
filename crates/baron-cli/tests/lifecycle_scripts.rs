@@ -36,7 +36,7 @@ fn current_target() -> &'static str {
 
 fn package_current_binary(source_dir: &Path) -> PathBuf {
     let target = supported_release_target(current_target()).unwrap();
-    let archive = source_dir.join(target.archive_name("1.0.0"));
+    let archive = source_dir.join(target.archive_name("2.0.0"));
     let binary = cargo_bin("baron");
 
     #[cfg(target_os = "windows")]
@@ -135,7 +135,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "-Action",
                 action,
                 "-Version",
-                "1.0.0",
+                "2.0.0",
                 "-InstallDir",
                 install.to_str().unwrap(),
                 "-SourceDirectory",
@@ -155,7 +155,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "--action",
                 action,
                 "--version",
-                "1.0.0",
+                "2.0.0",
                 "--install-dir",
                 install.to_str().unwrap(),
                 "--source-dir",

@@ -10,7 +10,7 @@ fn hidden_release_commands_generate_and_verify_metadata() {
     let temp = tempdir().unwrap();
     for target in SUPPORTED_RELEASE_TARGETS {
         fs::write(
-            temp.path().join(target.archive_name("1.0.0")),
+            temp.path().join(target.archive_name("2.0.0")),
             target.triple.as_bytes(),
         )
         .unwrap();
@@ -23,7 +23,7 @@ fn hidden_release_commands_generate_and_verify_metadata() {
             "metadata",
             temp.path().to_str().unwrap(),
             "--release-version",
-            "1.0.0",
+            "2.0.0",
             "--source-revision",
             "abc123",
         ])
@@ -38,5 +38,5 @@ fn hidden_release_commands_generate_and_verify_metadata() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Release assets verified"))
-        .stdout(predicate::str::contains("Version: `1.0.0`"));
+        .stdout(predicate::str::contains("Version: `2.0.0`"));
 }
