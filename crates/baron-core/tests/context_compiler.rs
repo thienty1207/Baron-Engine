@@ -252,6 +252,24 @@ fn context_prefers_baron_plan_and_loads_bounded_execution_evidence() {
 }
 
 #[test]
+fn context_includes_bounded_continuity_resume_point() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join("docs/baron/continuity")).unwrap();
+    write(
+        &repo.join("docs/baron/continuity/CURRENT.md"),
+        "# Baron Continuity Resume\n\n- Current task: `backend login auth`\n- Last checkpoint: before editing auth handler\n- Next action: continue with auth tests\n\nThis historical body must stay bounded.\n",
+    );
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Continuity Resume"));
+    assert!(bundle.contains("backend login auth"));
+    assert!(bundle.contains("continue with auth tests"));
+}
+
+#[test]
 fn context_loads_bounded_cached_capability_summary_for_active_adapter() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

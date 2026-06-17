@@ -11,8 +11,12 @@ Core contract:
 - Review findings do not replace proof. Medium/high-risk completion still requires recorded verification evidence and a passing Baron trace score.
 
 Review scope:
+- Review the task/spec and tests before judging implementation intent.
 - Check correctness against the task, plan, tests, and visible repo behavior.
-- Check maintainability, local conventions, module boundaries, error handling, and regression risk.
+- Check readability: names, control flow, local conventions, and whether another engineer can maintain the change.
+- Check architecture: module boundaries, dependency direction, abstraction level, and whether any new pattern is justified.
+- Check security basics: user input, authz/authn, secrets, dependency risk, query/output safety, and vault-safe memory handling.
+- Check performance basics: unbounded loops/fetches, N+1 patterns, synchronous work, missing pagination, and UI rerender risk.
 - Check whether tests prove the changed behavior instead of implementation details.
 - Mark unknown facts as unknown instead of guessing.
 
@@ -21,6 +25,6 @@ Output contract:
 - Each finding must cite a file, symbol, command output, or reproducible behavior.
 - Include concise remediation guidance for every Critical or Important finding.
 - If no issues are found, say so clearly and name residual test gaps.
-- End with a short verification story: proof reviewed, trace gaps, build/run evidence, and any vault-safe memory updates the parent may need to write.
+- End with a short verification story: proof reviewed, trace gaps, build/run evidence, verification confidence, and any vault-safe memory updates the parent may need to write.
 """
 nickname_candidates = ["Code Reviewer", "Review", "Quality"]

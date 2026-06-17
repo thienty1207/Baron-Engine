@@ -81,6 +81,7 @@ pub fn compile_context_for_task(
     output.push_str(&format!("- {}\n\n", risk.guidance()));
     output.push_str(&render_platform_focus(repo_path));
 
+    output.push_str(&render_continuity_resume(repo_path));
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_execution_state(repo_path));
     output.push_str(&render_execution_evidence(repo_path));
@@ -142,6 +143,22 @@ fn platform_name(platform: ProjectPlatform) -> &'static str {
     }
 }
 
+fn render_continuity_resume(repo_path: &Path) -> String {
+    let path = repo_path.join("docs/baron/continuity/CURRENT.md");
+    if !path.is_file() {
+        return String::new();
+    }
+    let mut output = String::new();
+    output.push_str("## Continuity Resume\n\n");
+    output.push_str(&bounded_file(
+        &path,
+        1_800,
+        "- no continuity resume recorded\n",
+    ));
+    output.push('\n');
+    output
+}
+
 fn platform_guidance(platform: ProjectPlatform) -> &'static str {
     match platform {
         ProjectPlatform::Frontend => "prioritize UI flows, components, accessibility, responsive behavior, and browser proof.",
@@ -179,6 +196,9 @@ pub fn compile_context_why(
     ));
     if execution_state_path(repo_path).is_some() {
         output.push_str("- Loaded: bounded execution state because the repo exposes a current plan/status file.\n");
+    }
+    if repo_path.join("docs/baron/continuity/CURRENT.md").is_file() {
+        output.push_str("- Loaded: bounded continuity resume because interrupted work needs an exact resume point.\n");
     }
     if repo_path.join("docs/baron/harness/CURRENT.md").is_file() {
         output

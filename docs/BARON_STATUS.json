@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-06-16",
-  "stableRelease": "2.1.0",
+  "lastUpdated": "2026-06-18",
+  "stableRelease": "2.2.0",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "2.1.0",
+  "targetRelease": "2.2.0",
   "targetReleaseCompletionPercent": 100,
   "remainingPhaseCount": 0,
-  "currentPhase": "phase-15-simple-user-flow",
+  "currentPhase": "phase-17-continuity-ledger-and-resume-discipline",
   "currentPhaseStatus": "completed",
   "nextAction": "publish-native-github-release-assets-when-operator-is-ready",
-  "buildConfidence": "Baron 2.1.0 keeps the Baron 2.0 engine intact while simplifying normal user setup, adapter init, platform focus, and top-level help.",
+  "buildConfidence": "Baron 2.2.0 keeps the verified 2.x engine intact while adding tighter optional skill agent routing and explicit continuity resume packets for interrupted work.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -37,7 +37,9 @@
     "harness drift context gaps repeated friction and improvement outcomes are measured",
     "extreme scale interruption corruption move rename and cross-platform tests pass",
     "normal users only need install setup Vault init agent surface choose platform and update",
-    "advanced survey context memory plan harness proof trace control-plane and automation commands stay available for AI automation without crowding the primary help flow"
+    "advanced survey context memory plan harness proof trace control-plane and automation commands stay available for AI automation without crowding the primary help flow",
+    "skill and agent refinement improves routing without creating duplicate ownership or replacing Superpowers",
+    "continuity resume packets make interrupted implementation resume points explicit and automatic for AI agents"
   ],
   "phases": [
     {
@@ -265,11 +267,41 @@
         "context surfaces configured platform focus",
         "README keeps normal user flow to install setup init platform and update"
       ]
+    },
+    {
+      "id": 16,
+      "name": "Agent Skills Refinement",
+      "status": "completed",
+      "targetReleaseWeightPercent": 60,
+      "completionPercent": 60,
+      "requiredProof": [
+        "three core agents refined without adding new core agents",
+        "frontend and security optional skills improved without duplicate ownership",
+        "optional performance API observability and migration routing added only when contracts are narrow",
+        "control-plane tests prove no recursive loading no conflicting ownership and no optional asset treated as core",
+        "adapter context and routing smoke pass"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Continuity Ledger And Resume Discipline",
+      "status": "completed",
+      "targetReleaseWeightPercent": 40,
+      "completionPercent": 40,
+      "requiredProof": [
+        "resume ledger summarizes current task last step open risks proof status and next action",
+        "AI adapter startup rules read the resume packet before continuing interrupted work",
+        "context output surfaces the resume point without dumping noisy history",
+        "tests simulate interrupted work and verify the next session resumes without guessing",
+        "normal users do not need extra commands during ordinary workflow"
+      ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
     "notes/build-log/CURRENT.md",
+    "notes/build-log/2026-06-18-baron-2-2-agent-skills-roadmap.md",
+    "docs/superpowers/plans/2026-06-18-phase-16-17-agent-skills-continuity.md",
     "docs/superpowers/specs/2026-06-15-baron-2-program-design.md",
     "notes/build-log/2026-06-15-baron-2-roadmap.md",
     "docs/specs/2026-06-08-baron-product-spec-1.0.md",

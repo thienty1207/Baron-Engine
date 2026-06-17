@@ -46,6 +46,31 @@ fn install_minimal_codex_contract(repo: &Path) {
         &repo.join(".codex/skills/vibe-security-scan/SKILL.md"),
         "---\nname: vibe-security-scan\ndescription: Use when reviewing auth, API, secrets, RLS, uploads, payment, dependency, CORS, JWT, rate limit, or access control security risks.\n---\n\n# Vibe Security Scan\n\nOptional defensive security domain skill. Superpowers remains the workflow authority. Output must include severity, evidence, fix, and verification.\n",
     );
+    for (name, description) in [
+        (
+            "api-and-interface-design",
+            "Use when designing or changing APIs, public interfaces, SDK contracts, request/response shapes, versioning, compatibility, or boundary behavior.",
+        ),
+        (
+            "observability-and-instrumentation",
+            "Use when adding logs, metrics, tracing, alerts, dashboards, SLOs, audit events, or production diagnostics.",
+        ),
+        (
+            "performance-optimization",
+            "Use when optimizing runtime speed, bundle size, database/query performance, caching, latency, throughput, or resource use.",
+        ),
+        (
+            "deprecation-and-migration",
+            "Use when migrating APIs, frameworks, data models, feature flags, config, compatibility layers, or legacy behavior.",
+        ),
+    ] {
+        write(
+            &repo.join(".codex/skills").join(name).join("SKILL.md"),
+            &format!(
+                "---\nname: {name}\ndescription: {description}\n---\n\n# {name}\n\nOptional Baron domain skill. Superpowers remains the workflow authority. Output must include evidence, risks, and verification.\n"
+            ),
+        );
+    }
     for (name, description, instructions) in [
         (
             "code-reviewer",
@@ -70,6 +95,10 @@ fn install_minimal_codex_contract(repo: &Path) {
             ),
         );
     }
+    write(
+        &repo.join(".codex/agents/web-performance-auditor.toml"),
+        "name = \"web-performance-auditor\"\ndescription = \"Optional web performance auditor for Core Web Vitals, loading, rendering, and network performance.\"\ndeveloper_instructions = \"\"\"\nBaron optional agent. Do not invoke other subagents. Never fabricate metrics. Not included in mandatory gates.\n\"\"\"\n",
+    );
 }
 
 #[test]
@@ -165,6 +194,81 @@ fn routes_security_tasks_to_security_skill_and_all_core_gates() {
         ["code-reviewer", "security-auditor", "test-engineer"]
     );
     assert!(route.explanation.contains("security-sensitive task"));
+}
+
+#[test]
+fn routes_optional_domain_skills_without_making_them_core() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let api = route_task(
+        repo,
+        "design public REST API request response contract and compatibility",
+        RiskLane::Medium,
+    )
+    .unwrap();
+    assert!(api
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "api-and-interface-design"));
+    assert!(!api
+        .mandatory_agents
+        .contains(&"web-performance-auditor".to_string()));
+
+    let observability = route_task(
+        repo,
+        "add tracing metrics logs and alerting for checkout latency",
+        RiskLane::Medium,
+    )
+    .unwrap();
+    assert!(observability
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "observability-and-instrumentation"));
+
+    let migration = route_task(
+        repo,
+        "migrate legacy billing schema without breaking old clients",
+        RiskLane::High,
+    )
+    .unwrap();
+    assert!(migration
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "deprecation-and-migration"));
+    assert_eq!(
+        migration.mandatory_agents,
+        ["code-reviewer", "security-auditor", "test-engineer"]
+    );
+}
+
+#[test]
+fn routes_web_performance_to_optional_agent_without_fabricated_metrics() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let route = route_task(
+        repo,
+        "audit Next.js homepage Core Web Vitals LCP INP CLS and bundle size",
+        RiskLane::Medium,
+    )
+    .unwrap();
+
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "performance-optimization"));
+    assert!(route
+        .optional_agents
+        .iter()
+        .any(|item| item.name == "web-performance-auditor"));
+    assert_eq!(route.mandatory_agents, ["code-reviewer", "test-engineer"]);
+    assert!(route
+        .skipped
+        .iter()
+        .any(|item| item.contains("security-auditor not mandatory")));
 }
 
 #[test]

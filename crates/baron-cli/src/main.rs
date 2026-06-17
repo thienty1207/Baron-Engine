@@ -21,6 +21,7 @@ use baron_core::config::{
     ProjectPlatform,
 };
 use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
+use baron_core::continuity::{continuity_status, record_continuity_checkpoint};
 use baron_core::control_plane::{
     gate_evidence_status, record_gate_evidence, route_task, validate_control_plane,
 };
@@ -182,6 +183,11 @@ enum Commands {
     Automation {
         #[command(subcommand)]
         command: AutomationCommands,
+    },
+    #[command(hide = true)]
+    Continuity {
+        #[command(subcommand)]
+        command: ContinuityCommands,
     },
     #[command(hide = true)]
     Release {
@@ -419,6 +425,17 @@ enum AutomationCommands {
         repo_path: Option<PathBuf>,
         #[arg(long, value_enum)]
         adapter: AdapterArg,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ContinuityCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Checkpoint {
+        note: String,
+        repo_path: Option<PathBuf>,
     },
 }
 
@@ -1107,6 +1124,14 @@ fn run() -> Result<()> {
                 for agent in &route.mandatory_agents {
                     println!("- `{agent}`");
                 }
+                println!("\n## Optional Agents\n");
+                if route.optional_agents.is_empty() {
+                    println!("- none");
+                } else {
+                    for agent in &route.optional_agents {
+                        println!("- `{}`: {}", agent.name, agent.reason);
+                    }
+                }
                 println!("\n## Skipped\n");
                 if route.skipped.is_empty() {
                     println!("- none");
@@ -1195,6 +1220,31 @@ fn run() -> Result<()> {
                     "{}",
                     handle_hook(&repo_root, &vault, adapter.into(), event.into(), &payload)?
                 );
+            }
+        },
+        Some(Commands::Continuity { command }) => match command {
+            ContinuityCommands::Status { repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                print!("{}", continuity_status(&repo_root, &vault)?);
+            }
+            ContinuityCommands::Checkpoint { note, repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let packet = record_continuity_checkpoint(
+                    &repo_root,
+                    &vault,
+                    &note,
+                    adapter_kind_name(
+                        load_project_config(&repo_root)?
+                            .adapters
+                            .first()
+                            .copied()
+                            .unwrap_or(AdapterKind::Generic),
+                    ),
+                )?;
+                println!("# Baron Continuity Checkpoint\n");
+                println!("- Note: {}", note);
+                println!("- Repo packet: `{}`", packet.repo_path.display());
+                println!("- Vault packet: `{}`", packet.vault_path.display());
             }
         },
         Some(Commands::Release { command }) => match command {

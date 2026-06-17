@@ -188,6 +188,27 @@ baron harness outcome <proposal-id> "<actual outcome>" [repo-path]
 
 The self-improving harness audits context reads, proof gaps, trace gaps,
 documentation drift, interventions, friction patterns, and proposal outcomes.
+
+## Phase 16
+
+No new normal-user command is introduced. Phase 16 expands control-plane routing
+so `baron control-plane route "<task>"` can select narrow optional skills for
+API/interface design, observability, performance, migration/deprecation, and an
+optional web performance auditor. Superpowers remains the workflow core, and the
+mandatory quality agents remain `code-reviewer`, `security-auditor`, and
+`test-engineer`.
+
+## Phase 17
+
+```bash
+baron continuity status [repo-path]
+baron continuity checkpoint "<current state and next action>" [repo-path]
+```
+
+These commands are hidden from top-level help and are meant for AI automation,
+adapter instructions, diagnostics, and recovery. Native hooks also refresh the
+continuity packet automatically. Normal users should not need to run them during
+ordinary work.
 It proposes improvements but does not rewrite core policy without human
 approval.
 

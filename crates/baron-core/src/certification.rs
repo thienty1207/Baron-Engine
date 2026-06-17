@@ -12,7 +12,7 @@ use crate::release::SUPPORTED_RELEASE_TARGETS;
 use crate::survey::survey_repository;
 use crate::vault::{ensure_vault, VaultContext};
 
-const TARGET_RELEASE: &str = "2.1.0";
+const TARGET_RELEASE: &str = "2.2.0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

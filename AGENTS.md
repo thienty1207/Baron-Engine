@@ -15,9 +15,9 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completed the first stable foundation. Baron `v2.1.0` keeps the
-Baron 2.x engine and adds the simple user setup flow: install, setup Vault,
-init adapter, choose platform focus.
+Baron `v1.0.0` completed the first stable foundation. Baron `v2.2.0` keeps the
+Baron 2.x engine, preserves the simple user setup flow, refines skill/agent
+routing, and adds an explicit continuity resume ledger for interrupted work.
 
 The current source command surface is:
 
@@ -48,6 +48,7 @@ The current source command surface is:
 - `baron migrate <status|rollback>`
 - `baron capability <register|check|list|remove>`
 - `baron automation <status|reconcile|hook>`
+- `baron continuity <status|checkpoint>`
 - `baron control-plane <status|route|record-gate|evidence>`
 - `baron harness <audit|verify-all|intervention|propose|outcome>`
 - `baron certify <run|status>`
@@ -66,7 +67,9 @@ interventions, improvement proposals, and outcome tracking. Phase 13-14 add
 extreme-scale certification and Baron 2.0 release hardening.
 Phase 15 keeps those internals available but hides the command clutter from the
 normal README and top-level help so users only handle install, Vault setup,
-adapter init, platform focus, and update.
+adapter init, platform focus, and update. Phase 16-17 refine optional
+skill/agent routing and add Continuity Ledger checkpoints so interrupted work
+resumes from evidence instead of memory guesses.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -118,6 +121,12 @@ exact resume point.
 - Baron may ship bundled optional domain skills:
   - `frontend-design`
   - `vibe-security-scan`
+  - `api-and-interface-design`
+  - `observability-and-instrumentation`
+  - `performance-optimization`
+  - `deprecation-and-migration`
+- Baron may ship optional agents such as `web-performance-auditor`, but optional
+  agents are not core gates and do not count as mandatory gate evidence.
 - Optional skills and optional agents must stay lazy-loaded and routed.
 - AI agents must not recursively read all skills, agents, docs, or memory.
 - Unknown facts must be marked unknown instead of guessed.
@@ -155,6 +164,11 @@ exact resume point.
 
 Use `notes/build-log/` while Baron is being built. Keep `CURRENT.md` updated
 when work starts, changes direction, gets interrupted, or finishes a phase.
+
+During meaningful implementation, record a continuity checkpoint before edits,
+after direction changes, before interruption, and before final response. The
+resume packet must identify current task, last checkpoint, proof status, trace
+status, and next action.
 
 This folder is temporary and can be deleted after Baron reaches a mature release.
 Do not put source-of-truth product decisions only in build notes.

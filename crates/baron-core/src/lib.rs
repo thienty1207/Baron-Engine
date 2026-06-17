@@ -3,6 +3,7 @@ pub mod capability;
 pub mod certification;
 pub mod config;
 pub mod context;
+pub mod continuity;
 pub mod control_plane;
 pub mod firewall;
 pub mod harness;
@@ -24,7 +25,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-14-baron-2-release"
+    "phase-16-17-agent-skills-continuity"
 }
 
 #[cfg(test)]
@@ -34,6 +35,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-14-baron-2-release");
+        assert_eq!(phase(), "phase-16-17-agent-skills-continuity");
     }
 }

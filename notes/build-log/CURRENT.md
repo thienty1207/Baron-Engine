@@ -1,35 +1,37 @@
 # Current Build Note
 
-Date: 2026-06-16
+Date: 2026-06-18
 
 ## Current Phase
 
-Phase 15 - Simple User Flow (completed). Baron 2.1.0 keeps the 2.0 engine
-but makes the normal user path simple: setup Vault, init agent surface, choose
-platform focus, and update.
+Phase 16-17 - Agent Skills Refinement And Continuity Ledger (completed).
+Baron 2.2.0 is an additive intelligence and continuity release, not a rewrite
+of the verified Baron core.
 
 ## What Is Being Built
 
-Baron 2.1.0 current batch:
+Baron 2.2.0 planned batch:
 
-- `baron setup --vault` can store a machine default Vault.
-- `baron init --codex`, `--claude`, or `--agent` can use that machine Vault.
-- Platform focus can be set with flags such as `--fullstack`.
-- Shortcut init supports `baron init --codex --fullstack`.
-- Top-level help and README are simplified for normal users.
-- Internal commands remain available for AI automation and diagnostics.
+- Phase 16 refines the 3 core agents and optional domain skills using strong external rubric ideas without copying another repo into Baron.
+- Phase 16 adds narrow optional API/interface, observability, performance, migration guidance, and optional web performance auditing.
+- Phase 16 keeps Superpowers as workflow core and keeps optional assets lazy-routed.
+- Phase 17 turns the existing status/build-log/plan/trace/journal habit into a clear Continuity Ledger feature for interrupted work.
+- Phase 17 updates native hooks, hidden AI commands, adapter instructions, and context output so resume points are automatic.
+- Phase 17 must stay automatic for AI agents; normal users should not need extra commands.
 
 ## Current Status
 
-Phase 8 is merged to `main`, tagged `v1.0.0`, and published on GitHub. Phase 9
-and Phase 10 are implemented in an isolated worktree with stored project
-identity, native Codex/Claude hooks, lifecycle reconciliation, preserved custom
-routing, incremental indexing, multilingual task-aware recall, and automatic
-session import.
+Baron 2.2.0 is the current source release. Phase 16 and Phase 17 implementation
+is in place and verified.
 
-Baron 2.0 progress is 100% as a source release. Phase 15 is an additive
-usability release on top of that engine. Native GitHub release asset publishing
-remains a separate operator action.
+Current resume point:
+
+- RED tests were added for optional skill/agent routing and continuity.
+- Phase 16 assets/control-plane implementation is in place.
+- Phase 17 continuity module, context integration, hooks, and hidden CLI commands are in place.
+- Targeted tests for control-plane, continuity, adapter lifecycle, and automation CLI have passed at least once.
+- Full workspace test, format check, Clippy, and temp repo smoke have passed.
+- Commit and push are the only remaining actions in this turn.
 
 ## Verification
 
@@ -129,11 +131,16 @@ remains a separate operator action.
 - `cargo test --workspace --all-targets`: passed
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - temp repo smoke for init, memory index, context, control-plane route, harness audit, certification, certification status, release metadata, and release verification: passed
+- Phase 16-17 targeted RED/GREEN tests for adapter lifecycle, control-plane routing, continuity, automation CLI, and context resume: passed
+- Phase 16-17 full `cargo fmt --all -- --check`: passed
+- Phase 16-17 full `cargo test --workspace --all-targets`: passed
+- Phase 16-17 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 16-17 temp repo smoke for setup, init, optional skill routing, optional web performance agent routing, continuity checkpoint/status, and context resume: passed
 
 ## Next Action
 
-Commit docs/status, run final `git diff --check`, merge `codex/phase-13-14`
-into `main`, and push `origin/main`.
+Run final `docs/BARON_STATUS.json` parse and `git diff --check`, then commit
+and push `origin/main`.
 
 ## Phase 9-10 Feature Commits
 
@@ -221,7 +228,7 @@ into `main`, and push `origin/main`.
 
 - Superpowers remains the workflow core.
 - Core agents are `code-reviewer`, `security-auditor`, `test-engineer`.
-- Optional bundled domain skills are `frontend-design` and `vibe-security-scan`.
+- Optional bundled domain skills include `frontend-design`, `vibe-security-scan`, `api-and-interface-design`, `observability-and-instrumentation`, `performance-optimization`, and `deprecation-and-migration`.
 - Baron must support Codex, Claude, and generic agents through adapters.
 - Shadow-first onboarding is mandatory for old repos.
 - Migration imports data, not Agent Bootstrap architecture or runtime.

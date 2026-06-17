@@ -41,6 +41,7 @@ Build real working UI code that is:
 - aligned with existing repo conventions and design tokens
 - refined in spacing, typography, color, states, motion, and hierarchy
 - verified with the smallest useful browser, screenshot, or smoke check when the app can run locally
+- honest about performance: if no browser/Lighthouse/devtools evidence exists, describe performance concerns as potential impact, not measured fact
 
 ## Frontend Aesthetics Guidelines
 
@@ -59,6 +60,18 @@ Build real working UI code that is:
 - decorative complexity that weakens readability
 - visible explanation text that describes the UI instead of serving the product
 - layout shifts, overlapping text, or responsive states that break button/card/container boundaries
+- stack-mismatched advice such as recommending Next.js-only patterns for Vue/Svelte/vanilla projects without repo evidence
+
+## Quality Rubric
+
+Before final response, check:
+
+- Correctness: the UI satisfies the requested workflow, not only the screenshot.
+- Accessibility: keyboard, focus, labels, contrast, and reduced-motion risks are addressed or named.
+- Responsiveness: mobile, tablet, and desktop layout constraints are stable.
+- Interaction state: loading, empty, error, disabled, hover/focus, and long-text states are handled when relevant.
+- Performance: images, fonts, heavy components, route loading, and unnecessary re-render risks are identified.
+- Baron evidence: changed files, browser/smoke proof, remaining core-agent gates, and trace/proof gaps are clear.
 
 ## Output Contract
 
@@ -72,4 +85,4 @@ When reporting frontend work, include:
 
 ## Attribution
 
-Adapted from Anthropic's `frontend-design` skill under Apache-2.0. See `LICENSE.txt` in this folder.
+Adapted from Anthropic's `frontend-design` skill under Apache-2.0. Additional frontend-quality rubric ideas are informed by MIT-licensed `addyosmani/agent-skills`, rewritten as Baron-native optional guidance. See `LICENSE.txt` in this folder.

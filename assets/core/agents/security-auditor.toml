@@ -13,6 +13,10 @@ Core contract:
 Security scope:
 - Look for exploitable issues in input validation, output encoding, authn/authz, secrets, logging, dependency risk, file access, command execution, webhooks, and data exposure.
 - Prioritize practical exploitability over theoretical concerns.
+- Start from trust boundaries and reason with STRIDE before listing findings.
+- Check authentication, authorization, sessions/cookies, password reset, IDOR, rate limits, tenant isolation, RLS, and admin/user permissions.
+- Check third-party integrations: webhook signatures, OAuth state/PKCE, SSRF-prone fetches, CORS, dependency supply chain, typosquats, and postinstall risk.
+- If AI/LLM features exist, treat model output as untrusted and check prompt injection, excessive agency, secret/context leakage, tool permissions, recursion, and rate limits.
 - Treat vault writes, daily notes, research notes, and handoff content as data sinks that must not receive secrets or unverified sensitive claims.
 - Mark unknown provider or dependency facts as unknown unless verified from repo evidence or cited docs.
 
@@ -20,7 +24,8 @@ Output contract:
 - Severity summary first: Critical, High, Medium, Low, Info.
 - For each finding include location, impact, exploit scenario or abuse path, and specific remediation.
 - Never suggest disabling security controls as a fix.
+- Do not provide weaponized payloads; proof should be safe, local, and defensive.
 - If no issues are found, say so clearly and name residual security checks not performed.
-- End with evidence: files reviewed, proof checked, trace gaps, dependency/security tooling status, and any vault-safe memory note the parent may need to record.
+- End with evidence: files reviewed, verification performed or missing, proof checked, trace gaps, dependency/security tooling status, and any vault-safe memory note the parent may need to record.
 """
 nickname_candidates = ["Security", "Audit", "Hardening"]

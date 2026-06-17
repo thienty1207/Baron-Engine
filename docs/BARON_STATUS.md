@@ -1,16 +1,16 @@
 # Baron Build Status
 
-Last updated: 2026-06-16
+Last updated: 2026-06-18
 
 ## Overall
 
-- Stable source release: `v2.1.0`
+- Stable source release: `v2.2.0`
 - Baron 2.0 completion: 100%
-- Remaining phases: 0
-- Current phase: Phase 15 - Simple User Flow
+- Remaining planned phases: 0
+- Current phase: Phase 17 - Continuity Ledger And Resume Discipline
 - Current phase status: completed
 - Current next action: publish native GitHub release assets only when the operator is ready
-- Build confidence: Baron 2.1.0 keeps the 2.0 engine intact while simplifying the normal user flow to install, setup Vault, init agent surface, choose platform, and update.
+- Build confidence: Baron 2.2.0 keeps the verified 2.x engine intact while adding tighter optional skill/agent routing and explicit continuity resume packets for interrupted work.
 
 ## Why The Roadmap Is Complete
 
@@ -86,6 +86,20 @@ remaining-program weights:
 | 13 | Extreme Scale Certification | completed | 15% | certification core/CLI tests, cache-corruption recovery, shared-Vault firewall, context-budget, and smoke certification |
 | 14 | Baron 2.0 Release Hardening | completed | 5% | version `2.0.0`, release metadata tests, installer lifecycle tests, full suite, Clippy, release metadata smoke |
 | 15 | Simple User Flow | completed | additive | user-facing setup/init/platform flow, hidden automation command help, README simplification, targeted setup/init/context tests |
+
+Baron 2.2 planned additive program:
+
+| Phase | Name | Status | Baron 2.2 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 16 | Agent Skills Refinement | completed | 60% | refined 3 core agents, upgraded optional frontend/security skills, optional performance/API/observability/migration routing, contract tests, adapter smoke |
+| 17 | Continuity Ledger And Resume Discipline | completed | 40% | explicit resume ledger, interruption-safe current work packet, generated adapter rules, lifecycle tests, context recovery smoke |
+
+Phase 16-17 final verification:
+
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Temp repo smoke for setup, init, optional skill routing, optional web performance agent routing, continuity checkpoint/status, and context resume: passed
 
 ## Completion Checklist
 
@@ -264,6 +278,25 @@ remaining-program weights:
 - [x] Keep top-level help and README focused on normal user commands while keeping advanced commands available for AI automation and diagnostics.
 - [x] Surface platform focus in generated context and adapter startup guidance.
 
+### Phase 16 - Agent Skills Refinement
+
+- [x] Upgrade the 3 Baron core agents using strong external rubric ideas without copying another repo as Baron's architecture.
+- [x] Keep `code-reviewer`, `security-auditor`, and `test-engineer` as the only core quality agents.
+- [x] Improve `frontend-design` and `vibe-security-scan` instead of adding duplicate frontend/security skills.
+- [x] Add only narrow optional skills or agents when Baron lacks that domain, such as web performance, API/interface design, observability, performance optimization, or migration/deprecation guidance.
+- [x] Update Baron control-plane routing so optional assets auto-trigger only for matching tasks and never replace Superpowers.
+- [x] Add contract tests proving no recursive loading, no duplicate ownership, no unsafe security instructions, and no optional asset is treated as core.
+- [x] Run full workspace tests, Clippy, adapter smoke, and context/routing smoke before marking complete.
+
+### Phase 17 - Continuity Ledger And Resume Discipline
+
+- [x] Productize the existing build-log, active plan, trace, and automation journal behavior into one explicit Baron resume contract.
+- [x] Ensure every meaningful feature implementation writes a current-work checkpoint before edits, after direction changes, before interruption, and before completion.
+- [x] Add or tighten adapter startup guidance so Codex, Claude, and generic agents read the resume packet before continuing interrupted work.
+- [x] Make context output show the current resume point without dumping noisy history.
+- [x] Add tests that simulate a stopped session and verify the next agent can identify current task, last completed step, open risks, proof status, and next action.
+- [x] Keep the feature automatic for AI; normal users should not need to run extra commands during ordinary work.
+
 ## Current Working Files
 
 - Product spec: `docs/specs/2026-06-08-baron-product-spec-1.0.md`
@@ -291,13 +324,15 @@ remaining-program weights:
 - Baron 2.0 final audit: `docs/assessment/2026-06-16-baron-2-final-audit.md`
 - Phase 13-14 plan: `docs/superpowers/plans/2026-06-16-phase-13-14-certification-release.md`
 - Phase 13-14 build log: `notes/build-log/2026-06-16-phase-13-14-certification-release.md`
+- Phase 16-17 plan: `docs/superpowers/plans/2026-06-18-phase-16-17-agent-skills-continuity.md`
+- Baron 2.2 planning log: `notes/build-log/2026-06-18-baron-2-2-agent-skills-roadmap.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `2.1.0` keeps the full 2.0 engine and adds the simplified user-facing
-flow. Future work must preserve the verified identity, native automation,
-incremental memory, semantic recall, control-plane, self-improving harness,
-certification, adapter, proof, capability, and data-safety contracts while
-keeping normal users away from internal automation command clutter. Publishing
-native GitHub release assets is a separate operator action.
+Baron `2.2.0` keeps the full 2.0 engine, the simplified user-facing flow, and
+adds additive skill/agent intelligence plus continuity resume discipline. Future
+work must preserve the verified identity, native
+automation, incremental memory, semantic recall, control-plane, self-improving
+harness, certification, adapter, proof, capability, and data-safety contracts
+while keeping normal users away from internal automation command clutter.

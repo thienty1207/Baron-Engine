@@ -196,11 +196,13 @@ fn startup_contract(agent: &str, adapter: &str) -> String {
 You are using Baron through the {agent} adapter.\n\n\
 - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
 - At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\
+- At session start and after interruption, silently inspect `baron continuity status`; resume from its current task, last checkpoint, proof status, trace status, and next action before guessing.\n\
 - Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
 - Before selecting skills or agents for meaningful work, silently run `baron control-plane route \"<task>\"` and follow the selected/skipped explanation.\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\
 - Create harness intake for medium/high-risk work.\n\
+- Before edits, direction changes, interruptions, and final responses for meaningful work, record `baron continuity checkpoint \"<current state and next action>\"`.\n\
 - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
 - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\
 - After each mandatory quality gate actually runs, record it with `baron control-plane record-gate <agent> \"<evidence summary>\"`.\n\
@@ -226,6 +228,10 @@ Run `baron control-plane route \"<task>\"` before loading optional skills.\n\n\
 | Superpowers | workflow core | planning, TDD, debugging, review, verification | never optional | plan/proof/trace discipline | no other skill may claim workflow ownership |\n\
 | `frontend-design` | optional frontend domain | UI, layout, responsive, accessibility, browser-facing flows | backend-only, CLI-only, security-only tasks | files/screens reviewed, UI verification | must not replace Superpowers or quality gates |\n\
 | `vibe-security-scan` | optional defensive security domain | auth, API, secrets, RLS, uploads, payment, dependencies, permissions | visual-only or copy-only tasks | severity, evidence, fix, verification | must not replace `security-auditor` final gate |\n\n\
+| `api-and-interface-design` | optional API/interface domain | API contracts, request/response shape, SDK/public interface, compatibility | implementation-only tasks that do not change boundaries | contract risks, versioning impact, verification | must not replace Superpowers planning or tests |\n\
+| `observability-and-instrumentation` | optional operations domain | logs, metrics, tracing, alerts, SLOs, audit events, diagnostics | tasks with no runtime/operations impact | signal list, gaps, proof hooks | must not fabricate production behavior |\n\
+| `performance-optimization` | optional performance domain | latency, runtime speed, bundle size, cache, loading, database/query performance | cosmetic-only or security-only tasks | measured or potential impact, verification | must not fabricate metrics |\n\
+| `deprecation-and-migration` | optional migration domain | legacy behavior, migrations, deprecations, compatibility, rollout/rollback | greenfield work with no compatibility risk | migration plan, compatibility proof, rollback | must not bypass proof gates |\n\n\
 Skill root: `{root}`.\n"
     )
 }
@@ -238,7 +244,8 @@ Run `baron control-plane route \"<task>\"` before dispatch. After a gate actuall
 | --- | --- | --- | --- | --- | --- |\n\
 | `code-reviewer` | core quality gate | meaningful code change, medium/high-risk work | pure docs/status-only updates unless requested | findings or no-issue review with files/proof/trace gaps | must not plan, implement, or call subagents |\n\
 | `security-auditor` | core security gate | auth, permission, tenant/RLS, secrets, upload, payment, dependency, security-sensitive work | non-security low-risk work | severity, evidence, impact, fix, verification | must not provide weaponized exploit steps or call subagents |\n\
-| `test-engineer` | core verification gate | implementation, bugfix, release, proof, regression concern | none for meaningful implementation | exact commands, outcomes, missing coverage | must not replace actual test/proof execution |\n"
+| `test-engineer` | core verification gate | implementation, bugfix, release, proof, regression concern | none for meaningful implementation | exact commands, outcomes, missing coverage | must not replace actual test/proof execution |\n\
+| `web-performance-auditor` | optional web performance gate | Core Web Vitals, Lighthouse, LCP, INP, CLS, bundle/loading/rendering performance | non-web or non-performance tasks | metric source or potential-impact label | optional web performance only; not included in mandatory gates |\n"
         .to_string()
 }
 
@@ -286,6 +293,10 @@ fn write_claude_agents(repo: &Path) -> Result<()> {
         (
             "test-engineer",
             "Identify the smallest sufficient proof, missing coverage, and exact verification evidence. Never replace tests with confidence.",
+        ),
+        (
+            "web-performance-auditor",
+            "Optional web performance auditor. Use only for web performance tasks. Never fabricate metrics; mark static findings as potential impact. Not included in mandatory gates.",
         ),
     ];
     for (name, instructions) in agents {

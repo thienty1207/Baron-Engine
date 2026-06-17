@@ -88,11 +88,14 @@ Use only these canonical rule IDs. If an issue is real but does not fit perfectl
 
 1. Confirm the authorized local repo path and requested scope.
 2. Map the attack surface: auth, authorization, API/server actions, database access, uploads, external URLs, background jobs, webhooks, dependencies, env/config, logging, and vault-sensitive memory.
-3. Detect languages and load the relevant generic rules plus overlays.
-4. Search for leads with `rg`, then read surrounding code and data flow before calling anything a finding.
-5. Classify data trust using `references/data-flow-classification.md`.
-6. Separate confirmed findings from unknowns, assumptions, skipped checks, and false positives.
-7. Recommend fixes that preserve controls; never suggest disabling validation, auth, CSRF, rate limits, TLS, RLS, or audit logging as a shortcut.
+3. Start from trust boundaries and reason with STRIDE before enumerating findings.
+4. Detect languages and load the relevant generic rules plus overlays.
+5. Search for leads with `rg`, then read surrounding code and data flow before calling anything a finding.
+6. Classify data trust using `references/data-flow-classification.md`.
+7. Check AI/LLM surfaces when present: prompt injection, tool permissions, secret/context leakage, model output into SQL/shell/HTML/file paths, recursion, and rate limits.
+8. Check supply-chain risk when dependencies change: typosquats, postinstall scripts, lockfile drift, abandoned packages, and known CVEs when tooling is available.
+9. Separate confirmed findings from unknowns, assumptions, skipped checks, and false positives.
+10. Recommend fixes that preserve controls; never suggest disabling validation, auth, CSRF, rate limits, TLS, RLS, or audit logging as a shortcut.
 
 ## Output Contract
 
@@ -120,6 +123,7 @@ End with:
 - files or surfaces reviewed
 - unknowns and residual checks
 - whether the core `security-auditor` should perform a final independent gate review
+- Baron proof/trace gaps that block high-risk completion
 
 ## References
 
@@ -130,3 +134,7 @@ End with:
 - `workflows/large-review-sequential.md`: bounded large scan flow
 - `rules/generic/`: canonical rules
 - `rules/languages/`: language-specific overlays
+
+## Additional Attribution
+
+Security audit rubric ideas such as trust-boundary-first review, STRIDE framing, AI/LLM security checks, webhook/OAuth/SSRF, and supply-chain review are informed by MIT-licensed `addyosmani/agent-skills`, rewritten as Baron-native defensive guidance.

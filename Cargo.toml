@@ -10,4 +10,4 @@ members = [
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/thienty1207/baron-engine"
-version = "2.1.0"
+version = "2.2.0"

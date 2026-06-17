@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::context::{compile_context, ContextTarget};
+use crate::continuity::record_continuity_checkpoint;
 use crate::proof::latest_proof;
 use crate::trace::latest_trace_score;
 use crate::vault::VaultContext;
@@ -84,6 +85,12 @@ pub fn handle_hook(
                 adapter,
                 session_id,
             },
+        )?;
+        record_continuity_checkpoint(
+            repo_root,
+            vault,
+            &format!("{} hook observed.", event_name(event)),
+            adapter_name(adapter),
         )?;
     }
 
@@ -292,6 +299,14 @@ fn event_name(event: AutomationEvent) -> &'static str {
         AutomationEvent::ProofRecorded => "proof_recorded",
         AutomationEvent::TraceScored => "trace_scored",
         AutomationEvent::Stop => "stop",
+    }
+}
+
+fn adapter_name(adapter: HookAdapter) -> &'static str {
+    match adapter {
+        HookAdapter::Codex => "codex",
+        HookAdapter::Claude => "claude",
+        HookAdapter::Agent => "agent",
     }
 }
 

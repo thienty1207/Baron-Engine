@@ -28,6 +28,7 @@ pub struct RoutingDecision {
 pub struct RouteReport {
     pub selected_skills: Vec<RoutingDecision>,
     pub mandatory_agents: Vec<String>,
+    pub optional_agents: Vec<RoutingDecision>,
     pub skipped: Vec<String>,
     pub explanation: String,
 }
@@ -143,6 +144,75 @@ pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Re
             "browser",
         ],
     );
+    let api = contains_any(
+        &task_lower,
+        &[
+            "api",
+            "endpoint",
+            "rest",
+            "graphql",
+            "interface",
+            "contract",
+            "request",
+            "response",
+            "sdk",
+            "versioning",
+            "compatibility",
+            "public contract",
+        ],
+    );
+    let observability = contains_any(
+        &task_lower,
+        &[
+            "observability",
+            "instrumentation",
+            "log",
+            "logging",
+            "metric",
+            "metrics",
+            "tracing",
+            "alert",
+            "slo",
+            "monitor",
+            "audit event",
+            "dashboard telemetry",
+        ],
+    );
+    let performance = contains_any(
+        &task_lower,
+        &[
+            "performance",
+            "latency",
+            "slow",
+            "speed",
+            "throughput",
+            "cache",
+            "caching",
+            "bundle",
+            "core web vitals",
+            "lcp",
+            "inp",
+            "cls",
+            "lighthouse",
+            "pagespeed",
+            "rendering",
+            "loading",
+        ],
+    );
+    let migration = contains_any(
+        &task_lower,
+        &[
+            "migration",
+            "migrate",
+            "deprecate",
+            "deprecated",
+            "legacy",
+            "backward",
+            "compatibility",
+            "breaking change",
+            "schema migration",
+        ],
+    );
     let security = risk == RiskLane::High
         || contains_any(
             &task_lower,
@@ -187,6 +257,52 @@ pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Re
                 .to_string(),
         );
     }
+    if api {
+        selected_skills.push(RoutingDecision {
+            name: "api-and-interface-design".to_string(),
+            reason: "task changes API/interface contracts or compatibility".to_string(),
+        });
+    } else {
+        skipped.push(
+            "api-and-interface-design skipped: task does not match API/interface trigger"
+                .to_string(),
+        );
+    }
+    if observability {
+        selected_skills.push(RoutingDecision {
+            name: "observability-and-instrumentation".to_string(),
+            reason: "task touches logs, metrics, tracing, alerting, or operational diagnostics"
+                .to_string(),
+        });
+    } else {
+        skipped.push(
+            "observability-and-instrumentation skipped: task does not match observability trigger"
+                .to_string(),
+        );
+    }
+    if performance {
+        selected_skills.push(RoutingDecision {
+            name: "performance-optimization".to_string(),
+            reason: "task touches latency, runtime, loading, bundle, cache, or resource usage"
+                .to_string(),
+        });
+    } else {
+        skipped.push(
+            "performance-optimization skipped: task does not match performance trigger".to_string(),
+        );
+    }
+    if migration {
+        selected_skills.push(RoutingDecision {
+            name: "deprecation-and-migration".to_string(),
+            reason: "task changes legacy behavior, migration path, deprecation, or compatibility"
+                .to_string(),
+        });
+    } else {
+        skipped.push(
+            "deprecation-and-migration skipped: task does not match migration/deprecation trigger"
+                .to_string(),
+        );
+    }
 
     let mandatory_agents = if security || risk == RiskLane::High {
         CORE_AGENTS.iter().map(|value| value.to_string()).collect()
@@ -198,6 +314,27 @@ pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Re
     } else {
         vec!["test-engineer".to_string()]
     };
+    let mut optional_agents = Vec::new();
+    if frontend && performance {
+        optional_agents.push(RoutingDecision {
+            name: "web-performance-auditor".to_string(),
+            reason: "web task asks for performance/Core Web Vitals/loading/rendering review"
+                .to_string(),
+        });
+    } else {
+        skipped.push(
+            "web-performance-auditor skipped: task is not a web performance audit".to_string(),
+        );
+    }
+    if !mandatory_agents
+        .iter()
+        .any(|agent| agent == "security-auditor")
+    {
+        skipped.push(
+            "security-auditor not mandatory: no security-sensitive trigger was selected"
+                .to_string(),
+        );
+    }
     let explanation = if !report.passed {
         format!(
             "control plane has diagnostics; routing is advisory until fixed: {}",
@@ -217,6 +354,7 @@ pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Re
     Ok(RouteReport {
         selected_skills,
         mandatory_agents,
+        optional_agents,
         skipped,
         explanation,
     })

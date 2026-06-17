@@ -13,17 +13,18 @@ one durable engine:
 - active plan state
 - product harness
 - proof and trace quality gates
+- continuity resume ledger for interrupted work
 - capability-aware tool routing and evidence
 - adapter-specific output for Codex, Claude, Cursor, and generic agents
 
 ## Stable Release
 
-Current version: `2.1.0`.
+Current version: `2.2.0`.
 
 Survey, Vault Memory Firewall, Context Compiler, multi-agent adapters, Active
 Plan State, Product Harness, proof gates, trace quality, transactional legacy
-migration, capability routing, release lifecycle, and the simple user setup flow
-are implemented.
+migration, capability routing, continuity resume, refined skill/agent routing,
+release lifecycle, and the simple user setup flow are implemented.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
@@ -64,6 +65,7 @@ Baron should help an AI agent answer these questions before it edits code:
 - How risky is this task?
 - What proof is required before claiming completion?
 - Which trace should be left for the next agent session?
+- If the session was interrupted, where exactly should the next agent resume?
 - Which adapter format does this agent tool need?
 - Which registered capability providers are present and compatible?
 - Which tool-backed claims have real execution evidence?
@@ -151,7 +153,8 @@ After init, the user should not need to manually run survey, context, memory,
 plan, harness, proof, trace, control-plane, or automation commands during normal
 work. Baron installs adapter instructions and native hooks where supported, so
 AI agents load context, route skills, check memory, record proof, score traces,
-and preserve execution state when the task requires it.
+write continuity checkpoints, and preserve execution state when the task requires
+it.
 
 The full advanced command surface is documented in
 [docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).
@@ -167,7 +170,8 @@ The hidden engine handles:
 - keeping project memory separate inside a shared Vault
 - importing useful agent session history with redaction and deduplication
 - tracking the active plan, product intent, proof, traces, and friction
-- routing Superpowers, optional domain skills, and the three quality agents through a strict control plane
+- writing a continuity resume packet so interrupted work can restart without guessing
+- routing Superpowers, optional domain skills, optional web performance audit, and the three quality agents through a strict control plane
 - checking whether tool-backed claims have real execution evidence
 
 This is why normal users should not need to learn the internal command list. The advanced command surface exists for AI automation, recovery, diagnostics, and maintainers, and is documented in [docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).
@@ -182,8 +186,8 @@ Memory, decisions, plans, proof, traces, and session history remain Markdown in 
 
 `baron init` installs the right surface for the agent tool you choose:
 
-- Codex receives `AGENTS.md`, `.codex/`, Superpowers, optional domain skills, and the three core quality agents.
-- Claude receives `CLAUDE.md`, Claude commands, skills, and quality agents.
+- Codex receives `AGENTS.md`, `.codex/`, Superpowers, optional domain skills, the three core quality agents, and optional web performance audit guidance.
+- Claude receives `CLAUDE.md`, Claude commands, skills, quality agents, and optional web performance audit guidance.
 - Generic agents receive `AGENT.md`, portable context files, and `.baron/core`.
 
 Managed root instructions use Baron markers. User text outside the markers, custom skills, custom agents, custom routing entries, and non-Baron native hooks survive updates.
@@ -198,6 +202,7 @@ Baron is designed for many old and new projects sharing one Vault without turnin
 - Draft, stale, interrupted, or imported-session-only memory is treated with lower confidence.
 - Medium and high-risk work needs real proof before completion is trusted.
 - Trace quality helps the next agent understand what happened and what remains.
+- Continuity resume records current task, last checkpoint, proof status, trace status, and next action so a later AI session can continue without inventing state.
 
 The user normally sees none of this as command work. The AI uses it as the background discipline that keeps long projects from drifting.
 

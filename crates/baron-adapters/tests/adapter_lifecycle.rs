@@ -27,9 +27,24 @@ fn codex_adapter_installs_core_and_optional_assets() {
     assert!(repo
         .join(".codex/skills/vibe-security-scan/SKILL.md")
         .exists());
+    for skill in [
+        "api-and-interface-design",
+        "observability-and-instrumentation",
+        "performance-optimization",
+        "deprecation-and-migration",
+    ] {
+        assert!(repo
+            .join(".codex/skills")
+            .join(skill)
+            .join("SKILL.md")
+            .exists());
+    }
     assert!(repo.join(".codex/agents/code-reviewer.toml").exists());
     assert!(repo.join(".codex/agents/security-auditor.toml").exists());
     assert!(repo.join(".codex/agents/test-engineer.toml").exists());
+    assert!(repo
+        .join(".codex/agents/web-performance-auditor.toml")
+        .exists());
     let hooks: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(repo.join(".codex/hooks.json")).unwrap()).unwrap();
     assert!(hooks["hooks"]["SessionStart"]
@@ -202,11 +217,18 @@ fn skills_and_agents_indexes_route_narrowly() {
     assert!(skills.contains("Superpowers"));
     assert!(skills.contains("frontend-design"));
     assert!(skills.contains("vibe-security-scan"));
+    assert!(skills.contains("api-and-interface-design"));
+    assert!(skills.contains("observability-and-instrumentation"));
+    assert!(skills.contains("performance-optimization"));
+    assert!(skills.contains("deprecation-and-migration"));
     assert!(skills.contains("Do not recursively load"));
     let agents = fs::read_to_string(repo.join(".codex/agents/INDEX.md")).unwrap();
     assert!(agents.contains("code-reviewer"));
     assert!(agents.contains("security-auditor"));
     assert!(agents.contains("test-engineer"));
+    assert!(agents.contains("web-performance-auditor"));
+    assert!(agents.contains("optional web performance"));
+    assert!(agents.contains("not included in mandatory gates"));
 }
 
 #[test]
@@ -230,9 +252,29 @@ fn core_agents_are_baron_native_and_enforce_quality_gates() {
         assert!(lower.contains("proof"));
         assert!(lower.contains("trace"));
         assert!(lower.contains("do not invoke other subagents"));
+        assert!(lower.contains("findings"));
+        assert!(lower.contains("verification"));
         assert!(!lower.contains("agent-bootstrap"));
         assert!(!lower.contains("agent bootstrap"));
     }
+}
+
+#[test]
+fn optional_web_performance_agent_is_not_a_core_quality_gate() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    let content =
+        fs::read_to_string(repo.join(".codex/agents/web-performance-auditor.toml")).unwrap();
+    let lower = content.to_lowercase();
+    assert!(content.contains("Baron"));
+    assert!(lower.contains("optional"));
+    assert!(lower.contains("core web vitals"));
+    assert!(lower.contains("never fabricate metrics"));
+    assert!(lower.contains("not included in mandatory gates"));
+    assert!(lower.contains("do not invoke other subagents"));
 }
 
 #[test]
@@ -242,7 +284,14 @@ fn bundled_domain_skills_do_not_depend_on_agent_bootstrap_runtime() {
 
     install_adapter(repo, AgentAdapter::Codex).unwrap();
 
-    for skill in ["frontend-design", "vibe-security-scan"] {
+    for skill in [
+        "frontend-design",
+        "vibe-security-scan",
+        "api-and-interface-design",
+        "observability-and-instrumentation",
+        "performance-optimization",
+        "deprecation-and-migration",
+    ] {
         let root = repo.join(".codex/skills").join(skill);
         let mut stack = vec![root];
         while let Some(path) = stack.pop() {
