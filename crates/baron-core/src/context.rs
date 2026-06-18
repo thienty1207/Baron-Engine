@@ -3,7 +3,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::capability::{load_registry, render_capability_summary};
+use crate::autopilot::render_autopilot_context_summary;
+use crate::capability::{load_registry, render_capability_summary, render_runtime_policy_summary};
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
 use crate::control_plane::validate_control_plane;
 use crate::firewall::compact_memory_brief_for_task;
@@ -94,8 +95,14 @@ pub fn compile_context_for_task(
         target.adapter_kind(),
         8,
     )?);
+    output.push_str(&render_runtime_policy_summary(
+        repo_path,
+        target.adapter_kind(),
+        6,
+    )?);
     output.push_str(&render_control_plane_summary(repo_path));
     output.push_str(&render_harness_improvement_summary(repo_path, &vault));
+    output.push_str(&render_autopilot_context_summary(repo_path, &vault));
     output.push_str(&render_session_replay_summary(&vault, task));
 
     output.push_str(&memory_brief.replacen(
@@ -221,6 +228,17 @@ pub fn compile_context_why(
         );
         output.push_str(
             "- Skipped: tool execution evidence because provider presence never proves a task check ran.\n",
+        );
+        output.push_str(
+            "- Loaded: runtime backend policy so unsafe or unverified providers cannot satisfy proof silently.\n",
+        );
+    }
+    if repo_path
+        .join("docs/baron/autopilot/CANDIDATES.md")
+        .is_file()
+    {
+        output.push_str(
+            "- Loaded: bounded autopilot learning candidates because uncertain learning must not become facts automatically.\n",
         );
     }
     output.push_str(&format!(

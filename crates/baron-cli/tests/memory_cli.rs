@@ -199,12 +199,14 @@ fn recall_returns_current_project_before_other_project() {
 fn memory_commands_require_vault_path_or_environment() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("repo");
+    let isolated_home = temp.path().join("home-without-config");
     fs::create_dir_all(&repo).unwrap();
 
     Command::cargo_bin("baron")
         .unwrap()
         .args(["memory", "index", repo.to_str().unwrap()])
         .env_remove("BARON_VAULT")
+        .env("BARON_HOME", isolated_home)
         .assert()
         .failure()
         .stderr(predicate::str::contains(

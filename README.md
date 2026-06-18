@@ -19,17 +19,18 @@ one durable engine:
 
 ## Stable Release
 
-Current version: `2.2.0`.
+Current version: `3.0.0`.
 
 Survey, Vault Memory Firewall, Context Compiler, multi-agent adapters, Active
 Plan State, Product Harness, proof gates, trace quality, transactional legacy
 migration, capability routing, continuity resume, refined skill/agent routing,
+session replay, background learning autopilot, safe runtime backend policy,
 release lifecycle, and the simple user setup flow are implemented.
 
 Progress is tracked in `docs/BARON_STATUS.md`. Machine-readable progress is in
 `docs/BARON_STATUS.json`.
 
-Baron 2.x is the long-horizon version of the engine. It is built for old
+Baron 3.0 is the long-horizon version of the engine. It is built for old
 projects, many projects sharing one Vault, direct IDE/agent use, and strict
 completion claims backed by proof.
 
@@ -171,6 +172,8 @@ The hidden engine handles:
 - importing useful agent session history with redaction and deduplication
 - tracking the active plan, product intent, proof, traces, and friction
 - writing a continuity resume packet so interrupted work can restart without guessing
+- proposing background learning as review candidates instead of silently rewriting facts or skills
+- checking runtime backend safety so unsafe tools or missing execution evidence cannot support completion claims
 - routing Superpowers, optional domain skills, optional web performance audit, and the three quality agents through a strict control plane
 - auditing weak custom skills or agents before they are trusted
 - searching bounded prior conversation messages for the current project when a task needs session replay
@@ -203,6 +206,8 @@ Baron is designed for many old and new projects sharing one Vault without turnin
 - Cross-project memory is blocked unless the task clearly asks for it.
 - Draft, stale, interrupted, or imported-session-only memory is treated with lower confidence.
 - Imported session history is searchable by project, but compact context only pulls a few matching messages.
+- Background learning is staged as candidates until approved, so Baron does not turn weak guesses into memory facts.
+- Required tool backends must be safe enough and have execution evidence before they can support proof.
 - Medium and high-risk work needs real proof before completion is trusted.
 - Trace quality helps the next agent understand what happened and what remains.
 - Continuity resume records current task, last checkpoint, proof status, trace status, and next action so a later AI session can continue without inventing state.

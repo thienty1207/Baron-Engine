@@ -5,7 +5,8 @@ use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::capability::{
-    default_adapter, evaluate_execution_evidence, CapabilityExecutionEvidence,
+    default_adapter, evaluate_execution_evidence, record_runtime_execution,
+    CapabilityExecutionEvidence,
 };
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
 use crate::risk::RiskLane;
@@ -56,6 +57,7 @@ pub fn record_proof_with_capabilities(
             warnings: Vec::new(),
         },
     };
+    record_runtime_execution(repo_root, capability_evidence)?;
     let content = render_proof(
         &id,
         summary,

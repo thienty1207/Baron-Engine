@@ -78,6 +78,14 @@ fn certification_proves_scale_isolation_and_cache_recovery() {
         .checks
         .iter()
         .any(|check| check.id == "release-readiness" && check.passed));
+    assert!(report
+        .checks
+        .iter()
+        .any(|check| check.id == "autopilot-readiness" && check.passed));
+    assert!(report
+        .checks
+        .iter()
+        .any(|check| check.id == "runtime-backend-policy" && check.passed));
     assert!(report.markdown_path.is_file());
     assert!(report.json_path.is_file());
 
@@ -85,8 +93,10 @@ fn certification_proves_scale_isolation_and_cache_recovery() {
     assert!(markdown.contains("# Baron Certification"));
     assert!(markdown.contains("Memory firewall"));
     assert!(markdown.contains("Release readiness"));
+    assert!(markdown.contains("autopilot"));
+    assert!(markdown.contains("runtime"));
 
     let status = latest_certification_status(&repo).unwrap();
     assert!(status.contains("latest certification passed"));
-    assert!(status.contains("2.2.0"));
+    assert!(status.contains("3.0.0"));
 }

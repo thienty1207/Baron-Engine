@@ -55,7 +55,7 @@ fn cli_reports_the_release_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 2.2.0"));
+        .stdout(predicate::str::contains("baron 3.0.0"));
 }
 
 #[test]
@@ -70,6 +70,8 @@ fn top_level_help_stays_focused_on_user_commands() {
         .stdout(predicate::str::contains("update"))
         .stdout(predicate::str::contains("memory").not())
         .stdout(predicate::str::contains("automation").not())
+        .stdout(predicate::str::contains("autopilot").not())
+        .stdout(predicate::str::contains("runtime").not())
         .stdout(predicate::str::contains("control-plane").not())
         .stdout(predicate::str::contains("harness").not());
 
@@ -136,6 +138,22 @@ fn hidden_automation_commands_remain_available_for_agents() {
         .stdout(predicate::str::contains("index"))
         .stdout(predicate::str::contains("search"))
         .stdout(predicate::str::contains("replay"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["autopilot", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("review"))
+        .stdout(predicate::str::contains("approve"))
+        .stdout(predicate::str::contains("reject"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["runtime", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("check"));
 }
 
 #[test]

@@ -13,6 +13,7 @@ use crate::config::{load_project_config, AdapterKind};
 
 const REGISTRY_PATH: &str = ".baron/capabilities.toml";
 const STATE_PATH: &str = ".baron/cache/capability-state.json";
+const RUNTIME_EVIDENCE_PATH: &str = ".baron/cache/runtime-execution.jsonl";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -37,6 +38,15 @@ pub enum Requirement {
 pub enum Presence {
     Present,
     Missing,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackendSafety {
+    Safe,
+    NeedsConfirmation,
+    Unsafe,
     Unknown,
 }
 
@@ -96,6 +106,39 @@ pub struct CapabilityExecutionEvidence {
     pub capability: String,
     pub provider: String,
     pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeProviderStatus {
+    pub provider: String,
+    pub capability: String,
+    pub kind: ProviderKind,
+    pub requirement: Requirement,
+    pub presence: Presence,
+    pub compatible: bool,
+    pub safety: BackendSafety,
+    pub execution_evidence: Presence,
+    pub evidence: String,
+    pub recommendation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeBackendReport {
+    pub schema_version: u32,
+    pub adapter: AdapterKind,
+    pub passed: bool,
+    pub providers: Vec<RuntimeProviderStatus>,
+    pub blocking_gaps: Vec<String>,
+    pub warnings: Vec<String>,
+    pub recommendations: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct RuntimeExecutionEntry {
+    timestamp: String,
+    capability: String,
+    provider: String,
+    summary: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -395,6 +438,198 @@ pub fn evaluate_execution_evidence(
     })
 }
 
+pub fn record_runtime_execution(
+    repo_root: impl AsRef<Path>,
+    evidence: &[CapabilityExecutionEvidence],
+) -> Result<usize> {
+    let repo_root = repo_root.as_ref();
+    let path = repo_root.join(RUNTIME_EVIDENCE_PATH);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut content = fs::read_to_string(&path).unwrap_or_default();
+    let mut written = 0;
+    for item in evidence {
+        let Some(capability) = normalize_identifier(&item.capability) else {
+            continue;
+        };
+        let Some(provider) = normalize_identifier(&item.provider) else {
+            continue;
+        };
+        if item.summary.trim().is_empty() {
+            continue;
+        }
+        let entry = RuntimeExecutionEntry {
+            timestamp: now(),
+            capability,
+            provider,
+            summary: item.summary.trim().to_string(),
+        };
+        content.push_str(&serde_json::to_string(&entry)?);
+        content.push('\n');
+        written += 1;
+    }
+    fs::write(path, content)?;
+    Ok(written)
+}
+
+pub fn runtime_backend_report(
+    repo_root: impl AsRef<Path>,
+    adapter: AdapterKind,
+) -> Result<RuntimeBackendReport> {
+    let repo_root = repo_root.as_ref();
+    let registry = load_registry(repo_root)?;
+    let state = load_capability_state(repo_root)?;
+    let matching_state = state.as_ref().filter(|state| state.adapter == adapter);
+    let runtime_evidence = load_runtime_execution(repo_root)?;
+    let mut providers = Vec::new();
+    let mut blocking_gaps = Vec::new();
+    let mut warnings = Vec::new();
+    for provider in &registry.providers {
+        let compatible = provider_compatible(provider, adapter);
+        let observation = matching_state.and_then(|state| {
+            state
+                .observations
+                .iter()
+                .find(|observation| observation.provider == provider.name)
+        });
+        let presence = observation
+            .map(|observation| observation.presence)
+            .unwrap_or(Presence::Unknown);
+        let evidence = observation
+            .map(|observation| observation.evidence.clone())
+            .unwrap_or_else(|| "presence check has not been run for this adapter".to_string());
+        let safety = backend_safety(provider);
+        let execution_evidence =
+            if has_execution_evidence(&runtime_evidence, &provider.capability, &provider.name) {
+                Presence::Present
+            } else {
+                Presence::Missing
+            };
+        let recommendation = backend_recommendation(provider, safety);
+
+        if provider.requirement == Requirement::Required {
+            if !compatible {
+                blocking_gaps.push(format!(
+                    "{} via {} is not compatible with the {} adapter",
+                    provider.capability,
+                    provider.name,
+                    adapter_name(adapter)
+                ));
+            }
+            if presence != Presence::Present {
+                blocking_gaps.push(format!(
+                    "{} via {} is not present for execution",
+                    provider.capability, provider.name
+                ));
+            }
+            if safety == BackendSafety::Unsafe {
+                blocking_gaps.push(format!(
+                    "{} via {} uses an unsafe backend",
+                    provider.capability, provider.name
+                ));
+            }
+            if execution_evidence != Presence::Present {
+                blocking_gaps.push(format!(
+                    "{} via {} lacks execution evidence",
+                    provider.capability, provider.name
+                ));
+            }
+        } else {
+            if presence != Presence::Present {
+                warnings.push(format!(
+                    "optional capability {} via {} is degraded ({})",
+                    provider.capability,
+                    provider.name,
+                    presence_name(presence)
+                ));
+            }
+            if matches!(
+                safety,
+                BackendSafety::Unsafe | BackendSafety::NeedsConfirmation
+            ) {
+                warnings.push(format!(
+                    "optional capability {} via {} needs safer backend review",
+                    provider.capability, provider.name
+                ));
+            }
+        }
+
+        providers.push(RuntimeProviderStatus {
+            provider: provider.name.clone(),
+            capability: provider.capability.clone(),
+            kind: provider.kind,
+            requirement: provider.requirement,
+            presence,
+            compatible,
+            safety,
+            execution_evidence,
+            evidence,
+            recommendation,
+        });
+    }
+    let mut recommendations = vec![
+        "Prefer safe local commands, adapter-native tools, or read-only skill/MCP providers before network or destructive shells.".to_string(),
+        "Do not claim a tool-backed proof unless matching runtime execution evidence was recorded.".to_string(),
+    ];
+    if registry.providers.is_empty() {
+        recommendations.push(
+            "No capability providers are registered; Baron will avoid tool-backed proof claims."
+                .to_string(),
+        );
+    }
+    Ok(RuntimeBackendReport {
+        schema_version: 1,
+        adapter,
+        passed: blocking_gaps.is_empty(),
+        providers,
+        blocking_gaps,
+        warnings,
+        recommendations,
+    })
+}
+
+pub fn render_runtime_policy_summary(
+    repo_root: impl AsRef<Path>,
+    adapter: AdapterKind,
+    limit: usize,
+) -> Result<String> {
+    let report = runtime_backend_report(repo_root, adapter)?;
+    let mut output = String::new();
+    output.push_str("## Runtime Backend Policy\n\n");
+    output.push_str(&format!(
+        "- Passed: `{}`\n",
+        if report.passed { "yes" } else { "no" }
+    ));
+    output.push_str(&format!("- Adapter: `{}`\n", adapter_name(report.adapter)));
+    output.push_str("- Rule: provider availability is not execution proof.\n");
+    for provider in report.providers.iter().take(limit) {
+        output.push_str(&format!(
+            "- `{}` via `{}` - Policy: `{}` - Presence: `{}` - Execution evidence: `{}`\n",
+            provider.capability,
+            provider.provider,
+            safety_name(provider.safety),
+            presence_name(provider.presence),
+            presence_name(provider.execution_evidence)
+        ));
+    }
+    if report.providers.len() > limit {
+        output.push_str(&format!(
+            "- {} additional providers skipped to keep context bounded.\n",
+            report.providers.len() - limit
+        ));
+    }
+    output.push_str(&format!(
+        "- Blocking gaps: {}\n",
+        values_or_none(&report.blocking_gaps)
+    ));
+    output.push_str(&format!(
+        "- Warnings: {}\n\n",
+        values_or_none(&report.warnings)
+    ));
+    Ok(output)
+}
+
 pub fn default_adapter(repo_root: impl AsRef<Path>) -> Result<AdapterKind> {
     load_project_config(repo_root)?
         .adapters
@@ -451,6 +686,104 @@ fn validate_provider(provider: &CapabilityProvider) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn load_runtime_execution(repo_root: &Path) -> Result<Vec<RuntimeExecutionEntry>> {
+    let path = repo_root.join(RUNTIME_EVIDENCE_PATH);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let mut entries = Vec::new();
+    for line in fs::read_to_string(&path)?.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(entry) = serde_json::from_str::<RuntimeExecutionEntry>(line) {
+            entries.push(entry);
+        }
+    }
+    Ok(entries)
+}
+
+fn has_execution_evidence(
+    entries: &[RuntimeExecutionEntry],
+    capability: &str,
+    provider: &str,
+) -> bool {
+    entries.iter().any(|entry| {
+        normalize_identifier(&entry.capability).as_deref()
+            == normalize_identifier(capability).as_deref()
+            && normalize_identifier(&entry.provider).as_deref()
+                == normalize_identifier(provider).as_deref()
+            && !entry.summary.trim().is_empty()
+    })
+}
+
+fn backend_safety(provider: &CapabilityProvider) -> BackendSafety {
+    match provider.kind {
+        ProviderKind::Skill | ProviderKind::AgentAdapter => BackendSafety::Safe,
+        ProviderKind::Mcp => BackendSafety::NeedsConfirmation,
+        ProviderKind::Http => BackendSafety::NeedsConfirmation,
+        ProviderKind::Cli | ProviderKind::Binary => command_safety(provider.command.as_deref()),
+    }
+}
+
+fn command_safety(command: Option<&str>) -> BackendSafety {
+    let Some(command) = command.map(str::trim).filter(|value| !value.is_empty()) else {
+        return BackendSafety::Unknown;
+    };
+    let lower = command.to_lowercase();
+    let unsafe_terms = [
+        "encodedcommand",
+        "invoke-expression",
+        " iex",
+        "curl ",
+        " | sh",
+        " | bash",
+        "rm -rf",
+        "del /s",
+        "format ",
+        "docker run --privileged",
+        "sudo ",
+        "chmod 777",
+        "drop database",
+        "truncate table",
+        "kubectl delete",
+        "terraform destroy",
+    ];
+    if unsafe_terms.iter().any(|term| lower.contains(term)) {
+        BackendSafety::Unsafe
+    } else {
+        BackendSafety::Safe
+    }
+}
+
+fn backend_recommendation(provider: &CapabilityProvider, safety: BackendSafety) -> String {
+    match safety {
+        BackendSafety::Safe => {
+            "safe local backend; still requires task-specific execution evidence".to_string()
+        }
+        BackendSafety::NeedsConfirmation => {
+            "review backend scope and sandbox before treating it as proof".to_string()
+        }
+        BackendSafety::Unsafe => format!(
+            "replace `{}` with a safer read-only or sandboxed backend before it can satisfy proof",
+            provider.name
+        ),
+        BackendSafety::Unknown => {
+            "backend safety is unknown; prefer a safe local command or registered adapter provider"
+                .to_string()
+        }
+    }
+}
+
+fn safety_name(safety: BackendSafety) -> &'static str {
+    match safety {
+        BackendSafety::Safe => "safe",
+        BackendSafety::NeedsConfirmation => "needs_confirmation",
+        BackendSafety::Unsafe => "unsafe",
+        BackendSafety::Unknown => "unknown",
+    }
 }
 
 fn save_registry(repo_root: &Path, registry: &CapabilityRegistry) -> Result<()> {

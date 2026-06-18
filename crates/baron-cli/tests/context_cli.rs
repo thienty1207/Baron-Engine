@@ -136,12 +136,14 @@ fn context_supports_claude_generic_and_why_modes() {
 fn context_requires_vault_path_or_environment() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
+    let isolated_home = temp.path().join("home-without-config");
     fs::create_dir_all(&repo).unwrap();
 
     Command::cargo_bin("baron")
         .unwrap()
         .args(["context", repo.to_str().unwrap(), "--codex"])
         .env_remove("BARON_VAULT")
+        .env("BARON_HOME", isolated_home)
         .assert()
         .failure()
         .stderr(predicate::str::contains(

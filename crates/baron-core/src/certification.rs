@@ -11,8 +11,12 @@ use crate::memory::{build_memory_index, load_memory_records};
 use crate::release::SUPPORTED_RELEASE_TARGETS;
 use crate::survey::survey_repository;
 use crate::vault::{ensure_vault, VaultContext};
+use crate::{
+    autopilot::autopilot_status,
+    capability::{default_adapter, runtime_backend_report},
+};
 
-const TARGET_RELEASE: &str = "2.2.0";
+const TARGET_RELEASE: &str = "3.0.0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -79,6 +83,8 @@ pub fn run_certification(
         check_shared_vault_firewall(&context)?,
         check_context_budget(&context)?,
         check_automation_state(&repo_root)?,
+        check_autopilot_readiness(&repo_root, &context)?,
+        check_runtime_backend_policy(&repo_root)?,
     ];
     checks.push(check_release_readiness(&checks));
 
@@ -314,6 +320,45 @@ fn check_automation_state(repo_root: &Path) -> Result<CertificationCheck> {
     })
 }
 
+fn check_autopilot_readiness(
+    repo_root: &Path,
+    context: &VaultContext,
+) -> Result<CertificationCheck> {
+    let status = autopilot_status(repo_root, context)?;
+    let passed = status.contains("Do not infer completion") && status.contains("Trusted");
+    Ok(CertificationCheck {
+        id: "autopilot-readiness".to_string(),
+        name: "Background learning and continuity autopilot".to_string(),
+        passed,
+        summary: "Autopilot reports resume state and keeps learning candidates separate from trusted facts.".to_string(),
+        details: vec![
+            format!(
+                "Candidate file: {}",
+                repo_root
+                    .join("docs/baron/autopilot/CANDIDATES.md")
+                    .display()
+            ),
+            "Unapproved candidates are not promoted into Facts.md.".to_string(),
+        ],
+    })
+}
+
+fn check_runtime_backend_policy(repo_root: &Path) -> Result<CertificationCheck> {
+    let adapter = default_adapter(repo_root).unwrap_or(crate::config::AdapterKind::Generic);
+    let report = runtime_backend_report(repo_root, adapter)?;
+    Ok(CertificationCheck {
+        id: "runtime-backend-policy".to_string(),
+        name: "Capability runtime backend policy".to_string(),
+        passed: report.passed,
+        summary: "Runtime policy keeps provider presence separate from execution evidence and flags unsafe backends.".to_string(),
+        details: vec![
+            format!("Providers checked: {}", report.providers.len()),
+            format!("Blocking gaps: {}", values_or_none(&report.blocking_gaps)),
+            format!("Warnings: {}", values_or_none(&report.warnings)),
+        ],
+    })
+}
+
 fn check_release_readiness(existing: &[CertificationCheck]) -> CertificationCheck {
     let previous_checks_pass = existing.iter().all(|check| check.passed);
     CertificationCheck {
@@ -380,4 +425,12 @@ fn display_path(path: &Path) -> String {
         .strip_prefix("//?/")
         .unwrap_or(&path.to_string_lossy().replace('\\', "/"))
         .to_string()
+}
+
+fn values_or_none(values: &[String]) -> String {
+    if values.is_empty() {
+        "none".to_string()
+    } else {
+        values.join("; ")
+    }
 }

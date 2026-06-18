@@ -334,6 +334,8 @@ fn context_loads_bounded_cached_capability_summary_for_active_adapter() {
     assert!(bundle.contains("git-cli"));
     assert!(bundle.contains("Presence: `present`"));
     assert!(bundle.contains("Presence does not prove execution"));
+    assert!(bundle.contains("## Runtime Backend Policy"));
+    assert!(bundle.contains("Execution evidence: `missing`"));
     assert!(bundle.chars().count() <= 20_000);
 }
 
@@ -363,6 +365,7 @@ fn context_why_explains_capability_cache_without_claiming_execution() {
     assert!(why.contains("Capability Registry"));
     assert!(why.contains("presence cache"));
     assert!(why.contains("tool execution evidence"));
+    assert!(why.contains("runtime backend policy"));
 }
 
 #[test]
@@ -394,5 +397,7 @@ fn context_includes_bounded_control_plane_and_harness_improvement_summary() {
     assert!(bundle.contains("## Harness Improvement Summary"));
     assert!(bundle.contains("Context-read score"));
     assert!(bundle.contains("Open friction: 1"));
+    assert!(bundle.contains("## Autopilot Learning And Resume"));
+    assert!(bundle.contains("candidates are not facts until approved"));
     assert!(bundle.len() <= 20_000);
 }

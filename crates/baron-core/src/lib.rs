@@ -1,5 +1,6 @@
 pub mod asset_lifecycle;
 pub mod automation;
+pub mod autopilot;
 pub mod capability;
 pub mod certification;
 pub mod config;
@@ -27,7 +28,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-18-20-baron-3-foundation"
+    "baron-3-release"
 }
 
 #[cfg(test)]
@@ -37,6 +38,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-18-20-baron-3-foundation");
+        assert_eq!(phase(), "baron-3-release");
     }
 }

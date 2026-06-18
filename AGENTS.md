@@ -15,10 +15,11 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completed the first stable foundation. Baron `v2.2.0` is the
-current stable source release. Baron `3.0.0` is the active target program.
-Phase 18-20 harden runtime assets, add skill lifecycle approval, and add bounded
-session replay/search before later background-learning work begins.
+Baron `v1.0.0` completed the first stable foundation. Baron `v3.0.0` is the
+current stable source release. Phase 18-23 complete the Baron 3.0 program:
+self-contained runtime assets, skill lifecycle approval, bounded session
+replay/search, background learning autopilot, safe runtime backend policy, and
+release certification.
 
 The current source command surface is:
 
@@ -48,8 +49,10 @@ The current source command surface is:
 - `baron migrate agent-bootstrap [repo-path]`
 - `baron migrate <status|rollback>`
 - `baron capability <register|check|list|remove>`
+- `baron runtime check`
 - `baron automation <status|reconcile|hook>`
 - `baron continuity <status|checkpoint>`
+- `baron autopilot <status|review|approve|reject>`
 - `baron control-plane <status|route|record-gate|evidence>`
 - `baron asset <audit|quarantine|propose-skill>`
 - `baron session-replay <index|search|replay>`
@@ -72,10 +75,11 @@ Phase 15 keeps those internals available but hides the command clutter from the
 normal README and top-level help so users only handle install, Vault setup,
 adapter init, platform focus, and update. Phase 16-17 refine optional
 skill/agent routing and add Continuity Ledger checkpoints so interrupted work
-resumes from evidence instead of memory guesses. Phase 18-20 make managed
+resumes from evidence instead of memory guesses. Phase 18-23 make managed
 runtime skills and agents self-contained Baron assets, stage skill edits behind
-approval metadata, and let context/search replay bounded prior messages for the
-current project without flooding context.
+approval metadata, let context/search replay bounded prior messages for the
+current project without flooding context, propose background learning as
+candidates, and block unsafe or unverified runtime backends from proof claims.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -121,8 +125,15 @@ exact resume point.
 - Session replay must stay bounded and filtered by project identity.
 - Tool-backed proof requires execution evidence; configured or detected presence
   alone is not proof that a check ran.
+- Autopilot learning writes candidates only; unapproved learning is not a fact,
+  not policy, and not a runtime asset change.
+- Required runtime backends must be safe enough and have execution evidence
+  before they can support proof or completion claims.
 - At session start, agents silently run `baron capability check` before
   `baron context`; context reads only the bounded cache summary.
+- At session start, agents silently run `baron runtime check` and
+  `baron autopilot status`; after meaningful work they run
+  `baron autopilot review`.
 - Missing optional providers degrade with warnings. Missing required providers
   or missing execution evidence block Proof/Trace completion gates.
 - Baron must include exactly three core quality agents:
@@ -189,7 +200,7 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For the current foundation through Phase 20, verify:
+For the current Baron 3.0 source, verify:
 
 ```bash
 cargo fmt --all
@@ -217,6 +228,8 @@ cargo run -p baron-cli -- proof status
 cargo run -p baron-cli -- trace score
 cargo run -p baron-cli -- capability list
 cargo run -p baron-cli -- capability check
+cargo run -p baron-cli -- runtime check
+cargo run -p baron-cli -- autopilot status
 cargo test -p baron-core --test release
 cargo test -p baron-cli --test lifecycle_scripts
 cargo test -p baron-cli --test release_smoke

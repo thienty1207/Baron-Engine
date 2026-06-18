@@ -9,10 +9,13 @@ use baron_core::asset_lifecycle::{
 use baron_core::automation::{
     automation_status, handle_hook, reconcile, record_lifecycle_event, AutomationEvent, HookAdapter,
 };
+use baron_core::autopilot::{
+    approve_candidate, autopilot_status, reject_candidate, review_after_task,
+};
 use baron_core::capability::{
     check_capabilities, load_capability_state, load_registry, register_provider, remove_provider,
-    CapabilityExecutionEvidence, CapabilityProvider, CheckOptions, Presence, ProviderKind,
-    Requirement,
+    runtime_backend_report, BackendSafety, CapabilityExecutionEvidence, CapabilityProvider,
+    CheckOptions, Presence, ProviderKind, Requirement,
 };
 use baron_core::certification::{
     latest_certification_status, render_certification_report, run_certification,
@@ -189,6 +192,16 @@ enum Commands {
     SessionReplay {
         #[command(subcommand)]
         command: SessionReplayCommands,
+    },
+    #[command(hide = true)]
+    Autopilot {
+        #[command(subcommand)]
+        command: AutopilotCommands,
+    },
+    #[command(hide = true)]
+    Runtime {
+        #[command(subcommand)]
+        command: RuntimeCommands,
     },
     #[command(hide = true)]
     Certify {
@@ -451,6 +464,36 @@ enum SessionReplayCommands {
         vault: Option<PathBuf>,
         #[arg(long, default_value_t = 2)]
         radius: usize,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AutopilotCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Review {
+        summary: String,
+        repo_path: Option<PathBuf>,
+    },
+    Approve {
+        candidate_id: String,
+        repo_path: Option<PathBuf>,
+    },
+    Reject {
+        candidate_id: String,
+        repo_path: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum RuntimeCommands {
+    Check {
+        repo_path: Option<PathBuf>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -1332,6 +1375,70 @@ fn run() -> Result<()> {
                 }
             }
         },
+        Some(Commands::Autopilot { command }) => match command {
+            AutopilotCommands::Status { repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                print!("{}", autopilot_status(&repo_root, &vault)?);
+            }
+            AutopilotCommands::Review { summary, repo_path } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let review = review_after_task(&repo_root, &vault, &summary)?;
+                println!("# Baron Autopilot Review\n");
+                println!("- Candidate count: {}", review.candidate_count);
+                println!(
+                    "- Approval required: `{}`",
+                    if review.approval_required {
+                        "yes"
+                    } else {
+                        "no"
+                    }
+                );
+                println!("- Candidate IDs: {}", list_or_none(&review.candidate_ids));
+                println!(
+                    "- Observed automation: {}",
+                    list_or_none(&review.observed_automation)
+                );
+                println!("- Repo candidates: `{}`", review.repo_path.display());
+                println!("- Vault candidates: `{}`", review.vault_path.display());
+            }
+            AutopilotCommands::Approve {
+                candidate_id,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                approve_candidate(&repo_root, &vault, &candidate_id)?;
+                println!("# Baron Autopilot Candidate Approval\n");
+                println!("- Candidate: `{candidate_id}`");
+                println!("- Status: `approved`");
+                println!("- Trusted fact: `not automatic`");
+            }
+            AutopilotCommands::Reject {
+                candidate_id,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                reject_candidate(&repo_root, &vault, &candidate_id)?;
+                println!("# Baron Autopilot Candidate Rejection\n");
+                println!("- Candidate: `{candidate_id}`");
+                println!("- Status: `rejected`");
+            }
+        },
+        Some(Commands::Runtime { command }) => match command {
+            RuntimeCommands::Check {
+                repo_path,
+                adapter,
+                json,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let adapter = resolve_capability_adapter(&repo_root, adapter)?;
+                let report = runtime_backend_report(&repo_root, adapter)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    print!("{}", render_runtime_check(&report));
+                }
+            }
+        },
         Some(Commands::Certify { command }) => match command {
             CertifyCommands::Run {
                 repo_path,
@@ -1478,6 +1585,39 @@ fn render_capability_check(state: &baron_core::capability::CapabilityState) -> S
     output
 }
 
+fn render_runtime_check(report: &baron_core::capability::RuntimeBackendReport) -> String {
+    let mut output = format!(
+        "# Baron Runtime Backend Check\n\n- Adapter: `{}`\n- Passed: `{}`\n- Rule: provider availability is not execution proof.\n",
+        adapter_kind_name(report.adapter),
+        if report.passed { "yes" } else { "no" }
+    );
+    if report.providers.is_empty() {
+        output.push_str("- No providers registered.\n");
+    }
+    for provider in &report.providers {
+        output.push_str(&format!(
+            "\n## {} / {}\n\n- Kind: `{}`\n- Requirement: `{}`\n- Presence: `{}`\n- Compatible: `{}`\n- Policy: `{}`\n- Execution evidence: `{}`\n- Evidence: {}\n- Recommendation: {}\n",
+            provider.capability,
+            provider.provider,
+            provider_kind_name(provider.kind),
+            requirement_name(provider.requirement),
+            presence_name(provider.presence),
+            if provider.compatible { "yes" } else { "no" },
+            backend_safety_name(provider.safety),
+            presence_name(provider.execution_evidence),
+            provider.evidence,
+            provider.recommendation
+        ));
+    }
+    output.push_str(&format!(
+        "\n- Blocking gaps: {}\n- Warnings: {}\n- Recommendations: {}\n",
+        list_or_none(&report.blocking_gaps),
+        list_or_none(&report.warnings),
+        list_or_none(&report.recommendations)
+    ));
+    output
+}
+
 fn render_capability_list(
     registry: &baron_core::capability::CapabilityRegistry,
     state: Option<&baron_core::capability::CapabilityState>,
@@ -1517,6 +1657,15 @@ fn render_capability_list(
         ));
     }
     output
+}
+
+fn backend_safety_name(safety: BackendSafety) -> &'static str {
+    match safety {
+        BackendSafety::Safe => "safe",
+        BackendSafety::NeedsConfirmation => "needs_confirmation",
+        BackendSafety::Unsafe => "unsafe",
+        BackendSafety::Unknown => "unknown",
+    }
 }
 
 fn provider_kind_name(kind: ProviderKind) -> &'static str {

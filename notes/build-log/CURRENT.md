@@ -4,10 +4,10 @@ Date: 2026-06-19
 
 ## Current Phase
 
-Phase 21 - Background Learning And Continuity Autopilot (planned).
-Baron 3.0 Phase 18-20 are implemented. The next priority is to build background
-learning on top of hardened local runtime assets, approval-staged skill updates,
-and bounded current-project session replay.
+Phase 21-23 - Baron 3.0 final implementation batch (completed locally).
+Baron 3.0 Phase 18-23 are implemented and verified locally. The remaining
+operator action is Git commit/push, then future post-3.0 hardening only after
+new requirements are explicit.
 
 ## What Is Being Built
 
@@ -22,17 +22,22 @@ Baron 3.0 planned batch:
 
 ## Current Status
 
-Baron 2.2.0 remains the current stable source release. Baron 3.0 is the new
-target release. Phase 18-20 are now implemented locally and awaiting full final
-verification in the current working tree before commit/push.
+Baron 3.0.0 is the current source release in this working tree. Phase 18-23
+are implemented and verified locally.
 
 Current resume point:
 
-- `docs/BARON_STATUS.md` marks Phase 18-20 implemented and Phase 21 as next.
-- `docs/BARON_STATUS.json` tracks target release `3.0.0`, 65% completion, and three remaining planned phases.
+- `docs/BARON_STATUS.md` marks Phase 18-23 complete and Baron `3.0.0` ready.
+- `docs/BARON_STATUS.json` tracks stable/target release `3.0.0`, 100% completion, and zero remaining planned phases.
 - `notes/build-log/2026-06-19-baron-3-roadmap.md` records the trigger and non-negotiables.
 - `notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md` records the implementation details.
-- Next implementation should start with Phase 21 RED tests for background learning, candidate writes, approval gates, and interruption-safe resume.
+- `docs/superpowers/plans/2026-06-19-phase-21-23-baron-3-release.md` is the active implementation plan.
+- `notes/build-log/2026-06-19-phase-21-23-baron-3-release.md` is the active checkpoint log.
+- Phase 21 autopilot core/CLI/context targeted tests are green.
+- Phase 22 runtime policy core/CLI/context targeted tests are green.
+- Phase 23 version/release/certification targeted tests are green.
+- Full workspace verification, Clippy, temp smoke, status JSON parse, stale-release scan, and diff check are green.
+- Next implementation step after source push: publish a GitHub release/tag or continue post-3.0 hardening only after new requirements are explicit.
 
 ## Verification
 
@@ -161,10 +166,24 @@ Current resume point:
 - Phase 18-20 `docs/BARON_STATUS.json` parse: passed
 - Phase 18-20 runtime optional skill/agent live-link scan: passed
 - Phase 18-20 `git diff --check`: passed
+- Phase 21 autopilot RED tests: failed as expected before implementation
+- Phase 22 runtime policy RED tests: failed as expected before implementation
+- Phase 21 autopilot targeted GREEN tests: passed
+- Phase 22 runtime policy targeted GREEN tests: passed
+- Phase 21-23 context, adapter lifecycle, release, lifecycle installer, and certification targeted tests: passed
+- Phase 21-23 full `cargo fmt --all -- --check`: passed
+- Phase 21-23 full `cargo test --workspace --all-targets`: passed
+- Phase 21-23 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 21-23 temp repo smoke for setup, Codex/Claude/generic init, shared Vault memory index, runtime check, context, autopilot review/status, recall, certification, and Agent Bootstrap migration dry-run: passed
+- Phase 21-23 `docs/BARON_STATUS.json` parse: passed
+- Phase 21-23 stale-release static scan: passed
+- Phase 21-23 `git diff --check`: passed
 
 ## Next Action
 
-Commit and push Phase 18-20. After that, start Phase 21.
+Baron 3.0.0 source release is ready for `origin/main`. After source push, the
+next action is a GitHub release/tag or future post-3.0 hardening only after new
+requirements are explicit.
 
 ## Phase 9-10 Feature Commits
 

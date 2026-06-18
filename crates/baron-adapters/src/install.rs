@@ -66,7 +66,7 @@ fn install_claude(repo: &Path) -> Result<InstallReport> {
     )?;
     write_managed_file(
         &repo.join(".claude/commands/baron-context.md"),
-        "# Baron Context\n\nRun `baron capability check --adapter claude` and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n",
+        "# Baron Context\n\nRun `baron capability check --adapter claude`, `baron runtime check --adapter claude`, `baron autopilot status`, and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n",
     )?;
     write_managed_file(
         &repo.join(".claude/commands/baron-status.md"),
@@ -151,7 +151,7 @@ fn install_generic(repo: &Path) -> Result<InstallReport> {
     )?;
     write_managed_file(
         &repo.join("baron-context.md"),
-        "# Baron Context Contract\n\nRun `baron capability check --adapter agent` and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n",
+        "# Baron Context Contract\n\nRun `baron capability check --adapter agent`, `baron runtime check --adapter agent`, `baron autopilot status`, and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n",
     )?;
     write_managed_file(
         &repo.join("baron-context.json"),
@@ -159,6 +159,9 @@ fn install_generic(repo: &Path) -> Result<InstallReport> {
             "engine": "baron",
             "adapter": "agent",
             "capabilityCheckCommand": "baron capability check --adapter agent",
+            "runtimeCheckCommand": "baron runtime check --adapter agent",
+            "autopilotStatusCommand": "baron autopilot status",
+            "autopilotReviewCommand": "baron autopilot review \"<summary>\"",
             "contextCommand": "baron context --agent",
             "automatic": true,
             "sourceOfTruth": ["repository", "vault-markdown"]
@@ -195,8 +198,10 @@ fn startup_contract(agent: &str, adapter: &str) -> String {
         "# Baron Automatic Agent Contract\n\n\
 You are using Baron through the {agent} adapter.\n\n\
 - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
+- At session start, silently run `baron runtime check --adapter {adapter}`; unsafe, missing, or unverified required backends cannot satisfy proof.\n\
 - At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\
 - At session start and after interruption, silently inspect `baron continuity status`; resume from its current task, last checkpoint, proof status, trace status, and next action before guessing.\n\
+- At session start and after interruption, silently inspect `baron autopilot status`; treat learning candidates as candidates, not facts.\n\
 - Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
 - Before selecting skills or agents for meaningful work, silently run `baron control-plane route \"<task>\"` and follow the selected/skipped explanation.\n\
@@ -205,6 +210,7 @@ You are using Baron through the {agent} adapter.\n\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\
 - Create harness intake for medium/high-risk work.\n\
 - Before edits, direction changes, interruptions, and final responses for meaningful work, record `baron continuity checkpoint \"<current state and next action>\"`.\n\
+- Before final response after meaningful work, run `baron autopilot review \"<task summary, proof state, remaining risks>\"`; it may propose learning, but it must not rewrite trusted facts or runtime assets without approval.\n\
 - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
 - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\
 - After each mandatory quality gate actually runs, record it with `baron control-plane record-gate <agent> \"<evidence summary>\"`.\n\

@@ -250,6 +250,45 @@ session replay index and includes only bounded matching messages when a task is
 provided. Search and replay are filtered by project identity so shared Vaults do
 not leak weak cross-project session history into the active project.
 
+## Phase 21
+
+```bash
+baron autopilot status [repo-path]
+baron autopilot review "<summary>" [repo-path]
+baron autopilot approve <candidate-id> [repo-path]
+baron autopilot reject <candidate-id> [repo-path]
+```
+
+These commands are hidden from top-level help and are meant for AI automation,
+diagnostics, and review. Autopilot proposes learning candidates after meaningful
+work, surfaces continuity resume state, records observed automation, and keeps
+uncertain learning separate from trusted facts until approved.
+
+## Phase 22
+
+```bash
+baron runtime check [repo-path] [--adapter <codex|claude|agent>] [--json]
+```
+
+This command is hidden from top-level help and is meant for AI automation and
+diagnostics. Runtime checks distinguish provider availability from real
+execution evidence, flag unsafe backends, warn on degraded optional tools, and
+block required unsafe or unverified tool-backed proof claims.
+
+## Phase 23
+
+Baron 3.0 certification uses the existing release and certification commands:
+
+```bash
+baron certify run [repo-path] --vault <vault-path> --profile <smoke|release|extreme>
+baron certify status [repo-path]
+baron release metadata <artifacts-dir> --release-version <version> --source-revision <git-sha>
+baron release verify <artifacts-dir>
+```
+
+Certification includes memory firewall, context budget, observable automation,
+autopilot readiness, runtime backend policy, and release metadata gates.
+
 ## Phase 13
 
 ```bash

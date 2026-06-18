@@ -4,15 +4,15 @@ Last updated: 2026-06-19
 
 ## Overall
 
-- Stable source release: `v2.2.0`
+- Stable source release: `v3.0.0`
 - Baron 2.0 completion: 100%
 - Target source release: `v3.0.0`
-- Baron 3.0 completion: 65%
-- Remaining planned phases: 3
-- Current phase: Phase 21 - Background Learning And Continuity Autopilot
-- Current phase status: planned
-- Current next action: implement background learning and continuity autopilot on top of the hardened local assets and session replay foundation
-- Build confidence: Baron 2.2.0 is stable. Baron 3.0 Phase 18-20 are implemented locally: managed runtime skills/agents are self-contained, skill updates stage behind approval metadata, and task context can search bounded current-project session replay.
+- Baron 3.0 completion: 100%
+- Remaining planned phases: 0
+- Current phase: Phase 23 - Baron 3.0 Release Certification
+- Current phase status: completed
+- Current next action: publish a GitHub release or continue with future post-3.0 hardening only after new requirements are explicit
+- Build confidence: Baron 3.0 Phase 18-23 are implemented locally: managed runtime skills/agents are self-contained, skill updates stage behind approval metadata, task context can search bounded current-project session replay, autopilot learning stays candidate-gated, and runtime backend policy blocks unsafe or unverified proof claims.
 
 ## Baron 3.0 Direction
 
@@ -117,9 +117,9 @@ Baron 3.0 planned program:
 | 18 | Asset Sovereignty And Skill/Agent Hardening | completed | 25% | asset sovereignty tests, rewritten self-contained skills, deepened agents, runtime-link scan, adapter lifecycle tests |
 | 19 | Skill Lifecycle And Approval Engine | completed | 20% | asset audit, custom quarantine, staged skill proposal metadata, hidden CLI help, lifecycle tests |
 | 20 | Session Replay And Conversation Search | completed | 20% | SQLite session replay index, current-project search, bounded replay, context integration, shared-Vault isolation tests |
-| 21 | Background Learning And Continuity Autopilot | planned | 15% | post-task review proposes memory/skill/harness updates, interrupted work resumes without guessing, and user approval gates prevent bad writes |
-| 22 | Capability Runtime And Safe Tool Backends | planned | 10% | tool/provider availability, execution evidence, safe backend policy, sandbox recommendations, and false-claim regressions pass |
-| 23 | Baron 3.0 Release Certification | planned | 10% | full suite, clippy, smoke across Codex/Claude/generic adapters, old-repo migration smoke, shared Vault stress, docs/status sync, and release metadata pass |
+| 21 | Background Learning And Continuity Autopilot | completed | 15% | autopilot core/CLI tests, context integration, candidate approval/rejection tests, and observed-automation resume tests |
+| 22 | Capability Runtime And Safe Tool Backends | completed | 10% | runtime policy core/CLI tests, safe/unsafe/missing provider tests, context integration, and proof-evidence persistence tests |
+| 23 | Baron 3.0 Release Certification | completed | 10% | release version tests, certification gates for autopilot/runtime policy, docs/status sync, and full verification batch |
 
 Phase 16-17 final verification:
 
@@ -353,30 +353,30 @@ Phase 16-17 final verification:
 
 ### Phase 21 - Background Learning And Continuity Autopilot
 
-- [ ] Add post-task review that proposes memory, skill, harness, and continuity improvements.
-- [ ] Keep uncertain learning as candidates, not trusted facts.
-- [ ] Require approval gates for sensitive or runtime-affecting writes when configured.
-- [ ] Resume interrupted work from continuity packet, session replay, plan, harness, proof, and trace state.
-- [ ] Record which automation actually ran instead of assuming the agent followed instructions.
-- [ ] Test interruption, candidate learning, approval, rejection, and resume behavior.
+- [x] Add post-task review that proposes memory, skill, harness, and continuity improvements.
+- [x] Keep uncertain learning as candidates, not trusted facts.
+- [x] Require approval gates for sensitive or runtime-affecting writes when configured.
+- [x] Resume interrupted work from continuity packet, session replay, plan, harness, proof, and trace state.
+- [x] Record which automation actually ran instead of assuming the agent followed instructions.
+- [x] Test interruption, candidate learning, approval, rejection, and resume behavior.
 
 ### Phase 22 - Capability Runtime And Safe Tool Backends
 
-- [ ] Distinguish tool availability from executed proof.
-- [ ] Track provider backend, adapter support, sandbox policy, and execution evidence.
-- [ ] Lower confidence when required tools are missing, unsafe, or unverified.
-- [ ] Recommend safe backend choices without forcing users into one IDE or one agent app.
-- [ ] Keep completion blocked when tool-backed proof is claimed without evidence.
-- [ ] Test missing tools, unsafe backends, optional degradation, and false-claim regressions.
+- [x] Distinguish tool availability from executed proof.
+- [x] Track provider backend, adapter support, sandbox policy, and execution evidence.
+- [x] Lower confidence when required tools are missing, unsafe, or unverified.
+- [x] Recommend safe backend choices without forcing users into one IDE or one agent app.
+- [x] Keep completion blocked when tool-backed proof is claimed without evidence.
+- [x] Test missing tools, unsafe backends, optional degradation, and false-claim regressions.
 
 ### Phase 23 - Baron 3.0 Release Certification
 
-- [ ] Run full `cargo test --workspace --all-targets`.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] Smoke Codex, Claude, and generic adapter init/update flows.
-- [ ] Smoke old-repo migration and shared Vault stress cases.
-- [ ] Verify README, status JSON, build logs, command surface, and release metadata are synchronized.
-- [ ] Mark Baron 3.0 ready only after all Phase 18-22 proof is complete.
+- [x] Run full `cargo test --workspace --all-targets`.
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] Smoke Codex, Claude, and generic adapter init/update flows.
+- [x] Smoke old-repo migration and shared Vault stress cases.
+- [x] Verify README, status JSON, build logs, command surface, and release metadata are synchronized.
+- [x] Mark Baron 3.0 ready only after all Phase 18-22 proof is complete.
 
 ## Current Working Files
 
@@ -410,16 +410,17 @@ Phase 16-17 final verification:
 - Baron 3.0 roadmap log: `notes/build-log/2026-06-19-baron-3-roadmap.md`
 - Phase 18-20 plan: `docs/superpowers/plans/2026-06-19-phase-18-20-baron-3-foundation.md`
 - Phase 18-20 build log: `notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md`
+- Phase 21-23 plan: `docs/superpowers/plans/2026-06-19-phase-21-23-baron-3-release.md`
+- Phase 21-23 build log: `notes/build-log/2026-06-19-phase-21-23-baron-3-release.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `2.2.0` is the current stable source release. Baron `3.0.0` is the active
-target program. Phase 18-20 are implemented; future work starts at Phase 21 and
-must preserve Superpowers as the workflow core, keep the three mandatory quality
-gates stable, keep managed runtime skills and agents self-contained Baron
-assets, and build background learning/runtime awareness without cloning or
-replacing Baron's architecture.
+Baron `3.0.0` is the current stable source release. Phase 18-23 are implemented
+and must preserve Superpowers as the workflow core, keep the three mandatory
+quality gates stable, keep managed runtime skills and agents self-contained
+Baron assets, keep autopilot learning candidate-gated, and keep runtime backend
+claims blocked without safe providers plus execution evidence.
 
 Phase 18-20 final verification:
 
@@ -429,4 +430,14 @@ Phase 18-20 final verification:
 - Runtime optional skill/agent live-link scan: passed
 - Temp repo smoke for setup, init, asset audit, session replay index/search, and task context replay: passed
 - `docs/BARON_STATUS.json` parse: passed
+- `git diff --check`: passed
+
+Phase 21-23 final verification:
+
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Temp repo smoke for setup, Codex/Claude/generic init, shared Vault memory index, runtime check, context, autopilot review/status, recall, certification, and Agent Bootstrap migration dry-run: passed
+- `docs/BARON_STATUS.json` parse: passed
+- Static stale-release scan: passed
 - `git diff --check`: passed

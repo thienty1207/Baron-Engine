@@ -499,19 +499,33 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
             content.contains(&format!("baron capability check --adapter {adapter}")),
             "{path} must trigger automatic capability refresh"
         );
+        assert!(
+            content.contains(&format!("baron runtime check --adapter {adapter}")),
+            "{path} must trigger automatic runtime backend policy checks"
+        );
+        assert!(
+            content.contains("baron autopilot status"),
+            "{path} must inspect autopilot learning and resume state"
+        );
         assert!(content.contains(&format!("baron context --{adapter}")));
         assert!(
             content.contains("presence is not execution evidence"),
             "{path} must prevent false tool-backed completion claims"
         );
         assert!(content.contains("baron proof record"));
+        assert!(content.contains("baron autopilot review"));
     }
     let claude_context =
         fs::read_to_string(repo.join(".claude/commands/baron-context.md")).unwrap();
     assert!(claude_context.contains("baron capability check"));
+    assert!(claude_context.contains("baron runtime check"));
+    assert!(claude_context.contains("baron autopilot status"));
     let generic_context = fs::read_to_string(repo.join("baron-context.json")).unwrap();
     assert!(generic_context
         .contains("\"capabilityCheckCommand\": \"baron capability check --adapter agent\""));
+    assert!(generic_context
+        .contains("\"runtimeCheckCommand\": \"baron runtime check --adapter agent\""));
+    assert!(generic_context.contains("\"autopilotStatusCommand\": \"baron autopilot status\""));
 }
 
 #[test]
