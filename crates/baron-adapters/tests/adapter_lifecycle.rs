@@ -278,6 +278,42 @@ fn optional_web_performance_agent_is_not_a_core_quality_gate() {
 }
 
 #[test]
+fn performance_optimization_skill_is_operationally_detailed() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    let content =
+        fs::read_to_string(repo.join(".codex/skills/performance-optimization/SKILL.md")).unwrap();
+    let lower = content.to_lowercase();
+
+    for required in [
+        "measure",
+        "identify",
+        "fix",
+        "verify",
+        "guard",
+        "lcp",
+        "inp",
+        "cls",
+        "n+1",
+        "pagination",
+        "bundle",
+        "cache",
+        "performance budget",
+        "before and after",
+        "never fabricate metrics",
+        "Baron",
+    ] {
+        assert!(
+            lower.contains(&required.to_lowercase()),
+            "performance skill missing {required}"
+        );
+    }
+}
+
+#[test]
 fn bundled_domain_skills_do_not_depend_on_agent_bootstrap_runtime() {
     let temp = tempdir().unwrap();
     let repo = temp.path();

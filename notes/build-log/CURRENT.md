@@ -4,9 +4,9 @@ Date: 2026-06-18
 
 ## Current Phase
 
-Phase 16-17 - Agent Skills Refinement And Continuity Ledger (completed).
-Baron 2.2.0 is an additive intelligence and continuity release, not a rewrite
-of the verified Baron core.
+Post-2.2.0 hardening - Performance Optimization Skill Depth (completed).
+Baron 2.2.0 is receiving a focused quality hardening pass after user review
+found the optional performance skill too thin.
 
 ## What Is Being Built
 
@@ -22,7 +22,9 @@ Baron 2.2.0 planned batch:
 ## Current Status
 
 Baron 2.2.0 is the current source release. Phase 16 and Phase 17 implementation
-is in place and verified.
+is in place and verified. The current follow-up hardens the optional
+`performance-optimization` skill so it can actually guide agents through
+measurement, bottleneck isolation, fixes, verification, and regression guards.
 
 Current resume point:
 
@@ -31,6 +33,8 @@ Current resume point:
 - Phase 17 continuity module, context integration, hooks, and hidden CLI commands are in place.
 - Targeted tests for control-plane, continuity, adapter lifecycle, and automation CLI have passed at least once.
 - Full workspace test, format check, Clippy, and temp repo smoke have passed.
+- The new performance-skill regression test passed after failing against the old thin skill.
+- Full workspace test, format check, Clippy, and temp repo smoke passed for this follow-up.
 - Commit and push are the only remaining actions in this turn.
 
 ## Verification
@@ -136,11 +140,17 @@ Current resume point:
 - Phase 16-17 full `cargo test --workspace --all-targets`: passed
 - Phase 16-17 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - Phase 16-17 temp repo smoke for setup, init, optional skill routing, optional web performance agent routing, continuity checkpoint/status, and context resume: passed
+- Performance skill hardening RED test before rewrite: failed as expected
+- Performance skill hardening targeted GREEN test after rewrite: passed
+- Performance skill hardening full `cargo test --workspace --all-targets`: passed
+- Performance skill hardening full `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Performance skill hardening `cargo fmt --all -- --check`: passed
+- Performance skill hardening `git diff --check`: passed
+- Performance skill hardening temp repo smoke for init, installed skill content, performance routing, and optional web performance agent routing: passed
 
 ## Next Action
 
-Run final `docs/BARON_STATUS.json` parse and `git diff --check`, then commit
-and push `origin/main`.
+Commit and push the performance skill hardening to `origin/main`.
 
 ## Phase 9-10 Feature Commits
 
