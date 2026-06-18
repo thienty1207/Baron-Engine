@@ -10,6 +10,9 @@ use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
 use crate::memory::build_memory_index;
 use crate::session::import_sessions;
+use crate::session_replay::{
+    index_session_replay, render_session_replay_hits, search_session_replay,
+};
 use crate::survey::{survey_repository, ProjectType, RepoSurvey};
 use crate::vault::ensure_vault;
 
@@ -55,6 +58,7 @@ pub fn compile_context_for_task(
         import_sessions(repo_path, &vault, 5)?;
     }
     build_memory_index(&vault)?;
+    index_session_replay(&vault)?;
     let memory_brief = compact_memory_brief_for_task(&vault, task)?;
     let risk = classify_risk(task, &survey);
 
@@ -92,6 +96,7 @@ pub fn compile_context_for_task(
     )?);
     output.push_str(&render_control_plane_summary(repo_path));
     output.push_str(&render_harness_improvement_summary(repo_path, &vault));
+    output.push_str(&render_session_replay_summary(&vault, task));
 
     output.push_str(&memory_brief.replacen(
         "# Memory Firewall Brief",
@@ -108,6 +113,7 @@ pub fn compile_context_for_task(
     );
     output.push_str("- unrelated project memory unless explicitly requested through recall\n");
     output.push_str("- full documentation bodies and historical session folders\n");
+    output.push_str("- full session replay history; only bounded matching messages were loaded\n");
     output.push_str("- adapter refresh; managed files are owned by `baron init/update`\n");
     output.push_str("- No target repo files were written.\n");
 
@@ -183,6 +189,7 @@ pub fn compile_context_why(
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
     let report = build_memory_index(&vault)?;
+    let session_report = index_session_replay(&vault)?;
 
     let mut output = String::new();
     output.push_str("# Context Selection Why\n\n");
@@ -204,6 +211,10 @@ pub fn compile_context_why(
         output
             .push_str("- Loaded: bounded Product Harness state because a current story exists.\n");
     }
+    output.push_str(&format!(
+        "- Loaded: session replay index metadata with {} current-project messages; full histories stay skipped.\n",
+        session_report.indexed_messages
+    ));
     if !load_registry(repo_path)?.providers.is_empty() {
         output.push_str(
             "- Loaded: bounded Capability Registry and presence cache for the active adapter.\n",
@@ -224,6 +235,9 @@ pub fn compile_context_why(
     );
     output.push_str(
         "- Skipped: full docs and session history because compact context must stay bounded.\n",
+    );
+    output.push_str(
+        "- Skipped: cross-project session replay hits unless explicit recall/search asks for that project.\n",
     );
     output.push_str(
         "- Skipped: adapter refresh because init/update owns managed files; context remains read-only.\n",
@@ -437,6 +451,16 @@ fn render_harness_improvement_summary(
         Err(error) => output.push_str(&format!("- unavailable: {error}\n\n")),
     }
     output
+}
+
+fn render_session_replay_summary(vault: &crate::vault::VaultContext, task: Option<&str>) -> String {
+    let Some(task) = task.map(str::trim).filter(|value| !value.is_empty()) else {
+        return "## Session Replay\n\n- No task was provided, so Baron did not pull prior conversation messages.\n\n".to_string();
+    };
+    match search_session_replay(vault, task, 3) {
+        Ok(hits) => render_session_replay_hits(&hits),
+        Err(error) => format!("## Session Replay\n\n- unavailable: {error}\n\n"),
+    }
 }
 
 fn bounded_file(path: &Path, limit: usize, missing: &str) -> String {

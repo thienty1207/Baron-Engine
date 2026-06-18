@@ -71,6 +71,15 @@ behavior. Platform-specific hooks are accelerators, not separate workflow truth.
 Every adapter must also route work through `baron control-plane route` before
 loading optional skills or dispatching quality gates. A mandatory quality gate
 does not count until `baron control-plane record-gate` records evidence.
+Managed runtime skills and agents are local Baron assets. They must not depend
+on live external guidance to operate. If a custom skill or agent looks weak,
+conflicting, externally dependent, or recursively orchestrated, Baron can audit
+and quarantine it through the hidden asset lifecycle commands before routing.
+
+Context startup also refreshes the project-local session replay index. When a
+task is provided, the context bundle may include a few matching prior messages
+from imported sessions, but it never dumps full session history and it filters
+results by project identity.
 
 Codex and Claude hooks record SessionStart, prompt, edit checkpoint, and Stop
 events. SessionStart injects bounded context. Stop reconciliation blocks one

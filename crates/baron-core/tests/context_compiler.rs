@@ -270,6 +270,34 @@ fn context_includes_bounded_continuity_resume_point() {
 }
 
 #[test]
+fn task_context_includes_bounded_session_replay_hits() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    write(
+        &context
+            .project_root
+            .join("Sessions/Imported/codex-login.md"),
+        "# Imported Codex Session\n\n## Clean Conversation Memory\n\n### User\n\nWe decided Gin login needs refresh token rotation and auth integration tests.\n\n### Assistant\n\nDecision: keep tenant-safe sessions and verify server-side guards.\n",
+    );
+
+    let bundle = compile_context_for_task(
+        &repo,
+        &vault,
+        ContextTarget::Codex,
+        Some("Gin login auth integration tests"),
+    )
+    .unwrap();
+
+    assert!(bundle.contains("## Session Replay"));
+    assert!(bundle.contains("refresh token rotation"));
+    assert!(bundle.contains("tenant-safe sessions"));
+    assert!(bundle.contains("full session replay history"));
+}
+
+#[test]
 fn context_loads_bounded_cached_capability_summary_for_active_adapter() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

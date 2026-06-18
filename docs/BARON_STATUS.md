@@ -1,16 +1,32 @@
 # Baron Build Status
 
-Last updated: 2026-06-18
+Last updated: 2026-06-19
 
 ## Overall
 
 - Stable source release: `v2.2.0`
 - Baron 2.0 completion: 100%
-- Remaining planned phases: 0
-- Current phase: Phase 17 - Continuity Ledger And Resume Discipline
-- Current phase status: completed
-- Current next action: publish native GitHub release assets only when the operator is ready
-- Build confidence: Baron 2.2.0 keeps the verified 2.x engine intact while adding tighter optional skill/agent routing and explicit continuity resume packets for interrupted work.
+- Target source release: `v3.0.0`
+- Baron 3.0 completion: 65%
+- Remaining planned phases: 3
+- Current phase: Phase 21 - Background Learning And Continuity Autopilot
+- Current phase status: planned
+- Current next action: implement background learning and continuity autopilot on top of the hardened local assets and session replay foundation
+- Build confidence: Baron 2.2.0 is stable. Baron 3.0 Phase 18-20 are implemented locally: managed runtime skills/agents are self-contained, skill updates stage behind approval metadata, and task context can search bounded current-project session replay.
+
+## Baron 3.0 Direction
+
+Baron 3.0 has two non-negotiable goals:
+
+- Fix weak runtime assets. Baron skills and agents must be self-contained, local, tested, and strong enough to guide AI without relying on external GitHub links.
+- Learn from `nousresearch/hermes-agent` without cloning it. Baron should adopt the useful ideas: skill lifecycle, safe self-improvement, session replay, background review, capability/runtime awareness, and continuity autopilot.
+
+Core remains unchanged:
+
+- Superpowers remains the workflow core.
+- The three mandatory quality gates remain `code-reviewer`, `security-auditor`, and `test-engineer`.
+- Vault Markdown remains Baron's durable source of truth.
+- Optional skills and optional agents remain lazy-routed, never core.
 
 ## Why The Roadmap Is Complete
 
@@ -93,6 +109,17 @@ Baron 2.2 planned additive program:
 | --- | --- | --- | --- | --- |
 | 16 | Agent Skills Refinement | completed | 60% | refined 3 core agents, upgraded optional frontend/security skills, optional performance/API/observability/migration routing, contract tests, adapter smoke |
 | 17 | Continuity Ledger And Resume Discipline | completed | 40% | explicit resume ledger, interruption-safe current work packet, generated adapter rules, lifecycle tests, context recovery smoke |
+
+Baron 3.0 planned program:
+
+| Phase | Name | Status | Baron 3.0 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 18 | Asset Sovereignty And Skill/Agent Hardening | completed | 25% | asset sovereignty tests, rewritten self-contained skills, deepened agents, runtime-link scan, adapter lifecycle tests |
+| 19 | Skill Lifecycle And Approval Engine | completed | 20% | asset audit, custom quarantine, staged skill proposal metadata, hidden CLI help, lifecycle tests |
+| 20 | Session Replay And Conversation Search | completed | 20% | SQLite session replay index, current-project search, bounded replay, context integration, shared-Vault isolation tests |
+| 21 | Background Learning And Continuity Autopilot | planned | 15% | post-task review proposes memory/skill/harness updates, interrupted work resumes without guessing, and user approval gates prevent bad writes |
+| 22 | Capability Runtime And Safe Tool Backends | planned | 10% | tool/provider availability, execution evidence, safe backend policy, sandbox recommendations, and false-claim regressions pass |
+| 23 | Baron 3.0 Release Certification | planned | 10% | full suite, clippy, smoke across Codex/Claude/generic adapters, old-repo migration smoke, shared Vault stress, docs/status sync, and release metadata pass |
 
 Phase 16-17 final verification:
 
@@ -297,6 +324,60 @@ Phase 16-17 final verification:
 - [x] Add tests that simulate a stopped session and verify the next agent can identify current task, last completed step, open risks, proof status, and next action.
 - [x] Keep the feature automatic for AI; normal users should not need to run extra commands during ordinary work.
 
+### Phase 18 - Asset Sovereignty And Skill/Agent Hardening
+
+- [x] Remove live GitHub or external runtime dependencies from managed optional `SKILL.md` and agent instruction files.
+- [x] Move attribution and license references into `NOTICE.md` or `LICENSE.txt` files where needed.
+- [x] Rewrite `vibe-security-scan`, `api-and-interface-design`, `observability-and-instrumentation`, and `deprecation-and-migration` as self-contained Baron-native skills.
+- [x] Deepen `code-reviewer`, `security-auditor`, `test-engineer`, and `web-performance-auditor` with scope, evidence, proof, trace, anti-hallucination, and output contracts.
+- [x] Add tests that fail on thin skills, runtime external links, duplicate workflow ownership, recursive subagent orchestration, and missing proof/trace contracts.
+- [x] Run full tests, Clippy, runtime asset scan, JSON parse, diff check, and temp repo smoke.
+
+### Phase 19 - Skill Lifecycle And Approval Engine
+
+- [x] Score skill quality before routing or activation through `baron asset audit`.
+- [x] Quarantine weak, conflicting, externally dependent, or duplicate-ownership custom skills.
+- [x] Stage agent-proposed skill edits as diffs instead of silently overwriting runtime assets.
+- [x] Add approval metadata for skill updates and safe self-improvement proposals.
+- [x] Preserve managed Superpowers while quarantining only failing custom assets.
+- [x] Test rejection, quarantine, staged approval, and hidden CLI availability paths.
+
+### Phase 20 - Session Replay And Conversation Search
+
+- [x] Store imported agent session Markdown in a local searchable SQLite session replay cache.
+- [x] Add exact message search and bounded surrounding-context replay.
+- [x] Support current-project search without dumping full histories.
+- [x] Link replay hits to project identity, Vault capsule, source path, role, ordinal, and content hash.
+- [x] Enforce Memory Firewall rules so weak cross-project session hits cannot pollute the active project.
+- [x] Test search, replay, bounded context, and shared-Vault isolation.
+
+### Phase 21 - Background Learning And Continuity Autopilot
+
+- [ ] Add post-task review that proposes memory, skill, harness, and continuity improvements.
+- [ ] Keep uncertain learning as candidates, not trusted facts.
+- [ ] Require approval gates for sensitive or runtime-affecting writes when configured.
+- [ ] Resume interrupted work from continuity packet, session replay, plan, harness, proof, and trace state.
+- [ ] Record which automation actually ran instead of assuming the agent followed instructions.
+- [ ] Test interruption, candidate learning, approval, rejection, and resume behavior.
+
+### Phase 22 - Capability Runtime And Safe Tool Backends
+
+- [ ] Distinguish tool availability from executed proof.
+- [ ] Track provider backend, adapter support, sandbox policy, and execution evidence.
+- [ ] Lower confidence when required tools are missing, unsafe, or unverified.
+- [ ] Recommend safe backend choices without forcing users into one IDE or one agent app.
+- [ ] Keep completion blocked when tool-backed proof is claimed without evidence.
+- [ ] Test missing tools, unsafe backends, optional degradation, and false-claim regressions.
+
+### Phase 23 - Baron 3.0 Release Certification
+
+- [ ] Run full `cargo test --workspace --all-targets`.
+- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [ ] Smoke Codex, Claude, and generic adapter init/update flows.
+- [ ] Smoke old-repo migration and shared Vault stress cases.
+- [ ] Verify README, status JSON, build logs, command surface, and release metadata are synchronized.
+- [ ] Mark Baron 3.0 ready only after all Phase 18-22 proof is complete.
+
 ## Current Working Files
 
 - Product spec: `docs/specs/2026-06-08-baron-product-spec-1.0.md`
@@ -326,13 +407,26 @@ Phase 16-17 final verification:
 - Phase 13-14 build log: `notes/build-log/2026-06-16-phase-13-14-certification-release.md`
 - Phase 16-17 plan: `docs/superpowers/plans/2026-06-18-phase-16-17-agent-skills-continuity.md`
 - Baron 2.2 planning log: `notes/build-log/2026-06-18-baron-2-2-agent-skills-roadmap.md`
+- Baron 3.0 roadmap log: `notes/build-log/2026-06-19-baron-3-roadmap.md`
+- Phase 18-20 plan: `docs/superpowers/plans/2026-06-19-phase-18-20-baron-3-foundation.md`
+- Phase 18-20 build log: `notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `2.2.0` keeps the full 2.0 engine, the simplified user-facing flow, and
-adds additive skill/agent intelligence plus continuity resume discipline. Future
-work must preserve the verified identity, native
-automation, incremental memory, semantic recall, control-plane, self-improving
-harness, certification, adapter, proof, capability, and data-safety contracts
-while keeping normal users away from internal automation command clutter.
+Baron `2.2.0` is the current stable source release. Baron `3.0.0` is the active
+target program. Phase 18-20 are implemented; future work starts at Phase 21 and
+must preserve Superpowers as the workflow core, keep the three mandatory quality
+gates stable, keep managed runtime skills and agents self-contained Baron
+assets, and build background learning/runtime awareness without cloning or
+replacing Baron's architecture.
+
+Phase 18-20 final verification:
+
+- `cargo fmt --all`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Runtime optional skill/agent live-link scan: passed
+- Temp repo smoke for setup, init, asset audit, session replay index/search, and task context replay: passed
+- `docs/BARON_STATUS.json` parse: passed
+- `git diff --check`: passed

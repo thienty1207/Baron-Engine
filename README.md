@@ -172,6 +172,8 @@ The hidden engine handles:
 - tracking the active plan, product intent, proof, traces, and friction
 - writing a continuity resume packet so interrupted work can restart without guessing
 - routing Superpowers, optional domain skills, optional web performance audit, and the three quality agents through a strict control plane
+- auditing weak custom skills or agents before they are trusted
+- searching bounded prior conversation messages for the current project when a task needs session replay
 - checking whether tool-backed claims have real execution evidence
 
 This is why normal users should not need to learn the internal command list. The advanced command surface exists for AI automation, recovery, diagnostics, and maintainers, and is documented in [docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).
@@ -200,6 +202,7 @@ Baron is designed for many old and new projects sharing one Vault without turnin
 - Approved global memory can help across projects.
 - Cross-project memory is blocked unless the task clearly asks for it.
 - Draft, stale, interrupted, or imported-session-only memory is treated with lower confidence.
+- Imported session history is searchable by project, but compact context only pulls a few matching messages.
 - Medium and high-risk work needs real proof before completion is trusted.
 - Trace quality helps the next agent understand what happened and what remains.
 - Continuity resume records current task, last checkpoint, proof status, trace status, and next action so a later AI session can continue without inventing state.

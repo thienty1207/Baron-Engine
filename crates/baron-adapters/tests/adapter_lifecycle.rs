@@ -314,6 +314,139 @@ fn performance_optimization_skill_is_operationally_detailed() {
 }
 
 #[test]
+fn baron_owned_runtime_assets_are_self_contained_and_deep() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    for skill in [
+        "frontend-design",
+        "vibe-security-scan",
+        "api-and-interface-design",
+        "observability-and-instrumentation",
+        "performance-optimization",
+        "deprecation-and-migration",
+    ] {
+        let content =
+            fs::read_to_string(repo.join(".codex/skills").join(skill).join("SKILL.md")).unwrap();
+        let lower = content.to_lowercase();
+        assert!(
+            !lower.contains("http://")
+                && !lower.contains("https://")
+                && !lower.contains("github.com")
+                && !lower.contains("public source"),
+            "{skill} runtime guidance must not depend on live external links"
+        );
+        for required in [
+            "## Baron Contract",
+            "## Use When",
+            "## Output Contract",
+            "## Verification",
+        ] {
+            assert!(content.contains(required), "{skill} missing {required}");
+        }
+        for required in ["Superpowers", "proof", "trace", "unknown", "evidence"] {
+            assert!(
+                lower.contains(&required.to_lowercase()),
+                "{skill} missing {required}"
+            );
+        }
+        assert!(
+            content.lines().count() >= 80,
+            "{skill} is too thin to be a Baron-owned runtime skill"
+        );
+    }
+
+    let skill_expectations = [
+        (
+            "api-and-interface-design",
+            [
+                "versioning",
+                "compatibility",
+                "pagination",
+                "idempotency",
+                "error schema",
+                "auth boundary",
+            ],
+        ),
+        (
+            "observability-and-instrumentation",
+            ["correlation id", "metrics", "traces", "slo", "alert", "pii"],
+        ),
+        (
+            "deprecation-and-migration",
+            [
+                "rollback",
+                "feature flag",
+                "compatibility window",
+                "dual-read",
+                "dual-write",
+                "data migration",
+            ],
+        ),
+        (
+            "vibe-security-scan",
+            [
+                "trust boundary",
+                "data-flow",
+                "idor",
+                "ssrf",
+                "command injection",
+                "no weaponized",
+            ],
+        ),
+    ];
+    for (skill, terms) in skill_expectations {
+        let content = fs::read_to_string(repo.join(".codex/skills").join(skill).join("SKILL.md"))
+            .unwrap()
+            .to_lowercase();
+        for term in terms {
+            assert!(content.contains(term), "{skill} missing {term}");
+        }
+    }
+}
+
+#[test]
+fn bundled_agents_are_self_contained_and_deep_quality_gates() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    for agent in [
+        "code-reviewer",
+        "security-auditor",
+        "test-engineer",
+        "web-performance-auditor",
+    ] {
+        let content =
+            fs::read_to_string(repo.join(".codex/agents").join(format!("{agent}.toml"))).unwrap();
+        let lower = content.to_lowercase();
+        assert!(
+            !lower.contains("http://") && !lower.contains("https://") && !lower.contains("github"),
+            "{agent} runtime instructions must not depend on live external links"
+        );
+        for required in [
+            "core contract",
+            "scope",
+            "anti-hallucination",
+            "output contract",
+            "evidence",
+            "proof",
+            "trace",
+            "do not invoke other subagents",
+        ] {
+            assert!(lower.contains(required), "{agent} missing {required}");
+        }
+        assert!(
+            content.lines().count() >= 45,
+            "{agent} instructions are too thin for Baron 3.0"
+        );
+    }
+}
+
+#[test]
 fn bundled_domain_skills_do_not_depend_on_agent_bootstrap_runtime() {
     let temp = tempdir().unwrap();
     let repo = temp.path();

@@ -1,3 +1,4 @@
+pub mod asset_lifecycle;
 pub mod automation;
 pub mod capability;
 pub mod certification;
@@ -16,6 +17,7 @@ pub mod proof;
 pub mod release;
 pub mod risk;
 pub mod session;
+pub mod session_replay;
 pub mod survey;
 pub mod trace;
 pub mod vault;
@@ -25,7 +27,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "phase-16-17-agent-skills-continuity"
+    "phase-18-20-baron-3-foundation"
 }
 
 #[cfg(test)]
@@ -35,6 +37,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "phase-16-17-agent-skills-continuity");
+        assert_eq!(phase(), "phase-18-20-baron-3-foundation");
     }
 }

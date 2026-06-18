@@ -1,41 +1,38 @@
 # Current Build Note
 
-Date: 2026-06-18
+Date: 2026-06-19
 
 ## Current Phase
 
-Post-2.2.0 hardening - Performance Optimization Skill Depth (completed).
-Baron 2.2.0 is receiving a focused quality hardening pass after user review
-found the optional performance skill too thin.
+Phase 21 - Background Learning And Continuity Autopilot (planned).
+Baron 3.0 Phase 18-20 are implemented. The next priority is to build background
+learning on top of hardened local runtime assets, approval-staged skill updates,
+and bounded current-project session replay.
 
 ## What Is Being Built
 
-Baron 2.2.0 planned batch:
+Baron 3.0 planned batch:
 
-- Phase 16 refines the 3 core agents and optional domain skills using strong external rubric ideas without copying another repo into Baron.
-- Phase 16 adds narrow optional API/interface, observability, performance, migration guidance, and optional web performance auditing.
-- Phase 16 keeps Superpowers as workflow core and keeps optional assets lazy-routed.
-- Phase 17 turns the existing status/build-log/plan/trace/journal habit into a clear Continuity Ledger feature for interrupted work.
-- Phase 17 updates native hooks, hidden AI commands, adapter instructions, and context output so resume points are automatic.
-- Phase 17 must stay automatic for AI agents; normal users should not need extra commands.
+- Phase 18 fixes asset sovereignty: managed runtime skills and agents must be self-contained local Baron assets, not thin wrappers or live-link guidance.
+- Phase 19 adds a skill lifecycle and approval engine: quality scoring, quarantine, staged diffs, and safe self-improvement proposals.
+- Phase 20 adds session replay and conversation search: exact prior messages, bounded scroll, and project-safe recall.
+- Phase 21 adds background learning and continuity autopilot: post-task review, candidate memory/skill updates, and interruption-safe resume behavior.
+- Phase 22 adds capability runtime and safe tool backend policy: available tool checks, execution evidence, and safer backend guidance.
+- Phase 23 certifies Baron 3.0 with full tests, smoke, docs/status sync, and release metadata.
 
 ## Current Status
 
-Baron 2.2.0 is the current source release. Phase 16 and Phase 17 implementation
-is in place and verified. The current follow-up hardens the optional
-`performance-optimization` skill so it can actually guide agents through
-measurement, bottleneck isolation, fixes, verification, and regression guards.
+Baron 2.2.0 remains the current stable source release. Baron 3.0 is the new
+target release. Phase 18-20 are now implemented locally and awaiting full final
+verification in the current working tree before commit/push.
 
 Current resume point:
 
-- RED tests were added for optional skill/agent routing and continuity.
-- Phase 16 assets/control-plane implementation is in place.
-- Phase 17 continuity module, context integration, hooks, and hidden CLI commands are in place.
-- Targeted tests for control-plane, continuity, adapter lifecycle, and automation CLI have passed at least once.
-- Full workspace test, format check, Clippy, and temp repo smoke have passed.
-- The new performance-skill regression test passed after failing against the old thin skill.
-- Full workspace test, format check, Clippy, and temp repo smoke passed for this follow-up.
-- Commit and push are the only remaining actions in this turn.
+- `docs/BARON_STATUS.md` marks Phase 18-20 implemented and Phase 21 as next.
+- `docs/BARON_STATUS.json` tracks target release `3.0.0`, 65% completion, and three remaining planned phases.
+- `notes/build-log/2026-06-19-baron-3-roadmap.md` records the trigger and non-negotiables.
+- `notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md` records the implementation details.
+- Next implementation should start with Phase 21 RED tests for background learning, candidate writes, approval gates, and interruption-safe resume.
 
 ## Verification
 
@@ -147,10 +144,27 @@ Current resume point:
 - Performance skill hardening `cargo fmt --all -- --check`: passed
 - Performance skill hardening `git diff --check`: passed
 - Performance skill hardening temp repo smoke for init, installed skill content, performance routing, and optional web performance agent routing: passed
+- Baron 3.0 roadmap status update `docs/BARON_STATUS.json` parse: passed
+- Baron 3.0 roadmap status update `git diff --check`: passed
+- Phase 18 asset sovereignty RED tests: failed as expected before implementation
+- Phase 19 asset lifecycle RED tests: failed as expected before implementation
+- Phase 20 session replay RED tests: failed as expected before implementation
+- Phase 18 asset sovereignty targeted GREEN tests: passed
+- Phase 19 asset lifecycle targeted GREEN tests: passed
+- Phase 20 session replay targeted GREEN tests: passed
+- Phase 20 context replay integration targeted test: passed
+- Phase 19 hidden CLI help targeted test: passed
+- Phase 18-20 `cargo fmt --all`: passed
+- Phase 18-20 `cargo test --workspace --all-targets`: passed
+- Phase 18-20 `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 18-20 temp repo smoke for setup, init, asset audit, session replay index/search, and task context replay: passed
+- Phase 18-20 `docs/BARON_STATUS.json` parse: passed
+- Phase 18-20 runtime optional skill/agent live-link scan: passed
+- Phase 18-20 `git diff --check`: passed
 
 ## Next Action
 
-Commit and push the performance skill hardening to `origin/main`.
+Commit and push Phase 18-20. After that, start Phase 21.
 
 ## Phase 9-10 Feature Commits
 

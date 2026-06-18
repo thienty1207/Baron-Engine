@@ -212,6 +212,44 @@ ordinary work.
 It proposes improvements but does not rewrite core policy without human
 approval.
 
+## Phase 18
+
+No new normal-user command is introduced. Phase 18 hardens Baron-managed runtime
+skills and agents so operational instructions are self-contained local assets.
+Attribution, license notes, and upstream inspiration live outside runtime
+`SKILL.md` files. Superpowers remains the workflow core, and optional skills stay
+lazy-routed.
+
+## Phase 19
+
+```bash
+baron asset audit [repo-path]
+baron asset quarantine [repo-path]
+baron asset propose-skill <skill> "<reason>" <content-path> [repo-path]
+```
+
+These commands are hidden from top-level help and are meant for AI automation,
+diagnostics, migration, and maintenance. Audit scores local runtime assets for
+external runtime links, thin contracts, missing proof/trace language, duplicate
+workflow ownership, and recursive subagent orchestration. Quarantine moves
+failing custom assets out of routing while skipping managed Baron assets. Skill
+proposals are staged as reviewable diffs with approval metadata and never
+overwrite runtime guidance silently.
+
+## Phase 20
+
+```bash
+baron session-replay index [repo-path] --vault <vault-path>
+baron session-replay search "<query>" [repo-path] --vault <vault-path>
+baron session-replay replay <message-id> [repo-path] --vault <vault-path> --radius <n>
+```
+
+These commands are hidden from top-level help and are meant for AI automation,
+diagnostics, and recovery. Context automatically refreshes the current project's
+session replay index and includes only bounded matching messages when a task is
+provided. Search and replay are filtered by project identity so shared Vaults do
+not leak weak cross-project session history into the active project.
+
 ## Phase 13
 
 ```bash

@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-06-18",
+  "lastUpdated": "2026-06-19",
   "stableRelease": "2.2.0",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "2.2.0",
-  "targetReleaseCompletionPercent": 100,
-  "remainingPhaseCount": 0,
-  "currentPhase": "phase-17-continuity-ledger-and-resume-discipline",
-  "currentPhaseStatus": "completed",
-  "nextAction": "publish-native-github-release-assets-when-operator-is-ready",
-  "buildConfidence": "Baron 2.2.0 keeps the verified 2.x engine intact while adding tighter optional skill agent routing and explicit continuity resume packets for interrupted work.",
+  "targetRelease": "3.0.0",
+  "targetReleaseCompletionPercent": 65,
+  "remainingPhaseCount": 3,
+  "currentPhase": "phase-21-background-learning-and-continuity-autopilot",
+  "currentPhaseStatus": "planned",
+  "nextAction": "implement background learning and continuity autopilot on top of the hardened local assets and session replay foundation",
+  "buildConfidence": "Baron 2.2.0 is stable. Baron 3.0 Phase 18-20 are implemented locally: managed runtime skills and agents are self-contained, skill updates stage behind approval metadata, and task context can search bounded current-project session replay.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -39,7 +39,12 @@
     "normal users only need install setup Vault init agent surface choose platform and update",
     "advanced survey context memory plan harness proof trace control-plane and automation commands stay available for AI automation without crowding the primary help flow",
     "skill and agent refinement improves routing without creating duplicate ownership or replacing Superpowers",
-    "continuity resume packets make interrupted implementation resume points explicit and automatic for AI agents"
+    "continuity resume packets make interrupted implementation resume points explicit and automatic for AI agents",
+    "runtime skills and agents are self-contained local Baron assets with no live GitHub dependency in operational guidance",
+    "skill lifecycle supports quality scoring quarantine staged diffs approval and safe self-improvement",
+    "session replay searches and scrolls real prior conversation records without flooding context",
+    "background learning proposes memory skill harness and continuity improvements without writing unapproved bad state",
+    "capability runtime and safe backend policy prevent false tool claims and unsafe execution assumptions"
   ],
   "phases": [
     {
@@ -295,11 +300,100 @@
         "tests simulate interrupted work and verify the next session resumes without guessing",
         "normal users do not need extra commands during ordinary workflow"
       ]
+    },
+    {
+      "id": 18,
+      "name": "Asset Sovereignty And Skill/Agent Hardening",
+      "status": "completed",
+      "targetReleaseWeightPercent": 25,
+      "completionPercent": 25,
+      "requiredProof": [
+        "runtime optional skills and agents contain no live GitHub dependency in operational guidance",
+        "attribution and license details moved to NOTICE or LICENSE files outside execution instructions",
+        "vibe-security-scan api-and-interface-design observability-and-instrumentation deprecation-and-migration rewritten as self-contained Baron-native skills",
+        "code-reviewer security-auditor test-engineer and web-performance-auditor deepened with scope checklists evidence proof trace and anti-hallucination rules",
+        "contract tests fail on thin skills external runtime links duplicate workflow ownership recursive subagent orchestration and missing proof trace contracts",
+        "adapter lifecycle tests prove generated Codex assets install the hardened local assets"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "Skill Lifecycle And Approval Engine",
+      "status": "completed",
+      "targetReleaseWeightPercent": 20,
+      "completionPercent": 20,
+      "requiredProof": [
+        "Baron scores skill quality before activation through asset audit",
+        "weak conflicting or externally dependent custom skills are quarantined instead of routed",
+        "agent-proposed skill edits are staged with diff and approval metadata",
+        "self-improvement suggestions cannot silently overwrite user or managed assets",
+        "managed Superpowers is preserved while failing custom assets can be quarantined"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "Session Replay And Conversation Search",
+      "status": "completed",
+      "targetReleaseWeightPercent": 20,
+      "completionPercent": 20,
+      "requiredProof": [
+        "local session store records imported agent session Markdown as message rows",
+        "search finds exact prior messages and bounded surrounding context",
+        "session replay scrolls around a selected message without dumping full histories",
+        "project identity and Memory Firewall block weak cross-project contamination",
+        "context includes only bounded replay hits when task relevance is strong"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Background Learning And Continuity Autopilot",
+      "status": "planned",
+      "targetReleaseWeightPercent": 15,
+      "completionPercent": 0,
+      "requiredProof": [
+        "post-task review proposes memory skill harness and continuity updates",
+        "approval gates prevent unreviewed writes when configured",
+        "interrupted work resumes from continuity packet session replay plan harness proof and trace",
+        "Baron records what automation actually ran instead of assuming compliance",
+        "bad or uncertain learning is staged as candidate memory rather than trusted fact"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Capability Runtime And Safe Tool Backends",
+      "status": "planned",
+      "targetReleaseWeightPercent": 10,
+      "completionPercent": 0,
+      "requiredProof": [
+        "Baron distinguishes tool availability from executed proof",
+        "capability checks include provider backend adapter and sandbox policy",
+        "unsafe or missing tools lower confidence and appear in context diagnostics",
+        "safe backend recommendations are generated without forcing users into one IDE or agent app",
+        "false-claim regressions prove Baron blocks completion claims without execution evidence"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "Baron 3.0 Release Certification",
+      "status": "planned",
+      "targetReleaseWeightPercent": 10,
+      "completionPercent": 0,
+      "requiredProof": [
+        "full cargo test workspace all targets passes",
+        "cargo clippy workspace all targets with warnings denied passes",
+        "Codex Claude and generic adapter smoke tests pass",
+        "old-repo migration and shared Vault stress smoke pass",
+        "docs status JSON build logs README and command surface stay synchronized",
+        "release metadata and installer lifecycle checks pass"
+      ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
     "notes/build-log/CURRENT.md",
+    "notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md",
+    "docs/superpowers/plans/2026-06-19-phase-18-20-baron-3-foundation.md",
+    "notes/build-log/2026-06-19-baron-3-roadmap.md",
     "notes/build-log/2026-06-18-baron-2-2-agent-skills-roadmap.md",
     "docs/superpowers/plans/2026-06-18-phase-16-17-agent-skills-continuity.md",
     "docs/superpowers/specs/2026-06-15-baron-2-program-design.md",

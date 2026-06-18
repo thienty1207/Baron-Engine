@@ -118,6 +118,24 @@ fn hidden_automation_commands_remain_available_for_agents() {
         .stdout(predicate::str::contains("audit"))
         .stdout(predicate::str::contains("verify-all"))
         .stdout(predicate::str::contains("propose"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["asset", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("audit"))
+        .stdout(predicate::str::contains("quarantine"))
+        .stdout(predicate::str::contains("propose-skill"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["session-replay", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("index"))
+        .stdout(predicate::str::contains("search"))
+        .stdout(predicate::str::contains("replay"));
 }
 
 #[test]

@@ -200,6 +200,8 @@ You are using Baron through the {agent} adapter.\n\n\
 - Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
 - Before selecting skills or agents for meaningful work, silently run `baron control-plane route \"<task>\"` and follow the selected/skipped explanation.\n\
+- Use Baron-managed skills and agents as local self-contained assets; if a custom asset looks weak, conflicting, or externally dependent, run `baron asset audit` before trusting it.\n\
+- When prior conversation context may matter, rely on `baron context --{adapter} --task \"<task>\"` or `baron session-replay search \"<query>\"`; do not dump full session histories.\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\
 - Create harness intake for medium/high-risk work.\n\
 - Before edits, direction changes, interruptions, and final responses for meaningful work, record `baron continuity checkpoint \"<current state and next action>\"`.\n\

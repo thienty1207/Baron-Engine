@@ -3,6 +3,9 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use baron_adapters::{install_adapter, shadow_preview, AgentAdapter};
+use baron_core::asset_lifecycle::{
+    audit_runtime_assets, quarantine_failing_assets, stage_skill_update,
+};
 use baron_core::automation::{
     automation_status, handle_hook, reconcile, record_lifecycle_event, AutomationEvent, HookAdapter,
 };
@@ -44,6 +47,9 @@ use baron_core::plan::{
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
 use baron_core::release::{load_and_verify_release_metadata, write_release_metadata};
 use baron_core::session::{import_sessions, import_state_summary};
+use baron_core::session_replay::{
+    index_session_replay, replay_session_context, search_session_replay,
+};
 use baron_core::survey::{render_project_atlas, survey_repository};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
@@ -173,6 +179,16 @@ enum Commands {
     ControlPlane {
         #[command(subcommand)]
         command: ControlPlaneCommands,
+    },
+    #[command(hide = true)]
+    Asset {
+        #[command(subcommand)]
+        command: AssetCommands,
+    },
+    #[command(hide = true)]
+    SessionReplay {
+        #[command(subcommand)]
+        command: SessionReplayCommands,
     },
     #[command(hide = true)]
     Certify {
@@ -394,6 +410,47 @@ enum ControlPlaneCommands {
         repo_path: Option<PathBuf>,
         #[arg(long = "required")]
         required: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AssetCommands {
+    Audit {
+        repo_path: Option<PathBuf>,
+    },
+    Quarantine {
+        repo_path: Option<PathBuf>,
+    },
+    ProposeSkill {
+        skill: String,
+        reason: String,
+        content_path: PathBuf,
+        repo_path: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum SessionReplayCommands {
+    Index {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    Search {
+        query: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long, default_value_t = 8)]
+        limit: usize,
+    },
+    Replay {
+        message_id: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long, default_value_t = 2)]
+        radius: usize,
     },
 }
 
@@ -1173,6 +1230,106 @@ fn run() -> Result<()> {
                 println!("- Passed: `{}`", if status.passed { "yes" } else { "no" });
                 println!("- Required: {}", required.join(", "));
                 println!("- Missing: {}", list_or_none(&status.missing_agents));
+            }
+        },
+        Some(Commands::Asset { command }) => match command {
+            AssetCommands::Audit { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                let report = audit_runtime_assets(&repo_root)?;
+                println!("# Baron Asset Audit\n");
+                println!("- Passed: `{}`", if report.passed { "yes" } else { "no" });
+                println!("- Items: {}", report.items.len());
+                println!("- Diagnostics: {}", list_or_none(&report.diagnostics));
+            }
+            AssetCommands::Quarantine { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                let report = quarantine_failing_assets(&repo_root)?;
+                println!("# Baron Asset Quarantine\n");
+                println!("- Quarantined: {}", report.quarantined.len());
+                println!(
+                    "- Managed failures skipped: {}",
+                    report.skipped_managed.len()
+                );
+                println!(
+                    "- Quarantine root: `{}`",
+                    repo_root
+                        .join(".baron/quarantine/asset-lifecycle")
+                        .display()
+                );
+            }
+            AssetCommands::ProposeSkill {
+                skill,
+                reason,
+                content_path,
+                repo_path,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let content = std::fs::read_to_string(&content_path).with_context(|| {
+                    format!("Could not read proposal body: {}", content_path.display())
+                })?;
+                let staged = stage_skill_update(&repo_root, &skill, &reason, &content)?;
+                println!("# Baron Skill Update Proposal\n");
+                println!("- Skill: `{skill}`");
+                println!("- Approval required: `yes`");
+                println!("- Proposal: `{}`", staged.proposal_path.display());
+                println!("- Diff: `{}`", staged.diff_path.display());
+                println!("- Metadata: `{}`", staged.metadata_path.display());
+            }
+        },
+        Some(Commands::SessionReplay { command }) => match command {
+            SessionReplayCommands::Index { repo_path, vault } => {
+                let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_root)?;
+                let context = ensure_vault(vault_path, repo_root)?;
+                let report = index_session_replay(&context)?;
+                println!("# Baron Session Replay Index\n");
+                println!("- Sources: {}", report.indexed_sources);
+                println!("- Messages: {}", report.indexed_messages);
+                println!("- Index: `{}`", report.index_path.display());
+            }
+            SessionReplayCommands::Search {
+                query,
+                repo_path,
+                vault,
+                limit,
+            } => {
+                let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_root)?;
+                let context = ensure_vault(vault_path, repo_root)?;
+                index_session_replay(&context)?;
+                let hits = search_session_replay(&context, &query, limit)?;
+                println!("# Baron Session Replay Search\n");
+                println!("- Query: `{query}`");
+                println!("- Hits: {}", hits.len());
+                for hit in hits {
+                    println!(
+                        "- `{}` {} {}: {}",
+                        hit.message_id,
+                        hit.source_path,
+                        hit.role,
+                        hit.text.split_whitespace().collect::<Vec<_>>().join(" ")
+                    );
+                }
+            }
+            SessionReplayCommands::Replay {
+                message_id,
+                repo_path,
+                vault,
+                radius,
+            } => {
+                let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_root)?;
+                let context = ensure_vault(vault_path, repo_root)?;
+                let replay = replay_session_context(&context, &message_id, radius)?;
+                println!("# Baron Session Replay\n");
+                println!("- Project: `{}`", replay.project_slug);
+                println!("- Source: `{}`", replay.source_path);
+                for message in replay.messages {
+                    println!(
+                        "\n## {} {}\n\n{}",
+                        message.ordinal, message.role, message.text
+                    );
+                }
             }
         },
         Some(Commands::Certify { command }) => match command {

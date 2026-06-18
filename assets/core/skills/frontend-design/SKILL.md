@@ -1,14 +1,14 @@
 ---
 name: frontend-design
 description: Use when building, styling, or refining frontend interfaces, pages, components, layouts, dashboards, browser-facing product flows, responsive behavior, accessibility, interaction states, or visual polish.
-license: Apache-2.0; adapted from anthropics/skills frontend-design
+license: Apache-2.0 compatible local guidance; see LICENSE.txt and NOTICE.md
 ---
 
 # Frontend Design
 
 This bundled optional domain skill guides frontend/UI work. It is lazy-loaded only when `.codex/skills/INDEX.md` routes a matching task here.
 
-## Compatibility Guardrails
+## Baron Contract
 
 - Superpowers remains the workflow authority for planning, TDD, debugging, review, and verification.
 - This skill is frontend-specific guidance, not a replacement for Superpowers or the 3 core subagents.
@@ -16,7 +16,7 @@ This bundled optional domain skill guides frontend/UI work. It is lazy-loaded on
 - Do not override `code-reviewer`, `security-auditor`, or `test-engineer`; route quality, security, and verification gates to those core agents when needed.
 - Use repo files, product copy, design tokens, screenshots, and existing UI patterns as evidence. Mark unknown product facts as unknown.
 
-## When To Use
+## Use When
 
 Use this when the task asks for frontend implementation, UI design, visual refinement, component styling, page layout, responsive behavior, accessibility, interaction states, dashboard/product screens, or browser-facing product flows.
 
@@ -73,6 +73,17 @@ Before final response, check:
 - Performance: images, fonts, heavy components, route loading, and unnecessary re-render risks are identified.
 - Baron evidence: changed files, browser/smoke proof, remaining core-agent gates, and trace/proof gaps are clear.
 
+## Verification
+
+- Run the smallest useful browser, DOM, screenshot, component, build, or smoke check that proves the UI behavior.
+- If the app cannot run locally, report that as unknown and give the best static evidence from files read.
+- For responsive work, check at least mobile and desktop constraints or name the missing viewport proof.
+- For interaction work, verify loading, empty, error, disabled, hover/focus, and long-text states when relevant.
+- For accessibility work, verify labels, focus path, keyboard reachability, semantic roles, and contrast risks when practical.
+- For visual work, compare against existing design tokens and nearby screens instead of inventing a disconnected style.
+- For performance-sensitive screens, do not claim faster rendering without measurement; label static concerns as potential impact.
+- Record proof and trace evidence through Baron when the frontend task is meaningful or medium/high risk.
+
 ## Output Contract
 
 When reporting frontend work, include:
@@ -82,7 +93,3 @@ When reporting frontend work, include:
 - accessibility, responsive, and interaction-state risks
 - browser/screenshot/smoke verification performed, or why it could not run
 - remaining gaps that should go to `code-reviewer`, `security-auditor`, or `test-engineer`
-
-## Attribution
-
-Adapted from Anthropic's `frontend-design` skill under Apache-2.0. Additional frontend-quality rubric ideas are informed by MIT-licensed `addyosmani/agent-skills`, rewritten as Baron-native optional guidance. See `LICENSE.txt` in this folder.

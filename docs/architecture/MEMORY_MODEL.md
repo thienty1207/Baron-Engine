@@ -108,6 +108,21 @@ SQLite is disposable. Markdown is durable.
 - Imported sessions are redacted, deduplicated, and stored as clean Markdown;
   import state is rebuildable metadata under project `Artifacts/`.
 
+## Phase 20 Session Replay
+
+- Imported session Markdown remains the source of truth.
+- Baron builds a disposable `session-replay.sqlite` cache under
+  `Vault/Artifacts/Baron/`.
+- The replay cache stores individual messages with project ID, project slug,
+  source path, role, ordinal, and content hash.
+- Search returns only current-project messages by default.
+- Replay returns bounded surrounding context around one message instead of
+  dumping full histories.
+- `context --task` can include a few relevant replay hits automatically, while
+  `context --why` explains that full session history stayed skipped.
+- Cross-project session history stays blocked unless a future explicit workflow
+  deliberately asks for that project and passes the Memory Firewall rules.
+
 ## Legacy Import
 
 Migration reads the source Vault from `vault.config.json`. An explicit

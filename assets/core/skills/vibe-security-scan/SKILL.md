@@ -1,17 +1,14 @@
 ---
 name: vibe-security-scan
-description: Use when reviewing defensive security risks in code or config, especially auth, API routes, server actions, secrets, .env, Supabase/RLS/storage, uploads, payments, subscriptions, quotas, dependencies, CORS, JWT, rate limits, access control, tenants, admin/user permissions, or production security readiness.
-license: MIT; adapted from tanviet12/vbsec
+description: Use when reviewing defensive security risks in code or config, especially auth, API routes, server actions, secrets, .env, Supabase/RLS/storage, uploads, payments, subscriptions, quotas, dependencies, CORS, JWT, rate limits, access control, tenants, admin/user permissions, trust boundary, data-flow, or production security readiness.
+license: MIT-compatible Baron-owned local guidance; attribution lives in LICENSE.txt and NOTICE.md
 ---
 
 # Vibe Security Scan
 
-This bundled optional domain skill provides a defensive appsec scan for AI-assisted codebases. It is adapted from `tanviet12/vbsec` and tuned for Baron-managed projects.
+This bundled optional domain skill provides a defensive appsec scan for AI-assisted codebases. It is Baron-owned runtime guidance and must be usable offline from local files.
 
-Public source: https://github.com/tanviet12/vbsec
-License: MIT, copyright Bui Tan Viet. See `LICENSE.txt`.
-
-## Compatibility Guardrails
+## Baron Contract
 
 - Superpowers remains the workflow authority for planning, TDD, debugging, review, and verification.
 - This skill is a security scan playbook, not a workflow skill and not a replacement for Superpowers.
@@ -20,10 +17,12 @@ License: MIT, copyright Bui Tan Viet. See `LICENSE.txt`.
 - Respect the Baron Memory Firewall: keep project findings inside the current project capsule and never promote unverified findings to global memory.
 - Follow `AGENTS.md`, `.codex/INDEX.md`, `.codex/skills/INDEX.md`, and `.codex/agents/INDEX.md` first.
 - Do not attack live systems, bypass authorization, exfiltrate data, or provide weaponized exploit steps.
+- Use no weaponized payloads, no credential dumping, no persistence guidance, and no live-system exploitation.
 - Never write secrets, private tokens, cookies, session data, or sensitive user data into reports or vault memory.
 - Treat grep matches as leads, not findings. Confirm behavior from code and configuration before reporting.
+- Start from trust boundary and data-flow mapping: identify sources, transforms, sinks, storage, auth boundaries, and external calls.
 
-## When To Use Automatically
+## Use When
 
 Use this skill without waiting for the user to name it when the task touches:
 
@@ -97,6 +96,21 @@ Use only these canonical rule IDs. If an issue is real but does not fit perfectl
 9. Separate confirmed findings from unknowns, assumptions, skipped checks, and false positives.
 10. Recommend fixes that preserve controls; never suggest disabling validation, auth, CSRF, rate limits, TLS, RLS, or audit logging as a shortcut.
 
+## Verification
+
+- Confirm each finding with source-to-sink evidence, not only keyword matches.
+- For auth and authorization, verify the server-side guard, not just UI visibility.
+- For IDOR, check ownership or tenant constraints around every direct object reference.
+- For SSRF, check URL parsing, allowlists, internal network blocking, redirects, and metadata-service protection.
+- For command injection, check shell boundaries, argument construction, escaping, and whether shell execution is avoidable.
+- For secrets, confirm whether the value is real-looking and reachable from repo/config before reporting severity.
+- For dependencies, prefer lockfile and package evidence; mark CVE status unknown if no current advisory source was checked.
+- For Rust, check SQLx/Diesel/raw SQL, reqwest URL handling, file paths, command spawning, CORS middleware, debug error output, and unsafe deserialization risk.
+- For Supabase, verify RLS policy, service role usage, storage bucket policy, user/tenant ownership, and edge function secrets.
+- For payment/subscription/quota, verify idempotency, server-side price/plan authority, replay protection, and race risk.
+- Record proof and trace through Baron for medium/high-risk security work.
+- If proof cannot run, state the missing verification and block completion claims.
+
 ## Output Contract
 
 Write reports in Vietnamese unless the user asks otherwise.
@@ -134,7 +148,3 @@ End with:
 - `workflows/large-review-sequential.md`: bounded large scan flow
 - `rules/generic/`: canonical rules
 - `rules/languages/`: language-specific overlays
-
-## Additional Attribution
-
-Security audit rubric ideas such as trust-boundary-first review, STRIDE framing, AI/LLM security checks, webhook/OAuth/SSRF, and supply-chain review are informed by MIT-licensed `addyosmani/agent-skills`, rewritten as Baron-native defensive guidance.

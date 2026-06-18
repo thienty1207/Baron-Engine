@@ -1,7 +1,7 @@
 ---
 name: performance-optimization
 description: Use when optimizing latency, runtime speed, database or query performance, bundle size, loading, rendering, caching, throughput, memory, or resource use.
-license: MIT-inspired guidance; Baron-native adaptation
+license: MIT-compatible Baron-owned local guidance; attribution lives in NOTICE.md
 ---
 
 # Performance Optimization
@@ -191,7 +191,3 @@ Return performance findings in this shape:
 | "The framework handles it." | Frameworks do not prevent N+1 queries, oversized bundles, slow dependencies, or bad cache policy. |
 | "Caching will fix it." | Caching without invalidation, limits, and stampede control creates correctness and reliability bugs. |
 | "Micro-optimizing proves care." | Baron values measured user and operational impact, not cleverness. |
-
-## Attribution
-
-Inspired by MIT-licensed performance guidance from `addyosmani/agent-skills` and current Core Web Vitals guidance, rewritten as Baron-native optional guidance. Baron keeps Vault Markdown as source of truth and uses proof/trace evidence instead of unverifiable performance claims.

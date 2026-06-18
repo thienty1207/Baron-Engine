@@ -15,9 +15,10 @@ trace quality, and adapter-specific output for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completed the first stable foundation. Baron `v2.2.0` keeps the
-Baron 2.x engine, preserves the simple user setup flow, refines skill/agent
-routing, and adds an explicit continuity resume ledger for interrupted work.
+Baron `v1.0.0` completed the first stable foundation. Baron `v2.2.0` is the
+current stable source release. Baron `3.0.0` is the active target program.
+Phase 18-20 harden runtime assets, add skill lifecycle approval, and add bounded
+session replay/search before later background-learning work begins.
 
 The current source command surface is:
 
@@ -50,6 +51,8 @@ The current source command surface is:
 - `baron automation <status|reconcile|hook>`
 - `baron continuity <status|checkpoint>`
 - `baron control-plane <status|route|record-gate|evidence>`
+- `baron asset <audit|quarantine|propose-skill>`
+- `baron session-replay <index|search|replay>`
 - `baron harness <audit|verify-all|intervention|propose|outcome>`
 - `baron certify <run|status>`
 
@@ -69,7 +72,10 @@ Phase 15 keeps those internals available but hides the command clutter from the
 normal README and top-level help so users only handle install, Vault setup,
 adapter init, platform focus, and update. Phase 16-17 refine optional
 skill/agent routing and add Continuity Ledger checkpoints so interrupted work
-resumes from evidence instead of memory guesses.
+resumes from evidence instead of memory guesses. Phase 18-20 make managed
+runtime skills and agents self-contained Baron assets, stage skill edits behind
+approval metadata, and let context/search replay bounded prior messages for the
+current project without flooding context.
 
 Do not implement a phase without updating `docs/BARON_STATUS.md`,
 `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, and the active design or
@@ -108,6 +114,11 @@ exact resume point.
 - Modified legacy runtime and invalid custom assets must be quarantined rather
   than deleted.
 - Skills and agents must pass Baron-native contracts before activation.
+- Managed runtime skills and agents must be self-contained local Baron assets;
+  attribution and license notes belong outside operational `SKILL.md` guidance.
+- Weak, conflicting, or externally dependent custom assets should be quarantined
+  or staged for approval instead of silently trusted.
+- Session replay must stay bounded and filtered by project identity.
 - Tool-backed proof requires execution evidence; configured or detected presence
   alone is not proof that a check ran.
 - At session start, agents silently run `baron capability check` before
@@ -178,7 +189,7 @@ a phase starts, completes, changes proof status, or changes the next action.
 
 ## Verification
 
-For the current foundation through Phase 8, verify:
+For the current foundation through Phase 20, verify:
 
 ```bash
 cargo fmt --all
@@ -197,6 +208,9 @@ cargo run -p baron-cli -- context . --agent --vault .tmp/baron-vault
 cargo run -p baron-cli -- context . --why --vault .tmp/baron-vault
 cargo run -p baron-cli -- init . --codex --vault .tmp/baron-vault
 cargo run -p baron-cli -- update .
+cargo run -p baron-cli -- asset audit
+cargo run -p baron-cli -- session-replay index . --vault .tmp/baron-vault
+cargo run -p baron-cli -- session-replay search "auth login" . --vault .tmp/baron-vault
 cargo run -p baron-cli -- plan status
 cargo run -p baron-cli -- harness status
 cargo run -p baron-cli -- proof status
