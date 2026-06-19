@@ -44,8 +44,12 @@ external harness repositories.
 - External harness reference RED/GREEN: `cargo test -p baron-core --test public_trust_docs` failed before cleanup, then passed after the comparison file and references were removed.
 - Static scan for the removed external harness repo name, owner name, and old
   comparison file naming pattern: passed with no matches after cleanup.
-- GitHub `main` push: pending for cleanup commit.
-- Git tag `v3.1.1` push: pending.
-- GitHub release workflow: pending.
-- GitHub `releases/latest`: pending for `v3.1.1`.
-- Windows install smoke from `releases/latest`: pending for `v3.1.1`.
+- GitHub `main` push: passed at commit `6fa83a5`.
+- Git tag `v3.1.1` push: passed.
+- GitHub release workflow `27841880658`: passed.
+- GitHub main CI `27841874570`: passed.
+- GitHub `releases/latest`: passed; latest is `v3.1.1` with Windows, Linux,
+  Intel macOS, Apple Silicon macOS, installer scripts, manifest, and checksums.
+- Windows install smoke from `releases/latest`: passed with isolated
+  `BARON_HOME`; `baron --version`, `baron setup --vault`, `baron init --codex
+  --fullstack`, and `baron context --codex` all ran successfully.

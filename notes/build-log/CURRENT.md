@@ -21,9 +21,8 @@ Baron 3.1 public trust batch:
 
 ## Current Status
 
-Baron 3.1.1 is the current source release target. Phase 24 is implemented
-locally with external harness comparison references removed. GitHub release
-publication for `v3.1.1` is pending.
+Baron 3.1.1 is the current source release. Phase 24 is implemented, published,
+and verified with external harness comparison references removed.
 
 Current resume point:
 
@@ -42,7 +41,11 @@ Current resume point:
 - Full workspace verification, Clippy, fmt check, status JSON parse, stale-release scan, and diff check are green.
 - External harness reference cleanup test is green.
 - Static scan for removed external harness references is green.
-- Next implementation step: run full verification, commit, push, tag `v3.1.1`, and verify GitHub `releases/latest`.
+- GitHub release workflow `27841880658` is green.
+- GitHub main CI `27841874570` is green.
+- `releases/latest` points to `v3.1.1`.
+- Windows install smoke from `releases/latest` is green.
+- Next implementation step: future hardening only after a new explicit requirement.
 
 ## Verification
 
@@ -191,11 +194,15 @@ Current resume point:
 - Phase 24 `git diff --check`: passed
 - Phase 24 external harness reference cleanup targeted test: passed
 - Phase 24 external harness reference static scan: passed
+- Phase 24 GitHub release workflow `27841880658`: passed
+- Phase 24 GitHub main CI `27841874570`: passed
+- Phase 24 `releases/latest` verification: passed for `v3.1.1`
+- Phase 24 Windows install/setup/init/context smoke from `releases/latest`: passed
 
 ## Next Action
 
-Baron 3.1.1 source cleanup is ready for final verification, commit, push, tag,
-release workflow, and `releases/latest` smoke.
+Baron 3.1.1 is published and verified. The next action is future hardening only
+after new requirements are explicit.
 
 ## Phase 9-10 Feature Commits
 

@@ -8,7 +8,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "phase-24-public-trust-release",
   "currentPhaseStatus": "completed",
-  "nextAction": "Publish and verify v3.1.1 so GitHub releases/latest no longer exposes the removed external-harness comparison",
+  "nextAction": "Baron v3.1.1 is published and verified; continue future hardening only after new requirements are explicit",
   "buildConfidence": "Baron 3.1.1 preserves the Baron 3 engine and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
