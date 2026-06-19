@@ -11,25 +11,21 @@ the exact context an AI agent needs before it acts.
 
 ## Why Baron Exists
 
-Existing kits solve parts of the problem:
+Existing tooling solves parts of the problem:
 
 - `agent-bootstrap-obsidian-cli` gives Codex a strong Obsidian vault bridge,
   Superpowers workflow, active plan state, Product Harness, trace quality, and
   memory recall.
-- `repository-harness` makes repos more agent-ready with feature intake, story
-  packets, validation matrix, decision records, and a Rust CLI.
+- Other repo-readiness tools focus on feature intake, story packets, validation
+  matrices, and decision records.
 
 Baron must stand above both. It must be durable for new projects, old projects,
 single-agent workflows, and multi-agent toolchains.
 
 ## Product Position
 
-```text
-repository-harness makes a repo ready for agents.
-agent-bootstrap gives Codex a vault-backed memory workflow.
 Baron gives many agent tools a shared long-term brain that knows what to read,
 what to trust, what proof is required, and what to remember next.
-```
 
 ## Target Users
 

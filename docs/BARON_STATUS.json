@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-19",
-  "stableRelease": "3.1.0",
+  "stableRelease": "3.1.1",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.1.0",
+  "targetRelease": "3.1.1",
   "targetReleaseCompletionPercent": 100,
   "remainingPhaseCount": 0,
   "currentPhase": "phase-24-public-trust-release",
   "currentPhaseStatus": "completed",
-  "nextAction": "Baron v3.1.0 is published and verified; continue future hardening only after new requirements are explicit",
-  "buildConfidence": "Baron 3.1.0 preserves the Baron 3 engine and adds public-trust packaging: concise README, public demo, honest repository-harness comparison, certification snapshot, release/latest instructions, and synchronized status/version metadata.",
+  "nextAction": "Publish and verify v3.1.1 so GitHub releases/latest no longer exposes the removed external-harness comparison",
+  "buildConfidence": "Baron 3.1.1 preserves the Baron 3 engine and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -396,17 +396,16 @@
       "requiredProof": [
         "README exposes the normal user flow without dumping automation commands",
         "public demo documents Codex Claude and generic agent flows for a 10-year repo",
-        "repository-harness comparison is honest about simplicity versus Baron engine depth",
+        "public docs explain Baron through Baron-owned demo and certification evidence",
         "public certification snapshot lists tests smoke checks release latest and migration proof",
         "release docs explain tag publication and releases/latest behavior",
-        "source release metadata is synchronized at 3.1.0"
+        "source release metadata is synchronized at 3.1.1"
       ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
     "docs/demo/README.md",
-    "docs/assessment/baron-vs-repository-harness.md",
     "docs/assessment/baron-3-public-certification.md",
     "notes/build-log/CURRENT.md",
     "notes/build-log/2026-06-19-phase-24-public-trust-release.md",

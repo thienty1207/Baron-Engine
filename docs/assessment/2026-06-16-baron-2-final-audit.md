@@ -4,10 +4,10 @@ Date: 2026-06-16
 
 ## Verdict
 
-Baron 2.0 is designed to be stronger than both Agent Bootstrap and
-repository-harness because it combines three layers in one Rust-first engine:
+Baron 2.0 is designed as an independent Rust-first engine that combines three
+layers:
 
-- repository harnessing: product intent, story, proof, trace, and validation
+- repository readiness: product intent, story, proof, trace, and validation
 - durable memory: shared Vault Markdown, SQLite cache, firewall, recall, and sessions
 - agent control: adapters, automation evidence, skill/agent routing, capability proof, and certification
 
@@ -27,11 +27,10 @@ further by making the engine native and multi-agent:
 - records proof, trace quality, mandatory gate evidence, and automation events
 - migrates useful Agent Bootstrap data but does not depend on its runtime
 
-## Compared With repository-harness
+## Baron Engine Layer
 
-repository-harness is excellent at making a repo explain itself to agents:
-AGENTS, product contracts, story packets, validation matrix, and decisions.
-Baron keeps that harness idea, then adds the missing long-term engine layer:
+Baron keeps repository understanding and execution discipline inside its own
+engine, then adds a long-term memory layer:
 
 - shared Vault memory across many projects
 - memory firewall to stop cross-project contamination

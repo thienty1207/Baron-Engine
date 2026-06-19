@@ -6,7 +6,7 @@ It turns an existing software repository into an agent-ready workspace for
 Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
-Current version: `3.1.0`.
+Current version: `3.1.1`.
 
 ## What Baron Does
 
@@ -99,13 +99,11 @@ proof gates, trace output, session replay, and safe runtime backend checks.
 
 ## Public Proof
 
-- [Baron vs repository-harness](docs/assessment/baron-vs-repository-harness.md)
-  compares the two projects honestly: repository-harness is simpler and easier
-  to scan; Baron is stronger for shared Vault memory, proof, scale, migration,
-  and runtime evidence.
 - [Baron 3 public certification](docs/assessment/baron-3-public-certification.md)
   records the test, Clippy, smoke, install, shared Vault, and migration evidence
   used for the public-trust release.
+- [Demo walkthrough](docs/demo/README.md) shows the public 10-year-repo flow
+  without comparing Baron to another project.
 - [Release guide](docs/RELEASE.md) documents install, update, rollback,
   checksum verification, and how `releases/latest` is produced.
 

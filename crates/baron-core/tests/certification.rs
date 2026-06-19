@@ -98,5 +98,5 @@ fn certification_proves_scale_isolation_and_cache_recovery() {
 
     let status = latest_certification_status(&repo).unwrap();
     assert!(status.contains("latest certification passed"));
-    assert!(status.contains("3.1.0"));
+    assert!(status.contains("3.1.1"));
 }

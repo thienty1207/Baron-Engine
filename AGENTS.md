@@ -4,14 +4,10 @@ Read this file first when working in the `Baron-Engine` repository.
 
 ## Purpose
 
-Baron is a new Rust-first kit for multi-agent memory, context compilation, and
-repo onboarding. It must become stronger and more durable than both:
-
-- `agent-bootstrap-obsidian-cli`
-- `repository-harness`
-
-Baron does this by combining vault memory, repository harnessing, proof gates,
-trace quality, and adapter-specific output for multiple agent tools.
+Baron is a Rust-first kit for multi-agent memory, context compilation, and repo
+onboarding. It must stand on its own as an independent engine: vault memory,
+repository readiness, proof gates, trace quality, and adapter-specific output
+for multiple agent tools.
 
 ## Current Phase
 

@@ -16,21 +16,20 @@ Baron 3.1 public trust batch:
 - Phase 24 keeps the engine unchanged and improves public trust.
 - README becomes a concise landing page.
 - Demo docs show a 10-year repo flow for Codex, Claude, and generic agents.
-- Assessment docs compare Baron with repository-harness honestly.
+- Assessment docs explain Baron through Baron-owned certification evidence.
 - Certification docs list concrete public proof and release/latest expectations.
 
 ## Current Status
 
-Baron 3.1.0 is the current source release. Phase 24 is implemented,
-source-verified locally, published as tag `v3.1.0`, and verified through
-GitHub `releases/latest`.
+Baron 3.1.1 is the current source release target. Phase 24 is implemented
+locally with external harness comparison references removed. GitHub release
+publication for `v3.1.1` is pending.
 
 Current resume point:
 
 - `docs/BARON_STATUS.md` marks Phase 24 as the Public Trust Release.
-- `docs/BARON_STATUS.json` tracks stable/target release `3.1.0`, 100% completion, and zero remaining planned phases.
+- `docs/BARON_STATUS.json` tracks stable/target release `3.1.1`, 100% completion, and zero remaining planned phases.
 - `docs/demo/README.md` is the public demo.
-- `docs/assessment/baron-vs-repository-harness.md` is the public comparison.
 - `docs/assessment/baron-3-public-certification.md` is the public proof snapshot.
 - `notes/build-log/2026-06-19-baron-3-roadmap.md` records the trigger and non-negotiables.
 - `notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md` records the implementation details.
@@ -41,10 +40,9 @@ Current resume point:
 - Phase 23 version/release/certification targeted tests are green.
 - Public Trust docs/status targeted verification is green.
 - Full workspace verification, Clippy, fmt check, status JSON parse, stale-release scan, and diff check are green.
-- GitHub release workflow `27839412902` is green.
-- `releases/latest` points to `v3.1.0`.
-- Windows install smoke from `releases/latest` is green.
-- Next implementation step: future hardening only after a new explicit requirement.
+- External harness reference cleanup test is green.
+- Static scan for removed external harness references is green.
+- Next implementation step: run full verification, commit, push, tag `v3.1.1`, and verify GitHub `releases/latest`.
 
 ## Verification
 
@@ -191,14 +189,13 @@ Current resume point:
 - Phase 24 full `cargo test --workspace --all-targets`: passed
 - Phase 24 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - Phase 24 `git diff --check`: passed
-- Phase 24 GitHub release workflow `27839412902`: passed
-- Phase 24 `releases/latest` verification: passed for `v3.1.0`
-- Phase 24 Windows install/setup/init/context smoke from `releases/latest`: passed
+- Phase 24 external harness reference cleanup targeted test: passed
+- Phase 24 external harness reference static scan: passed
 
 ## Next Action
 
-Baron 3.1.0 is published and verified. The next action is future hardening only
-after new requirements are explicit.
+Baron 3.1.1 source cleanup is ready for final verification, commit, push, tag,
+release workflow, and `releases/latest` smoke.
 
 ## Phase 9-10 Feature Commits
 

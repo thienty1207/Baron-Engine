@@ -80,7 +80,7 @@
 - Create: `notes/build-log/2026-06-16-phase-13-14-certification-release.md`
 
 - [x] Update docs to describe certification, release gate, and Baron 2.0 status.
-- [x] Add final audit explaining where Baron exceeds Agent Bootstrap and repository-harness.
+- [x] Add final audit explaining Baron's independent engine boundaries and proof surface.
 - [x] Mark Phase 13 and Phase 14 complete only after verification passes.
 - [x] Run docs/static scans.
 - [ ] Commit `docs: complete Baron 2.0 certification and release`.
@@ -102,5 +102,5 @@
 
 - Phase 13 maps to explicit certification and stress/regression proof, not vague confidence.
 - Phase 14 maps to `2.0.0` version/docs/release readiness, not npm-style publishing.
-- Baron remains its own harness: no Agent Bootstrap runtime and no repository-harness clone.
+- Baron remains its own harness: no Agent Bootstrap runtime and no borrowed external harness identity.
 - Superpowers, the 3 core quality agents, optional frontend/security skills, Vault Markdown, memory firewall, and adapter contracts remain intact.

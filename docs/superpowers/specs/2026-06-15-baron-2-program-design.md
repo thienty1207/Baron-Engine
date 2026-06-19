@@ -5,9 +5,8 @@ Status: approved direction, implementation not started
 
 ## Goal
 
-Baron 2.0 must become a durable, IDE-compatible agent harness that is
-substantially stronger than both Agent Bootstrap and repository-harness in four
-areas:
+Baron 2.0 must become a durable, IDE-compatible agent harness with four
+non-negotiable strengths:
 
 - automatic execution without requiring a dedicated Baron launcher
 - large, isolated, meaning-aware memory

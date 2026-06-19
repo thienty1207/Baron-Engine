@@ -4,15 +4,15 @@ Last updated: 2026-06-19
 
 ## Overall
 
-- Stable source release: `v3.1.0`
+- Stable source release: `v3.1.1`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.1.0`
+- Target source release: `v3.1.1`
 - Baron 3.0 completion: 100%
 - Remaining planned phases: 0
 - Current phase: Phase 24 - Public Trust Release
 - Current phase status: completed
-- Current next action: Baron `v3.1.0` is published and verified; continue future hardening only after new requirements are explicit.
-- Build confidence: Baron 3.1.0 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, honest repository-harness comparison, certification snapshot, release/latest instructions, and synchronized status/version metadata.
+- Current next action: publish and verify `v3.1.1` so GitHub `releases/latest` no longer exposes the removed external-harness comparison.
+- Build confidence: Baron 3.1.1 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.
 
 ## Baron 3.0 Direction
 
@@ -120,7 +120,7 @@ Baron 3.0 planned program:
 | 21 | Background Learning And Continuity Autopilot | completed | 15% | autopilot core/CLI tests, context integration, candidate approval/rejection tests, and observed-automation resume tests |
 | 22 | Capability Runtime And Safe Tool Backends | completed | 10% | runtime policy core/CLI tests, safe/unsafe/missing provider tests, context integration, and proof-evidence persistence tests |
 | 23 | Baron 3.0 Release Certification | completed | 10% | release version tests, certification gates for autopilot/runtime policy, docs/status sync, and full verification batch |
-| 24 | Public Trust Release | completed | additive | concise README, public demo, repository-harness comparison, certification snapshot, release/latest docs, source verification |
+| 24 | Public Trust Release | completed | additive | concise README, public demo, certification snapshot, release/latest docs, source verification |
 
 Phase 16-17 final verification:
 
@@ -384,10 +384,10 @@ Phase 16-17 final verification:
 - [x] Keep Baron 3 engine behavior unchanged.
 - [x] Rewrite README as a concise public landing page.
 - [x] Add a public 10-year repo demo for Codex, Claude, and generic agents.
-- [x] Add an honest Baron vs repository-harness comparison.
+- [x] Add Baron-owned public proof docs without pointing readers at external harness repositories.
 - [x] Add a public certification snapshot with concrete verification commands.
 - [x] Update release docs so `releases/latest` and tag publication are explicit.
-- [x] Bump source release metadata to `3.1.0`.
+- [x] Bump source release metadata to `3.1.1`.
 
 ## Current Working Files
 
@@ -426,13 +426,12 @@ Phase 16-17 final verification:
 - Phase 24 plan: `docs/superpowers/plans/2026-06-19-phase-24-public-trust-release.md`
 - Phase 24 build log: `notes/build-log/2026-06-19-phase-24-public-trust-release.md`
 - Public demo: `docs/demo/README.md`
-- Public comparison: `docs/assessment/baron-vs-repository-harness.md`
 - Public certification: `docs/assessment/baron-3-public-certification.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `3.1.0` is the current stable source release. Phase 24 is a public-trust
+Baron `3.1.1` is the current stable source release. Phase 24 is a public-trust
 packaging release on top of the Baron 3 engine. It must preserve Superpowers as
 the workflow core, keep the three mandatory quality gates stable, keep managed
 runtime skills and agents self-contained Baron assets, keep autopilot learning
@@ -459,12 +458,12 @@ Phase 21-23 final verification:
 - Static stale-release scan: passed
 - `git diff --check`: passed
 
-Public Trust 3.1.0 final verification:
+Public Trust 3.1.1 final verification:
 
 - README public flow validation: passed by `cargo test -p baron-core --test public_trust_docs`
-- demo, comparison, and certification docs validation: passed by `cargo test -p baron-core --test public_trust_docs`
+- demo and certification docs validation: passed by `cargo test -p baron-core --test public_trust_docs`
 - `cargo fmt --all -- --check`: passed
 - `cargo test --workspace --all-targets`: passed
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - `git diff --check`: passed
-- GitHub release latest smoke: passed; `releases/latest` points to `v3.1.0`, release workflow `27839412902` passed, and Windows install/setup/init/context smoke from latest passed
+- GitHub release latest smoke: pending for `v3.1.1` after commit, tag, release workflow, and Windows install/setup/init/context smoke
