@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-06-19",
-  "stableRelease": "3.0.0",
+  "stableRelease": "3.1.0",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.0.0",
+  "targetRelease": "3.1.0",
   "targetReleaseCompletionPercent": 100,
   "remainingPhaseCount": 0,
-  "currentPhase": "phase-23-baron-3-release-certification",
+  "currentPhase": "phase-24-public-trust-release",
   "currentPhaseStatus": "completed",
-  "nextAction": "publish a GitHub release or continue with future post-3.0 hardening only after new requirements are explicit",
-  "buildConfidence": "Baron 3.0 Phase 18-23 are implemented locally: managed runtime skills and agents are self-contained, skill updates stage behind approval metadata, task context can search bounded current-project session replay, autopilot learning stays candidate-gated, and runtime backend policy blocks unsafe or unverified proof claims.",
+  "nextAction": "publish and verify the v3.1.0 GitHub release, then continue future hardening only after new requirements are explicit",
+  "buildConfidence": "Baron 3.1.0 preserves the Baron 3 engine and adds public-trust packaging: concise README, public demo, honest repository-harness comparison, certification snapshot, release/latest instructions, and synchronized status/version metadata.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -386,11 +386,31 @@
         "docs status JSON build logs README and command surface stay synchronized",
         "release metadata and installer lifecycle checks pass"
       ]
+    },
+    {
+      "id": 24,
+      "name": "Public Trust Release",
+      "status": "completed",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "README exposes the normal user flow without dumping automation commands",
+        "public demo documents Codex Claude and generic agent flows for a 10-year repo",
+        "repository-harness comparison is honest about simplicity versus Baron engine depth",
+        "public certification snapshot lists tests smoke checks release latest and migration proof",
+        "release docs explain tag publication and releases/latest behavior",
+        "source release metadata is synchronized at 3.1.0"
+      ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
+    "docs/demo/README.md",
+    "docs/assessment/baron-vs-repository-harness.md",
+    "docs/assessment/baron-3-public-certification.md",
     "notes/build-log/CURRENT.md",
+    "notes/build-log/2026-06-19-phase-24-public-trust-release.md",
+    "docs/superpowers/plans/2026-06-19-phase-24-public-trust-release.md",
     "notes/build-log/2026-06-19-phase-21-23-baron-3-release.md",
     "docs/superpowers/plans/2026-06-19-phase-21-23-baron-3-release.md",
     "notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md",

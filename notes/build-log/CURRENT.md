@@ -4,31 +4,34 @@ Date: 2026-06-19
 
 ## Current Phase
 
-Phase 21-23 - Baron 3.0 final implementation batch (completed locally).
-Baron 3.0 Phase 18-23 are implemented and verified locally. The remaining
-operator action is Git commit/push, then future post-3.0 hardening only after
-new requirements are explicit.
+Phase 24 - Baron 3.1 public trust release (source verified, release pending).
+Baron 3.0 Phase 18-23 are implemented and verified locally. The current task
+is packaging that engine so GitHub readers can understand, install, trust, and
+compare Baron quickly.
 
 ## What Is Being Built
 
-Baron 3.0 planned batch:
+Baron 3.1 public trust batch:
 
-- Phase 18 fixes asset sovereignty: managed runtime skills and agents must be self-contained local Baron assets, not thin wrappers or live-link guidance.
-- Phase 19 adds a skill lifecycle and approval engine: quality scoring, quarantine, staged diffs, and safe self-improvement proposals.
-- Phase 20 adds session replay and conversation search: exact prior messages, bounded scroll, and project-safe recall.
-- Phase 21 adds background learning and continuity autopilot: post-task review, candidate memory/skill updates, and interruption-safe resume behavior.
-- Phase 22 adds capability runtime and safe tool backend policy: available tool checks, execution evidence, and safer backend guidance.
-- Phase 23 certifies Baron 3.0 with full tests, smoke, docs/status sync, and release metadata.
+- Phase 24 keeps the engine unchanged and improves public trust.
+- README becomes a concise landing page.
+- Demo docs show a 10-year repo flow for Codex, Claude, and generic agents.
+- Assessment docs compare Baron with repository-harness honestly.
+- Certification docs list concrete public proof and release/latest expectations.
 
 ## Current Status
 
-Baron 3.0.0 is the current source release in this working tree. Phase 18-23
-are implemented and verified locally.
+Baron 3.1.0 is the current source release target in this working tree. Phase 24
+is implemented and source-verified locally. GitHub release/tag publication is
+still pending.
 
 Current resume point:
 
-- `docs/BARON_STATUS.md` marks Phase 18-23 complete and Baron `3.0.0` ready.
-- `docs/BARON_STATUS.json` tracks stable/target release `3.0.0`, 100% completion, and zero remaining planned phases.
+- `docs/BARON_STATUS.md` marks Phase 24 as the Public Trust Release.
+- `docs/BARON_STATUS.json` tracks stable/target release `3.1.0`, 100% completion, and zero remaining planned phases.
+- `docs/demo/README.md` is the public demo.
+- `docs/assessment/baron-vs-repository-harness.md` is the public comparison.
+- `docs/assessment/baron-3-public-certification.md` is the public proof snapshot.
 - `notes/build-log/2026-06-19-baron-3-roadmap.md` records the trigger and non-negotiables.
 - `notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md` records the implementation details.
 - `docs/superpowers/plans/2026-06-19-phase-21-23-baron-3-release.md` is the active implementation plan.
@@ -36,8 +39,9 @@ Current resume point:
 - Phase 21 autopilot core/CLI/context targeted tests are green.
 - Phase 22 runtime policy core/CLI/context targeted tests are green.
 - Phase 23 version/release/certification targeted tests are green.
-- Full workspace verification, Clippy, temp smoke, status JSON parse, stale-release scan, and diff check are green.
-- Next implementation step after source push: publish a GitHub release/tag or continue post-3.0 hardening only after new requirements are explicit.
+- Public Trust docs/status targeted verification is green.
+- Full workspace verification, Clippy, fmt check, status JSON parse, stale-release scan, and diff check are green.
+- Next implementation step: commit, push, tag `v3.1.0`, and verify GitHub `releases/latest`.
 
 ## Verification
 
@@ -178,12 +182,18 @@ Current resume point:
 - Phase 21-23 `docs/BARON_STATUS.json` parse: passed
 - Phase 21-23 stale-release static scan: passed
 - Phase 21-23 `git diff --check`: passed
+- Phase 24 public-trust docs RED test: failed as expected before implementation
+- Phase 24 public-trust docs GREEN test: passed
+- Phase 24 full `cargo fmt --all -- --check`: passed
+- Phase 24 full `cargo test --workspace --all-targets`: passed
+- Phase 24 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Phase 24 `git diff --check`: passed
 
 ## Next Action
 
-Baron 3.0.0 source release is ready for `origin/main`. After source push, the
-next action is a GitHub release/tag or future post-3.0 hardening only after new
-requirements are explicit.
+Baron 3.1.0 source release is verified locally. The next action is committing,
+pushing `main`, tagging `v3.1.0`, and verifying the GitHub release/latest
+result.
 
 ## Phase 9-10 Feature Commits
 

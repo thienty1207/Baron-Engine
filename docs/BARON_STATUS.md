@@ -4,15 +4,15 @@ Last updated: 2026-06-19
 
 ## Overall
 
-- Stable source release: `v3.0.0`
+- Stable source release: `v3.1.0`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.0.0`
+- Target source release: `v3.1.0`
 - Baron 3.0 completion: 100%
 - Remaining planned phases: 0
-- Current phase: Phase 23 - Baron 3.0 Release Certification
+- Current phase: Phase 24 - Public Trust Release
 - Current phase status: completed
-- Current next action: publish a GitHub release or continue with future post-3.0 hardening only after new requirements are explicit
-- Build confidence: Baron 3.0 Phase 18-23 are implemented locally: managed runtime skills/agents are self-contained, skill updates stage behind approval metadata, task context can search bounded current-project session replay, autopilot learning stays candidate-gated, and runtime backend policy blocks unsafe or unverified proof claims.
+- Current next action: commit the verified `3.1.0` source changes, push `main`, publish tag `v3.1.0`, and verify GitHub `releases/latest`.
+- Build confidence: Baron 3.1.0 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, honest repository-harness comparison, certification snapshot, release/latest instructions, and synchronized status/version metadata.
 
 ## Baron 3.0 Direction
 
@@ -120,6 +120,7 @@ Baron 3.0 planned program:
 | 21 | Background Learning And Continuity Autopilot | completed | 15% | autopilot core/CLI tests, context integration, candidate approval/rejection tests, and observed-automation resume tests |
 | 22 | Capability Runtime And Safe Tool Backends | completed | 10% | runtime policy core/CLI tests, safe/unsafe/missing provider tests, context integration, and proof-evidence persistence tests |
 | 23 | Baron 3.0 Release Certification | completed | 10% | release version tests, certification gates for autopilot/runtime policy, docs/status sync, and full verification batch |
+| 24 | Public Trust Release | completed | additive | concise README, public demo, repository-harness comparison, certification snapshot, release/latest docs, source verification |
 
 Phase 16-17 final verification:
 
@@ -378,6 +379,16 @@ Phase 16-17 final verification:
 - [x] Verify README, status JSON, build logs, command surface, and release metadata are synchronized.
 - [x] Mark Baron 3.0 ready only after all Phase 18-22 proof is complete.
 
+### Phase 24 - Public Trust Release
+
+- [x] Keep Baron 3 engine behavior unchanged.
+- [x] Rewrite README as a concise public landing page.
+- [x] Add a public 10-year repo demo for Codex, Claude, and generic agents.
+- [x] Add an honest Baron vs repository-harness comparison.
+- [x] Add a public certification snapshot with concrete verification commands.
+- [x] Update release docs so `releases/latest` and tag publication are explicit.
+- [x] Bump source release metadata to `3.1.0`.
+
 ## Current Working Files
 
 - Product spec: `docs/specs/2026-06-08-baron-product-spec-1.0.md`
@@ -412,15 +423,21 @@ Phase 16-17 final verification:
 - Phase 18-20 build log: `notes/build-log/2026-06-19-phase-18-20-baron-3-foundation.md`
 - Phase 21-23 plan: `docs/superpowers/plans/2026-06-19-phase-21-23-baron-3-release.md`
 - Phase 21-23 build log: `notes/build-log/2026-06-19-phase-21-23-baron-3-release.md`
+- Phase 24 plan: `docs/superpowers/plans/2026-06-19-phase-24-public-trust-release.md`
+- Phase 24 build log: `notes/build-log/2026-06-19-phase-24-public-trust-release.md`
+- Public demo: `docs/demo/README.md`
+- Public comparison: `docs/assessment/baron-vs-repository-harness.md`
+- Public certification: `docs/assessment/baron-3-public-certification.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `3.0.0` is the current stable source release. Phase 18-23 are implemented
-and must preserve Superpowers as the workflow core, keep the three mandatory
-quality gates stable, keep managed runtime skills and agents self-contained
-Baron assets, keep autopilot learning candidate-gated, and keep runtime backend
-claims blocked without safe providers plus execution evidence.
+Baron `3.1.0` is the current stable source release. Phase 24 is a public-trust
+packaging release on top of the Baron 3 engine. It must preserve Superpowers as
+the workflow core, keep the three mandatory quality gates stable, keep managed
+runtime skills and agents self-contained Baron assets, keep autopilot learning
+candidate-gated, and keep runtime backend claims blocked without safe providers
+plus execution evidence.
 
 Phase 18-20 final verification:
 
@@ -441,3 +458,13 @@ Phase 21-23 final verification:
 - `docs/BARON_STATUS.json` parse: passed
 - Static stale-release scan: passed
 - `git diff --check`: passed
+
+Public Trust 3.1.0 final verification:
+
+- README public flow validation: passed by `cargo test -p baron-core --test public_trust_docs`
+- demo, comparison, and certification docs validation: passed by `cargo test -p baron-core --test public_trust_docs`
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- `git diff --check`: passed
+- GitHub release latest smoke: pending until tag `v3.1.0` is pushed and the release workflow publishes assets

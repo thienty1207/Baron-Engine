@@ -56,7 +56,7 @@ fn certify_run_writes_report_and_status_reads_latest() {
         .assert()
         .success()
         .stdout(predicate::str::contains("# Baron Certification"))
-        .stdout(predicate::str::contains("Target release: `3.0.0`"))
+        .stdout(predicate::str::contains("Target release: `3.1.0`"))
         .stdout(predicate::str::contains("Passed: `yes`"));
 
     assert!(repo.join("docs/baron/certification/latest.json").is_file());
@@ -75,7 +75,7 @@ fn certify_run_writes_report_and_status_reads_latest() {
         .success()
         .stdout(predicate::str::contains("# Baron Certification Status"))
         .stdout(predicate::str::contains("latest certification passed"))
-        .stdout(predicate::str::contains("3.0.0"));
+        .stdout(predicate::str::contains("3.1.0"));
 }
 
 #[test]
