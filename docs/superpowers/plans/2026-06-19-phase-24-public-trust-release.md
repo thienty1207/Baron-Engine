@@ -27,4 +27,4 @@ version/status metadata.
 - [x] Update release docs for tag publication and `releases/latest`.
 - [x] Update `docs/BARON_STATUS.md` and `docs/BARON_STATUS.json`.
 - [x] Run full source verification.
-- [ ] Commit, tag, push, and verify GitHub release latest.
+- [x] Commit, tag, push, and verify GitHub release latest.

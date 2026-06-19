@@ -11,7 +11,7 @@ Last updated: 2026-06-19
 - Remaining planned phases: 0
 - Current phase: Phase 24 - Public Trust Release
 - Current phase status: completed
-- Current next action: commit the verified `3.1.0` source changes, push `main`, publish tag `v3.1.0`, and verify GitHub `releases/latest`.
+- Current next action: Baron `v3.1.0` is published and verified; continue future hardening only after new requirements are explicit.
 - Build confidence: Baron 3.1.0 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, honest repository-harness comparison, certification snapshot, release/latest instructions, and synchronized status/version metadata.
 
 ## Baron 3.0 Direction
@@ -467,4 +467,4 @@ Public Trust 3.1.0 final verification:
 - `cargo test --workspace --all-targets`: passed
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - `git diff --check`: passed
-- GitHub release latest smoke: pending until tag `v3.1.0` is pushed and the release workflow publishes assets
+- GitHub release latest smoke: passed; `releases/latest` points to `v3.1.0`, release workflow `27839412902` passed, and Windows install/setup/init/context smoke from latest passed

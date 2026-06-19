@@ -4,7 +4,7 @@ Date: 2026-06-19
 
 ## Current Phase
 
-Phase 24 - Baron 3.1 public trust release (source verified, release pending).
+Phase 24 - Baron 3.1 public trust release (published and verified).
 Baron 3.0 Phase 18-23 are implemented and verified locally. The current task
 is packaging that engine so GitHub readers can understand, install, trust, and
 compare Baron quickly.
@@ -21,9 +21,9 @@ Baron 3.1 public trust batch:
 
 ## Current Status
 
-Baron 3.1.0 is the current source release target in this working tree. Phase 24
-is implemented and source-verified locally. GitHub release/tag publication is
-still pending.
+Baron 3.1.0 is the current source release. Phase 24 is implemented,
+source-verified locally, published as tag `v3.1.0`, and verified through
+GitHub `releases/latest`.
 
 Current resume point:
 
@@ -41,7 +41,10 @@ Current resume point:
 - Phase 23 version/release/certification targeted tests are green.
 - Public Trust docs/status targeted verification is green.
 - Full workspace verification, Clippy, fmt check, status JSON parse, stale-release scan, and diff check are green.
-- Next implementation step: commit, push, tag `v3.1.0`, and verify GitHub `releases/latest`.
+- GitHub release workflow `27839412902` is green.
+- `releases/latest` points to `v3.1.0`.
+- Windows install smoke from `releases/latest` is green.
+- Next implementation step: future hardening only after a new explicit requirement.
 
 ## Verification
 
@@ -188,12 +191,14 @@ Current resume point:
 - Phase 24 full `cargo test --workspace --all-targets`: passed
 - Phase 24 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - Phase 24 `git diff --check`: passed
+- Phase 24 GitHub release workflow `27839412902`: passed
+- Phase 24 `releases/latest` verification: passed for `v3.1.0`
+- Phase 24 Windows install/setup/init/context smoke from `releases/latest`: passed
 
 ## Next Action
 
-Baron 3.1.0 source release is verified locally. The next action is committing,
-pushing `main`, tagging `v3.1.0`, and verifying the GitHub release/latest
-result.
+Baron 3.1.0 is published and verified. The next action is future hardening only
+after new requirements are explicit.
 
 ## Phase 9-10 Feature Commits
 

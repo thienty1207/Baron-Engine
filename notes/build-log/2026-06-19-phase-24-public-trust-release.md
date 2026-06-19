@@ -38,5 +38,11 @@ understand, install, trust, and compare it quickly.
 - `cargo test --workspace --all-targets`: passed.
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed.
 - `git diff --check`: passed.
-- Release/latest smoke: pending until commit, tag `v3.1.0`, push, and GitHub
-  release workflow verification.
+- GitHub `main` push: passed at commit `7229481`.
+- Git tag `v3.1.0` push: passed.
+- GitHub release workflow `27839412902`: passed.
+- GitHub `releases/latest`: passed; latest is `v3.1.0` with Windows, Linux,
+  Intel macOS, Apple Silicon macOS, installer scripts, manifest, and checksums.
+- Windows install smoke from `releases/latest`: passed with isolated
+  `BARON_HOME`; `baron --version`, `baron setup --vault`, `baron init --codex
+  --fullstack`, and `baron context --codex` all ran successfully.
