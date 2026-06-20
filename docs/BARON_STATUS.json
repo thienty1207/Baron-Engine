@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-06-19",
-  "stableRelease": "3.1.1",
+  "lastUpdated": "2026-06-21",
+  "stableRelease": "3.1.2",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.1.1",
+  "targetRelease": "3.1.2",
   "targetReleaseCompletionPercent": 100,
   "remainingPhaseCount": 0,
   "currentPhase": "phase-24-public-trust-release",
   "currentPhaseStatus": "completed",
-  "nextAction": "Baron v3.1.1 is published and verified; continue future hardening only after new requirements are explicit",
-  "buildConfidence": "Baron 3.1.1 preserves the Baron 3 engine and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.",
+  "nextAction": "Publish and verify v3.1.2 so the Windows installer supports same-terminal baron --version",
+  "buildConfidence": "Baron 3.1.2 preserves the Baron 3 engine and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -399,7 +399,7 @@
         "public docs explain Baron through Baron-owned demo and certification evidence",
         "public certification snapshot lists tests smoke checks release latest and migration proof",
         "release docs explain tag publication and releases/latest behavior",
-        "source release metadata is synchronized at 3.1.1"
+        "source release metadata is synchronized at 3.1.2"
       ]
     }
   ],

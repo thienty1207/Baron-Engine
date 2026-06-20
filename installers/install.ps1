@@ -28,16 +28,24 @@ $backupDir = Join-Path $stateRoot "backups"
 $metadataPath = Join-Path $stateRoot "install.json"
 $binaryPath = Join-Path $InstallDir "baron.exe"
 
+function Update-PathValue([string]$PathValue, [bool]$Add) {
+    $parts = @($PathValue -split ";" | Where-Object { $_ -and $_ -ne $InstallDir })
+    if ($Add) {
+        return (@($InstallDir) + $parts) -join ";"
+    }
+    return $parts -join ";"
+}
+
 function Update-UserPath([bool]$Add) {
     if ($NoPathUpdate) {
         return
     }
+
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    $parts = @($userPath -split ";" | Where-Object { $_ -and $_ -ne $InstallDir })
-    if ($Add) {
-        $parts += $InstallDir
-    }
-    [Environment]::SetEnvironmentVariable("Path", ($parts -join ";"), "User")
+    [Environment]::SetEnvironmentVariable("Path", (Update-PathValue $userPath $Add), "User")
+
+    $processPath = [Environment]::GetEnvironmentVariable("Path", "Process")
+    $env:Path = Update-PathValue $processPath $Add
 }
 
 function Get-Sha256([string]$Path) {
@@ -172,7 +180,7 @@ try {
     Update-UserPath $true
     Write-Host "Baron $Version $Action completed at $binaryPath."
     if (-not $NoPathUpdate) {
-        Write-Host "Open a new terminal before running baron."
+        Write-Host "You can run baron --version in this terminal now."
     }
 } finally {
     if (Test-Path -LiteralPath $temporaryRoot) {

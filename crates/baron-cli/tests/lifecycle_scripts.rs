@@ -36,14 +36,18 @@ fn current_target() -> &'static str {
 
 fn package_current_binary(source_dir: &Path) -> PathBuf {
     let target = supported_release_target(current_target()).unwrap();
-    let archive = source_dir.join(target.archive_name("3.1.1"));
+    let archive = source_dir.join(target.archive_name("3.1.2"));
     let binary = cargo_bin("baron");
 
     #[cfg(target_os = "windows")]
     {
+        let staging = source_dir.join("staging");
+        fs::create_dir_all(&staging).unwrap();
+        let staged_binary = staging.join("baron.exe");
+        fs::copy(&binary, &staged_binary).unwrap();
         let command = format!(
             "Compress-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
-            binary.display().to_string().replace('\'', "''"),
+            staged_binary.display().to_string().replace('\'', "''"),
             archive.display().to_string().replace('\'', "''")
         );
         let status = ProcessCommand::new("powershell")
@@ -135,7 +139,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "-Action",
                 action,
                 "-Version",
-                "3.1.1",
+                "3.1.2",
                 "-InstallDir",
                 install.to_str().unwrap(),
                 "-SourceDirectory",
@@ -155,7 +159,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "--action",
                 action,
                 "--version",
-                "3.1.1",
+                "3.1.2",
                 "--install-dir",
                 install.to_str().unwrap(),
                 "--source-dir",
@@ -184,6 +188,68 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
     assert!(run("uninstall").success());
     assert!(!installed.exists());
     assert_eq!(fs::read_to_string(data_sentinel).unwrap(), "must survive");
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn powershell_installer_makes_baron_available_in_the_current_session() {
+    let temp = tempdir().unwrap();
+    let source = temp.path().join("release");
+    let install = temp.path().join("install");
+    let state = temp.path().join("state");
+    fs::create_dir_all(&source).unwrap();
+    package_current_binary(&source);
+
+    let script = format!(
+        r#"
+$oldUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+try {{
+    $env:Path = ($env:Path -split ';' | Where-Object {{ $_ -ne '{install}' }}) -join ';'
+    & '{installer}' -Action install -Version 3.1.2 -InstallDir '{install}' -SourceDirectory '{source}' -StateDirectory '{state}'
+    $command = Get-Command baron -ErrorAction Stop
+    if ($command.Source -ne '{expected}') {{
+        throw "baron resolved to '$($command.Source)' instead of '{expected}'"
+    }}
+    $version = (baron --version | Out-String).Trim()
+    if ($version -ne 'baron 3.1.2') {{
+        throw "unexpected version: $version"
+    }}
+}} finally {{
+    [Environment]::SetEnvironmentVariable("Path", $oldUserPath, "User")
+}}
+"#,
+        installer = workspace_root()
+            .join("installers/install.ps1")
+            .display()
+            .to_string()
+            .replace('\'', "''"),
+        install = install.display().to_string().replace('\'', "''"),
+        source = source.display().to_string().replace('\'', "''"),
+        state = state.display().to_string().replace('\'', "''"),
+        expected = install
+            .join("baron.exe")
+            .display()
+            .to_string()
+            .replace('\'', "''"),
+    );
+
+    let output = ProcessCommand::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &script,
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]

@@ -24,7 +24,8 @@ Invoke-WebRequest https://github.com/thienty1207/Baron-Engine/releases/latest/do
 ```
 
 The default location is `%USERPROFILE%\.baron\bin\baron.exe`. The installer
-adds that directory to the user PATH. Open a new terminal, then run:
+adds that directory to the user PATH and refreshes PATH for the current
+PowerShell session, so the next line works in the same copy-paste block:
 
 ```powershell
 baron --version
@@ -120,7 +121,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v3.1.1-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v3.1.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -132,13 +133,13 @@ Download one native archive and `SHA256SUMS` into the same directory.
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 3.1.1 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 3.1.2 -SourceDirectory D:\baron-release
 ```
 
 Linux or macOS:
 
 ```bash
-sh ./install.sh --version 3.1.1 --source-dir /path/to/baron-release
+sh ./install.sh --version 3.1.2 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -151,14 +152,14 @@ packaging. Native runners build and smoke each target. The release job then
 assembles all four archives and runs:
 
 ```bash
-baron release metadata release-assets --release-version 3.1.1 --source-revision <git-sha>
+baron release metadata release-assets --release-version 3.1.2 --source-revision <git-sha>
 baron release verify release-assets
 ```
 
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
 
-Before publishing a `v3.1.1` release, also run:
+Before publishing a `v3.1.2` release, also run:
 
 ```bash
 baron certify run <repo-path> --vault <vault-path> --profile release
@@ -173,15 +174,15 @@ healthy at scale.
 After source verification passes:
 
 ```bash
-git tag v3.1.1
+git tag v3.1.2
 git push origin main
-git push origin v3.1.1
+git push origin v3.1.2
 ```
 
 The `Baron Release` workflow builds the native archives, verifies checksums,
 adds both installers, and creates the GitHub Release. When the workflow
 finishes, `https://github.com/thienty1207/Baron-Engine/releases/latest` should
-point at `v3.1.1`.
+point at `v3.1.2`.
 
 Public smoke after the workflow:
 

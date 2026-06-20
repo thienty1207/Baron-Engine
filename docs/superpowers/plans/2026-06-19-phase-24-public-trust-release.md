@@ -4,7 +4,7 @@ Date: 2026-06-19
 
 ## Goal
 
-Ship Baron `3.1.1` as a public-trust release: concise README, public demo,
+Ship Baron `3.1.2` as a public-trust release: concise README, public demo,
 certification snapshot, release/latest clarity, and synced
 version/status metadata.
 
@@ -19,7 +19,7 @@ version/status metadata.
 ## Checklist
 
 - [x] Add RED tests for public-trust docs and status metadata.
-- [x] Bump source release metadata to `3.1.1`.
+- [x] Bump source release metadata to `3.1.2`.
 - [x] Rewrite README as a concise public landing page.
 - [x] Add `docs/demo/README.md`.
 - [x] Keep public proof docs Baron-owned without external comparison links.

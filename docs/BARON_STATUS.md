@@ -4,15 +4,15 @@ Last updated: 2026-06-19
 
 ## Overall
 
-- Stable source release: `v3.1.1`
+- Stable source release: `v3.1.2`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.1.1`
+- Target source release: `v3.1.2`
 - Baron 3.0 completion: 100%
 - Remaining planned phases: 0
 - Current phase: Phase 24 - Public Trust Release
 - Current phase status: completed
-- Current next action: Baron `v3.1.1` is published and verified; continue future hardening only after new requirements are explicit.
-- Build confidence: Baron 3.1.1 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.
+- Current next action: publish and verify `v3.1.2` so the Windows installer supports same-terminal `baron --version`.
+- Build confidence: Baron 3.1.2 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.
 
 ## Baron 3.0 Direction
 
@@ -387,7 +387,7 @@ Phase 16-17 final verification:
 - [x] Add Baron-owned public proof docs without pointing readers at external harness repositories.
 - [x] Add a public certification snapshot with concrete verification commands.
 - [x] Update release docs so `releases/latest` and tag publication are explicit.
-- [x] Bump source release metadata to `3.1.1`.
+- [x] Bump source release metadata to `3.1.2`.
 
 ## Current Working Files
 
@@ -431,7 +431,7 @@ Phase 16-17 final verification:
 
 ## Current Rule
 
-Baron `3.1.1` is the current stable source release. Phase 24 is a public-trust
+Baron `3.1.2` is the current stable source release. Phase 24 is a public-trust
 packaging release on top of the Baron 3 engine. It must preserve Superpowers as
 the workflow core, keep the three mandatory quality gates stable, keep managed
 runtime skills and agents self-contained Baron assets, keep autopilot learning
@@ -458,7 +458,7 @@ Phase 21-23 final verification:
 - Static stale-release scan: passed
 - `git diff --check`: passed
 
-Public Trust 3.1.1 final verification:
+Public Trust 3.1.2 final verification:
 
 - README public flow validation: passed by `cargo test -p baron-core --test public_trust_docs`
 - demo and certification docs validation: passed by `cargo test -p baron-core --test public_trust_docs`
@@ -466,4 +466,4 @@ Public Trust 3.1.1 final verification:
 - `cargo test --workspace --all-targets`: passed
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - `git diff --check`: passed
-- GitHub release latest smoke: passed; `releases/latest` points to `v3.1.1`, release workflow `27841880658` passed, main CI `27841874570` passed, and Windows install/setup/init/context smoke from latest passed
+- GitHub release latest smoke: pending for `v3.1.2` after commit, tag, release workflow, and Windows same-terminal install smoke

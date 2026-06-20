@@ -4,7 +4,7 @@ Date: 2026-06-19
 
 ## Current Phase
 
-Phase 24 - Baron 3.1 public trust release (published and verified).
+Phase 24 - Baron 3.1 public trust release (installer UX fix pending release).
 Baron 3.0 Phase 18-23 are implemented and verified locally. The current task
 is packaging that engine so GitHub readers can understand, install, trust, and
 compare Baron quickly.
@@ -21,13 +21,14 @@ Baron 3.1 public trust batch:
 
 ## Current Status
 
-Baron 3.1.1 is the current source release. Phase 24 is implemented, published,
-and verified with external harness comparison references removed.
+Baron 3.1.2 is the current source release target. Phase 24 is implemented
+locally with the Windows installer same-terminal PATH refresh fix. GitHub
+release publication for `v3.1.2` is pending.
 
 Current resume point:
 
 - `docs/BARON_STATUS.md` marks Phase 24 as the Public Trust Release.
-- `docs/BARON_STATUS.json` tracks stable/target release `3.1.1`, 100% completion, and zero remaining planned phases.
+- `docs/BARON_STATUS.json` tracks stable/target release `3.1.2`, 100% completion, and zero remaining planned phases.
 - `docs/demo/README.md` is the public demo.
 - `docs/assessment/baron-3-public-certification.md` is the public proof snapshot.
 - `notes/build-log/2026-06-19-baron-3-roadmap.md` records the trigger and non-negotiables.
@@ -41,11 +42,8 @@ Current resume point:
 - Full workspace verification, Clippy, fmt check, status JSON parse, stale-release scan, and diff check are green.
 - External harness reference cleanup test is green.
 - Static scan for removed external harness references is green.
-- GitHub release workflow `27841880658` is green.
-- GitHub main CI `27841874570` is green.
-- `releases/latest` points to `v3.1.1`.
-- Windows install smoke from `releases/latest` is green.
-- Next implementation step: future hardening only after a new explicit requirement.
+- Windows installer same-session PATH regression test is green.
+- Next implementation step: commit, push, tag `v3.1.2`, and verify GitHub `releases/latest`.
 
 ## Verification
 
@@ -194,15 +192,18 @@ Current resume point:
 - Phase 24 `git diff --check`: passed
 - Phase 24 external harness reference cleanup targeted test: passed
 - Phase 24 external harness reference static scan: passed
-- Phase 24 GitHub release workflow `27841880658`: passed
-- Phase 24 GitHub main CI `27841874570`: passed
-- Phase 24 `releases/latest` verification: passed for `v3.1.1`
-- Phase 24 Windows install/setup/init/context smoke from `releases/latest`: passed
+- Phase 24 Windows installer same-session PATH regression test: passed
+- Baron 3.1.2 installer UX fix full `cargo fmt --all -- --check`: passed
+- Baron 3.1.2 installer UX fix full `cargo test --workspace --all-targets`: passed
+- Baron 3.1.2 installer UX fix full `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Baron 3.1.2 installer UX fix stale-version scan: passed
+- Baron 3.1.2 installer UX fix `docs/BARON_STATUS.json` parse: passed
+- Baron 3.1.2 installer UX fix `git diff --check`: passed
 
 ## Next Action
 
-Baron 3.1.1 is published and verified. The next action is future hardening only
-after new requirements are explicit.
+Baron 3.1.2 source cleanup is verified locally and ready for commit, push,
+tag, release workflow, and `releases/latest` smoke.
 
 ## Phase 9-10 Feature Commits
 
