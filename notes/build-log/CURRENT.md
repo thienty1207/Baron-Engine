@@ -4,7 +4,7 @@ Date: 2026-06-19
 
 ## Current Phase
 
-Phase 24 - Baron 3.1 public trust release (installer UX fix pending release).
+Phase 24 - Baron 3.1 public trust release (installer UX fix released).
 Baron 3.0 Phase 18-23 are implemented and verified locally. The current task
 is packaging that engine so GitHub readers can understand, install, trust, and
 compare Baron quickly.
@@ -21,9 +21,9 @@ Baron 3.1 public trust batch:
 
 ## Current Status
 
-Baron 3.1.2 is the current source release target. Phase 24 is implemented
-locally with the Windows installer same-terminal PATH refresh fix. GitHub
-release publication for `v3.1.2` is pending.
+Baron 3.1.2 is the current source release. Phase 24 is implemented,
+published, and verified with the Windows installer same-terminal PATH refresh
+fix.
 
 Current resume point:
 
@@ -43,7 +43,7 @@ Current resume point:
 - External harness reference cleanup test is green.
 - Static scan for removed external harness references is green.
 - Windows installer same-session PATH regression test is green.
-- Next implementation step: commit, push, tag `v3.1.2`, and verify GitHub `releases/latest`.
+- Next implementation step: wait for explicit new requirements.
 
 ## Verification
 
@@ -199,11 +199,17 @@ Current resume point:
 - Baron 3.1.2 installer UX fix stale-version scan: passed
 - Baron 3.1.2 installer UX fix `docs/BARON_STATUS.json` parse: passed
 - Baron 3.1.2 installer UX fix `git diff --check`: passed
+- Baron 3.1.2 main push `0ec59ec`: passed
+- Baron 3.1.2 tag `v3.1.2` push: passed
+- Baron 3.1.2 GitHub main CI `27878348144`: passed
+- Baron 3.1.2 GitHub release workflow `27878352377`: passed
+- Baron 3.1.2 `releases/latest` points to `v3.1.2`: passed
+- Baron 3.1.2 Windows same-terminal latest installer smoke for version, setup, init, and context: passed
 
 ## Next Action
 
-Baron 3.1.2 source cleanup is verified locally and ready for commit, push,
-tag, release workflow, and `releases/latest` smoke.
+Baron 3.1.2 is published and verified. Continue only after explicit new
+requirements.
 
 ## Phase 9-10 Feature Commits
 

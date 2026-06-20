@@ -47,15 +47,20 @@ Baron 3.1.2 source certification passed locally on 2026-06-19:
 - installer lifecycle smoke inside the release smoke test suite
 - shared Vault, migration, context, proof, trace, automation, and memory tests
 
-GitHub release evidence for `v3.1.2` is pending:
+GitHub release evidence passed on 2026-06-21:
 
-- push `main`
-- push tag `v3.1.2`
-- let the release workflow publish native assets
-- verify `releases/latest` points at `v3.1.2`
-- run Windows install smoke from `releases/latest`
-- verify `baron --version` works in the same PowerShell session immediately
-  after the installer runs
+- `main` was pushed at commit `0ec59ec`.
+- tag `v3.1.2` was pushed.
+- GitHub release workflow `27878352377` completed successfully.
+- GitHub main CI `27878348144` completed successfully.
+- `releases/latest` points at `v3.1.2`.
+- The release contains Windows, Linux, Intel macOS, Apple Silicon macOS,
+  `install.ps1`, `install.sh`, `release-manifest.json`, and `SHA256SUMS`.
+- Windows install smoke from `releases/latest` passed with isolated
+  `BARON_HOME`: `baron --version`, `baron setup --vault`, `baron init --codex
+  --fullstack`, and `baron context --codex` ran successfully.
+- The Windows installer made `baron --version` work in the same PowerShell
+  session immediately after install.
 
 ## Interpretation
 

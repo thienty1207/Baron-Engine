@@ -51,8 +51,11 @@ external harness repositories.
 - Baron 3.1.2 installer UX fix full `cargo test --workspace --all-targets`: passed.
 - Baron 3.1.2 installer UX fix full `cargo clippy --workspace --all-targets -- -D warnings`: passed.
 - Baron 3.1.2 installer UX fix stale-version scan, status JSON parse, and `git diff --check`: passed.
-- GitHub `main` push: pending for `v3.1.2`.
-- Git tag `v3.1.2` push: pending.
-- GitHub release workflow: pending.
-- GitHub `releases/latest`: pending for `v3.1.2`.
-- Windows install smoke from `releases/latest`: pending for `v3.1.2`.
+- GitHub `main` push: passed at commit `0ec59ec`.
+- Git tag `v3.1.2` push: passed.
+- GitHub release workflow `27878352377`: passed.
+- GitHub main CI `27878348144`: passed.
+- GitHub `releases/latest`: passed and points to `v3.1.2`.
+- Windows install smoke from `releases/latest`: passed for same-terminal
+  `baron --version`, `setup --vault`, `init --codex --fullstack`, and
+  `context --codex`.

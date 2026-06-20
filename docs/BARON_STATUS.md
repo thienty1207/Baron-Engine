@@ -11,7 +11,7 @@ Last updated: 2026-06-19
 - Remaining planned phases: 0
 - Current phase: Phase 24 - Public Trust Release
 - Current phase status: completed
-- Current next action: publish and verify `v3.1.2` so the Windows installer supports same-terminal `baron --version`.
+- Current next action: Baron `v3.1.2` is published and verified; continue future hardening only after new requirements are explicit.
 - Build confidence: Baron 3.1.2 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.
 
 ## Baron 3.0 Direction
@@ -466,4 +466,4 @@ Public Trust 3.1.2 final verification:
 - `cargo test --workspace --all-targets`: passed
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - `git diff --check`: passed
-- GitHub release latest smoke: pending for `v3.1.2` after commit, tag, release workflow, and Windows same-terminal install smoke
+- GitHub release latest smoke: passed; `releases/latest` points to `v3.1.2`, release workflow `27878352377` passed, main CI `27878348144` passed, and Windows same-terminal install/setup/init/context smoke from latest passed
