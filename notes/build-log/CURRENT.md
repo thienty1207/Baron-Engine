@@ -1,34 +1,31 @@
 # Current Build Note
 
-Date: 2026-06-19
+Date: 2026-07-06
 
 ## Current Phase
 
-Phase 24 - Baron 3.1 public trust release (installer UX fix released).
-Baron 3.0 Phase 18-23 are implemented and verified locally. The current task
-is packaging that engine so GitHub readers can understand, install, trust, and
-compare Baron quickly.
+Baron 3.1.3 maintenance - duplicate memory record resilience and external
+harness update review.
 
 ## What Is Being Built
 
-Baron 3.1 public trust batch:
+Current maintenance batch:
 
-- Phase 24 keeps the engine unchanged and improves public trust.
-- README becomes a concise landing page.
-- Demo docs show a 10-year repo flow for Codex, Claude, and generic agents.
-- Assessment docs explain Baron through Baron-owned certification evidence.
-- Certification docs list concrete public proof and release/latest expectations.
+- Fix `baron init` failing on repeated excerpts in imported session Markdown.
+- Preserve Vault Markdown and repair only the rebuildable SQLite indexing path.
+- Review current public external harness changes without copying runtime or
+  public comparison material into Baron.
 
 ## Current Status
 
-Baron 3.1.2 is the current source release. Phase 24 is implemented,
-published, and verified with the Windows installer same-terminal PATH refresh
-fix.
+Baron 3.1.2 remains the published release. The 3.1.3 source fix is verified
+after reproducing `UNIQUE constraint failed: records.id`, deduplicating repeated
+records inside each source, and passing the real shared-Vault smoke.
 
 Current resume point:
 
-- `docs/BARON_STATUS.md` marks Phase 24 as the Public Trust Release.
-- `docs/BARON_STATUS.json` tracks stable/target release `3.1.2`, 100% completion, and zero remaining planned phases.
+- `docs/BARON_STATUS.md` marks Phase 25 as Memory Index Resilience maintenance.
+- `docs/BARON_STATUS.json` tracks source/target release `3.1.3` and the remaining release verification work.
 - `docs/demo/README.md` is the public demo.
 - `docs/assessment/baron-3-public-certification.md` is the public proof snapshot.
 - `notes/build-log/2026-06-19-baron-3-roadmap.md` records the trigger and non-negotiables.
@@ -43,7 +40,8 @@ Current resume point:
 - External harness reference cleanup test is green.
 - Static scan for removed external harness references is green.
 - Windows installer same-session PATH regression test is green.
-- Next implementation step: wait for explicit new requirements.
+- Next implementation step: commit, push, tag `v3.1.3`, verify release CI, and
+  run the installed latest binary against the real `scanjob` Vault.
 
 ## Verification
 
@@ -205,11 +203,20 @@ Current resume point:
 - Baron 3.1.2 GitHub release workflow `27878352377`: passed
 - Baron 3.1.2 `releases/latest` points to `v3.1.2`: passed
 - Baron 3.1.2 Windows same-terminal latest installer smoke for version, setup, init, and context: passed
+- Baron 3.1.3 duplicate-record RED regression: failed for the expected SQLite primary-key reason
+- Baron 3.1.3 duplicate-record GREEN regression: passed
+- Baron 3.1.3 full Vault Memory suite: passed, 13 tests
+- Baron 3.1.3 full `cargo fmt --all -- --check`: passed
+- Baron 3.1.3 full `cargo test --workspace --all-targets`: passed
+- Baron 3.1.3 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Baron 3.1.3 real shared-Vault index: passed with 31 sources and 545 records
+- Baron 3.1.3 real `scanjob` init with Codex/fullstack: passed
+- Baron 3.1.3 real imported-session SHA-256 preservation check: passed
+- External harness update review: completed; two future candidates identified without importing external runtime
 
 ## Next Action
 
-Baron 3.1.2 is published and verified. Continue only after explicit new
-requirements.
+Commit, push, tag, publish, and smoke Baron 3.1.3 from `releases/latest`.
 
 ## Phase 9-10 Feature Commits
 

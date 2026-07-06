@@ -1,18 +1,18 @@
 # Baron Build Status
 
-Last updated: 2026-06-19
+Last updated: 2026-07-06
 
 ## Overall
 
-- Stable source release: `v3.1.2`
+- Stable source release: `v3.1.3`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.1.2`
+- Target source release: `v3.1.3`
 - Baron 3.0 completion: 100%
-- Remaining planned phases: 0
-- Current phase: Phase 24 - Public Trust Release
-- Current phase status: completed
-- Current next action: Baron `v3.1.2` is published and verified; continue future hardening only after new requirements are explicit.
-- Build confidence: Baron 3.1.2 keeps the Baron 3 engine intact and adds public-trust packaging: concise README, public demo, certification snapshot, release/latest instructions, and synchronized status/version metadata.
+- Remaining planned phases: 1
+- Current phase: Phase 25 - Memory Index Resilience
+- Current phase status: in_progress
+- Current next action: publish and smoke `v3.1.3`; keep shared-understanding and actionable recovery ideas as separate future candidates requiring approval.
+- Build confidence: Baron 3.1.3 preserves the Baron 3 engine and fixes rebuildable SQLite indexing when imported Markdown repeats identical memory excerpts.
 
 ## Baron 3.0 Direction
 
@@ -121,6 +121,7 @@ Baron 3.0 planned program:
 | 22 | Capability Runtime And Safe Tool Backends | completed | 10% | runtime policy core/CLI tests, safe/unsafe/missing provider tests, context integration, and proof-evidence persistence tests |
 | 23 | Baron 3.0 Release Certification | completed | 10% | release version tests, certification gates for autopilot/runtime policy, docs/status sync, and full verification batch |
 | 24 | Public Trust Release | completed | additive | concise README, public demo, certification snapshot, release/latest docs, source verification |
+| 25 | Memory Index Resilience | in_progress | maintenance | duplicate-record RED/GREEN test, shared-Vault scanjob smoke, full verification, patch release |
 
 Phase 16-17 final verification:
 
@@ -389,6 +390,18 @@ Phase 16-17 final verification:
 - [x] Update release docs so `releases/latest` and tag publication are explicit.
 - [x] Bump source release metadata to `3.1.2`.
 
+### Phase 25 - Memory Index Resilience
+
+- [x] Reproduce `UNIQUE constraint failed: records.id` on Baron `3.1.2`.
+- [x] Identify repeated excerpts inside imported session Markdown as the source.
+- [x] Add a failing regression test before changing production code.
+- [x] Deduplicate identical records inside one source without rewriting Vault Markdown.
+- [x] Verify the targeted Memory Firewall suite and real `scanjob` init with source build.
+- [x] Run full workspace tests, Clippy, formatting, and status checks.
+- [x] Verify real shared-Vault indexing without changing Vault Markdown.
+- [ ] Run release smoke from `releases/latest`.
+- [ ] Publish and verify `v3.1.3`.
+
 ## Current Working Files
 
 - Product spec: `docs/specs/2026-06-08-baron-product-spec-1.0.md`
@@ -425,18 +438,19 @@ Phase 16-17 final verification:
 - Phase 21-23 build log: `notes/build-log/2026-06-19-phase-21-23-baron-3-release.md`
 - Phase 24 plan: `docs/superpowers/plans/2026-06-19-phase-24-public-trust-release.md`
 - Phase 24 build log: `notes/build-log/2026-06-19-phase-24-public-trust-release.md`
+- Phase 25 plan: `docs/superpowers/plans/2026-07-06-memory-index-duplicate-record-fix.md`
+- Phase 25 build log: `notes/build-log/2026-07-06-memory-index-duplicate-record-fix.md`
 - Public demo: `docs/demo/README.md`
 - Public certification: `docs/assessment/baron-3-public-certification.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `3.1.2` is the current stable source release. Phase 24 is a public-trust
-packaging release on top of the Baron 3 engine. It must preserve Superpowers as
-the workflow core, keep the three mandatory quality gates stable, keep managed
-runtime skills and agents self-contained Baron assets, keep autopilot learning
-candidate-gated, and keep runtime backend claims blocked without safe providers
-plus execution evidence.
+Baron `3.1.3` is the current stable source release target. Phase 25 is a narrow
+Memory Index resilience patch on top of the verified Baron 3 engine. It must
+preserve Vault Markdown, project isolation, Superpowers workflow ownership, the
+three mandatory quality gates, candidate-gated learning, and evidence-backed
+completion.
 
 Phase 18-20 final verification:
 

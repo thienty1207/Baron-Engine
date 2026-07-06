@@ -143,6 +143,36 @@ fn memory_index_rebuilds_from_markdown_sources() {
 }
 
 #[test]
+fn memory_index_deduplicates_repeated_records_within_one_source() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let repo = temp.path().join("duplicate-session-memory");
+    fs::create_dir_all(&repo).unwrap();
+
+    let context = ensure_vault(&vault, &repo).unwrap();
+    write(
+        &context
+            .project_root
+            .join("Sessions/Imported/repeated-session.md"),
+        "# User\n\nRepeated environment context from one imported session.\n\nRepeated environment context from one imported session.\n",
+    );
+
+    let report = build_memory_index(&context).unwrap();
+    let records = load_memory_records(&context).unwrap();
+    let repeated = records
+        .iter()
+        .filter(|record| {
+            record
+                .excerpt
+                .contains("Repeated environment context from one imported session")
+        })
+        .count();
+
+    assert_eq!(repeated, 1);
+    assert_eq!(report.total_records, records.len());
+}
+
+#[test]
 fn firewall_prioritizes_current_project_and_blocks_weak_cross_project_matches() {
     let temp = tempdir().unwrap();
     let vault = temp.path().join("Vault");

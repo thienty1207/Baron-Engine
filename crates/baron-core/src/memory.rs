@@ -456,6 +456,7 @@ fn parse_source(
 ) -> Vec<MemoryRecord> {
     let mut title = String::from("Memory");
     let mut records = Vec::new();
+    let mut seen_ids = BTreeSet::new();
     let mut in_frontmatter = false;
     let updated_at = metadata
         .modified()
@@ -500,6 +501,9 @@ fn parse_source(
             source.relative_path, source.scope, source.project_id, title, excerpt
         );
         let content_hash = hash(&id_source);
+        if !seen_ids.insert(content_hash.clone()) {
+            continue;
+        }
         records.push(MemoryRecord {
             id: content_hash.clone(),
             scope: source.scope,
