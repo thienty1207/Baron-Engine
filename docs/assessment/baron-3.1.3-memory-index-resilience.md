@@ -1,7 +1,7 @@
 # Baron 3.1.3 Memory Index Resilience
 
 Date: 2026-07-06
-Status: source verified; release pending
+Status: released; installer follow-up moved to 3.1.4
 
 ## Fixed Behavior
 
@@ -22,6 +22,10 @@ the rebuildable SQLite cache while the original Vault Markdown remains intact.
 - `scanjob` initialized successfully with `--codex --fullstack`.
 - SHA-256 proof confirmed the imported session Markdown used for the smoke test
   was unchanged before and after indexing.
+- GitHub main CI `28796795403` passed.
+- GitHub release workflow `28796812011` passed and published `v3.1.3`.
+- Release verification exposed a pre-existing anonymous API quota dependency in
+  latest-version resolution; that installer concern is isolated in 3.1.4.
 
 ## External Harness Review Decision
 

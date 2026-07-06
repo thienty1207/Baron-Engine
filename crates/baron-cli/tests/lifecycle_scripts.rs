@@ -36,7 +36,7 @@ fn current_target() -> &'static str {
 
 fn package_current_binary(source_dir: &Path) -> PathBuf {
     let target = supported_release_target(current_target()).unwrap();
-    let archive = source_dir.join(target.archive_name("3.1.3"));
+    let archive = source_dir.join(target.archive_name("3.1.4"));
     let binary = cargo_bin("baron");
 
     #[cfg(target_os = "windows")]
@@ -113,6 +113,18 @@ fn installer_scripts_enforce_checksum_and_data_safety_contracts() {
 }
 
 #[test]
+fn installer_scripts_resolve_latest_without_github_api_quota() {
+    let root = workspace_root();
+    let powershell = fs::read_to_string(root.join("installers/install.ps1")).unwrap();
+    let shell = fs::read_to_string(root.join("installers/install.sh")).unwrap();
+
+    for script in [&powershell, &shell] {
+        assert!(script.contains("releases/latest/download/release-manifest.json"));
+        assert!(!script.contains("api.github.com"));
+    }
+}
+
+#[test]
 fn native_installer_supports_install_update_rollback_and_uninstall() {
     let temp = tempdir().unwrap();
     let source = temp.path().join("release");
@@ -139,7 +151,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "-Action",
                 action,
                 "-Version",
-                "3.1.3",
+                "3.1.4",
                 "-InstallDir",
                 install.to_str().unwrap(),
                 "-SourceDirectory",
@@ -159,7 +171,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "--action",
                 action,
                 "--version",
-                "3.1.3",
+                "3.1.4",
                 "--install-dir",
                 install.to_str().unwrap(),
                 "--source-dir",
@@ -205,13 +217,13 @@ fn powershell_installer_makes_baron_available_in_the_current_session() {
 $oldUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 try {{
     $env:Path = ($env:Path -split ';' | Where-Object {{ $_ -ne '{install}' }}) -join ';'
-    & '{installer}' -Action install -Version 3.1.3 -InstallDir '{install}' -SourceDirectory '{source}' -StateDirectory '{state}'
+    & '{installer}' -Action install -Version 3.1.4 -InstallDir '{install}' -SourceDirectory '{source}' -StateDirectory '{state}'
     $command = Get-Command baron -ErrorAction Stop
     if ($command.Source -ne '{expected}') {{
         throw "baron resolved to '$($command.Source)' instead of '{expected}'"
     }}
     $version = (baron --version | Out-String).Trim()
-    if ($version -ne 'baron 3.1.3') {{
+    if ($version -ne 'baron 3.1.4') {{
         throw "unexpected version: $version"
     }}
 }} finally {{

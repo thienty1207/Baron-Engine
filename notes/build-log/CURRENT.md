@@ -4,28 +4,28 @@ Date: 2026-07-06
 
 ## Current Phase
 
-Baron 3.1.3 maintenance - duplicate memory record resilience and external
-harness update review.
+Baron 3.1.4 maintenance - API-independent latest installer after the verified
+3.1.3 duplicate-memory release.
 
 ## What Is Being Built
 
 Current maintenance batch:
 
-- Fix `baron init` failing on repeated excerpts in imported session Markdown.
-- Preserve Vault Markdown and repair only the rebuildable SQLite indexing path.
-- Review current public external harness changes without copying runtime or
-  public comparison material into Baron.
+- Preserve the released 3.1.3 duplicate-memory index fix.
+- Remove anonymous GitHub API quota from latest installer resolution.
+- Keep the one-block install flow, checksum verification, rollback, and Vault
+  data safety unchanged.
 
 ## Current Status
 
-Baron 3.1.2 remains the published release. The 3.1.3 source fix is verified
-after reproducing `UNIQUE constraint failed: records.id`, deduplicating repeated
-records inside each source, and passing the real shared-Vault smoke.
+Baron 3.1.3 is published and its memory fix is verified. The release smoke then
+exposed a pre-existing API quota dependency in both latest installers. The
+3.1.4 source fix now resolves latest from `release-manifest.json`.
 
 Current resume point:
 
-- `docs/BARON_STATUS.md` marks Phase 25 as Memory Index Resilience maintenance.
-- `docs/BARON_STATUS.json` tracks source/target release `3.1.3` and the remaining release verification work.
+- `docs/BARON_STATUS.md` marks Phase 26 as API-Independent Latest Installer maintenance.
+- `docs/BARON_STATUS.json` tracks source/target release `3.1.4` and the remaining release verification work.
 - `docs/demo/README.md` is the public demo.
 - `docs/assessment/baron-3-public-certification.md` is the public proof snapshot.
 - `notes/build-log/2026-06-19-baron-3-roadmap.md` records the trigger and non-negotiables.
@@ -40,8 +40,8 @@ Current resume point:
 - External harness reference cleanup test is green.
 - Static scan for removed external harness references is green.
 - Windows installer same-session PATH regression test is green.
-- Next implementation step: commit, push, tag `v3.1.3`, verify release CI, and
-  run the installed latest binary against the real `scanjob` Vault.
+- Next implementation step: commit, push, tag `v3.1.4`, then rerun the normal
+  one-block latest installer against `scanjob`.
 
 ## Verification
 
@@ -213,10 +213,21 @@ Current resume point:
 - Baron 3.1.3 real `scanjob` init with Codex/fullstack: passed
 - Baron 3.1.3 real imported-session SHA-256 preservation check: passed
 - External harness update review: completed; two future candidates identified without importing external runtime
+- Baron 3.1.3 main CI `28796795403`: passed
+- Baron 3.1.3 release workflow `28796812011`: passed
+- Baron 3.1.3 HTTP latest redirect: passed
+- Baron 3.1.3 normal latest installer smoke: exposed anonymous GitHub API quota dependency
+- Baron 3.1.4 no-API installer RED test: failed for the expected missing manifest behavior
+- Baron 3.1.4 no-API installer GREEN test: passed for PowerShell and shell contracts
+- Baron 3.1.4 manifest latest smoke during active API rate limiting: passed
+- Baron 3.1.4 installer lifecycle suite: passed, 5 tests
+- Baron 3.1.4 full `cargo fmt --all -- --check`: passed
+- Baron 3.1.4 full `cargo test --workspace --all-targets`: passed
+- Baron 3.1.4 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
 
 ## Next Action
 
-Commit, push, tag, publish, and smoke Baron 3.1.3 from `releases/latest`.
+Commit, push, tag, publish, and smoke Baron 3.1.4 from `releases/latest`.
 
 ## Phase 9-10 Feature Commits
 

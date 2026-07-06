@@ -4,15 +4,15 @@ Last updated: 2026-07-06
 
 ## Overall
 
-- Stable source release: `v3.1.3`
+- Stable source release: `v3.1.4`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.1.3`
+- Target source release: `v3.1.4`
 - Baron 3.0 completion: 100%
 - Remaining planned phases: 1
-- Current phase: Phase 25 - Memory Index Resilience
+- Current phase: Phase 26 - API-Independent Latest Installer
 - Current phase status: in_progress
-- Current next action: publish and smoke `v3.1.3`; keep shared-understanding and actionable recovery ideas as separate future candidates requiring approval.
-- Build confidence: Baron 3.1.3 preserves the Baron 3 engine and fixes rebuildable SQLite indexing when imported Markdown repeats identical memory excerpts.
+- Current next action: publish and smoke `v3.1.4` without relying on anonymous GitHub API quota.
+- Build confidence: Baron 3.1.4 preserves the Baron 3 engine, keeps the 3.1.3 duplicate-memory fix, and resolves latest releases through a published manifest asset instead of GitHub API.
 
 ## Baron 3.0 Direction
 
@@ -121,7 +121,8 @@ Baron 3.0 planned program:
 | 22 | Capability Runtime And Safe Tool Backends | completed | 10% | runtime policy core/CLI tests, safe/unsafe/missing provider tests, context integration, and proof-evidence persistence tests |
 | 23 | Baron 3.0 Release Certification | completed | 10% | release version tests, certification gates for autopilot/runtime policy, docs/status sync, and full verification batch |
 | 24 | Public Trust Release | completed | additive | concise README, public demo, certification snapshot, release/latest docs, source verification |
-| 25 | Memory Index Resilience | in_progress | maintenance | duplicate-record RED/GREEN test, shared-Vault scanjob smoke, full verification, patch release |
+| 25 | Memory Index Resilience | completed | maintenance | duplicate-record RED/GREEN test, shared-Vault scanjob smoke, full verification, v3.1.3 release |
+| 26 | API-Independent Latest Installer | in_progress | maintenance | no-API RED/GREEN contract, full lifecycle tests, one-block latest install, v3.1.4 release |
 
 Phase 16-17 final verification:
 
@@ -399,8 +400,18 @@ Phase 16-17 final verification:
 - [x] Verify the targeted Memory Firewall suite and real `scanjob` init with source build.
 - [x] Run full workspace tests, Clippy, formatting, and status checks.
 - [x] Verify real shared-Vault indexing without changing Vault Markdown.
-- [ ] Run release smoke from `releases/latest`.
-- [ ] Publish and verify `v3.1.3`.
+- [x] Publish and verify the `v3.1.3` memory fix.
+- [x] Record the installer quota issue as a separate follow-up instead of rewriting the release tag.
+
+### Phase 26 - API-Independent Latest Installer
+
+- [x] Reproduce latest installation failure under exhausted anonymous API quota.
+- [x] Add a RED contract test for API-independent latest resolution.
+- [x] Resolve latest through the published release manifest in both installers.
+- [x] Add mirror override support for the latest-manifest URL.
+- [x] Run full installer lifecycle, workspace, formatting, and Clippy tests.
+- [x] Prove manifest-based latest installation works while the API is rate-limited.
+- [ ] Publish and smoke `v3.1.4` through the normal one-block install flow.
 
 ## Current Working Files
 
@@ -440,16 +451,18 @@ Phase 16-17 final verification:
 - Phase 24 build log: `notes/build-log/2026-06-19-phase-24-public-trust-release.md`
 - Phase 25 plan: `docs/superpowers/plans/2026-07-06-memory-index-duplicate-record-fix.md`
 - Phase 25 build log: `notes/build-log/2026-07-06-memory-index-duplicate-record-fix.md`
+- Phase 26 plan: `docs/superpowers/plans/2026-07-06-api-independent-latest-installer.md`
+- Phase 26 build log: `notes/build-log/2026-07-06-api-independent-latest-installer.md`
 - Public demo: `docs/demo/README.md`
 - Public certification: `docs/assessment/baron-3-public-certification.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `3.1.3` is the current stable source release target. Phase 25 is a narrow
-Memory Index resilience patch on top of the verified Baron 3 engine. It must
-preserve Vault Markdown, project isolation, Superpowers workflow ownership, the
-three mandatory quality gates, candidate-gated learning, and evidence-backed
+Baron `3.1.4` is the current stable source release target. Phase 26 is a narrow
+installer resilience patch on top of the verified 3.1.3 Memory Index fix. It
+must preserve the simple one-block user flow, checksum verification, rollback,
+Vault data safety, Superpowers workflow ownership, and evidence-backed
 completion.
 
 Phase 18-20 final verification:

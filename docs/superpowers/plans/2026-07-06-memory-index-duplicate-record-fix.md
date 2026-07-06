@@ -1,7 +1,7 @@
 # Baron 3.1.3 Memory Index Duplicate Record Fix
 
 Date: 2026-07-06
-Status: source verified; release pending
+Status: completed and released in 3.1.3
 
 ## Goal
 

@@ -5,6 +5,7 @@ param(
     [string]$Version = "latest",
     [string]$InstallDir = (Join-Path $HOME ".baron\bin"),
     [string]$BaseUrl = "https://github.com/thienty1207/Baron-Engine/releases/download",
+    [string]$LatestManifestUrl = "https://github.com/thienty1207/Baron-Engine/releases/latest/download/release-manifest.json",
     [string]$SourceDirectory,
     [string]$StateDirectory,
     [switch]$NoPathUpdate
@@ -15,6 +16,9 @@ $ErrorActionPreference = "Stop"
 
 if ($env:BARON_RELEASE_BASE_URL) {
     $BaseUrl = $env:BARON_RELEASE_BASE_URL
+}
+if ($env:BARON_RELEASE_LATEST_MANIFEST_URL) {
+    $LatestManifestUrl = $env:BARON_RELEASE_LATEST_MANIFEST_URL
 }
 
 $stateRoot = if ($StateDirectory) {
@@ -108,11 +112,8 @@ if ($Version -eq "latest") {
     if ($SourceDirectory) {
         throw "Offline installation requires an explicit -Version."
     }
-    $release = Invoke-RestMethod `
-        -Uri "https://api.github.com/repos/thienty1207/Baron-Engine/releases/latest" `
-        -Headers @{ "User-Agent" = "Baron-Installer" }
-    $Version = [string]$release.tag_name
-    $Version = $Version.TrimStart("v")
+    $manifest = Invoke-RestMethod -Uri $LatestManifestUrl
+    $Version = [string]$manifest.version
 }
 if ($Version -notmatch "^\d+\.\d+\.\d+$") {
     throw "Baron version must use numeric major.minor.patch form."

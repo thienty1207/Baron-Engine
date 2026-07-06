@@ -2,7 +2,7 @@
 
 Date: 2026-07-06
 Target: Baron 3.1.3
-Status: source verified; release pending
+Status: completed and released in 3.1.3
 
 ## Trigger
 
@@ -36,5 +36,6 @@ error: UNIQUE constraint failed: records.id
 - Review recommendation: consider a shared-understanding gate and actionable
   needs-attention recovery in a separate approved phase; do not add a mandatory
   dashboard, local runner, or provider-specific unlimited execution loop.
-- Next action: commit, push, tag `v3.1.3`, run the release workflow, and smoke
-  the installed latest binary against the real project/Vault.
+- Release result: main CI `28796795403` and release workflow `28796812011`
+  passed. Latest-installer API quota resilience moved to the separate 3.1.4
+  maintenance patch.

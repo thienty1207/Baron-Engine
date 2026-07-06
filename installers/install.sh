@@ -5,6 +5,7 @@ action="install"
 version="latest"
 install_dir="${BARON_INSTALL_DIR:-$HOME/.local/bin}"
 base_url="${BARON_RELEASE_BASE_URL:-https://github.com/thienty1207/Baron-Engine/releases/download}"
+latest_manifest_url="${BARON_RELEASE_LATEST_MANIFEST_URL:-https://github.com/thienty1207/Baron-Engine/releases/latest/download/release-manifest.json}"
 source_dir=""
 state_root="${BARON_STATE_DIR:-$HOME/.baron}"
 backup_dir="$state_root/backups"
@@ -17,6 +18,7 @@ while [ "$#" -gt 0 ]; do
         --version) version="$2"; shift 2 ;;
         --install-dir) install_dir="$2"; binary_path="$2/baron"; shift 2 ;;
         --base-url) base_url="$2"; shift 2 ;;
+        --latest-manifest-url) latest_manifest_url="$2"; shift 2 ;;
         --source-dir) source_dir="$2"; shift 2 ;;
         *) echo "Unknown argument: $1" >&2; exit 2 ;;
     esac
@@ -89,10 +91,10 @@ if [ "$version" = "latest" ]; then
         echo "Offline installation requires an explicit --version." >&2
         exit 1
     fi
-    release_json="$(mktemp)"
-    download "https://api.github.com/repos/thienty1207/Baron-Engine/releases/latest" "$release_json"
-    version="$(sed -n 's/.*"tag_name":[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/p' "$release_json" | head -n 1)"
-    rm -f "$release_json"
+    release_manifest="$(mktemp)"
+    download "$latest_manifest_url" "$release_manifest"
+    version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$release_manifest" | head -n 1)"
+    rm -f "$release_manifest"
     if [ -z "$version" ]; then
         echo "Could not resolve the latest Baron version." >&2
         exit 1
