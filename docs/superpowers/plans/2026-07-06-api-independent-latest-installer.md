@@ -1,7 +1,7 @@
 # Baron 3.1.4 API-Independent Latest Installer
 
 Date: 2026-07-06
-Status: source verified; release pending
+Status: completed and released in 3.1.4
 
 ## Goal
 
@@ -30,6 +30,9 @@ That unnecessary API call could fail before any binary was downloaded.
 - Manifest-based latest smoke passed while anonymous GitHub API was rate-limited.
 - Full installer lifecycle suite passed.
 - Full workspace tests, formatting, and Clippy passed.
+- GitHub main CI and the four-platform release workflow passed.
+- Public latest installer updated the real machine to 3.1.4.
+- Real `scanjob` init passed against the existing shared Vault.
 
 ## Non-Negotiables
 

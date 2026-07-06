@@ -4,8 +4,8 @@ Date: 2026-07-06
 
 ## Current Phase
 
-Baron 3.1.4 maintenance - API-independent latest installer after the verified
-3.1.3 duplicate-memory release.
+Baron 3.1.4 maintenance completed - duplicate-memory resilience plus an
+API-independent latest installer.
 
 ## What Is Being Built
 
@@ -18,9 +18,9 @@ Current maintenance batch:
 
 ## Current Status
 
-Baron 3.1.3 is published and its memory fix is verified. The release smoke then
-exposed a pre-existing API quota dependency in both latest installers. The
-3.1.4 source fix now resolves latest from `release-manifest.json`.
+Baron 3.1.4 is published and verified. The real machine was updated from 3.1.2
+to 3.1.4, and the original `scanjob` init passed against the existing shared
+Vault.
 
 Current resume point:
 
@@ -40,8 +40,8 @@ Current resume point:
 - External harness reference cleanup test is green.
 - Static scan for removed external harness references is green.
 - Windows installer same-session PATH regression test is green.
-- Next implementation step: commit, push, tag `v3.1.4`, then rerun the normal
-  one-block latest installer against `scanjob`.
+- Next implementation step: wait for explicit approval before starting a future
+  shared-understanding or actionable-recovery phase.
 
 ## Verification
 
@@ -224,10 +224,14 @@ Current resume point:
 - Baron 3.1.4 full `cargo fmt --all -- --check`: passed
 - Baron 3.1.4 full `cargo test --workspace --all-targets`: passed
 - Baron 3.1.4 full `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- Baron 3.1.4 GitHub main CI `28797881851`: passed
+- Baron 3.1.4 GitHub release workflow `28797886356`: passed
+- Baron 3.1.4 public latest installer update from 3.1.2: passed
+- Baron 3.1.4 real `scanjob` init against the existing shared Vault: passed
 
 ## Next Action
 
-Commit, push, tag, publish, and smoke Baron 3.1.4 from `releases/latest`.
+Baron 3.1.4 is published and verified. Wait for explicit new requirements.
 
 ## Phase 9-10 Feature Commits
 

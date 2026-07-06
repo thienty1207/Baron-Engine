@@ -8,10 +8,10 @@ Last updated: 2026-07-06
 - Baron 2.0 completion: 100%
 - Target source release: `v3.1.4`
 - Baron 3.0 completion: 100%
-- Remaining planned phases: 1
+- Remaining planned phases: 0
 - Current phase: Phase 26 - API-Independent Latest Installer
-- Current phase status: in_progress
-- Current next action: publish and smoke `v3.1.4` without relying on anonymous GitHub API quota.
+- Current phase status: completed
+- Current next action: Baron `v3.1.4` is published and verified; future shared-understanding or actionable-recovery work requires explicit approval.
 - Build confidence: Baron 3.1.4 preserves the Baron 3 engine, keeps the 3.1.3 duplicate-memory fix, and resolves latest releases through a published manifest asset instead of GitHub API.
 
 ## Baron 3.0 Direction
@@ -122,7 +122,7 @@ Baron 3.0 planned program:
 | 23 | Baron 3.0 Release Certification | completed | 10% | release version tests, certification gates for autopilot/runtime policy, docs/status sync, and full verification batch |
 | 24 | Public Trust Release | completed | additive | concise README, public demo, certification snapshot, release/latest docs, source verification |
 | 25 | Memory Index Resilience | completed | maintenance | duplicate-record RED/GREEN test, shared-Vault scanjob smoke, full verification, v3.1.3 release |
-| 26 | API-Independent Latest Installer | in_progress | maintenance | no-API RED/GREEN contract, full lifecycle tests, one-block latest install, v3.1.4 release |
+| 26 | API-Independent Latest Installer | completed | maintenance | no-API RED/GREEN contract, full lifecycle tests, one-block latest install, v3.1.4 release |
 
 Phase 16-17 final verification:
 
@@ -411,7 +411,21 @@ Phase 16-17 final verification:
 - [x] Add mirror override support for the latest-manifest URL.
 - [x] Run full installer lifecycle, workspace, formatting, and Clippy tests.
 - [x] Prove manifest-based latest installation works while the API is rate-limited.
-- [ ] Publish and smoke `v3.1.4` through the normal one-block install flow.
+- [x] Publish and smoke `v3.1.4` through the normal one-block install flow.
+
+Phase 25-26 final verification:
+
+- duplicate imported-session record RED/GREEN regression: passed
+- real shared-Vault index and Markdown hash preservation: passed
+- real `scanjob` Codex/fullstack init: passed
+- installer no-API RED/GREEN contract: passed
+- manifest-based latest install during API rate limiting: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- GitHub main CI `28797881851`: passed
+- GitHub release workflow `28797886356`: passed
+- real machine update from Baron 3.1.2 to 3.1.4: passed
 
 ## Current Working Files
 
@@ -455,6 +469,7 @@ Phase 16-17 final verification:
 - Phase 26 build log: `notes/build-log/2026-07-06-api-independent-latest-installer.md`
 - Public demo: `docs/demo/README.md`
 - Public certification: `docs/assessment/baron-3-public-certification.md`
+- 3.1.4 installer certification: `docs/assessment/baron-3.1.4-installer-resilience.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule

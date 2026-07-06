@@ -108,7 +108,7 @@ fn status_tracks_public_trust_phase() {
         status_json["currentPhase"],
         "phase-26-api-independent-installer"
     );
-    assert_eq!(status_json["currentPhaseStatus"], "in_progress");
+    assert_eq!(status_json["currentPhaseStatus"], "completed");
 }
 
 #[test]

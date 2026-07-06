@@ -2,7 +2,7 @@
 
 Date: 2026-07-06
 Target: Baron 3.1.4
-Status: source verified; release pending
+Status: completed and released in 3.1.4
 
 ## Trigger
 
@@ -29,5 +29,8 @@ exhausted.
 - Full lifecycle tests: passed, 5 tests.
 - Full workspace tests: passed.
 - Formatting and Clippy with warnings denied: passed.
-- Next action: commit, push, tag `v3.1.4`, publish, then rerun one-block install
-  and the real `scanjob` init.
+- GitHub main CI `28797881851`: passed.
+- GitHub release workflow `28797886356`: passed.
+- Public latest installer update from 3.1.2 to 3.1.4: passed.
+- Real `scanjob` init against the existing shared Vault: passed.
+- Next action: none; wait for an explicitly approved future phase.
