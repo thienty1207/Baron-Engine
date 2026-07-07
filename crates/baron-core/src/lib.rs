@@ -11,6 +11,7 @@ pub mod firewall;
 pub mod harness;
 pub mod harness_improvement;
 pub mod identity;
+pub mod intent;
 pub mod memory;
 pub mod migration;
 pub mod plan;

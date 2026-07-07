@@ -11,11 +11,15 @@ for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completed the first stable foundation. Baron `v3.0.0` is the
-current stable source release. Phase 18-23 complete the Baron 3.0 program:
+Baron `v1.0.0` completed the first stable foundation. Baron `v3.1.4` is the
+current verified stable release. Phase 18-23 complete the Baron 3.0 program:
 self-contained runtime assets, skill lifecycle approval, bounded session
 replay/search, background learning autopilot, safe runtime backend policy, and
 release certification.
+
+Phase 27 is the active Baron 3.2 phase. It adds confirmed intent before
+medium/high-risk Product Harness intake and append-only actionable recovery for
+failed, blocked, or interrupted work.
 
 The current source command surface is:
 
@@ -38,7 +42,7 @@ The current source command surface is:
 - `baron context [repo-path] --why --vault <vault-path>`
 - `baron update [repo-path]`
 - `baron plan <status|start|update|interrupt|complete>`
-- `baron harness <status|intake|decision|friction>`
+- `baron harness <status|intent-status|intent|intake|decision|friction>`
 - `baron proof <status|record>`
 - `baron trace <record|score>`
 - `baron migrate agent-bootstrap [repo-path] --dry-run`
@@ -47,7 +51,7 @@ The current source command surface is:
 - `baron capability <register|check|list|remove>`
 - `baron runtime check`
 - `baron automation <status|reconcile|hook>`
-- `baron continuity <status|checkpoint>`
+- `baron continuity <status|checkpoint|recover>`
 - `baron autopilot <status|review|approve|reject>`
 - `baron control-plane <status|route|record-gate|evidence>`
 - `baron asset <audit|quarantine|propose-skill>`
@@ -154,6 +158,13 @@ exact resume point.
   custom skills/agents, including their routing registrations.
 - High-risk plans must not complete without valid proof and a detailed passing
   trace.
+- Agents must read available repo, Vault, plan, Harness, continuity, and decision
+  evidence before asking exactly one missing high-value question at a time.
+- Medium/high-risk Harness intake requires a matching confirmed intent brief;
+  agents must never fabricate user confirmation.
+- Failed, blocked, or interrupted meaningful work must preserve an actionable
+  recovery packet with cause, last successful step, evidence, affected files,
+  safe next action, and retry conditions.
 - Product Harness intake must maintain `docs/baron/harness/TEST_MATRIX.md`;
   proof recording updates the current story evidence in both repo and Vault,
   but weak evidence must remain `insufficient`.
@@ -220,12 +231,14 @@ cargo run -p baron-cli -- session-replay index . --vault .tmp/baron-vault
 cargo run -p baron-cli -- session-replay search "auth login" . --vault .tmp/baron-vault
 cargo run -p baron-cli -- plan status
 cargo run -p baron-cli -- harness status
+cargo run -p baron-cli -- harness intent-status
 cargo run -p baron-cli -- proof status
 cargo run -p baron-cli -- trace score
 cargo run -p baron-cli -- capability list
 cargo run -p baron-cli -- capability check
 cargo run -p baron-cli -- runtime check
 cargo run -p baron-cli -- autopilot status
+cargo run -p baron-cli -- continuity status
 cargo test -p baron-core --test release
 cargo test -p baron-cli --test lifecycle_scripts
 cargo test -p baron-cli --test release_smoke

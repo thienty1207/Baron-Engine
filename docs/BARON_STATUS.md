@@ -1,18 +1,19 @@
 # Baron Build Status
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Overall
 
 - Stable source release: `v3.1.4`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.1.4`
+- Target source release: `v3.2.0`
 - Baron 3.0 completion: 100%
-- Remaining planned phases: 0
-- Current phase: Phase 26 - API-Independent Latest Installer
-- Current phase status: completed
-- Current next action: Baron `v3.1.4` is published and verified; future shared-understanding or actionable-recovery work requires explicit approval.
-- Build confidence: Baron 3.1.4 preserves the Baron 3 engine, keeps the 3.1.3 duplicate-memory fix, and resolves latest releases through a published manifest asset instead of GitHub API.
+- Baron 3.2 completion: 15%
+- Remaining planned phases: 4
+- Current phase: Phase 28 - Platform Intelligence Profiles
+- Current phase status: planned
+- Current next action: design and plan Phase 28 profile packs before implementation.
+- Build confidence: Baron 3.1.4 remains the verified stable release. Phase 27 passed focused, workspace, Clippy, adapter, and real temp repo/Vault smoke verification; Phases 28-31 remain planned.
 
 ## Baron 3.0 Direction
 
@@ -123,6 +124,16 @@ Baron 3.0 planned program:
 | 24 | Public Trust Release | completed | additive | concise README, public demo, certification snapshot, release/latest docs, source verification |
 | 25 | Memory Index Resilience | completed | maintenance | duplicate-record RED/GREEN test, shared-Vault scanjob smoke, full verification, v3.1.3 release |
 | 26 | API-Independent Latest Installer | completed | maintenance | no-API RED/GREEN contract, full lifecycle tests, one-block latest install, v3.1.4 release |
+
+Baron 3.2 planned program:
+
+| Phase | Name | Status | Baron 3.2 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 27 | Intent Clarity And Actionable Recovery | completed | 15% | shared-understanding gate, persisted intent brief, bounded questions, interruption/failure recovery packet, resume tests |
+| 28 | Platform Intelligence Profiles | planned | 25% | deep profile packs for every public platform flag, repo-derived stack map, generated guidelines, task-aware context routing tests |
+| 29 | Architecture Governor And Project Expansion | planned | 30% | primary-plus-extension model, safe `baron init --<platform>` expansion, structure/boundary/dependency contracts, old-repo no-destructive-change tests |
+| 30 | Baron Design Quality And Reviewer Closure | planned | 15% | Baron-native frontend quality checks, design-context guidance, bounded post-edit validation, evidence-backed reviewer closure tests |
+| 31 | Automation Certification And Baron 3.2 Release | planned | 15% | automatic adapter behavior, all-platform fixtures, fullstack-to-mobile expansion smoke, full verification, docs/status sync, v3.2.0 release proof |
 
 Phase 16-17 final verification:
 
@@ -413,6 +424,76 @@ Phase 16-17 final verification:
 - [x] Prove manifest-based latest installation works while the API is rate-limited.
 - [x] Publish and smoke `v3.1.4` through the normal one-block install flow.
 
+### Phase 27 - Intent Clarity And Actionable Recovery
+
+- [x] Make Baron inspect project, Vault, current plan, and prior decisions before asking the user for information already available.
+- [x] Ask one high-value question at a time only when the answer cannot be discovered safely.
+- [x] Persist a concise intent brief covering current behavior, target behavior, scope, non-goals, constraints, decisions, proof, and remaining unknowns.
+- [x] Require explicit shared understanding before medium/high-risk implementation while keeping tiny, obvious maintenance work lightweight.
+- [x] Record an actionable recovery packet when work fails, blocks, or is interrupted: root cause, last successful step, evidence, affected files, safe next action, and retry conditions.
+- [x] Preserve failed-attempt evidence instead of rewriting failure as success.
+- [x] Auto-load the latest recovery packet during the next context/resume cycle.
+- [x] Add core, CLI, adapter, interruption, failure, deduplication, and bounded-context tests.
+
+Phase 27 final verification:
+
+- intent and recovery RED/GREEN regression suites: passed
+- all 17 adapter lifecycle tests: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- temp Codex/fullstack repo plus Vault smoke: unconfirmed risky intake blocked, confirmed intake passed, intent/recovery auto-loaded, low-risk intake remained lightweight, repo/Vault mirrors passed
+- Survey self-noise RED/GREEN: Baron execution-state paths no longer masquerade as product risk surfaces
+
+### Phase 28 - Platform Intelligence Profiles
+
+- [ ] Replace one-line platform hints with Baron-owned profile packs for `frontend`, `backend`, `fullstack`, `mobile`, `desktop`, `tool`, `library`, `data`, and `cloud`.
+- [ ] Define each profile's product concerns, architecture priorities, common failure modes, security/performance expectations, skill/agent routing, verification layers, and release proof.
+- [ ] Combine the selected profile with Survey Engine evidence so framework, language, database, deployment, and test guidance comes from the actual repo.
+- [ ] Mark missing stack facts as unknown instead of guessing.
+- [ ] Generate and maintain `PROJECT_PROFILE.md`, `STACK_MAP.md`, platform engineering guidance, and platform-specific quality gates using refreshable managed sections.
+- [ ] Make compact context load only the active task's relevant profile sections, not every platform pack.
+- [ ] Ensure custom project rules remain authoritative where they intentionally refine the Baron defaults.
+- [ ] Add focused fixtures and context assertions for every supported platform flag.
+
+### Phase 29 - Architecture Governor And Project Expansion
+
+- [ ] Add a primary-platform plus extension-platform model without complicating the public user flow.
+- [ ] Keep first-time usage simple, for example `baron init --codex --fullstack`.
+- [ ] On an initialized project, make `baron init --mobile` add a mobile extension instead of silently replacing the fullstack foundation.
+- [ ] Let generated agent instructions run the same simple init command automatically when the user explicitly expands the product to a new platform.
+- [ ] Generate `CURRENT_ARCHITECTURE.md`, `PROJECT_STRUCTURE.md`, `BOUNDARIES.md`, `DEPENDENCY_RULES.md`, and `EXPANSION_RULES.md` under `docs/baron/architecture/`.
+- [ ] Provide adaptive reference structures for frontend, backend, database, shared contracts, infrastructure, documentation, and tests without forcing framework-incompatible folders.
+- [ ] Require every new module or top-level directory to have a clear responsibility, owner, allowed dependencies, and validation path.
+- [ ] Keep shared API/data contracts in one declared location so web, mobile, backend, and database changes stay compatible.
+- [ ] Scaffold new projects safely while preserving existing repositories; never move or delete existing code merely to match a preferred layout.
+- [ ] For structural migration of an old repo, require a plan, dry-run inventory, rollback path, and proof before file moves.
+- [ ] Detect architecture drift and report a bounded correction proposal rather than auto-restructuring the repo.
+- [ ] Add new-project, old-project, repeated-init, fullstack-to-mobile, multi-extension, conflict, preservation, and rollback tests.
+
+### Phase 30 - Baron Design Quality And Reviewer Closure
+
+- [ ] Strengthen the existing optional `frontend-design` skill instead of installing a competing workflow or a second frontend owner.
+- [ ] Add Baron-native product/design context guidance that reuses existing Product Harness and architecture facts.
+- [ ] Distill useful frontend quality ideas into local, testable checks for overflow, contrast, typography, spacing, responsive behavior, accessibility, interaction states, motion safety, and design-system drift.
+- [ ] Route frontend checks only for matching UI work; backend, data, and tool-only edits must not pay the frontend validation cost.
+- [ ] Keep post-edit validation bounded, observable, and non-destructive; no mandatory third-party runtime or unreviewed vendored script bundle.
+- [ ] Require reviewer findings to close with fix evidence and verification, while preserving unresolved findings and previous failed evidence.
+- [ ] Keep the three core quality agents unchanged and prevent optional design checks from replacing `code-reviewer`, `security-auditor`, or `test-engineer`.
+- [ ] Add routing, conflict, false-positive, responsive, reviewer-closure, and evidence-preservation tests.
+
+### Phase 31 - Automation Certification And Baron 3.2 Release
+
+- [ ] Update Codex, Claude, and generic adapter instructions so platform profiling, architecture reconciliation, intent checks, recovery, design validation, proof, and reviewer closure run automatically when relevant.
+- [ ] Keep the normal user-facing commands limited to install/update, Vault setup, adapter init, platform init/expansion, and update.
+- [ ] Prove AI automation uses task/path/risk evidence and does not load every profile, skill, agent, or guideline at once.
+- [ ] Certify all platform profiles against representative repositories and mixed-stack fixtures.
+- [ ] Smoke a fullstack project that expands to mobile while preserving backend, database, shared contracts, custom assets, plans, and Vault memory.
+- [ ] Smoke an existing irregular repository and prove Baron does not destructively rearrange it.
+- [ ] Run `cargo fmt --all -- --check`, `cargo test --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`, installer lifecycle, and release smoke tests.
+- [ ] Synchronize README, architecture docs, generated adapter docs, status Markdown/JSON, build logs, version metadata, release assets, and public installation guidance.
+- [ ] Publish `v3.2.0` only after all Phase 27-30 evidence is complete and the simple user flow remains intact.
+
 Phase 25-26 final verification:
 
 - duplicate imported-session record RED/GREEN regression: passed
@@ -474,11 +555,12 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.1.4` is the current stable source release target. Phase 26 is a narrow
-installer resilience patch on top of the verified 3.1.3 Memory Index fix. It
-must preserve the simple one-block user flow, checksum verification, rollback,
-Vault data safety, Superpowers workflow ownership, and evidence-backed
-completion.
+Baron `3.1.4` is the current verified stable release. Baron `3.2.0` is an active
+program with Phase 27 complete and four phases remaining. It must deepen project understanding,
+platform expertise, safe architectural growth, frontend design quality, reviewer
+closure, and recovery while preserving the simple user command flow, Vault data
+safety, Superpowers workflow ownership, the three core quality gates, bounded
+context, and evidence-backed completion.
 
 Phase 18-20 final verification:
 

@@ -204,12 +204,15 @@ You are using Baron through the {agent} adapter.\n\n\
 - At session start and after interruption, silently inspect `baron autopilot status`; treat learning candidates as candidates, not facts.\n\
 - Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
+- For a new or materially changed task, read repo, Vault, current plan, Harness, continuity, and decisions before asking; ask exactly one missing high-value question at a time and mark unresolved facts unknown.\n\
+- Silently inspect `baron harness intent-status`. Before medium/high-risk intake, record the current/target behavior, scope, proof, constraints, decisions, non-goals, and unknowns with `baron harness intent`; do not pass `--confirmed` until the user explicitly confirms the reflected intent.\n\
 - Before selecting skills or agents for meaningful work, silently run `baron control-plane route \"<task>\"` and follow the selected/skipped explanation.\n\
 - Use Baron-managed skills and agents as local self-contained assets; if a custom asset looks weak, conflicting, or externally dependent, run `baron asset audit` before trusting it.\n\
 - When prior conversation context may matter, rely on `baron context --{adapter} --task \"<task>\"` or `baron session-replay search \"<query>\"`; do not dump full session histories.\n\
 - Start or resume a Baron plan before editing code for a meaningful task.\n\
 - Create harness intake for medium/high-risk work.\n\
 - Before edits, direction changes, interruptions, and final responses for meaningful work, record `baron continuity checkpoint \"<current state and next action>\"`.\n\
+- If work fails, blocks, or remains interrupted, silently record `baron continuity recover \"<root cause>\" --outcome <failed|blocked|interrupted> --last-success \"<last successful step>\" --next-action \"<safe next action>\"` with available evidence, affected files, and retry conditions; preserve the failed attempt even after a later retry succeeds.\n\
 - Before final response after meaningful work, run `baron autopilot review \"<task summary, proof state, remaining risks>\"`; it may propose learning, but it must not rewrite trusted facts or runtime assets without approval.\n\
 - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
 - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\

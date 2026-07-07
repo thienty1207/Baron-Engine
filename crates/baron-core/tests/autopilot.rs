@@ -6,6 +6,8 @@ use baron_core::autopilot::{
 };
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::continuity::record_continuity_checkpoint;
+use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
+use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::plan::start_or_resume_plan;
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -24,6 +26,37 @@ fn post_task_review_writes_candidate_learning_not_trusted_facts() {
         &context,
         "auth login still needs security proof",
         "codex",
+    )
+    .unwrap();
+    record_intent(
+        &repo,
+        &context,
+        IntentBriefInput {
+            title: "auth login flow".to_string(),
+            current_behavior: "Login flow needs evidence-backed review.".to_string(),
+            target_behavior: "Confirmed tenant-safe login behavior.".to_string(),
+            scope: "Auth login only.".to_string(),
+            non_goals: vec!["No unrelated account work.".to_string()],
+            constraints: vec!["Preserve existing sessions.".to_string()],
+            decisions: vec!["Use current auth architecture.".to_string()],
+            required_proof: "Auth and tenant tests pass.".to_string(),
+            unknowns: Vec::new(),
+            confirmed: true,
+        },
+    )
+    .unwrap();
+    record_recovery(
+        &repo,
+        &context,
+        RecoveryInput {
+            outcome: RecoveryOutcome::Interrupted,
+            root_cause: "Network connection was lost.".to_string(),
+            last_successful_step: "Intent and plan were recorded.".to_string(),
+            evidence: vec!["No verification ran after the interruption.".to_string()],
+            affected_files: vec!["src/auth.rs".to_string()],
+            next_action: "Resume the auth test suite.".to_string(),
+            retry_conditions: vec!["Network is stable.".to_string()],
+        },
     )
     .unwrap();
     record_lifecycle_event(
@@ -45,6 +78,12 @@ fn post_task_review_writes_candidate_learning_not_trusted_facts() {
     assert!(review
         .observed_automation
         .contains(&"ContextCompiled".to_string()));
+    assert!(review
+        .resume_sources
+        .contains(&"docs/baron/harness/CURRENT_INTENT.md".to_string()));
+    assert!(review
+        .resume_sources
+        .contains(&"docs/baron/continuity/CURRENT_RECOVERY.md".to_string()));
     let repo_candidates = fs::read_to_string(&review.repo_path).unwrap();
     let vault_candidates = fs::read_to_string(&review.vault_path).unwrap();
     for content in [&repo_candidates, &vault_candidates] {

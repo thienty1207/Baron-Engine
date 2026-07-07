@@ -103,12 +103,17 @@ fn status_tracks_public_trust_phase() {
     let status_json: serde_json::Value =
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
     assert_eq!(status_json["stableRelease"], "3.1.4");
-    assert_eq!(status_json["targetRelease"], "3.1.4");
-    assert_eq!(
-        status_json["currentPhase"],
-        "phase-26-api-independent-installer"
-    );
-    assert_eq!(status_json["currentPhaseStatus"], "completed");
+    assert_eq!(status_json["targetRelease"], "3.2.0");
+    assert!(status_json["currentPhase"]
+        .as_str()
+        .is_some_and(|phase| !phase.is_empty()));
+    assert!(status_json["phases"]
+        .as_array()
+        .expect("phase list")
+        .iter()
+        .any(
+            |phase| phase["id"] == 27 && phase["name"] == "Intent Clarity And Actionable Recovery"
+        ));
 }
 
 #[test]

@@ -68,6 +68,12 @@ Outputs:
 Adapters must not fork Baron behavior. They only translate Baron behavior.
 Every adapter requires automatic context, plan, harness, proof, and trace
 behavior. Platform-specific hooks are accelerators, not separate workflow truth.
+Before medium/high-risk work, every adapter reads available repository, Vault,
+plan, decision, and continuity evidence, asks only one unresolved high-value
+question at a time, and records a matching confirmed intent brief. Silence is
+never confirmation. When work fails, blocks, or is interrupted, every adapter
+records an actionable recovery packet with evidence and a safe next action
+instead of rewriting the attempt as successful.
 Every adapter must also route work through `baron control-plane route` before
 loading optional skills or dispatching quality gates. A mandatory quality gate
 does not count until `baron control-plane record-gate` records evidence.

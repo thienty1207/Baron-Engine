@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
+use crate::intent::require_confirmed_intent;
 use crate::risk::{classify_risk, RiskLane};
 use crate::vault::VaultContext;
 
@@ -24,6 +25,9 @@ pub fn start_or_resume_intake(
     let repo_root = repo_root.as_ref();
     let title = title.trim();
     let risk = classify_risk(title);
+    if risk != RiskLane::Low {
+        require_confirmed_intent(repo_root, title)?;
+    }
     let date = today();
     let slug = slugify(title);
     let repo_path = repo_root

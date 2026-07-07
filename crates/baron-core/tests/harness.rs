@@ -3,9 +3,30 @@ use std::fs;
 use baron_core::harness::{
     harness_status, record_decision, record_friction, start_or_resume_intake,
 };
+use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::risk::{classify_risk, RiskLane};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
+
+fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContext, title: &str) {
+    record_intent(
+        repo,
+        vault,
+        IntentBriefInput {
+            title: title.to_string(),
+            current_behavior: "Current behavior recorded from project evidence.".to_string(),
+            target_behavior: "Target behavior confirmed for this story.".to_string(),
+            scope: "Only work required by this story.".to_string(),
+            non_goals: vec!["No unrelated cleanup.".to_string()],
+            constraints: vec!["Preserve existing contracts.".to_string()],
+            decisions: vec!["Use the current architecture.".to_string()],
+            required_proof: "Focused verification passes.".to_string(),
+            unknowns: Vec::new(),
+            confirmed: true,
+        },
+    )
+    .unwrap();
+}
 
 #[test]
 fn risk_classifier_enforces_hard_high_risk_terms() {
@@ -29,6 +50,7 @@ fn high_risk_intake_creates_repo_and_vault_story() {
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    confirm_intent(&repo, &context, "backend login with Gin");
 
     let story = start_or_resume_intake(&repo, &context, "backend login with Gin").unwrap();
 
@@ -54,6 +76,7 @@ fn duplicate_intake_resumes_without_duplicate_story() {
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    confirm_intent(&repo, &context, "frontend dashboard");
 
     let first = start_or_resume_intake(&repo, &context, "frontend dashboard").unwrap();
     let second = start_or_resume_intake(&repo, &context, "frontend dashboard").unwrap();
@@ -92,6 +115,7 @@ fn harness_status_reports_current_story_and_open_friction() {
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    confirm_intent(&repo, &context, "frontend dashboard");
     start_or_resume_intake(&repo, &context, "frontend dashboard").unwrap();
     record_friction(&repo, &context, "Missing browser verification").unwrap();
 

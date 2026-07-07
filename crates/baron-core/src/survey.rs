@@ -568,6 +568,9 @@ fn add_risk<const N: usize>(
     needles: [&str; N],
 ) {
     if let Some(path) = paths.iter().find(|path| {
+        if path.starts_with("docs/baron/") {
+            return false;
+        }
         let lower = path.to_lowercase();
         needles.iter().any(|needle| lower.contains(needle))
     }) {

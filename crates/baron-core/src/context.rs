@@ -86,7 +86,9 @@ pub fn compile_context_for_task(
     output.push_str(&format!("- {}\n\n", risk.guidance()));
     output.push_str(&render_platform_focus(repo_path));
 
+    output.push_str(&render_intent_clarity(repo_path));
     output.push_str(&render_continuity_resume(repo_path));
+    output.push_str(&render_actionable_recovery(repo_path));
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_execution_state(repo_path));
     output.push_str(&render_execution_evidence(repo_path));
@@ -120,6 +122,8 @@ pub fn compile_context_for_task(
     );
     output.push_str("- unrelated project memory unless explicitly requested through recall\n");
     output.push_str("- full documentation bodies and historical session folders\n");
+    output.push_str("- full intent history; only the bounded current intent was loaded\n");
+    output.push_str("- full recovery history; only the bounded current recovery was loaded\n");
     output.push_str("- full session replay history; only bounded matching messages were loaded\n");
     output.push_str("- adapter refresh; managed files are owned by `baron init/update`\n");
     output.push_str("- No target repo files were written.\n");
@@ -138,6 +142,17 @@ fn render_platform_focus(repo_path: &Path) -> String {
         "## Platform Focus\n\n- Configured focus: `{}`\n- Agent priority: {}\n\n",
         platform_name(platform),
         platform_guidance(platform)
+    )
+}
+
+fn render_intent_clarity(repo_path: &Path) -> String {
+    let path = repo_path.join("docs/baron/harness/CURRENT_INTENT.md");
+    if !path.is_file() {
+        return String::new();
+    }
+    format!(
+        "## Intent Clarity\n\n{}\n",
+        bounded_file(&path, 2_400, "- no current intent recorded\n")
     )
 }
 
@@ -170,6 +185,17 @@ fn render_continuity_resume(repo_path: &Path) -> String {
     ));
     output.push('\n');
     output
+}
+
+fn render_actionable_recovery(repo_path: &Path) -> String {
+    let path = repo_path.join("docs/baron/continuity/CURRENT_RECOVERY.md");
+    if !path.is_file() {
+        return String::new();
+    }
+    format!(
+        "## Actionable Recovery\n\n{}\n",
+        bounded_file(&path, 2_400, "- no current recovery recorded\n")
+    )
 }
 
 fn platform_guidance(platform: ProjectPlatform) -> &'static str {
@@ -213,6 +239,22 @@ pub fn compile_context_why(
     }
     if repo_path.join("docs/baron/continuity/CURRENT.md").is_file() {
         output.push_str("- Loaded: bounded continuity resume because interrupted work needs an exact resume point.\n");
+    }
+    if repo_path
+        .join("docs/baron/harness/CURRENT_INTENT.md")
+        .is_file()
+    {
+        output.push_str("- Loaded: bounded current intent because risky work needs confirmed scope, target behavior, and proof.\n");
+        output.push_str(
+            "- Skipped: full intent history because compact context uses only the current brief.\n",
+        );
+    }
+    if repo_path
+        .join("docs/baron/continuity/CURRENT_RECOVERY.md")
+        .is_file()
+    {
+        output.push_str("- Loaded: bounded current recovery because failed, blocked, or interrupted work needs an exact safe next action.\n");
+        output.push_str("- Skipped: full recovery history because compact context preserves prior attempts outside the active bundle.\n");
     }
     if repo_path.join("docs/baron/harness/CURRENT.md").is_file() {
         output

@@ -284,8 +284,10 @@ fn pretty_event(event: &str) -> String {
 fn resume_sources(repo_root: &Path) -> Vec<String> {
     [
         "docs/baron/continuity/CURRENT.md",
+        "docs/baron/continuity/CURRENT_RECOVERY.md",
         "docs/baron/plans/CURRENT.md",
         "docs/baron/harness/CURRENT.md",
+        "docs/baron/harness/CURRENT_INTENT.md",
         "docs/baron/proofs/INDEX.md",
         "docs/baron/traces/INDEX.md",
     ]

@@ -9,7 +9,9 @@ use baron_core::config::{initialize_project_with_options, AdapterKind, ProjectPl
 use baron_core::context::{
     compile_context, compile_context_for_task, compile_context_why, ContextTarget,
 };
+use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
 use baron_core::harness::record_friction;
+use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::memory::build_memory_index;
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -267,6 +269,85 @@ fn context_includes_bounded_continuity_resume_point() {
     assert!(bundle.contains("## Continuity Resume"));
     assert!(bundle.contains("backend login auth"));
     assert!(bundle.contains("continue with auth tests"));
+}
+
+#[test]
+fn context_loads_bounded_current_intent_and_explains_selection() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    record_intent(
+        &repo,
+        &context,
+        IntentBriefInput {
+            title: "mobile login auth".to_string(),
+            current_behavior: "Mobile login is missing.".to_string(),
+            target_behavior: "Mobile uses the existing auth API.".to_string(),
+            scope: "Mobile login only.".to_string(),
+            non_goals: vec!["No web redesign.".to_string()],
+            constraints: vec!["Keep the backend contract.".to_string()],
+            decisions: vec!["Backend remains source of truth.".to_string()],
+            required_proof: "Mobile auth integration test passes.".to_string(),
+            unknowns: vec!["Biometric login remains unknown.".to_string()],
+            confirmed: true,
+        },
+    )
+    .unwrap();
+    write(
+        &repo.join("docs/baron/harness/intents/2000-01-01/old.md"),
+        "Historical intent body must stay out of compact context.\n",
+    );
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+    let why = compile_context_why(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Intent Clarity"));
+    assert!(bundle.contains("mobile login auth"));
+    assert!(bundle.contains("Mobile uses the existing auth API"));
+    assert!(!bundle.contains("Historical intent body"));
+    assert!(bundle.len() <= 20_000);
+    assert!(why.contains("bounded current intent"));
+    assert!(why.contains("full intent history"));
+}
+
+#[test]
+fn context_loads_bounded_actionable_recovery_and_skips_history() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    record_recovery(
+        &repo,
+        &context,
+        RecoveryInput {
+            outcome: RecoveryOutcome::Blocked,
+            root_cause: "Auth test requires an unavailable local service.".to_string(),
+            last_successful_step: "Auth handler compiled.".to_string(),
+            evidence: vec!["Connection refused on the required service.".to_string()],
+            affected_files: vec!["backend/auth.rs".to_string()],
+            next_action: "Start the local service and rerun the auth test.".to_string(),
+            retry_conditions: vec!["Local service health check passes.".to_string()],
+        },
+    )
+    .unwrap();
+    write(
+        &repo.join("docs/baron/continuity/recovery/2000-01-01/old.md"),
+        "Historical recovery body must stay out of compact context.\n",
+    );
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+    let why = compile_context_why(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Actionable Recovery"));
+    assert!(bundle.contains("unavailable local service"));
+    assert!(bundle.contains("Start the local service"));
+    assert!(!bundle.contains("Historical recovery body"));
+    assert!(bundle.len() <= 20_000);
+    assert!(why.contains("bounded current recovery"));
+    assert!(why.contains("full recovery history"));
 }
 
 #[test]

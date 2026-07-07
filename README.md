@@ -21,7 +21,9 @@ Baron helps an AI answer the questions that matter before it edits code:
 Under the hood, Baron combines a repository survey, Vault-backed memory, memory
 firewall, context compiler, active plan state, Product Harness, proof gates,
 trace quality, session replay, safe runtime policy, and strict skill/agent
-routing. The normal user flow stays small.
+routing. Baron also keeps the confirmed task intent and an actionable recovery
+point so a failed or interrupted session can resume without guessing. The
+normal user flow stays small.
 
 ## Quick Start
 
@@ -82,8 +84,9 @@ baron update
 After init, the user normally does not run the deep engine commands by hand.
 Baron installs adapter instructions and supported hooks so the AI can load
 bounded context, route skills, check memory, track active work, record proof,
-score traces, preserve continuity, and avoid unsafe completion claims when the
-task requires it.
+score traces, confirm medium/high-risk intent before implementation, preserve
+continuity, record an actionable recovery path after failure or interruption,
+and avoid unsafe completion claims when the task requires it.
 
 The full advanced command surface is documented in
 [docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).

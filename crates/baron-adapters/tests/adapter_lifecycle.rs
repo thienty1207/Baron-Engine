@@ -529,6 +529,42 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
 }
 
 #[test]
+fn every_adapter_enforces_intent_clarity_and_actionable_recovery() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    fs::create_dir_all(&repo).unwrap();
+
+    install_adapter(&repo, AgentAdapter::Codex).unwrap();
+    install_adapter(&repo, AgentAdapter::Claude).unwrap();
+    install_adapter(&repo, AgentAdapter::Generic).unwrap();
+
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+        let content = fs::read_to_string(repo.join(path)).unwrap();
+        assert!(
+            content.contains(
+                "read repo, Vault, current plan, Harness, continuity, and decisions before asking"
+            ),
+            "{path} must require evidence-first intent discovery"
+        );
+        assert!(
+            content.contains("ask exactly one missing high-value question at a time"),
+            "{path} must keep clarification bounded"
+        );
+        assert!(content.contains("baron harness intent"));
+        assert!(
+            content.contains("do not pass `--confirmed` until the user explicitly confirms"),
+            "{path} must not fabricate confirmation"
+        );
+        assert!(content.contains("baron harness intent-status"));
+        assert!(content.contains("baron continuity recover"));
+        assert!(
+            content.contains("preserve the failed attempt"),
+            "{path} must preserve recovery evidence"
+        );
+    }
+}
+
+#[test]
 fn generated_indexes_define_strict_contract_fields_and_control_plane_startup() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

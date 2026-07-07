@@ -7,6 +7,7 @@ use baron_core::capability::{
 };
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::harness::start_or_resume_intake;
+use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome, TraceTier};
 use baron_core::vault::ensure_vault;
@@ -26,6 +27,26 @@ fn setup_git(repo: &std::path::Path) {
         .unwrap();
 }
 
+fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContext, title: &str) {
+    record_intent(
+        repo,
+        vault,
+        IntentBriefInput {
+            title: title.to_string(),
+            current_behavior: "Current behavior recorded from project evidence.".to_string(),
+            target_behavior: "Target behavior confirmed for this story.".to_string(),
+            scope: "Only work required by this story.".to_string(),
+            non_goals: vec!["No unrelated cleanup.".to_string()],
+            constraints: vec!["Preserve existing contracts.".to_string()],
+            decisions: vec!["Use the current architecture.".to_string()],
+            required_proof: "Focused verification passes.".to_string(),
+            unknowns: Vec::new(),
+            confirmed: true,
+        },
+    )
+    .unwrap();
+}
+
 #[test]
 fn proof_record_is_written_to_repo_and_vault() {
     let temp = tempdir().unwrap();
@@ -34,6 +55,7 @@ fn proof_record_is_written_to_repo_and_vault() {
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
 
+    confirm_intent(&repo, &context, "frontend dashboard flow");
     start_or_resume_intake(&repo, &context, "frontend dashboard flow").unwrap();
     let proof = record_proof(&repo, &context, "cargo test passed: 42 tests").unwrap();
 
@@ -57,6 +79,7 @@ fn weak_high_risk_proof_remains_insufficient_in_validation_matrix() {
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
 
     record_proof(&repo, &context, "manual check completed").unwrap();
@@ -97,6 +120,7 @@ fn medium_risk_trace_without_plan_and_proof_fails_standard() {
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    confirm_intent(&repo, &context, "frontend dashboard flow");
     start_or_resume_intake(&repo, &context, "frontend dashboard flow").unwrap();
 
     let trace = record_trace(
@@ -134,6 +158,7 @@ fn high_risk_trace_with_plan_story_proof_and_files_passes_detailed() {
         .unwrap();
     fs::write(repo.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
     fs::create_dir_all(repo.join("docs/baron/plans")).unwrap();
     fs::write(
@@ -186,6 +211,7 @@ fn high_risk_trace_does_not_count_baron_state_as_product_files() {
         .unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
     baron_core::plan::start_or_resume_plan(&repo, &context, "backend login security").unwrap();
+    confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
     record_proof(
         &repo,

@@ -1,26 +1,25 @@
 # Current Build Note
 
-Date: 2026-07-06
+Date: 2026-07-07
 
 ## Current Phase
 
-Baron 3.1.4 maintenance completed - duplicate-memory resilience plus an
-API-independent latest installer.
+Phase 28 planned - Platform Intelligence Profiles.
 
 ## What Is Being Built
 
-Current maintenance batch:
+Phase 27 completed:
 
-- Preserve the released 3.1.3 duplicate-memory index fix.
-- Remove anonymous GitHub API quota from latest installer resolution.
-- Keep the one-block install flow, checksum verification, rollback, and Vault
-  data safety unchanged.
+- Persist a confirmed intent brief before medium/high-risk Harness intake.
+- Keep low-risk maintenance lightweight.
+- Preserve failed, blocked, and interrupted attempts as actionable recovery packets.
+- Load bounded current intent and recovery state automatically for the next agent session.
 
 ## Current Status
 
-Baron 3.1.4 is published and verified. The real machine was updated from 3.1.2
-to 3.1.4, and the original `scanjob` init passed against the existing shared
-Vault.
+Baron 3.1.4 remains the verified stable release. Phase 27 is complete with
+focused, workspace, Clippy, adapter, and real temp repo/Vault smoke evidence.
+Phase 28 remains planned and has not started.
 
 Current resume point:
 
@@ -40,8 +39,16 @@ Current resume point:
 - External harness reference cleanup test is green.
 - Static scan for removed external harness references is green.
 - Windows installer same-session PATH regression test is green.
-- Next implementation step: wait for explicit approval before starting a future
-  shared-understanding or actionable-recovery phase.
+- Phase 27 design: `docs/superpowers/specs/2026-07-07-phase-27-intent-recovery-design.md`.
+- Phase 27 plan: `docs/superpowers/plans/2026-07-07-phase-27-intent-recovery.md`.
+- Phase 27 build log: `notes/build-log/2026-07-07-phase-27-intent-recovery.md`.
+- Intent core, CLI, Harness gate, and compact-context RED/GREEN tests are green.
+- Actionable Recovery core, CLI, continuity, deduplication, Vault mirror, and bounded-context RED/GREEN tests are green.
+- All 17 adapter lifecycle tests pass with read-before-ask, one-question-at-a-time, confirmed intent, and recovery rules.
+- Existing plan, proof, trace, Harness, Autopilot, context, and execution CLI regression suites pass.
+- Survey self-noise regression prevents Baron intent/recovery paths from masquerading as product risk surfaces.
+- Full Phase 27 workspace, Clippy, and temp repo/Vault smoke verification passed.
+- Next implementation step: design and plan Phase 28 before editing production code.
 
 ## Verification
 
@@ -231,7 +238,7 @@ Current resume point:
 
 ## Next Action
 
-Baron 3.1.4 is published and verified. Wait for explicit new requirements.
+Design and plan Phase 28 before editing production code.
 
 ## Phase 9-10 Feature Commits
 

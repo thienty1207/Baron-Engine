@@ -2,6 +2,7 @@ use std::fs;
 use std::process::Command;
 
 use baron_core::harness::start_or_resume_intake;
+use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
@@ -22,6 +23,26 @@ fn setup_git(repo: &std::path::Path) {
         .current_dir(repo)
         .output()
         .unwrap();
+}
+
+fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContext, title: &str) {
+    record_intent(
+        repo,
+        vault,
+        IntentBriefInput {
+            title: title.to_string(),
+            current_behavior: "Current behavior recorded from project evidence.".to_string(),
+            target_behavior: "Target behavior confirmed for this story.".to_string(),
+            scope: "Only work required by this story.".to_string(),
+            non_goals: vec!["No unrelated cleanup.".to_string()],
+            constraints: vec!["Preserve existing contracts.".to_string()],
+            decisions: vec!["Use the current architecture.".to_string()],
+            required_proof: "Focused verification passes.".to_string(),
+            unknowns: Vec::new(),
+            confirmed: true,
+        },
+    )
+    .unwrap();
 }
 
 #[test]
@@ -139,6 +160,7 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
     fs::write(repo.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
     let plan = start_or_resume_plan(&repo, &context, "backend login security").unwrap();
+    confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
     record_proof(
         &repo,

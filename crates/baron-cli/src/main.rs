@@ -27,7 +27,10 @@ use baron_core::config::{
     ProjectPlatform,
 };
 use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
-use baron_core::continuity::{continuity_status, record_continuity_checkpoint};
+use baron_core::continuity::{
+    continuity_status, record_continuity_checkpoint, record_recovery, RecoveryInput,
+    RecoveryOutcome,
+};
 use baron_core::control_plane::{
     gate_evidence_status, record_gate_evidence, route_task, validate_control_plane,
 };
@@ -39,6 +42,7 @@ use baron_core::harness_improvement::{
     audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
     verify_open_stories,
 };
+use baron_core::intent::{intent_status, record_intent, IntentBriefInput};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
@@ -276,6 +280,31 @@ enum PlanCommands {
 enum HarnessCommands {
     Status {
         repo_path: Option<PathBuf>,
+    },
+    IntentStatus {
+        repo_path: Option<PathBuf>,
+    },
+    Intent {
+        title: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long = "current")]
+        current_behavior: String,
+        #[arg(long = "target")]
+        target_behavior: String,
+        #[arg(long)]
+        scope: String,
+        #[arg(long = "non-goal")]
+        non_goals: Vec<String>,
+        #[arg(long)]
+        constraint: Vec<String>,
+        #[arg(long)]
+        decision: Vec<String>,
+        #[arg(long = "proof")]
+        required_proof: String,
+        #[arg(long = "unknown")]
+        unknowns: Vec<String>,
+        #[arg(long)]
+        confirmed: bool,
     },
     Audit {
         repo_path: Option<PathBuf>,
@@ -537,6 +566,22 @@ enum ContinuityCommands {
         note: String,
         repo_path: Option<PathBuf>,
     },
+    Recover {
+        root_cause: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long, value_enum)]
+        outcome: RecoveryOutcomeArg,
+        #[arg(long = "last-success")]
+        last_successful_step: String,
+        #[arg(long)]
+        evidence: Vec<String>,
+        #[arg(long = "affected-file")]
+        affected_files: Vec<String>,
+        #[arg(long = "next-action")]
+        next_action: String,
+        #[arg(long = "retry-condition")]
+        retry_conditions: Vec<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -559,6 +604,13 @@ enum OutcomeArg {
     Partial,
     Blocked,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RecoveryOutcomeArg {
+    Failed,
+    Blocked,
+    Interrupted,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -866,6 +918,59 @@ fn run() -> Result<()> {
             HarnessCommands::Status { repo_path } => {
                 let repo_root = configured_repo(repo_path)?;
                 print!("{}", harness_status(repo_root)?);
+            }
+            HarnessCommands::IntentStatus { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                print!("{}", intent_status(repo_root)?);
+            }
+            HarnessCommands::Intent {
+                title,
+                repo_path,
+                current_behavior,
+                target_behavior,
+                scope,
+                non_goals,
+                constraint,
+                decision,
+                required_proof,
+                unknowns,
+                confirmed,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let brief = record_intent(
+                    &repo_root,
+                    &vault,
+                    IntentBriefInput {
+                        title,
+                        current_behavior,
+                        target_behavior,
+                        scope,
+                        non_goals,
+                        constraints: constraint,
+                        decisions: decision,
+                        required_proof,
+                        unknowns,
+                        confirmed,
+                    },
+                )?;
+                println!("# Baron Harness Intent\n");
+                println!("- Intent ID: `{}`", brief.id);
+                println!("- Title: {}", brief.title);
+                println!("- Risk: `{}`", brief.risk.as_str());
+                println!(
+                    "- Confirmation: `{}`",
+                    if brief.confirmed {
+                        "confirmed"
+                    } else {
+                        "needs_confirmation"
+                    }
+                );
+                println!(
+                    "- Action: {}",
+                    if brief.resumed { "resumed" } else { "created" }
+                );
+                println!("- Repo: `{}`", brief.repo_path.display());
+                println!("- Vault: `{}`", brief.vault_path.display());
             }
             HarnessCommands::Audit { repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
@@ -1509,6 +1614,45 @@ fn run() -> Result<()> {
                 println!("- Note: {}", note);
                 println!("- Repo packet: `{}`", packet.repo_path.display());
                 println!("- Vault packet: `{}`", packet.vault_path.display());
+            }
+            ContinuityCommands::Recover {
+                root_cause,
+                repo_path,
+                outcome,
+                last_successful_step,
+                evidence,
+                affected_files,
+                next_action,
+                retry_conditions,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let outcome = match outcome {
+                    RecoveryOutcomeArg::Failed => RecoveryOutcome::Failed,
+                    RecoveryOutcomeArg::Blocked => RecoveryOutcome::Blocked,
+                    RecoveryOutcomeArg::Interrupted => RecoveryOutcome::Interrupted,
+                };
+                let packet = record_recovery(
+                    &repo_root,
+                    &vault,
+                    RecoveryInput {
+                        outcome,
+                        root_cause,
+                        last_successful_step,
+                        evidence,
+                        affected_files,
+                        next_action,
+                        retry_conditions,
+                    },
+                )?;
+                println!("# Baron Actionable Recovery\n");
+                println!("- Recovery ID: `{}`", packet.id);
+                println!("- Outcome: `{}`", packet.outcome.as_str());
+                println!(
+                    "- Action: {}",
+                    if packet.resumed { "resumed" } else { "created" }
+                );
+                println!("- Repo: `{}`", packet.repo_path.display());
+                println!("- Vault: `{}`", packet.vault_path.display());
             }
         },
         Some(Commands::Release { command }) => match command {

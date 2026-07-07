@@ -212,6 +212,21 @@ ordinary work.
 It proposes improvements but does not rewrite core policy without human
 approval.
 
+## Phase 27
+
+```bash
+baron harness intent-status [repo-path]
+baron harness intent "<title>" [repo-path] --current "<observed state>" --target "<confirmed target>" --scope "<scope>" --proof "<required proof>" [--non-goal "<item>"]... [--constraint "<item>"]... [--decision "<item>"]... [--unknown "<item>"]... [--confirmed]
+baron continuity recover "<root cause>" [repo-path] --outcome <failed|blocked|interrupted> --last-success "<last successful step>" --next-action "<safe next action>" [--evidence "<evidence>"]... [--affected-file "<path>"]... [--retry-condition "<condition>"]...
+```
+
+These commands are hidden AI-automation surfaces. Medium/high-risk Harness
+intake requires a matching confirmed intent brief. `--confirmed` records
+explicit shared understanding; adapters must not infer confirmation from
+silence. Recovery packets preserve failed or interrupted attempts, mirror to
+the Vault, and give the next session a safe evidence-backed resume point.
+Low-risk maintenance does not require a formal intent brief.
+
 ## Phase 18
 
 No new normal-user command is introduced. Phase 18 hardens Baron-managed runtime

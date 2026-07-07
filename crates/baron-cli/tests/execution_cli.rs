@@ -64,6 +64,41 @@ fn harness_commands_record_intent_decisions_and_friction() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
+        .args([
+            "harness",
+            "intent",
+            "backend login with Gin",
+            "--current",
+            "Login is not implemented.",
+            "--target",
+            "Users can sign in through the Gin API.",
+            "--scope",
+            "Backend login endpoint and tests.",
+            "--non-goal",
+            "Do not redesign the frontend.",
+            "--constraint",
+            "Preserve the existing user schema.",
+            "--decision",
+            "Use the current token contract.",
+            "--proof",
+            "Auth integration tests pass.",
+            "--unknown",
+            "Social login remains unknown.",
+            "--confirmed",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Confirmation: `confirmed`"));
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["harness", "intent-status"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("backend login with Gin"));
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
         .args(["harness", "intake", "backend login with Gin"])
         .assert()
         .success()
@@ -186,6 +221,25 @@ fn trace_score_returns_failure_when_quality_gate_does_not_pass() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
+        .args([
+            "harness",
+            "intent",
+            "frontend dashboard flow",
+            "--current",
+            "Dashboard state is incomplete.",
+            "--target",
+            "Dashboard state is implemented.",
+            "--scope",
+            "Dashboard flow only.",
+            "--proof",
+            "Focused dashboard tests pass.",
+            "--confirmed",
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
         .args(["harness", "intake", "frontend dashboard flow"])
         .assert()
         .success();
@@ -209,6 +263,41 @@ fn trace_score_returns_failure_when_quality_gate_does_not_pass() {
         .failure()
         .stdout(predicate::str::contains("Passed: `no`"))
         .stderr(predicate::str::contains("Trace quality gate failed"));
+}
+
+#[test]
+fn risky_harness_intake_rejects_unconfirmed_cli_intent() {
+    let (_temp, repo, _vault) = init_project();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args([
+            "harness",
+            "intent",
+            "payment provider migration",
+            "--current",
+            "Payments use the legacy provider.",
+            "--target",
+            "Payments use the new provider.",
+            "--scope",
+            "Provider integration only.",
+            "--proof",
+            "Payment integration tests pass.",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Confirmation: `needs_confirmation`",
+        ));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["harness", "intake", "payment provider migration"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not confirmed"));
 }
 
 #[test]

@@ -136,6 +136,30 @@ fn ignores_agent_asset_directories_when_detecting_project_risk() {
 }
 
 #[test]
+fn ignores_baron_execution_state_when_detecting_project_risk() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+
+    write(&root.join("README.md"), "# Demo\n");
+    write(
+        &root.join("docs/baron/harness/intents/2026-07-07/backend-login-security-intent.md"),
+        "# Intent\n\nBackend login security and tenant token proof.\n",
+    );
+    write(
+        &root.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
+        "# Recovery\n\nResume auth session verification.\n",
+    );
+
+    let survey = survey_repository(root).unwrap();
+
+    assert!(
+        survey.risky_surfaces.is_empty(),
+        "Baron execution state must not be reported as product risk: {:?}",
+        survey.risky_surfaces
+    );
+}
+
+#[test]
 fn missing_build_and_test_commands_are_unknowns_not_guesses() {
     let temp = tempdir().unwrap();
     let root = temp.path();
