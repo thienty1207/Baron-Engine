@@ -12,7 +12,7 @@ Last updated: 2026-07-08
 - Remaining planned phases: 0
 - Current phase: Phase 31 - Automation Certification And Baron 3.2 Release
 - Current phase status: completed
-- Current next action: source verification, commit, and GitHub push; binary GitHub Release publication remains a separate explicit action.
+- Current next action: no implementation phase remains; binary GitHub Release publication remains a separate explicit action.
 - Build confidence: Baron 3.2 formatting, full workspace tests, Clippy, installer lifecycle, release metadata, all-platform certification, and real fullstack-to-mobile Vault smoke pass.
 
 ## Baron 3.0 Direction

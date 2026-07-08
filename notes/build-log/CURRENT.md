@@ -4,7 +4,7 @@ Date: 2026-07-07
 
 ## Current Phase
 
-Baron 3.2 source implementation and verification completed; GitHub push is the final action.
+Baron 3.2 source implementation, verification, and GitHub push completed.
 
 ## What Is Being Built
 
@@ -19,8 +19,7 @@ Phase 27 completed:
 
 Baron 3.1.4 remains the verified stable release. Phase 27 is complete with
 focused, workspace, Clippy, adapter, and real temp repo/Vault smoke evidence.
-Phases 28-31 implementation and full verification are complete. GitHub push
-remains before the work is closed.
+Phases 28-31 implementation, full verification, and GitHub source push are complete.
 
 Current resume point:
 
@@ -56,7 +55,8 @@ Current resume point:
 - Phase 30 reviewer closure and adapter targeted tests pass.
 - Phase 31 all-platform/three-adapter certification and version tests pass.
 - Full workspace, Clippy, installer, release metadata, and real temp repo/Vault smoke passed.
-- Next implementation step: commit and push Baron 3.2.0 source.
+- Implementation commit `7d0a4d0` is on `origin/main`.
+- Binary GitHub Release/tag remains an explicit separate action.
 
 ## Verification
 
@@ -246,7 +246,7 @@ Current resume point:
 
 ## Next Action
 
-Commit and push Baron 3.2.0 source; do not publish a binary GitHub Release automatically.
+No implementation phase remains. Publish a binary GitHub Release only when explicitly requested.
 
 ## Phase 9-10 Feature Commits
 

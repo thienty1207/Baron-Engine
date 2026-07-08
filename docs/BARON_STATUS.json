@@ -8,7 +8,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "phase-31-automation-certification-baron-3.2-release",
   "currentPhaseStatus": "completed",
-  "nextAction": "Complete source verification, commit, and GitHub push; binary GitHub Release publication remains separate.",
+  "nextAction": "No implementation phase remains; binary GitHub Release publication remains a separate explicit action.",
   "buildConfidence": "Baron 3.2 formatting, full workspace tests, Clippy, installer lifecycle, release metadata, all-platform certification, and real fullstack-to-mobile Vault smoke pass.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
