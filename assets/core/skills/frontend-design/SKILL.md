@@ -84,6 +84,19 @@ Before final response, check:
 - For performance-sensitive screens, do not claim faster rendering without measurement; label static concerns as potential impact.
 - Record proof and trace evidence through Baron when the frontend task is meaningful or medium/high risk.
 
+## Baron Design Quality Gate
+
+For matching frontend work, run a bounded post-edit check against the changed
+surface only. Do not scan unrelated screens.
+
+- Check overflow and clipping with long content at mobile and desktop widths.
+- Check contrast, semantic hierarchy, typography scale, spacing rhythm, and token reuse.
+- Check keyboard/focus behavior, labels, reduced motion, loading, empty, error, and disabled states when applicable.
+- Check responsive structure at a narrow and a wide viewport; do not claim device coverage that was not observed.
+- Check design-system drift by comparing changed components with nearby project-owned patterns.
+- Treat static performance observations as potential impact until browser measurements exist.
+- Record concrete reviewer findings in the Baron review ledger. A finding remains open until fix evidence and verification are both recorded.
+
 ## Output Contract
 
 When reporting frontend work, include:

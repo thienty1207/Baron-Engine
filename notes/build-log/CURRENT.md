@@ -4,7 +4,7 @@ Date: 2026-07-07
 
 ## Current Phase
 
-Phase 28 planned - Platform Intelligence Profiles.
+Baron 3.2 source implementation and verification completed; GitHub push is the final action.
 
 ## What Is Being Built
 
@@ -19,7 +19,8 @@ Phase 27 completed:
 
 Baron 3.1.4 remains the verified stable release. Phase 27 is complete with
 focused, workspace, Clippy, adapter, and real temp repo/Vault smoke evidence.
-Phase 28 remains planned and has not started.
+Phases 28-31 implementation and full verification are complete. GitHub push
+remains before the work is closed.
 
 Current resume point:
 
@@ -48,7 +49,14 @@ Current resume point:
 - Existing plan, proof, trace, Harness, Autopilot, context, and execution CLI regression suites pass.
 - Survey self-noise regression prevents Baron intent/recovery paths from masquerading as product risk surfaces.
 - Full Phase 27 workspace, Clippy, and temp repo/Vault smoke verification passed.
-- Next implementation step: design and plan Phase 28 before editing production code.
+- Baron 3.2 completion plan: `docs/superpowers/plans/2026-07-08-phase-28-31-baron-3.2-completion.md`.
+- Baron 3.2 build log: `notes/build-log/2026-07-08-phase-28-31-baron-3.2-completion.md`.
+- Phase 28 platform intelligence targeted tests pass.
+- Phase 29 architecture expansion and preservation targeted tests pass.
+- Phase 30 reviewer closure and adapter targeted tests pass.
+- Phase 31 all-platform/three-adapter certification and version tests pass.
+- Full workspace, Clippy, installer, release metadata, and real temp repo/Vault smoke passed.
+- Next implementation step: commit and push Baron 3.2.0 source.
 
 ## Verification
 
@@ -238,7 +246,7 @@ Current resume point:
 
 ## Next Action
 
-Design and plan Phase 28 before editing production code.
+Commit and push Baron 3.2.0 source; do not publish a binary GitHub Release automatically.
 
 ## Phase 9-10 Feature Commits
 

@@ -3,6 +3,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use crate::architecture::render_architecture_context;
 use crate::autopilot::render_autopilot_context_summary;
 use crate::capability::{load_registry, render_capability_summary, render_runtime_policy_summary};
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
@@ -10,6 +11,8 @@ use crate::control_plane::validate_control_plane;
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
 use crate::memory::build_memory_index;
+use crate::platform::render_platform_context;
+use crate::review_gate::review_status;
 use crate::session::import_sessions;
 use crate::session_replay::{
     index_session_replay, render_session_replay_hits, search_session_replay,
@@ -85,6 +88,9 @@ pub fn compile_context_for_task(
     output.push_str(&format!("- Risk lane: `{}`\n", risk.label()));
     output.push_str(&format!("- {}\n\n", risk.guidance()));
     output.push_str(&render_platform_focus(repo_path));
+    output.push_str(&render_platform_context(repo_path, task));
+    output.push_str(&render_architecture_context(repo_path));
+    output.push_str(&render_review_gate(repo_path));
 
     output.push_str(&render_intent_clarity(repo_path));
     output.push_str(&render_continuity_resume(repo_path));
@@ -129,6 +135,17 @@ pub fn compile_context_for_task(
     output.push_str("- No target repo files were written.\n");
 
     Ok(truncate_context(output))
+}
+
+fn render_review_gate(repo_path: &Path) -> String {
+    let path = repo_path.join("docs/baron/reviews");
+    if !path.is_dir() {
+        return String::new();
+    }
+    match review_status(repo_path) {
+        Ok(status) => format!("## Reviewer Closure\n\n{}\n", status),
+        Err(error) => format!("## Reviewer Closure\n\n- unavailable: {error}\n\n"),
+    }
 }
 
 fn render_platform_focus(repo_path: &Path) -> String {

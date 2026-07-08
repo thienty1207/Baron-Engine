@@ -51,6 +51,8 @@ pub struct ProjectConfig {
     pub project_slug: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub platform: Option<ProjectPlatform>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub platform_extensions: Vec<ProjectPlatform>,
     pub adapters: Vec<AdapterKind>,
     pub automation: AutomationConfig,
 }
@@ -101,10 +103,11 @@ pub fn initialize_project_with_options(
         load_project_config(&repo_root)?
     } else {
         ProjectConfig {
-            schema_version: 3,
+            schema_version: 4,
             project_id: project_id_for_path(&repo_root)?,
             project_slug: project_slug(&repo_root),
             platform: None,
+            platform_extensions: Vec::new(),
             adapters: Vec::new(),
             automation: AutomationConfig::default(),
         }
@@ -112,9 +115,9 @@ pub fn initialize_project_with_options(
     if config.project_id.is_empty() {
         config.project_id = project_id_for_path(&repo_root)?;
     }
-    config.schema_version = 3;
+    config.schema_version = 4;
     if let Some(platform) = platform {
-        config.platform = Some(platform);
+        reconcile_platform(&mut config, platform);
     }
     if let Some(adapter) = adapter {
         if !config.adapters.contains(&adapter) {
@@ -140,13 +143,35 @@ pub fn set_project_platform(
 ) -> Result<ProjectConfig> {
     let repo_root = find_project_root(repo_path)?;
     let mut config = load_project_config(&repo_root)?;
-    config.schema_version = 3;
-    config.platform = Some(platform);
+    config.schema_version = 4;
+    reconcile_platform(&mut config, platform);
     atomic_write(
         &repo_root.join(PROJECT_CONFIG_PATH),
         &toml::to_string_pretty(&config)?,
     )?;
     Ok(config)
+}
+
+fn reconcile_platform(config: &mut ProjectConfig, platform: ProjectPlatform) {
+    match config.platform {
+        None => {
+            config.platform = Some(platform);
+            config
+                .platform_extensions
+                .retain(|value| *value != platform);
+        }
+        Some(ProjectPlatform::Unknown) if platform != ProjectPlatform::Unknown => {
+            config.platform = Some(platform);
+            config
+                .platform_extensions
+                .retain(|value| *value != platform);
+        }
+        Some(primary) if primary == platform => {}
+        _ if !config.platform_extensions.contains(&platform) => {
+            config.platform_extensions.push(platform);
+        }
+        _ => {}
+    }
 }
 
 pub fn load_project_config(repo_root: impl AsRef<Path>) -> Result<ProjectConfig> {

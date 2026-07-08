@@ -6,7 +6,7 @@ It turns an existing software repository into an agent-ready workspace for
 Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
-Current version: `3.1.4`.
+Current version: `3.2.0`.
 
 ## What Baron Does
 
@@ -21,7 +21,8 @@ Baron helps an AI answer the questions that matter before it edits code:
 Under the hood, Baron combines a repository survey, Vault-backed memory, memory
 firewall, context compiler, active plan state, Product Harness, proof gates,
 trace quality, session replay, safe runtime policy, and strict skill/agent
-routing. Baron also keeps the confirmed task intent and an actionable recovery
+routing. Baron now adds deep platform profiles, a non-destructive architecture
+governor, evidence-backed reviewer closure, confirmed task intent, and actionable recovery
 point so a failed or interrupted session can resume without guessing. The
 normal user flow stays small.
 
@@ -73,6 +74,11 @@ baron init --agent --tool
 Supported focus flags include `--frontend`, `--backend`, `--fullstack`,
 `--mobile`, `--desktop`, `--tool`, `--library`, `--data`, and `--cloud`.
 
+Baron generates a deep profile and architecture contract from the selected
+focus plus evidence found in the repository. If the product later expands,
+`baron init --mobile` adds mobile as an extension; it does not replace the
+original fullstack foundation or rearrange existing code.
+
 ### 4. Update Later
 
 ```bash
@@ -86,7 +92,8 @@ Baron installs adapter instructions and supported hooks so the AI can load
 bounded context, route skills, check memory, track active work, record proof,
 score traces, confirm medium/high-risk intent before implementation, preserve
 continuity, record an actionable recovery path after failure or interruption,
-and avoid unsafe completion claims when the task requires it.
+load task-relevant platform guidance, reconcile architecture safely, preserve
+reviewer findings until fix proof exists, and avoid unsafe completion claims.
 
 The full advanced command surface is documented in
 [docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).

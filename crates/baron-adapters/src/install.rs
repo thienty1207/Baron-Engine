@@ -203,6 +203,8 @@ You are using Baron through the {agent} adapter.\n\n\
 - At session start and after interruption, silently inspect `baron continuity status`; resume from its current task, last checkpoint, proof status, trace status, and next action before guessing.\n\
 - At session start and after interruption, silently inspect `baron autopilot status`; treat learning candidates as candidates, not facts.\n\
 - Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\
+- Read `docs/baron/platform/PROJECT_PROFILE.md` and `docs/baron/architecture/CURRENT_ARCHITECTURE.md` before structural work; load only the task-relevant profile.\n\
+- When the user explicitly expands the product to a new platform, silently run `baron init --<platform>` so Baron adds an extension and regenerates non-destructive architecture contracts; never rearrange existing code automatically.\n\
 - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
 - For a new or materially changed task, read repo, Vault, current plan, Harness, continuity, and decisions before asking; ask exactly one missing high-value question at a time and mark unresolved facts unknown.\n\
 - Silently inspect `baron harness intent-status`. Before medium/high-risk intake, record the current/target behavior, scope, proof, constraints, decisions, non-goals, and unknowns with `baron harness intent`; do not pass `--confirmed` until the user explicitly confirms the reflected intent.\n\
@@ -217,6 +219,8 @@ You are using Baron through the {agent} adapter.\n\n\
 - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
 - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\
 - After each mandatory quality gate actually runs, record it with `baron control-plane record-gate <agent> \"<evidence summary>\"`.\n\
+- For concrete reviewer findings, silently run `baron review finding \"<summary>\" --severity <level> --evidence \"<evidence>\"`; keep findings open until the fix exists.\n\
+- Close a finding only with `baron review close <id> --fix-evidence \"<what changed>\" --verification \"<command/result>\"`; fix evidence and verification are both mandatory.\n\
 - After actually running a registered provider, attach structured capability evidence with `baron proof record`; then record and run `baron trace score` before claiming completion.\n\
 - Never complete high-risk work when proof is missing or trace quality fails.\n\
 - Treat Vault Markdown as durable memory and unknown facts as unknown.\n"

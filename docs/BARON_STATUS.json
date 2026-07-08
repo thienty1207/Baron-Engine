@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-07-07",
-  "stableRelease": "3.1.4",
+  "lastUpdated": "2026-07-08",
+  "stableRelease": "3.2.0",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "3.2.0",
-  "targetReleaseCompletionPercent": 15,
-  "remainingPhaseCount": 4,
-  "currentPhase": "phase-28-platform-intelligence-profiles",
-  "currentPhaseStatus": "planned",
-  "nextAction": "Design and plan Phase 28 profile packs before implementation.",
-  "buildConfidence": "Baron 3.1.4 remains the verified stable release. Phase 27 passed focused, workspace, Clippy, adapter, and real temp repo/Vault smoke verification; Phases 28 through 31 remain planned.",
+  "targetReleaseCompletionPercent": 100,
+  "remainingPhaseCount": 0,
+  "currentPhase": "phase-31-automation-certification-baron-3.2-release",
+  "currentPhaseStatus": "completed",
+  "nextAction": "Complete source verification, commit, and GitHub push; binary GitHub Release publication remains separate.",
+  "buildConfidence": "Baron 3.2 formatting, full workspace tests, Clippy, installer lifecycle, release metadata, all-platform certification, and real fullstack-to-mobile Vault smoke pass.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -448,9 +448,9 @@
     {
       "id": 28,
       "name": "Platform Intelligence Profiles",
-      "status": "planned",
+      "status": "completed",
       "targetReleaseWeightPercent": 25,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "deep profile packs exist for every public platform flag",
         "repo evidence refines selected platform guidance without guessing",
@@ -461,9 +461,9 @@
     {
       "id": 29,
       "name": "Architecture Governor And Project Expansion",
-      "status": "planned",
+      "status": "completed",
       "targetReleaseWeightPercent": 30,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "primary and extension platforms coexist without command complexity",
         "baron init mobile safely expands an initialized fullstack project",
@@ -475,9 +475,9 @@
     {
       "id": 30,
       "name": "Baron Design Quality And Reviewer Closure",
-      "status": "planned",
+      "status": "completed",
       "targetReleaseWeightPercent": 15,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "existing frontend design skill gains Baron-native bounded quality checks",
         "frontend validation triggers only for matching work",
@@ -488,20 +488,23 @@
     {
       "id": 31,
       "name": "Automation Certification And Baron 3.2 Release",
-      "status": "planned",
+      "status": "completed",
       "targetReleaseWeightPercent": 15,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "Codex Claude and generic adapters automate the new lifecycle",
         "all platform fixtures and fullstack to mobile expansion smoke pass",
         "existing irregular repository remains intact",
         "full workspace format Clippy installer and release verification passes",
-        "v3.2.0 release is published only after Phases 27 through 30 pass"
+        "v3.2.0 source is pushed only after Phases 27 through 30 pass; binary release publication remains explicit"
       ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
+    "docs/superpowers/plans/2026-07-08-phase-28-31-baron-3.2-completion.md",
+    "notes/build-log/2026-07-08-phase-28-31-baron-3.2-completion.md",
+    "docs/assessment/baron-3.2.0-certification.md",
     "docs/superpowers/specs/2026-07-07-phase-27-intent-recovery-design.md",
     "docs/superpowers/plans/2026-07-07-phase-27-intent-recovery.md",
     "notes/build-log/2026-07-07-phase-27-intent-recovery.md",

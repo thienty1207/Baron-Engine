@@ -11,15 +11,15 @@ for multiple agent tools.
 
 ## Current Phase
 
-Baron `v1.0.0` completed the first stable foundation. Baron `v3.1.4` is the
+Baron `v1.0.0` completed the first stable foundation. Baron `v3.2.0` is the
 current verified stable release. Phase 18-23 complete the Baron 3.0 program:
 self-contained runtime assets, skill lifecycle approval, bounded session
 replay/search, background learning autopilot, safe runtime backend policy, and
 release certification.
 
-Phase 27 is the active Baron 3.2 phase. It adds confirmed intent before
-medium/high-risk Product Harness intake and append-only actionable recovery for
-failed, blocked, or interrupted work.
+Baron 3.2 phases 27-31 are complete in source. Platform intelligence,
+non-destructive architecture expansion, reviewer closure, intent, and recovery
+must remain automatic through the installed adapters.
 
 The current source command surface is:
 

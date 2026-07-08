@@ -227,6 +227,29 @@ silence. Recovery packets preserve failed or interrupted attempts, mirror to
 the Vault, and give the next session a safe evidence-backed resume point.
 Low-risk maintenance does not require a formal intent brief.
 
+## Phase 28-31
+
+Normal users keep using the same commands:
+
+```bash
+baron init --codex --fullstack
+baron init --mobile
+baron update
+```
+
+The first platform becomes primary. Later platform init adds an extension and
+regenerates evidence-based profile and architecture contracts without moving
+existing code. AI adapters use these hidden review commands when needed:
+
+```bash
+baron review status [repo-path]
+baron review finding "<summary>" [repo-path] --severity <level> --evidence "<evidence>" [--affected-file "<path>"]...
+baron review close <finding-id> [repo-path] --fix-evidence "<change>" --verification "<command/result>"
+```
+
+Review closure requires both fix evidence and verification. These commands are
+not part of the normal user workflow.
+
 ## Phase 18
 
 No new normal-user command is introduced. Phase 18 hardens Baron-managed runtime

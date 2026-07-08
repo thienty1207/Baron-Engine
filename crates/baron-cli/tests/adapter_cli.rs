@@ -112,7 +112,7 @@ fn init_can_set_platform_focus_separately_or_with_adapter() {
         .args(["init", "--fullstack"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Platform focus: `fullstack`"));
+        .stdout(predicate::str::contains("Primary platform: `fullstack`"));
 
     let config = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
     assert!(config.contains("platform = \"fullstack\""));
@@ -129,6 +129,43 @@ fn init_can_set_platform_focus_separately_or_with_adapter() {
     std::env::remove_var("BARON_HOME");
     let second_config = fs::read_to_string(second.join(".baron/project.toml")).unwrap();
     assert!(second_config.contains("platform = \"tool\""));
+}
+
+#[test]
+fn init_generates_platform_intelligence_and_expands_architecture_safely() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join("legacy-src")).unwrap();
+    fs::write(repo.join("legacy-src/app.ts"), "export const app = true;").unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "init",
+            repo.to_str().unwrap(),
+            "--codex",
+            "--fullstack",
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["init", repo.to_str().unwrap(), "--mobile"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Extension platforms: `mobile`"));
+
+    assert!(repo.join("legacy-src/app.ts").exists());
+    assert!(repo.join("docs/baron/platform/PROJECT_PROFILE.md").exists());
+    assert!(repo
+        .join("docs/baron/architecture/CURRENT_ARCHITECTURE.md")
+        .exists());
+    let config = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(config.contains("platform = \"fullstack\""));
+    assert!(config.contains("platform_extensions = [\"mobile\"]"));
 }
 
 #[test]

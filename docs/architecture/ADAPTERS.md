@@ -74,6 +74,10 @@ question at a time, and records a matching confirmed intent brief. Silence is
 never confirmation. When work fails, blocks, or is interrupted, every adapter
 records an actionable recovery packet with evidence and a safe next action
 instead of rewriting the attempt as successful.
+Every adapter loads only the task-relevant platform profile, uses architecture
+contracts before structural work, adds explicitly requested product platforms
+through `baron init --<platform>`, and keeps review findings open until fix and
+verification evidence both exist.
 Every adapter must also route work through `baron control-plane route` before
 loading optional skills or dispatching quality gates. A mandatory quality gate
 does not count until `baron control-plane record-gate` records evidence.

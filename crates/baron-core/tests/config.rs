@@ -21,7 +21,7 @@ fn initialize_creates_shared_and_local_config() {
     let config = initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
 
     assert_eq!(config.project_slug, "tomoty");
-    assert_eq!(config.schema_version, 3);
+    assert_eq!(config.schema_version, 4);
     assert!(!config.project_id.is_empty());
     assert_eq!(config.adapters, vec![AdapterKind::Codex]);
     assert!(config.automation.context);
@@ -72,9 +72,33 @@ fn project_platform_focus_is_stored_and_updateable() {
 
     let updated = set_project_platform(&repo, ProjectPlatform::Tool).unwrap();
 
-    assert_eq!(updated.platform, Some(ProjectPlatform::Tool));
+    assert_eq!(updated.platform, Some(ProjectPlatform::Fullstack));
+    assert_eq!(updated.platform_extensions, vec![ProjectPlatform::Tool]);
     let content = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
-    assert!(content.contains("platform = \"tool\""));
+    assert!(content.contains("platform = \"fullstack\""));
+    assert!(content.contains("platform_extensions = [\"tool\"]"));
+}
+
+#[test]
+fn unknown_platform_is_primary_until_repo_evidence_refines_it() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    let unknown = initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Generic),
+        &vault,
+        Some(ProjectPlatform::Unknown),
+    )
+    .unwrap();
+    assert_eq!(unknown.platform, Some(ProjectPlatform::Unknown));
+    assert!(unknown.platform_extensions.is_empty());
+
+    let refined = set_project_platform(&repo, ProjectPlatform::Tool).unwrap();
+    assert_eq!(refined.platform, Some(ProjectPlatform::Tool));
+    assert!(refined.platform_extensions.is_empty());
 }
 
 #[test]

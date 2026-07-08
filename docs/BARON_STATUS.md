@@ -1,19 +1,19 @@
 # Baron Build Status
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Overall
 
-- Stable source release: `v3.1.4`
+- Stable source release: `v3.2.0`
 - Baron 2.0 completion: 100%
 - Target source release: `v3.2.0`
 - Baron 3.0 completion: 100%
-- Baron 3.2 completion: 15%
-- Remaining planned phases: 4
-- Current phase: Phase 28 - Platform Intelligence Profiles
-- Current phase status: planned
-- Current next action: design and plan Phase 28 profile packs before implementation.
-- Build confidence: Baron 3.1.4 remains the verified stable release. Phase 27 passed focused, workspace, Clippy, adapter, and real temp repo/Vault smoke verification; Phases 28-31 remain planned.
+- Baron 3.2 completion: 100%
+- Remaining planned phases: 0
+- Current phase: Phase 31 - Automation Certification And Baron 3.2 Release
+- Current phase status: completed
+- Current next action: source verification, commit, and GitHub push; binary GitHub Release publication remains a separate explicit action.
+- Build confidence: Baron 3.2 formatting, full workspace tests, Clippy, installer lifecycle, release metadata, all-platform certification, and real fullstack-to-mobile Vault smoke pass.
 
 ## Baron 3.0 Direction
 
@@ -130,10 +130,10 @@ Baron 3.2 planned program:
 | Phase | Name | Status | Baron 3.2 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
 | 27 | Intent Clarity And Actionable Recovery | completed | 15% | shared-understanding gate, persisted intent brief, bounded questions, interruption/failure recovery packet, resume tests |
-| 28 | Platform Intelligence Profiles | planned | 25% | deep profile packs for every public platform flag, repo-derived stack map, generated guidelines, task-aware context routing tests |
-| 29 | Architecture Governor And Project Expansion | planned | 30% | primary-plus-extension model, safe `baron init --<platform>` expansion, structure/boundary/dependency contracts, old-repo no-destructive-change tests |
-| 30 | Baron Design Quality And Reviewer Closure | planned | 15% | Baron-native frontend quality checks, design-context guidance, bounded post-edit validation, evidence-backed reviewer closure tests |
-| 31 | Automation Certification And Baron 3.2 Release | planned | 15% | automatic adapter behavior, all-platform fixtures, fullstack-to-mobile expansion smoke, full verification, docs/status sync, v3.2.0 release proof |
+| 28 | Platform Intelligence Profiles | completed | 25% | deep profile packs for every public platform flag, repo-derived stack map, generated guidelines, task-aware context routing tests |
+| 29 | Architecture Governor And Project Expansion | completed | 30% | primary-plus-extension model, safe `baron init --<platform>` expansion, structure/boundary/dependency contracts, old-repo no-destructive-change tests |
+| 30 | Baron Design Quality And Reviewer Closure | completed | 15% | Baron-native frontend quality checks, design-context guidance, bounded post-edit validation, evidence-backed reviewer closure tests |
+| 31 | Automation Certification And Baron 3.2 Release | completed | 15% | automatic adapter behavior, all-platform fixtures, fullstack-to-mobile expansion smoke, full verification, docs/status sync, v3.2.0 source proof |
 
 Phase 16-17 final verification:
 
@@ -447,52 +447,65 @@ Phase 27 final verification:
 
 ### Phase 28 - Platform Intelligence Profiles
 
-- [ ] Replace one-line platform hints with Baron-owned profile packs for `frontend`, `backend`, `fullstack`, `mobile`, `desktop`, `tool`, `library`, `data`, and `cloud`.
-- [ ] Define each profile's product concerns, architecture priorities, common failure modes, security/performance expectations, skill/agent routing, verification layers, and release proof.
-- [ ] Combine the selected profile with Survey Engine evidence so framework, language, database, deployment, and test guidance comes from the actual repo.
-- [ ] Mark missing stack facts as unknown instead of guessing.
-- [ ] Generate and maintain `PROJECT_PROFILE.md`, `STACK_MAP.md`, platform engineering guidance, and platform-specific quality gates using refreshable managed sections.
-- [ ] Make compact context load only the active task's relevant profile sections, not every platform pack.
-- [ ] Ensure custom project rules remain authoritative where they intentionally refine the Baron defaults.
-- [ ] Add focused fixtures and context assertions for every supported platform flag.
+- [x] Replace one-line platform hints with Baron-owned profile packs for `frontend`, `backend`, `fullstack`, `mobile`, `desktop`, `tool`, `library`, `data`, and `cloud`.
+- [x] Define each profile's product concerns, architecture priorities, common failure modes, security/performance expectations, skill/agent routing, verification layers, and release proof.
+- [x] Combine the selected profile with Survey Engine evidence so framework, language, database, deployment, and test guidance comes from the actual repo.
+- [x] Mark missing stack facts as unknown instead of guessing.
+- [x] Generate and maintain `PROJECT_PROFILE.md`, `STACK_MAP.md`, platform engineering guidance, and platform-specific quality gates using refreshable managed sections.
+- [x] Make compact context load only the active task's relevant profile sections, not every platform pack.
+- [x] Ensure custom project rules remain authoritative where they intentionally refine the Baron defaults.
+- [x] Add focused fixtures and context assertions for every supported platform flag.
 
 ### Phase 29 - Architecture Governor And Project Expansion
 
-- [ ] Add a primary-platform plus extension-platform model without complicating the public user flow.
-- [ ] Keep first-time usage simple, for example `baron init --codex --fullstack`.
-- [ ] On an initialized project, make `baron init --mobile` add a mobile extension instead of silently replacing the fullstack foundation.
-- [ ] Let generated agent instructions run the same simple init command automatically when the user explicitly expands the product to a new platform.
-- [ ] Generate `CURRENT_ARCHITECTURE.md`, `PROJECT_STRUCTURE.md`, `BOUNDARIES.md`, `DEPENDENCY_RULES.md`, and `EXPANSION_RULES.md` under `docs/baron/architecture/`.
-- [ ] Provide adaptive reference structures for frontend, backend, database, shared contracts, infrastructure, documentation, and tests without forcing framework-incompatible folders.
-- [ ] Require every new module or top-level directory to have a clear responsibility, owner, allowed dependencies, and validation path.
-- [ ] Keep shared API/data contracts in one declared location so web, mobile, backend, and database changes stay compatible.
-- [ ] Scaffold new projects safely while preserving existing repositories; never move or delete existing code merely to match a preferred layout.
-- [ ] For structural migration of an old repo, require a plan, dry-run inventory, rollback path, and proof before file moves.
-- [ ] Detect architecture drift and report a bounded correction proposal rather than auto-restructuring the repo.
-- [ ] Add new-project, old-project, repeated-init, fullstack-to-mobile, multi-extension, conflict, preservation, and rollback tests.
+- [x] Add a primary-platform plus extension-platform model without complicating the public user flow.
+- [x] Keep first-time usage simple, for example `baron init --codex --fullstack`.
+- [x] On an initialized project, make `baron init --mobile` add a mobile extension instead of silently replacing the fullstack foundation.
+- [x] Let generated agent instructions run the same simple init command automatically when the user explicitly expands the product to a new platform.
+- [x] Generate `CURRENT_ARCHITECTURE.md`, `PROJECT_STRUCTURE.md`, `BOUNDARIES.md`, `DEPENDENCY_RULES.md`, and `EXPANSION_RULES.md` under `docs/baron/architecture/`.
+- [x] Provide adaptive reference structures for frontend, backend, database, shared contracts, infrastructure, documentation, and tests without forcing framework-incompatible folders.
+- [x] Require every new module or top-level directory to have a clear responsibility, owner, allowed dependencies, and validation path.
+- [x] Keep shared API/data contracts in one declared location so web, mobile, backend, and database changes stay compatible.
+- [x] Scaffold new projects safely while preserving existing repositories; never move or delete existing code merely to match a preferred layout.
+- [x] For structural migration of an old repo, require a plan, dry-run inventory, rollback path, and proof before file moves.
+- [x] Detect architecture drift and report a bounded correction proposal rather than auto-restructuring the repo.
+- [x] Add new-project, old-project, repeated-init, fullstack-to-mobile, multi-extension, conflict, preservation, and rollback tests.
 
 ### Phase 30 - Baron Design Quality And Reviewer Closure
 
-- [ ] Strengthen the existing optional `frontend-design` skill instead of installing a competing workflow or a second frontend owner.
-- [ ] Add Baron-native product/design context guidance that reuses existing Product Harness and architecture facts.
-- [ ] Distill useful frontend quality ideas into local, testable checks for overflow, contrast, typography, spacing, responsive behavior, accessibility, interaction states, motion safety, and design-system drift.
-- [ ] Route frontend checks only for matching UI work; backend, data, and tool-only edits must not pay the frontend validation cost.
-- [ ] Keep post-edit validation bounded, observable, and non-destructive; no mandatory third-party runtime or unreviewed vendored script bundle.
-- [ ] Require reviewer findings to close with fix evidence and verification, while preserving unresolved findings and previous failed evidence.
-- [ ] Keep the three core quality agents unchanged and prevent optional design checks from replacing `code-reviewer`, `security-auditor`, or `test-engineer`.
-- [ ] Add routing, conflict, false-positive, responsive, reviewer-closure, and evidence-preservation tests.
+- [x] Strengthen the existing optional `frontend-design` skill instead of installing a competing workflow or a second frontend owner.
+- [x] Add Baron-native product/design context guidance that reuses existing Product Harness and architecture facts.
+- [x] Distill useful frontend quality ideas into local, testable checks for overflow, contrast, typography, spacing, responsive behavior, accessibility, interaction states, motion safety, and design-system drift.
+- [x] Route frontend checks only for matching UI work; backend, data, and tool-only edits must not pay the frontend validation cost.
+- [x] Keep post-edit validation bounded, observable, and non-destructive; no mandatory third-party runtime or unreviewed vendored script bundle.
+- [x] Require reviewer findings to close with fix evidence and verification, while preserving unresolved findings and previous failed evidence.
+- [x] Keep the three core quality agents unchanged and prevent optional design checks from replacing `code-reviewer`, `security-auditor`, or `test-engineer`.
+- [x] Add routing, conflict, false-positive, responsive, reviewer-closure, and evidence-preservation tests.
 
 ### Phase 31 - Automation Certification And Baron 3.2 Release
 
-- [ ] Update Codex, Claude, and generic adapter instructions so platform profiling, architecture reconciliation, intent checks, recovery, design validation, proof, and reviewer closure run automatically when relevant.
-- [ ] Keep the normal user-facing commands limited to install/update, Vault setup, adapter init, platform init/expansion, and update.
-- [ ] Prove AI automation uses task/path/risk evidence and does not load every profile, skill, agent, or guideline at once.
-- [ ] Certify all platform profiles against representative repositories and mixed-stack fixtures.
-- [ ] Smoke a fullstack project that expands to mobile while preserving backend, database, shared contracts, custom assets, plans, and Vault memory.
-- [ ] Smoke an existing irregular repository and prove Baron does not destructively rearrange it.
-- [ ] Run `cargo fmt --all -- --check`, `cargo test --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`, installer lifecycle, and release smoke tests.
-- [ ] Synchronize README, architecture docs, generated adapter docs, status Markdown/JSON, build logs, version metadata, release assets, and public installation guidance.
-- [ ] Publish `v3.2.0` only after all Phase 27-30 evidence is complete and the simple user flow remains intact.
+- [x] Update Codex, Claude, and generic adapter instructions so platform profiling, architecture reconciliation, intent checks, recovery, design validation, proof, and reviewer closure run automatically when relevant.
+- [x] Keep the normal user-facing commands limited to install/update, Vault setup, adapter init, platform init/expansion, and update.
+- [x] Prove AI automation uses task/path/risk evidence and does not load every profile, skill, agent, or guideline at once.
+- [x] Certify all platform profiles against representative repositories and mixed-stack fixtures.
+- [x] Smoke a fullstack project that expands to mobile while preserving backend, database, shared contracts, custom assets, plans, and Vault memory.
+- [x] Smoke an existing irregular repository and prove Baron does not destructively rearrange it.
+- [x] Run `cargo fmt --all -- --check`, `cargo test --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`, installer lifecycle, and release smoke tests.
+- [x] Synchronize README, architecture docs, generated adapter docs, status Markdown/JSON, build logs, version metadata, release assets, and public installation guidance.
+- [x] Push `v3.2.0` source only after all Phase 27-30 evidence is complete and the simple user flow remains intact; keep binary GitHub Release publication explicit.
+
+Phase 28-31 final verification:
+
+- all nine platform profile fixtures: passed
+- Codex, Claude, and generic adapter automation contracts: passed
+- fullstack-to-mobile extension with legacy/custom preservation: passed
+- reviewer finding and evidence-backed closure: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets`: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- installer lifecycle and release metadata at 3.2.0: passed
+- real temp Codex/fullstack-to-mobile shared Vault smoke: passed
+- binary GitHub Release publication: not performed; remains explicit
 
 Phase 25-26 final verification:
 
@@ -555,8 +568,7 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.1.4` is the current verified stable release. Baron `3.2.0` is an active
-program with Phase 27 complete and four phases remaining. It must deepen project understanding,
+Baron `3.2.0` is the current source release. Phases 27-31 are complete. The engine deepens project understanding,
 platform expertise, safe architectural growth, frontend design quality, reviewer
 closure, and recovery while preserving the simple user command flow, Vault data
 safety, Superpowers workflow ownership, the three core quality gates, bounded

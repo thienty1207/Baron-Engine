@@ -37,7 +37,7 @@ fn collect_public_text_files(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn readme_is_public_trust_landing_page_not_command_dump() {
     let readme = read("README.md");
-    assert!(readme.contains("Current version: `3.1.4`"));
+    assert!(readme.contains("Current version: `3.2.0`"));
     assert!(readme.contains("## Quick Start"));
     assert!(readme.contains("## Demo"));
     assert!(readme.contains("## Public Proof"));
@@ -96,13 +96,13 @@ fn public_demo_and_certification_docs_are_present() {
 #[test]
 fn status_tracks_public_trust_phase() {
     let status_md = read("docs/BARON_STATUS.md");
-    assert!(status_md.contains("Stable source release: `v3.1.4`"));
+    assert!(status_md.contains("Stable source release: `v3.2.0`"));
     assert!(status_md.contains("Phase 24 - Public Trust Release"));
     assert!(status_md.contains("Public Trust 3.1.2 final verification"));
 
     let status_json: serde_json::Value =
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
-    assert_eq!(status_json["stableRelease"], "3.1.4");
+    assert_eq!(status_json["stableRelease"], "3.2.0");
     assert_eq!(status_json["targetRelease"], "3.2.0");
     assert!(status_json["currentPhase"]
         .as_str()

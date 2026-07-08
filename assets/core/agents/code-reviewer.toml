@@ -51,6 +51,8 @@ Output contract:
 - If no issues are found, say "No blocking code-review findings found" and name residual risks.
 - Include proof status: commands read, tests observed, missing verification, and whether trace evidence is sufficient.
 - Include trace impact: what the parent agent should record or fix before final response.
+- Record concrete blocking findings in the Baron review ledger when that runtime is available.
+- Never close a recorded finding from a code change alone; require both fix evidence and verification evidence, and preserve the original finding history.
 - Include follow-up gate recommendations only; do not invoke other subagents yourself.
 
 Evidence standard:

@@ -565,6 +565,41 @@ fn every_adapter_enforces_intent_clarity_and_actionable_recovery() {
 }
 
 #[test]
+fn every_adapter_automates_platform_architecture_and_review_closure() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    fs::create_dir_all(&repo).unwrap();
+    for adapter in [
+        AgentAdapter::Codex,
+        AgentAdapter::Claude,
+        AgentAdapter::Generic,
+    ] {
+        install_adapter(&repo, adapter).unwrap();
+    }
+
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+        let content = fs::read_to_string(repo.join(path)).unwrap();
+        assert!(
+            content.contains("docs/baron/platform/PROJECT_PROFILE.md"),
+            "{path}"
+        );
+        assert!(
+            content.contains("docs/baron/architecture/CURRENT_ARCHITECTURE.md"),
+            "{path}"
+        );
+        assert!(content.contains("baron init --<platform>"), "{path}");
+        assert!(content.contains("baron review finding"), "{path}");
+        assert!(content.contains("baron review close"), "{path}");
+        assert!(content.contains("fix evidence and verification"), "{path}");
+    }
+
+    let frontend = fs::read_to_string(repo.join(".codex/skills/frontend-design/SKILL.md")).unwrap();
+    assert!(frontend.contains("Baron Design Quality Gate"));
+    assert!(frontend.contains("overflow and clipping"));
+    assert!(frontend.contains("narrow and a wide viewport"));
+}
+
+#[test]
 fn generated_indexes_define_strict_contract_fields_and_control_plane_startup() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use baron_adapters::{install_adapter, shadow_preview, AgentAdapter};
+use baron_core::architecture::ensure_architecture_governor;
 use baron_core::asset_lifecycle::{
     audit_runtime_assets, quarantine_failing_assets, stage_skill_update,
 };
@@ -51,8 +52,10 @@ use baron_core::migration::{
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
+use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
 use baron_core::release::{load_and_verify_release_metadata, write_release_metadata};
+use baron_core::review_gate::{close_finding, record_finding, review_status, ReviewFindingInput};
 use baron_core::session::{import_sessions, import_state_summary};
 use baron_core::session_replay::{
     index_session_replay, replay_session_context, search_session_replay,
@@ -171,6 +174,11 @@ enum Commands {
     Trace {
         #[command(subcommand)]
         command: TraceCommands,
+    },
+    #[command(hide = true)]
+    Review {
+        #[command(subcommand)]
+        command: ReviewCommands,
     },
     #[command(hide = true)]
     Migrate {
@@ -365,6 +373,31 @@ enum TraceCommands {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         id: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ReviewCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Finding {
+        summary: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        severity: String,
+        #[arg(long)]
+        evidence: Vec<String>,
+        #[arg(long = "affected-file")]
+        affected_files: Vec<String>,
+    },
+    Close {
+        id: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long = "fix-evidence")]
+        fix_evidence: String,
+        #[arg(long)]
+        verification: String,
     },
 }
 
@@ -732,6 +765,8 @@ fn run() -> Result<()> {
                 )?;
                 let context = ensure_vault(&vault_path, &repo_root)?;
                 build_memory_index(&context)?;
+                ensure_platform_intelligence(&repo_root, &config)?;
+                ensure_architecture_governor(&repo_root, &config)?;
                 let report = install_adapter(&repo_root, adapter)?;
                 println!("# Baron Adapter Init\n");
                 println!("- Project: `{}`", context.project_slug);
@@ -745,12 +780,26 @@ fn run() -> Result<()> {
                         .unwrap_or("auto-detected")
                 );
                 println!("- Managed files: {}", report.managed_files.len());
+                println!(
+                    "- Extension platforms: {}",
+                    platform_list(&config.platform_extensions)
+                );
                 println!("- Custom assets preserved: yes");
             } else if let Some(platform) = platform {
                 let config = set_project_platform(&repo_path, platform)?;
+                let repo_root = find_project_root(&repo_path)?;
+                ensure_platform_intelligence(&repo_root, &config)?;
+                ensure_architecture_governor(&repo_root, &config)?;
                 println!("# Baron Platform Focus\n");
                 println!("- Project: `{}`", config.project_slug);
-                println!("- Platform focus: `{}`", platform_name(platform));
+                println!(
+                    "- Primary platform: `{}`",
+                    config.platform.map(platform_name).unwrap_or("unknown")
+                );
+                println!(
+                    "- Extension platforms: {}",
+                    platform_list(&config.platform_extensions)
+                );
                 println!("- Adapter files were not changed.");
             } else {
                 bail!(
@@ -785,6 +834,8 @@ fn run() -> Result<()> {
             for adapter in &adapters {
                 install_adapter(&repo_root, *adapter)?;
             }
+            ensure_platform_intelligence(&repo_root, &config)?;
+            ensure_architecture_governor(&repo_root, &config)?;
             let names = adapters
                 .iter()
                 .map(|adapter| adapter_name(*adapter))
@@ -1136,6 +1187,46 @@ fn run() -> Result<()> {
                         score.achieved.as_str()
                     );
                 }
+            }
+        },
+        Some(Commands::Review { command }) => match command {
+            ReviewCommands::Status { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                print!("{}", review_status(repo_root)?);
+            }
+            ReviewCommands::Finding {
+                summary,
+                repo_path,
+                severity,
+                evidence,
+                affected_files,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let finding = record_finding(
+                    &repo_root,
+                    &vault,
+                    ReviewFindingInput {
+                        severity,
+                        summary,
+                        evidence,
+                        affected_files,
+                    },
+                )?;
+                println!("# Baron Review Finding\n");
+                println!("- Finding ID: `{}`", finding.id);
+                println!("- Status: `open`");
+            }
+            ReviewCommands::Close {
+                id,
+                repo_path,
+                fix_evidence,
+                verification,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                close_finding(&repo_root, &vault, &id, &fix_evidence, &verification)?;
+                println!("# Baron Review Finding Closure\n");
+                println!("- Finding ID: `{id}`");
+                println!("- Status: `closed`");
             }
         },
         Some(Commands::Migrate { command }) => match command {
@@ -1933,17 +2024,18 @@ fn parse_platform(
 }
 
 fn platform_name(platform: ProjectPlatform) -> &'static str {
-    match platform {
-        ProjectPlatform::Frontend => "frontend",
-        ProjectPlatform::Backend => "backend",
-        ProjectPlatform::Fullstack => "fullstack",
-        ProjectPlatform::Mobile => "mobile",
-        ProjectPlatform::Desktop => "desktop",
-        ProjectPlatform::Tool => "tool",
-        ProjectPlatform::Library => "library",
-        ProjectPlatform::Data => "data",
-        ProjectPlatform::Cloud => "cloud",
-        ProjectPlatform::Unknown => "unknown",
+    core_platform_name(platform)
+}
+
+fn platform_list(platforms: &[ProjectPlatform]) -> String {
+    if platforms.is_empty() {
+        "none".to_string()
+    } else {
+        platforms
+            .iter()
+            .map(|platform| format!("`{}`", platform_name(*platform)))
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 
