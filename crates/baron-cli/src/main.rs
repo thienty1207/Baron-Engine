@@ -7,6 +7,7 @@ use baron_core::architecture::ensure_architecture_governor;
 use baron_core::asset_lifecycle::{
     audit_runtime_assets, quarantine_failing_assets, stage_skill_update,
 };
+use baron_core::authority::classify_request;
 use baron_core::automation::{
     automation_status, handle_hook, reconcile, record_lifecycle_event, AutomationEvent, HookAdapter,
 };
@@ -128,6 +129,11 @@ enum Commands {
         agent: bool,
     },
     #[command(hide = true)]
+    Authority {
+        #[command(subcommand)]
+        command: AuthorityCommands,
+    },
+    #[command(hide = true)]
     Memory {
         #[command(subcommand)]
         command: MemoryCommands,
@@ -234,6 +240,15 @@ enum Commands {
     Release {
         #[command(subcommand)]
         command: ReleaseCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AuthorityCommands {
+    Classify {
+        request: String,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -700,6 +715,27 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Some(Commands::Authority { command }) => match command {
+            AuthorityCommands::Classify { request, json } => {
+                let decision = classify_request(&request);
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&decision)?);
+                } else {
+                    println!("# Baron Request Authority\n");
+                    println!("- Authority: `{}`", decision.authority.as_str());
+                    println!(
+                        "- Mutation allowed: `{}`",
+                        if decision.mutation_allowed() {
+                            "yes"
+                        } else {
+                            "no"
+                        }
+                    );
+                    println!("- Reason: {}", decision.reason);
+                    println!("- Next action: {}", decision.next_action);
+                }
+            }
+        },
         Some(Commands::Setup { vault }) => {
             let vault_path = vault.unwrap_or(std::env::current_dir()?);
             let configured = setup_machine_vault(&vault_path)?;

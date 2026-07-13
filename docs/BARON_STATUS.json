@@ -4,12 +4,12 @@
   "stableRelease": "3.2.0",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "3.3.0",
-  "targetReleaseCompletionPercent": 0,
-  "remainingPhaseCount": 3,
-  "currentPhase": "phase-32-request-authority-contract",
+  "targetReleaseCompletionPercent": 30,
+  "remainingPhaseCount": 2,
+  "currentPhase": "phase-33-coherent-state-completion-integrity",
   "currentPhaseStatus": "in_progress",
-  "nextAction": "Write and verify Phase 32 RED tests before implementing request authority.",
-  "buildConfidence": "Baron 3.2 baseline is green; Baron 3.3 design plan status and interruption-safe build log are recorded before production changes.",
+  "nextAction": "Write Phase 33 state coherence read only SQLite and completion tampering RED tests.",
+  "buildConfidence": "Phase 32 authority core CLI all three generated adapters normal help isolation formatting and full adapter lifecycle tests pass.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -502,9 +502,9 @@
     {
       "id": 32,
       "name": "Request Authority Contract",
-      "status": "in_progress",
+      "status": "completed",
       "targetReleaseWeightPercent": 30,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "read only change and ambiguous authority classification",
         "change outcome wins over mixed review wording",
@@ -516,7 +516,7 @@
     {
       "id": 33,
       "name": "Coherent State And Completion Integrity",
-      "status": "pending",
+      "status": "in_progress",
       "targetReleaseWeightPercent": 35,
       "completionPercent": 0,
       "requiredProof": [

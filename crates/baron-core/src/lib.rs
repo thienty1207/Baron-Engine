@@ -1,5 +1,6 @@
 pub mod architecture;
 pub mod asset_lifecycle;
+pub mod authority;
 pub mod automation;
 pub mod autopilot;
 pub mod capability;

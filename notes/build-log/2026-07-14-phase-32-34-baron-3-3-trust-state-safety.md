@@ -28,8 +28,8 @@ Distill the latest useful trust-boundary lessons into Baron-owned behavior witho
 - [x] Three bounded phases selected.
 - [x] Design and implementation plan written.
 - [x] Status Markdown/JSON and CURRENT build note updated before production code.
-- [ ] Phase 32 RED tests.
-- [ ] Phase 32 implementation and focused verification.
+- [x] Phase 32 RED tests: missing authority module and adapter contract failed as expected.
+- [x] Phase 32 implementation and focused verification: 4 core, 3 CLI, 19 adapter lifecycle, normal-help, and formatting checks passed.
 - [ ] Phase 33 RED tests.
 - [ ] Phase 33 implementation and focused verification.
 - [ ] Phase 34 RED tests.

@@ -9,12 +9,12 @@ Last updated: 2026-07-14
 - Target source release: `v3.3.0`
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
-- Baron 3.3 completion: 0%
-- Remaining planned phases: 3
-- Current phase: Phase 32 - Request Authority Contract
+- Baron 3.3 completion: 30%
+- Remaining planned phases: 2
+- Current phase: Phase 33 - Coherent State And Completion Integrity
 - Current phase status: in_progress
-- Current next action: write and verify Phase 32 RED tests before implementing request authority.
-- Build confidence: Baron 3.2 baseline remains fully green; Baron 3.3 design, plan, status, and interruption-safe build log are recorded before production changes.
+- Current next action: write Phase 33 state-coherence, read-only SQLite, and completion-tampering RED tests.
+- Build confidence: Phase 32 authority core, CLI, all three generated adapters, normal-help isolation, formatting, and full adapter lifecycle tests pass.
 
 ## Baron 3.0 Direction
 
@@ -140,8 +140,8 @@ Baron 3.3 planned program:
 
 | Phase | Name | Status | Baron 3.3 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 32 | Request Authority Contract | in_progress | 30% | read-only/change/ambiguous classifier, multilingual and mixed-intent tests, generated adapter no-mutation rules |
-| 33 | Coherent State And Completion Integrity | pending | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
+| 32 | Request Authority Contract | completed | 30% | read-only/change/ambiguous classifier, multilingual and mixed-intent tests, generated adapter no-mutation rules |
+| 33 | Coherent State And Completion Integrity | in_progress | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
 | 34 | Immutable Release Promotion And Baron 3.3 Certification | pending | 35% | exact-source manifest proof, proof-before-tag workflow, native/installer smoke, full verification, v3.3.0 source push |
 
 Phase 16-17 final verification:
@@ -505,13 +505,22 @@ Phase 27 final verification:
 
 ### Phase 32 - Request Authority Contract
 
-- [ ] Classify requests as `read_only`, `change`, or `ambiguous` before Baron automation mutates durable state.
-- [ ] Make explicit change outcomes win over review words, for example review plus apply fixes.
-- [ ] Keep ambiguous requests read-only until change authority is explicit.
-- [ ] Support common English and Vietnamese request intent without claiming perfect language understanding.
-- [ ] Expose a hidden AI command and keep normal user help uncluttered.
-- [ ] Update Codex, Claude, and generic adapters so answers, explanations, reviews, diagnoses, plans, and status reports do not create plan/Harness/proof/trace noise.
-- [ ] Prove classification and no-mutation behavior with core, CLI, and adapter tests.
+- [x] Classify requests as `read_only`, `change`, or `ambiguous` before Baron automation mutates durable state.
+- [x] Make explicit change outcomes win over review words, for example review plus apply fixes.
+- [x] Keep ambiguous requests read-only until change authority is explicit.
+- [x] Support common English and Vietnamese request intent without claiming perfect language understanding.
+- [x] Expose a hidden AI command and keep normal user help uncluttered.
+- [x] Update Codex, Claude, and generic adapters so answers, explanations, reviews, diagnoses, plans, and status reports do not create plan/Harness/proof/trace noise.
+- [x] Prove classification and no-mutation behavior with core, CLI, and adapter tests.
+
+Phase 32 verification:
+
+- authority RED test failed because the module did not exist
+- 4 core authority classification tests: passed
+- 3 hidden CLI and no-write tests: passed
+- all 19 adapter lifecycle tests: passed
+- normal user help remains uncluttered: passed
+- `cargo fmt --all -- --check`: passed
 
 ### Phase 33 - Coherent State And Completion Integrity
 
