@@ -1,19 +1,20 @@
 # Baron Build Status
 
-Last updated: 2026-07-08
+Last updated: 2026-07-14
 
 ## Overall
 
 - Stable source release: `v3.2.0`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.2.0`
+- Target source release: `v3.3.0`
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
-- Remaining planned phases: 0
-- Current phase: Phase 31 - Automation Certification And Baron 3.2 Release
-- Current phase status: completed
-- Current next action: no implementation phase remains; binary GitHub Release publication remains a separate explicit action.
-- Build confidence: Baron 3.2 formatting, full workspace tests, Clippy, installer lifecycle, release metadata, all-platform certification, and real fullstack-to-mobile Vault smoke pass.
+- Baron 3.3 completion: 0%
+- Remaining planned phases: 3
+- Current phase: Phase 32 - Request Authority Contract
+- Current phase status: in_progress
+- Current next action: write and verify Phase 32 RED tests before implementing request authority.
+- Build confidence: Baron 3.2 baseline remains fully green; Baron 3.3 design, plan, status, and interruption-safe build log are recorded before production changes.
 
 ## Baron 3.0 Direction
 
@@ -134,6 +135,14 @@ Baron 3.2 planned program:
 | 29 | Architecture Governor And Project Expansion | completed | 30% | primary-plus-extension model, safe `baron init --<platform>` expansion, structure/boundary/dependency contracts, old-repo no-destructive-change tests |
 | 30 | Baron Design Quality And Reviewer Closure | completed | 15% | Baron-native frontend quality checks, design-context guidance, bounded post-edit validation, evidence-backed reviewer closure tests |
 | 31 | Automation Certification And Baron 3.2 Release | completed | 15% | automatic adapter behavior, all-platform fixtures, fullstack-to-mobile expansion smoke, full verification, docs/status sync, v3.2.0 source proof |
+
+Baron 3.3 planned program:
+
+| Phase | Name | Status | Baron 3.3 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 32 | Request Authority Contract | in_progress | 30% | read-only/change/ambiguous classifier, multilingual and mixed-intent tests, generated adapter no-mutation rules |
+| 33 | Coherent State And Completion Integrity | pending | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
+| 34 | Immutable Release Promotion And Baron 3.3 Certification | pending | 35% | exact-source manifest proof, proof-before-tag workflow, native/installer smoke, full verification, v3.3.0 source push |
 
 Phase 16-17 final verification:
 
@@ -493,6 +502,37 @@ Phase 27 final verification:
 - [x] Run `cargo fmt --all -- --check`, `cargo test --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`, installer lifecycle, and release smoke tests.
 - [x] Synchronize README, architecture docs, generated adapter docs, status Markdown/JSON, build logs, version metadata, release assets, and public installation guidance.
 - [x] Push `v3.2.0` source only after all Phase 27-30 evidence is complete and the simple user flow remains intact; keep binary GitHub Release publication explicit.
+
+### Phase 32 - Request Authority Contract
+
+- [ ] Classify requests as `read_only`, `change`, or `ambiguous` before Baron automation mutates durable state.
+- [ ] Make explicit change outcomes win over review words, for example review plus apply fixes.
+- [ ] Keep ambiguous requests read-only until change authority is explicit.
+- [ ] Support common English and Vietnamese request intent without claiming perfect language understanding.
+- [ ] Expose a hidden AI command and keep normal user help uncluttered.
+- [ ] Update Codex, Claude, and generic adapters so answers, explanations, reviews, diagnoses, plans, and status reports do not create plan/Harness/proof/trace noise.
+- [ ] Prove classification and no-mutation behavior with core, CLI, and adapter tests.
+
+### Phase 33 - Coherent State And Completion Integrity
+
+- [ ] Validate project config, local Vault, capsule, and project identity before mutating execution state.
+- [ ] Fail with an actionable `baron update` recovery path and leave files unchanged when state is missing or mismatched.
+- [ ] Keep init/update as the only scaffold repair owners.
+- [ ] Open SQLite-backed memory/session query paths read-only so inspection cannot fabricate an empty database.
+- [ ] Detect completed plan text that lacks verification, proof, or passing trace evidence.
+- [ ] Surface integrity diagnostics in status/context without treating hand-edited state as truth.
+- [ ] Prove missing-state, mismatch, no-write, query, tampering, update, and preservation behavior.
+
+### Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
+
+- [ ] Build releases from an exact source candidate before any release tag exists.
+- [ ] Match requested version, Cargo version, source SHA, manifest, native archives, binary versions, and checksums.
+- [ ] Prove all supported native targets and installer lifecycle before promotion.
+- [ ] Give write permission only to the final promotion job.
+- [ ] Refuse existing tags/releases and never replace published assets.
+- [ ] Bump Baron to `3.3.0` and synchronize README, release docs, status, JSON, plan, build log, and certification.
+- [ ] Pass format, full workspace tests, Clippy, release build, installer lifecycle, JSON parse, static scans, and a real project/Vault smoke.
+- [ ] Push verified source to `origin/main`; keep binary release publication separate unless explicitly requested.
 
 Phase 28-31 final verification:
 

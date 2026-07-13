@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-07-08",
+  "lastUpdated": "2026-07-14",
   "stableRelease": "3.2.0",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.2.0",
-  "targetReleaseCompletionPercent": 100,
-  "remainingPhaseCount": 0,
-  "currentPhase": "phase-31-automation-certification-baron-3.2-release",
-  "currentPhaseStatus": "completed",
-  "nextAction": "No implementation phase remains; binary GitHub Release publication remains a separate explicit action.",
-  "buildConfidence": "Baron 3.2 formatting, full workspace tests, Clippy, installer lifecycle, release metadata, all-platform certification, and real fullstack-to-mobile Vault smoke pass.",
+  "targetRelease": "3.3.0",
+  "targetReleaseCompletionPercent": 0,
+  "remainingPhaseCount": 3,
+  "currentPhase": "phase-32-request-authority-contract",
+  "currentPhaseStatus": "in_progress",
+  "nextAction": "Write and verify Phase 32 RED tests before implementing request authority.",
+  "buildConfidence": "Baron 3.2 baseline is green; Baron 3.3 design plan status and interruption-safe build log are recorded before production changes.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -498,10 +498,55 @@
         "full workspace format Clippy installer and release verification passes",
         "v3.2.0 source is pushed only after Phases 27 through 30 pass; binary release publication remains explicit"
       ]
+    },
+    {
+      "id": 32,
+      "name": "Request Authority Contract",
+      "status": "in_progress",
+      "targetReleaseWeightPercent": 30,
+      "completionPercent": 0,
+      "requiredProof": [
+        "read only change and ambiguous authority classification",
+        "change outcome wins over mixed review wording",
+        "English and Vietnamese intent fixtures",
+        "Codex Claude and generic adapter no mutation rules",
+        "core CLI and adapter RED GREEN tests"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "Coherent State And Completion Integrity",
+      "status": "pending",
+      "targetReleaseWeightPercent": 35,
+      "completionPercent": 0,
+      "requiredProof": [
+        "project Vault capsule and identity coherence guard",
+        "failed guard leaves repo and Vault unchanged",
+        "read only SQLite query connections",
+        "tampered completion evidence detection",
+        "update repair and user content preservation tests"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "Immutable Release Promotion And Baron 3.3 Certification",
+      "status": "pending",
+      "targetReleaseWeightPercent": 35,
+      "completionPercent": 0,
+      "requiredProof": [
+        "exact source and release version identity",
+        "native archives binary versions and checksums",
+        "proof before tag workflow ordering",
+        "publish only write permission and immutable release guard",
+        "full tests Clippy installer smoke status sync and v3.3.0 source push"
+      ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
+    "docs/superpowers/plans/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md",
+    "notes/build-log/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md",
+    "docs/superpowers/specs/2026-07-14-baron-3-3-trust-state-safety-design.md",
     "docs/superpowers/plans/2026-07-08-phase-28-31-baron-3.2-completion.md",
     "notes/build-log/2026-07-08-phase-28-31-baron-3.2-completion.md",
     "docs/assessment/baron-3.2.0-certification.md",
