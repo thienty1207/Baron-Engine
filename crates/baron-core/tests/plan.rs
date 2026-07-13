@@ -140,6 +140,36 @@ fn completion_is_blocked_without_proof_and_passing_trace() {
 }
 
 #[test]
+fn hand_edited_completed_state_is_reported_as_failed_integrity() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let plan = start_or_resume_plan(&repo, &context, "backend login security").unwrap();
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&current_path)
+        .unwrap()
+        .replace("- Status: `in_progress`", "- Status: `completed`")
+        .replace(
+            "- Verification: not_run",
+            "- Verification: claimed manually",
+        );
+    fs::write(&current_path, current).unwrap();
+    let body = fs::read_to_string(&plan.repo_path)
+        .unwrap()
+        .replace("status: in_progress", "status: completed")
+        .replace("verification: not_run", "verification: claimed manually");
+    fs::write(&plan.repo_path, body).unwrap();
+
+    let status = plan_status(&repo).unwrap();
+
+    assert!(status.contains("Completion integrity: `failed`"));
+    assert!(status.contains("proof is missing"));
+    assert!(status.contains("passing trace is missing"));
+}
+
+#[test]
 fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

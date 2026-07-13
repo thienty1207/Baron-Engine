@@ -30,8 +30,8 @@ Distill the latest useful trust-boundary lessons into Baron-owned behavior witho
 - [x] Status Markdown/JSON and CURRENT build note updated before production code.
 - [x] Phase 32 RED tests: missing authority module and adapter contract failed as expected.
 - [x] Phase 32 implementation and focused verification: 4 core, 3 CLI, 19 adapter lifecycle, normal-help, and formatting checks passed.
-- [ ] Phase 33 RED tests.
-- [ ] Phase 33 implementation and focused verification.
+- [x] Phase 33 RED tests: state guard was missing, query paths rewrote incompatible caches, and hand-edited completion was trusted.
+- [x] Phase 33 implementation and focused verification: state guard, read-only cache validation, completion integrity, CLI no-repair behavior, and adapter recovery guidance passed.
 - [ ] Phase 34 RED tests.
 - [ ] Phase 34 implementation, version bump, and full certification.
 - [ ] Merge and push `origin/main`.
@@ -45,3 +45,12 @@ Distill the latest useful trust-boundary lessons into Baron-owned behavior witho
 - SQLite query paths are read-only; Markdown remains truth.
 - Release tags are outcomes of proof, not triggers that exist before proof.
 - Binary GitHub Release publication is not part of this source push unless separately requested.
+
+## Phase 33 Evidence
+
+- 4 state coherence tests passed without repair writes.
+- 14 Vault memory and 4 session replay tests passed, including byte-for-byte preservation of incompatible SQLite caches on query failure.
+- 6 plan tests passed, including failed integrity for hand-edited completion and passed integrity for a real proof/trace completion.
+- 9 execution CLI tests passed, including identity mismatch rejection with unchanged capsule metadata.
+- All targets in `baron-core`, `baron-adapters`, and `baron-cli` passed.
+- Formatting passed.

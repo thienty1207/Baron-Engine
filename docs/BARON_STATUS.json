@@ -4,12 +4,12 @@
   "stableRelease": "3.2.0",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "3.3.0",
-  "targetReleaseCompletionPercent": 30,
-  "remainingPhaseCount": 2,
-  "currentPhase": "phase-33-coherent-state-completion-integrity",
+  "targetReleaseCompletionPercent": 65,
+  "remainingPhaseCount": 1,
+  "currentPhase": "phase-34-immutable-release-promotion-certification",
   "currentPhaseStatus": "in_progress",
-  "nextAction": "Write Phase 33 state coherence read only SQLite and completion tampering RED tests.",
-  "buildConfidence": "Phase 32 authority core CLI all three generated adapters normal help isolation formatting and full adapter lifecycle tests pass.",
+  "nextAction": "Write Phase 34 release identity and proof before tag workflow RED tests.",
+  "buildConfidence": "Phases 32 and 33 pass authority state coherence no repair read only cache completion integrity CLI adapter and formatting verification.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -516,9 +516,9 @@
     {
       "id": 33,
       "name": "Coherent State And Completion Integrity",
-      "status": "in_progress",
+      "status": "completed",
       "targetReleaseWeightPercent": 35,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "project Vault capsule and identity coherence guard",
         "failed guard leaves repo and Vault unchanged",
@@ -530,7 +530,7 @@
     {
       "id": 34,
       "name": "Immutable Release Promotion And Baron 3.3 Certification",
-      "status": "pending",
+      "status": "in_progress",
       "targetReleaseWeightPercent": 35,
       "completionPercent": 0,
       "requiredProof": [

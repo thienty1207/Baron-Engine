@@ -172,7 +172,43 @@ fn proof_and_trace_commands_support_a_complete_low_risk_flow() {
         .args(["plan", "status"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Status: `completed`"));
+        .stdout(predicate::str::contains("Status: `completed`"))
+        .stdout(predicate::str::contains("Completion integrity: `passed`"));
+}
+
+#[test]
+fn execution_command_rejects_identity_mismatch_without_repairing_vault_state() {
+    let (_temp, repo, vault) = init_project();
+    let project_root = fs::read_dir(vault.join("Projects"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let metadata_path = project_root.join(".baron-project.json");
+    let mut metadata: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&metadata_path).unwrap()).unwrap();
+    metadata["projectId"] = serde_json::Value::String("wrong-project".to_string());
+    let tampered = format!("{}\n", serde_json::to_string_pretty(&metadata).unwrap());
+    fs::write(&metadata_path, &tampered).unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["plan", "start", "must not be created"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("identity mismatch"))
+        .stderr(predicate::str::contains("baron update"));
+
+    assert_eq!(fs::read_to_string(metadata_path).unwrap(), tampered);
+    let plan_index = repo.join("docs/baron/plans/INDEX.md");
+    let plan_index = if plan_index.exists() {
+        fs::read_to_string(plan_index).unwrap()
+    } else {
+        String::new()
+    };
+    assert!(!plan_index.contains("must not be created"));
 }
 
 #[test]

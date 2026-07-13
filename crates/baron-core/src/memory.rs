@@ -5,7 +5,7 @@ use std::time::UNIX_EPOCH;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, SecondsFormat, Utc};
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{params, Connection, OpenFlags, Transaction};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -201,9 +201,10 @@ pub fn load_memory_records(context: &VaultContext) -> Result<Vec<MemoryRecord>> 
     if !context.index_path.exists() {
         return Ok(Vec::new());
     }
-    let connection = Connection::open(&context.index_path)
-        .with_context(|| format!("Could not open {}", context.index_path.display()))?;
-    create_schema(&connection)?;
+    let connection =
+        Connection::open_with_flags(&context.index_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .with_context(|| format!("Could not open {}", context.index_path.display()))?;
+    validate_read_schema(&connection)?;
     let mut statement = connection.prepare(
         "SELECT id, scope, project_id, project_slug, kind, path, title, excerpt, tags,
                 confidence, status, updated_at, content_hash
@@ -238,6 +239,14 @@ pub fn load_memory_records(context: &VaultContext) -> Result<Vec<MemoryRecord>> 
         records.push(row?);
     }
     Ok(records)
+}
+
+fn validate_read_schema(connection: &Connection) -> Result<()> {
+    let current: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if current != SCHEMA_VERSION {
+        anyhow::bail!("Memory index schema is incompatible; rebuild it with `baron memory index`.");
+    }
+    Ok(())
 }
 
 fn create_schema(connection: &Connection) -> Result<()> {

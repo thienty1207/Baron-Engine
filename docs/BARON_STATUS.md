@@ -524,13 +524,23 @@ Phase 32 verification:
 
 ### Phase 33 - Coherent State And Completion Integrity
 
-- [ ] Validate project config, local Vault, capsule, and project identity before mutating execution state.
-- [ ] Fail with an actionable `baron update` recovery path and leave files unchanged when state is missing or mismatched.
-- [ ] Keep init/update as the only scaffold repair owners.
-- [ ] Open SQLite-backed memory/session query paths read-only so inspection cannot fabricate an empty database.
-- [ ] Detect completed plan text that lacks verification, proof, or passing trace evidence.
-- [ ] Surface integrity diagnostics in status/context without treating hand-edited state as truth.
-- [ ] Prove missing-state, mismatch, no-write, query, tampering, update, and preservation behavior.
+- [x] Validate project config, local Vault, capsule, and project identity before mutating execution state.
+- [x] Fail with an actionable `baron update` recovery path and leave files unchanged when state is missing or mismatched.
+- [x] Keep init/update as the only scaffold repair owners.
+- [x] Open SQLite-backed memory/session query paths read-only so inspection cannot fabricate an empty database.
+- [x] Detect completed plan text that lacks verification, proof, or passing trace evidence.
+- [x] Surface integrity diagnostics in plan status without treating hand-edited state as truth.
+- [x] Prove missing-state, mismatch, no-write, query, tampering, and preservation behavior.
+
+Phase 33 verification:
+
+- 4 coherent-state core tests: passed
+- 14 Vault memory tests, including incompatible read-only cache preservation: passed
+- 4 session replay tests, including incompatible read-only cache preservation: passed
+- 6 plan tests, including hand-edited completion detection and valid completion integrity: passed
+- 9 execution CLI tests, including identity mismatch no-repair behavior: passed
+- full `baron-core`, `baron-adapters`, and `baron-cli` all-target suites: passed
+- `cargo fmt --all -- --check`: passed
 
 ### Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
 

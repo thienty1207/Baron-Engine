@@ -173,6 +173,30 @@ fn memory_index_deduplicates_repeated_records_within_one_source() {
 }
 
 #[test]
+fn memory_queries_reject_incompatible_cache_without_mutating_it() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    fs::write(
+        context.project_root.join("Facts.md"),
+        "# Facts\n\n- Verified auth fact.\n",
+    )
+    .unwrap();
+    build_memory_index(&context).unwrap();
+    let connection = rusqlite::Connection::open(&context.index_path).unwrap();
+    connection.pragma_update(None, "user_version", 999).unwrap();
+    drop(connection);
+    let before = fs::read(&context.index_path).unwrap();
+
+    let error = load_memory_records(&context).unwrap_err().to_string();
+
+    assert!(error.contains("rebuild"));
+    assert_eq!(before, fs::read(&context.index_path).unwrap());
+}
+
+#[test]
 fn firewall_prioritizes_current_project_and_blocks_weak_cross_project_matches() {
     let temp = tempdir().unwrap();
     let vault = temp.path().join("Vault");

@@ -222,14 +222,63 @@ pub fn complete_plan(
 }
 
 pub fn plan_status(repo_root: impl AsRef<Path>) -> Result<String> {
-    let path = repo_root.as_ref().join("docs/baron/plans/CURRENT.md");
+    let repo_root = repo_root.as_ref();
+    let path = repo_root.join("docs/baron/plans/CURRENT.md");
     if !path.exists() {
         return Ok("# Baron Plan Status\n\n- Active plan: none\n".to_string());
     }
-    Ok(format!(
-        "# Baron Plan Status\n\n{}",
-        fs::read_to_string(path)?
-    ))
+    let current = fs::read_to_string(path)?;
+    let mut output = format!("# Baron Plan Status\n\n{current}");
+    if current.contains("- Status: `completed`") {
+        let issues = completion_integrity_issues(repo_root, &current)?;
+        if issues.is_empty() {
+            output.push_str("\n## Completion Integrity\n\n- Completion integrity: `passed`\n");
+        } else {
+            output.push_str("\n## Completion Integrity\n\n- Completion integrity: `failed`\n");
+            for issue in issues {
+                output.push_str(&format!("- {issue}\n"));
+            }
+        }
+    } else {
+        output.push_str("\n## Completion Integrity\n\n- Completion integrity: `not_applicable`\n");
+    }
+    Ok(output)
+}
+
+fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<String>> {
+    let mut issues = Vec::new();
+    let verification = field(current, "- Verification: ").unwrap_or_default();
+    if verification.trim().is_empty() || verification.trim() == "not_run" {
+        issues.push("verification evidence is missing".to_string());
+    }
+    let active = active_plan(repo_root)?;
+    match active {
+        Some(plan) if plan.path.is_file() => {
+            let body = fs::read_to_string(&plan.path)?;
+            if !body.lines().any(|line| line == "status: completed") {
+                issues.push("plan file is not marked completed".to_string());
+            }
+            let plan_verification = body
+                .lines()
+                .find_map(|line| line.strip_prefix("verification: "))
+                .unwrap_or_default();
+            if plan_verification.trim().is_empty() || plan_verification.trim() == "not_run" {
+                issues.push("plan verification evidence is missing".to_string());
+            }
+            match latest_proof(repo_root)? {
+                Some(proof) if proof_satisfies_risk(&proof.summary, plan.risk) => {}
+                Some(_) => issues.push("proof does not satisfy the plan risk".to_string()),
+                None => issues.push("proof is missing".to_string()),
+            }
+            let required = required_tier(plan.risk);
+            match latest_trace_score(repo_root)? {
+                Some(trace) if trace.passed && trace.achieved >= required => {}
+                _ => issues.push("passing trace is missing".to_string()),
+            }
+        }
+        _ => issues.push("linked plan file is missing".to_string()),
+    }
+    Ok(issues)
 }
 
 fn write_current(repo_root: &Path, vault: &VaultContext, view: CurrentPlanView<'_>) -> Result<()> {

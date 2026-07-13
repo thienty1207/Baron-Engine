@@ -131,3 +131,31 @@ fn session_search_obeys_project_firewall() {
     assert!(hits.iter().any(|hit| hit.text.contains("Gin refresh")));
     assert!(!hits.iter().any(|hit| hit.text.contains("PHP session")));
 }
+
+#[test]
+fn replay_queries_reject_incompatible_cache_without_rewriting_it() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let imported = context.project_root.join("Sessions/Imported/session.md");
+    fs::create_dir_all(imported.parent().unwrap()).unwrap();
+    fs::write(
+        imported,
+        "# Session\n\n### User\n\nHow does login work?\n\n### Assistant\n\nUse RLS.\n",
+    )
+    .unwrap();
+    let report = index_session_replay(&context).unwrap();
+    let connection = rusqlite::Connection::open(&report.index_path).unwrap();
+    connection.pragma_update(None, "user_version", 999).unwrap();
+    drop(connection);
+    let before = fs::read(&report.index_path).unwrap();
+
+    let error = search_session_replay(&context, "login", 3)
+        .unwrap_err()
+        .to_string();
+
+    assert!(error.contains("rebuild"));
+    assert_eq!(before, fs::read(&report.index_path).unwrap());
+}

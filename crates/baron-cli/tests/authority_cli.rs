@@ -59,7 +59,7 @@ fn authority_json_is_stable_for_agent_automation() {
     let value: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["authority"], "change");
     assert_eq!(value["mutationAllowed"], true);
-    assert!(value["matchedChangeTerms"].as_array().unwrap().len() > 0);
+    assert!(!value["matchedChangeTerms"].as_array().unwrap().is_empty());
 }
 
 #[test]

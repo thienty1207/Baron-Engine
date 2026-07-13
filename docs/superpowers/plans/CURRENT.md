@@ -4,10 +4,10 @@ Last updated: 2026-07-14
 
 ## Current Focus
 
-- Active phase: Phase 32 - Request Authority Contract
+- Active phase: Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
 - Status: `in_progress`
-- Verification: Baron 3.2 full workspace baseline passed before Phase 32 code changes
-- Next action: write Phase 32 failing authority tests, verify the expected failures, then implement the minimal contract
+- Verification: Phases 32 and 33 focused and all-target crate suites passed
+- Next action: write release identity and proof-before-tag RED tests, then harden release promotion and certify Baron 3.3.0
 
 ## Baron 3.3 Contract
 

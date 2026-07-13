@@ -5,7 +5,7 @@ Target: Baron 3.3.0
 
 ## Current Phase
 
-Phase 33 - Coherent State And Completion Integrity (`in_progress`).
+Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`in_progress`).
 
 ## What Is Being Built
 
@@ -17,7 +17,7 @@ Phase 33 - Coherent State And Completion Integrity (`in_progress`).
 
 1. Read `docs/BARON_STATUS.md`.
 2. Read `docs/superpowers/specs/2026-07-14-baron-3-3-trust-state-safety-design.md`.
-3. Execute `docs/superpowers/plans/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md` from Task 2.
+3. Execute `docs/superpowers/plans/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md` from Task 3.
 4. Append evidence to `notes/build-log/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md` after every RED/GREEN checkpoint.
 
 ## Verified Baseline
@@ -26,7 +26,8 @@ Phase 33 - Coherent State And Completion Integrity (`in_progress`).
 - Baseline commit: `b10bf3efc0064d34e44f7631eb0d932c870097cd`.
 - Baseline `cargo test --workspace --all-targets`: passed.
 - Phase 32 core, CLI, adapter, normal-help, formatting, and full adapter lifecycle tests pass.
-- Phase 32 implementation is ready to commit before Phase 33 production work.
+- Phase 33 state coherence, no-repair, read-only query, completion integrity, CLI, adapter, and formatting tests pass.
+- Phase 34 release identity and proof-before-tag work is next.
 
 ## Non-Negotiables
 

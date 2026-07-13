@@ -24,6 +24,7 @@ pub mod review_gate;
 pub mod risk;
 pub mod session;
 pub mod session_replay;
+pub mod state_guard;
 pub mod survey;
 pub mod trace;
 pub mod vault;

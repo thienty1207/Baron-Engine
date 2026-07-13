@@ -628,6 +628,11 @@ fn every_adapter_classifies_request_authority_before_durable_writes() {
             content.contains("review and apply fixes"),
             "{path} must classify by requested outcome, not one keyword"
         );
+        assert!(content.contains("run `baron update`"), "{path}");
+        assert!(
+            content.contains("never repair Baron metadata by hand"),
+            "{path}"
+        );
     }
 }
 

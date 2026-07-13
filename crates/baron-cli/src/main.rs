@@ -61,6 +61,7 @@ use baron_core::session::{import_sessions, import_state_summary};
 use baron_core::session_replay::{
     index_session_replay, replay_session_context, search_session_replay,
 };
+use baron_core::state_guard::require_coherent_execution_state;
 use baron_core::survey::{render_project_atlas, survey_repository};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
@@ -898,14 +899,14 @@ fn run() -> Result<()> {
             MemoryCommands::Compact { repo_path, vault } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
-                let context = ensure_vault(vault_path, repo_path)?;
+                let context = require_coherent_execution_state(&repo_path, vault_path)?;
                 build_memory_index(&context)?;
                 print!("{}", compact_memory_brief(&context)?);
             }
             MemoryCommands::ImportSessions { repo_path, vault } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
-                let context = ensure_vault(vault_path, &repo_path)?;
+                let context = require_coherent_execution_state(&repo_path, vault_path)?;
                 let report = import_sessions(&repo_path, &context, 20)?;
                 build_memory_index(&context)?;
                 println!("# Baron Session Import\n");
@@ -925,7 +926,7 @@ fn run() -> Result<()> {
         }) => {
             let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
             let vault_path = resolve_command_vault(vault, &repo_path)?;
-            let context = ensure_vault(vault_path, repo_path)?;
+            let context = require_coherent_execution_state(&repo_path, vault_path)?;
             build_memory_index(&context)?;
             print!("{}", render_recall(&recall(&context, &query, 8)?));
         }
@@ -947,11 +948,13 @@ fn run() -> Result<()> {
                 .map(context_target);
             let target = parse_context_target(codex, claude, agent, why, default)?;
             if why {
+                require_coherent_execution_state(&repo_path, &vault_path)?;
                 print!("{}", compile_context_why(repo_path, vault_path, target)?);
             } else {
+                require_coherent_execution_state(&repo_path, &vault_path)?;
                 let output =
                     compile_context_for_task(&repo_path, &vault_path, target, task.as_deref())?;
-                let vault_context = ensure_vault(&vault_path, &repo_path)?;
+                let vault_context = require_coherent_execution_state(&repo_path, &vault_path)?;
                 record_lifecycle_event(
                     &vault_context,
                     hook_adapter_for_repo(&repo_path),
@@ -1555,7 +1558,7 @@ fn run() -> Result<()> {
             SessionReplayCommands::Index { repo_path, vault } => {
                 let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_root)?;
-                let context = ensure_vault(vault_path, repo_root)?;
+                let context = require_coherent_execution_state(&repo_root, vault_path)?;
                 let report = index_session_replay(&context)?;
                 println!("# Baron Session Replay Index\n");
                 println!("- Sources: {}", report.indexed_sources);
@@ -1570,7 +1573,7 @@ fn run() -> Result<()> {
             } => {
                 let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_root)?;
-                let context = ensure_vault(vault_path, repo_root)?;
+                let context = require_coherent_execution_state(&repo_root, vault_path)?;
                 index_session_replay(&context)?;
                 let hits = search_session_replay(&context, &query, limit)?;
                 println!("# Baron Session Replay Search\n");
@@ -1594,7 +1597,7 @@ fn run() -> Result<()> {
             } => {
                 let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_root)?;
-                let context = ensure_vault(vault_path, repo_root)?;
+                let context = require_coherent_execution_state(&repo_root, vault_path)?;
                 let replay = replay_session_context(&context, &message_id, radius)?;
                 println!("# Baron Session Replay\n");
                 println!("- Project: `{}`", replay.project_slug);
@@ -2128,7 +2131,7 @@ fn execution_context(
 ) -> Result<(PathBuf, baron_core::vault::VaultContext)> {
     let repo_root = configured_repo(repo_path)?;
     let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
-    let vault = ensure_vault(vault_path, &repo_root)?;
+    let vault = require_coherent_execution_state(&repo_root, vault_path)?;
     Ok((repo_root, vault))
 }
 
