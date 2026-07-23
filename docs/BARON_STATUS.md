@@ -1,6 +1,6 @@
 # Baron Build Status
 
-Last updated: 2026-07-14
+Last updated: 2026-07-23
 
 ## Overall
 
@@ -9,12 +9,12 @@ Last updated: 2026-07-14
 - Target source release: `v3.3.0`
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
-- Baron 3.3 completion: 98%
-- Remaining planned phases: 1
+- Baron 3.3 completion: 100%
+- Remaining planned phases: 0
 - Current phase: Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
-- Current phase status: in_progress
-- Current next action: close the three quality reviews, merge verified source, and push `origin/main`.
-- Build confidence: Phase 32 authority core, CLI, all three generated adapters, normal-help isolation, formatting, and full adapter lifecycle tests pass.
+- Current phase status: completed
+- Current next action: publish a binary GitHub Release only when explicitly requested.
+- Build confidence: Baron 3.3 source is on `origin/main`; full workspace tests, formatting, Clippy, release build, installer lifecycle, and real project/Vault smoke passed.
 
 ## Baron 3.0 Direction
 
@@ -142,7 +142,7 @@ Baron 3.3 planned program:
 | --- | --- | --- | --- | --- |
 | 32 | Request Authority Contract | completed | 30% | read-only/change/ambiguous classifier, multilingual and mixed-intent tests, generated adapter no-mutation rules |
 | 33 | Coherent State And Completion Integrity | completed | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
-| 34 | Immutable Release Promotion And Baron 3.3 Certification | pending | 35% | exact-source manifest proof, proof-before-tag workflow, native/installer smoke, full verification, v3.3.0 source push |
+| 34 | Immutable Release Promotion And Baron 3.3 Certification | completed | 35% | exact-source manifest proof, proof-before-tag workflow, native/installer smoke, full verification, v3.3.0 source push |
 
 Phase 16-17 final verification:
 
@@ -551,9 +551,9 @@ Phase 33 verification:
 - [x] Refuse existing tags/releases and never replace published assets.
 - [x] Bump Baron to `3.3.0` and synchronize README, release docs, status, JSON, plan, build log, and certification.
 - [x] Pass the final no-skip workspace verification and static scans.
-- [ ] Push verified source to `origin/main`; keep binary release publication separate unless explicitly requested.
+- [x] Push verified source to `origin/main` at `34a6cf4`; keep binary release publication separate unless explicitly requested.
 
-Phase 34 candidate verification:
+Phase 34 final verification:
 
 - 8 release identity, checksum, tamper, and exact-source tests: passed
 - 2 release CLI identity tests: passed
@@ -641,7 +641,7 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.3.0` is the verified source candidate. Phases 32-33 are complete and Phase 34 awaits quality review closure and push. The engine deepens project understanding,
+Baron `3.3.0` source is published on `origin/main`. Phases 32-34 are complete. A binary GitHub Release remains an explicit promotion step, not an automatic side effect. The engine deepens project understanding,
 platform expertise, safe architectural growth, frontend design quality, reviewer
 closure, and recovery while preserving the simple user command flow, Vault data
 safety, Superpowers workflow ownership, the three core quality gates, bounded

@@ -1,13 +1,13 @@
 # Current Baron Build Plan
 
-Last updated: 2026-07-14
+Last updated: 2026-07-23
 
 ## Current Focus
 
 - Active phase: Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
-- Status: `in_progress`
+- Status: `completed`
 - Verification: full no-skip workspace tests, Clippy, release build, installer lifecycle, real project/Vault smoke, JSON, YAML, and static checks passed
-- Next action: close quality reviews, merge the verified branch, and push `origin/main`
+- Next action: publish a binary GitHub Release only when explicitly requested
 
 ## Baron 3.3 Contract
 

@@ -34,7 +34,7 @@ Distill the latest useful trust-boundary lessons into Baron-owned behavior witho
 - [x] Phase 33 implementation and focused verification: state guard, read-only cache validation, completion integrity, CLI no-repair behavior, and adapter recovery guidance passed.
 - [x] Phase 34 RED tests: release identity API/CLI and proof-before-tag workflow contract failed before implementation.
 - [x] Phase 34 implementation, version bump, and full certification.
-- [ ] Merge and push `origin/main`.
+- [x] Merge verified source and push `origin/main` at `34a6cf4`.
 
 ## Safety Decisions
 
@@ -67,3 +67,4 @@ Distill the latest useful trust-boundary lessons into Baron-owned behavior witho
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed.
 - `cargo build --release --locked -p baron-cli`: passed.
 - Status JSON parse, release YAML lint, static immutability checks, and `git diff --check`: passed.
+- Merged `main` passed `cargo test --workspace --all-targets` again before source push.

@@ -30,7 +30,7 @@ workflow ordering.
 
 ## Release Boundary
 
-- Source push to `origin/main`: pending final review, merge, and push.
+- Source push to `origin/main`: completed at `34a6cf4` after the merged-main workspace test passed.
 - Binary GitHub Release: not published by this implementation task.
 - The release workflow accepts a full commit SHA already on `main`, verifies all
   supported native builds and installer lifecycle, then creates the annotated

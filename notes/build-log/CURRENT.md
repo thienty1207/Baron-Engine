@@ -1,11 +1,11 @@
 # Current Build Note
 
-Date: 2026-07-14
+Date: 2026-07-23
 Target: Baron 3.3.0
 
 ## Current Phase
 
-Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`verified`, push pending).
+Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`completed`, source pushed).
 
 ## What Is Being Built
 
@@ -17,8 +17,8 @@ Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`verified`, 
 
 1. Read `docs/BARON_STATUS.md`.
 2. Read `docs/superpowers/specs/2026-07-14-baron-3-3-trust-state-safety-design.md`.
-3. Execute `docs/superpowers/plans/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md` from Task 3.
-4. Append evidence to `notes/build-log/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md` after every RED/GREEN checkpoint.
+3. Treat the Baron 3.3 program as complete; do not reopen it without a new approved task.
+4. Publish a binary GitHub Release only when explicitly requested.
 
 ## Verified Baseline
 
@@ -28,7 +28,7 @@ Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`verified`, 
 - Phase 32 core, CLI, adapter, normal-help, formatting, and full adapter lifecycle tests pass.
 - Phase 33 state coherence, no-repair, read-only query, completion integrity, CLI, adapter, and formatting tests pass.
 - Phase 34 full no-skip tests, Clippy, release build, installer lifecycle, real project/Vault smoke, JSON, YAML, and static checks pass.
-- Quality reviews, merge, and `origin/main` push remain.
+- Full verification passed again on merged `main`; source commit `34a6cf4` is pushed to `origin/main`.
 
 ## Non-Negotiables
 
