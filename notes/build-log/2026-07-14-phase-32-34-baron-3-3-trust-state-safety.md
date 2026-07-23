@@ -32,8 +32,8 @@ Distill the latest useful trust-boundary lessons into Baron-owned behavior witho
 - [x] Phase 32 implementation and focused verification: 4 core, 3 CLI, 19 adapter lifecycle, normal-help, and formatting checks passed.
 - [x] Phase 33 RED tests: state guard was missing, query paths rewrote incompatible caches, and hand-edited completion was trusted.
 - [x] Phase 33 implementation and focused verification: state guard, read-only cache validation, completion integrity, CLI no-repair behavior, and adapter recovery guidance passed.
-- [ ] Phase 34 RED tests.
-- [ ] Phase 34 implementation, version bump, and full certification.
+- [x] Phase 34 RED tests: release identity API/CLI and proof-before-tag workflow contract failed before implementation.
+- [x] Phase 34 implementation, version bump, and full certification.
 - [ ] Merge and push `origin/main`.
 
 ## Safety Decisions
@@ -54,3 +54,16 @@ Distill the latest useful trust-boundary lessons into Baron-owned behavior witho
 - 9 execution CLI tests passed, including identity mismatch rejection with unchanged capsule metadata.
 - All targets in `baron-core`, `baron-adapters`, and `baron-cli` passed.
 - Formatting passed.
+
+## Phase 34 Evidence
+
+- Exact 40-character source SHA and expected-version manifest verification passed.
+- Release workflow is manual-candidate driven, tests before tag creation, checks `origin/main`, refuses existing tags/releases, and gives write permission only to final promotion.
+- All four native target definitions and per-runner binary version smokes remain required by workflow tests.
+- Installer install/update/rollback/uninstall and same-terminal PATH lifecycle passed at 3.3.0.
+- Real release-binary smoke passed Vault setup, Codex/fullstack init, context, authority, plan/proof/trace, completion integrity, update, and custom asset preservation.
+- `cargo fmt --all -- --check`: passed.
+- `cargo test --workspace --all-targets`: passed with no skipped tests.
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed.
+- `cargo build --release --locked -p baron-cli`: passed.
+- Status JSON parse, release YAML lint, static immutability checks, and `git diff --check`: passed.

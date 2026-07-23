@@ -100,9 +100,7 @@ pub fn build_release_manifest(
     inputs: &[ReleaseArtifactInput],
 ) -> Result<ReleaseManifest> {
     validate_version(version)?;
-    if source_revision.trim().is_empty() {
-        bail!("source revision cannot be empty");
-    }
+    validate_source_revision(source_revision)?;
 
     let mut artifacts = Vec::with_capacity(inputs.len());
     for input in inputs {
@@ -252,10 +250,35 @@ pub fn load_and_verify_release_metadata(artifacts_dir: &Path) -> Result<ReleaseM
     Ok(manifest)
 }
 
-fn validate_complete_manifest(manifest: &ReleaseManifest) -> Result<()> {
-    if manifest.source_revision.trim().is_empty() {
-        bail!("release manifest source revision cannot be empty");
+pub fn verify_release_identity(
+    manifest: &ReleaseManifest,
+    expected_version: &str,
+    expected_source_revision: &str,
+) -> Result<()> {
+    validate_version(expected_version)?;
+    validate_source_revision(expected_source_revision)?;
+    if manifest.version != expected_version {
+        bail!(
+            "release version mismatch: expected {}, got {}",
+            expected_version,
+            manifest.version
+        );
     }
+    if !manifest
+        .source_revision
+        .eq_ignore_ascii_case(expected_source_revision)
+    {
+        bail!(
+            "release source revision mismatch: expected {}, got {}",
+            expected_source_revision,
+            manifest.source_revision
+        );
+    }
+    Ok(())
+}
+
+fn validate_complete_manifest(manifest: &ReleaseManifest) -> Result<()> {
+    validate_source_revision(&manifest.source_revision)?;
     if manifest.artifacts.len() != SUPPORTED_RELEASE_TARGETS.len() {
         bail!("release manifest target set is invalid");
     }
@@ -307,6 +330,17 @@ fn validate_version(version: &str) -> Result<()> {
             .any(|part| part.is_empty() || part.parse::<u64>().is_err())
     {
         bail!("release version must use numeric major.minor.patch form");
+    }
+    Ok(())
+}
+
+fn validate_source_revision(source_revision: &str) -> Result<()> {
+    if source_revision.len() != 40
+        || !source_revision
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        bail!("source revision must be a 40-character hexadecimal Git commit SHA");
     }
     Ok(())
 }

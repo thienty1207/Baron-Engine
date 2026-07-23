@@ -1,15 +1,15 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-07-14",
-  "stableRelease": "3.2.0",
+  "stableRelease": "3.3.0",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "3.3.0",
-  "targetReleaseCompletionPercent": 65,
+  "targetReleaseCompletionPercent": 98,
   "remainingPhaseCount": 1,
   "currentPhase": "phase-34-immutable-release-promotion-certification",
   "currentPhaseStatus": "in_progress",
-  "nextAction": "Write Phase 34 release identity and proof before tag workflow RED tests.",
-  "buildConfidence": "Phases 32 and 33 pass authority state coherence no repair read only cache completion integrity CLI adapter and formatting verification.",
+  "nextAction": "Close quality reviews then merge and push origin main.",
+  "buildConfidence": "All no skip workspace tests formatting Clippy release build installer smoke real project Vault smoke JSON YAML and static checks pass.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -532,7 +532,7 @@
       "name": "Immutable Release Promotion And Baron 3.3 Certification",
       "status": "in_progress",
       "targetReleaseWeightPercent": 35,
-      "completionPercent": 0,
+      "completionPercent": 95,
       "requiredProof": [
         "exact source and release version identity",
         "native archives binary versions and checksums",

@@ -6,8 +6,8 @@ Last updated: 2026-07-14
 
 - Active phase: Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
 - Status: `in_progress`
-- Verification: Phases 32 and 33 focused and all-target crate suites passed
-- Next action: write release identity and proof-before-tag RED tests, then harden release promotion and certify Baron 3.3.0
+- Verification: full no-skip workspace tests, Clippy, release build, installer lifecycle, real project/Vault smoke, JSON, YAML, and static checks passed
+- Next action: close quality reviews, merge the verified branch, and push `origin/main`
 
 ## Baron 3.3 Contract
 

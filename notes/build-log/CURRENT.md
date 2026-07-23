@@ -5,7 +5,7 @@ Target: Baron 3.3.0
 
 ## Current Phase
 
-Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`in_progress`).
+Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`verified`, push pending).
 
 ## What Is Being Built
 
@@ -27,7 +27,8 @@ Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`in_progress
 - Baseline `cargo test --workspace --all-targets`: passed.
 - Phase 32 core, CLI, adapter, normal-help, formatting, and full adapter lifecycle tests pass.
 - Phase 33 state coherence, no-repair, read-only query, completion integrity, CLI, adapter, and formatting tests pass.
-- Phase 34 release identity and proof-before-tag work is next.
+- Phase 34 full no-skip tests, Clippy, release build, installer lifecycle, real project/Vault smoke, JSON, YAML, and static checks pass.
+- Quality reviews, merge, and `origin/main` push remain.
 
 ## Non-Negotiables
 

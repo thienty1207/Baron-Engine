@@ -34,7 +34,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "baron-3.2-release"
+    "baron-3.3-release"
 }
 
 #[cfg(test)]
@@ -44,6 +44,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "baron-3.2-release");
+        assert_eq!(phase(), "baron-3.3-release");
     }
 }

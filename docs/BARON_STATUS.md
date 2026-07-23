@@ -4,16 +4,16 @@ Last updated: 2026-07-14
 
 ## Overall
 
-- Stable source release: `v3.2.0`
+- Stable source release: `v3.3.0`
 - Baron 2.0 completion: 100%
 - Target source release: `v3.3.0`
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
-- Baron 3.3 completion: 30%
-- Remaining planned phases: 2
-- Current phase: Phase 33 - Coherent State And Completion Integrity
+- Baron 3.3 completion: 98%
+- Remaining planned phases: 1
+- Current phase: Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
 - Current phase status: in_progress
-- Current next action: write Phase 33 state-coherence, read-only SQLite, and completion-tampering RED tests.
+- Current next action: close the three quality reviews, merge verified source, and push `origin/main`.
 - Build confidence: Phase 32 authority core, CLI, all three generated adapters, normal-help isolation, formatting, and full adapter lifecycle tests pass.
 
 ## Baron 3.0 Direction
@@ -141,7 +141,7 @@ Baron 3.3 planned program:
 | Phase | Name | Status | Baron 3.3 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
 | 32 | Request Authority Contract | completed | 30% | read-only/change/ambiguous classifier, multilingual and mixed-intent tests, generated adapter no-mutation rules |
-| 33 | Coherent State And Completion Integrity | in_progress | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
+| 33 | Coherent State And Completion Integrity | completed | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
 | 34 | Immutable Release Promotion And Baron 3.3 Certification | pending | 35% | exact-source manifest proof, proof-before-tag workflow, native/installer smoke, full verification, v3.3.0 source push |
 
 Phase 16-17 final verification:
@@ -544,14 +544,28 @@ Phase 33 verification:
 
 ### Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
 
-- [ ] Build releases from an exact source candidate before any release tag exists.
-- [ ] Match requested version, Cargo version, source SHA, manifest, native archives, binary versions, and checksums.
-- [ ] Prove all supported native targets and installer lifecycle before promotion.
-- [ ] Give write permission only to the final promotion job.
-- [ ] Refuse existing tags/releases and never replace published assets.
-- [ ] Bump Baron to `3.3.0` and synchronize README, release docs, status, JSON, plan, build log, and certification.
-- [ ] Pass format, full workspace tests, Clippy, release build, installer lifecycle, JSON parse, static scans, and a real project/Vault smoke.
+- [x] Build releases from an exact source candidate before any release tag exists.
+- [x] Match requested version, Cargo version, source SHA, manifest, native archives, binary versions, and checksums.
+- [x] Prove all supported native targets and installer lifecycle before promotion.
+- [x] Give write permission only to the final promotion job.
+- [x] Refuse existing tags/releases and never replace published assets.
+- [x] Bump Baron to `3.3.0` and synchronize README, release docs, status, JSON, plan, build log, and certification.
+- [x] Pass the final no-skip workspace verification and static scans.
 - [ ] Push verified source to `origin/main`; keep binary release publication separate unless explicitly requested.
+
+Phase 34 candidate verification:
+
+- 8 release identity, checksum, tamper, and exact-source tests: passed
+- 2 release CLI identity tests: passed
+- release workflow proof-before-tag and single-writer contract: passed
+- installer install/update/rollback/uninstall lifecycle: passed
+- release binary reports `baron 3.3.0`: passed
+- real Vault/Codex/fullstack/context/plan/proof/trace/update preservation smoke: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets` with no skipped tests: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- `cargo build --release --locked -p baron-cli`: passed
+- status JSON, release YAML lint, static immutability scan, and `git diff --check`: passed
 
 Phase 28-31 final verification:
 
@@ -627,7 +641,7 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.2.0` is the current source release. Phases 27-31 are complete. The engine deepens project understanding,
+Baron `3.3.0` is the verified source candidate. Phases 32-33 are complete and Phase 34 awaits quality review closure and push. The engine deepens project understanding,
 platform expertise, safe architectural growth, frontend design quality, reviewer
 closure, and recovery while preserving the simple user command flow, Vault data
 safety, Superpowers workflow ownership, the three core quality gates, bounded

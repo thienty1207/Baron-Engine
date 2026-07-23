@@ -121,7 +121,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v3.2.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v3.3.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -133,13 +133,13 @@ Download one native archive and `SHA256SUMS` into the same directory.
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 3.2.0 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 3.3.0 -SourceDirectory D:\baron-release
 ```
 
 Linux or macOS:
 
 ```bash
-sh ./install.sh --version 3.2.0 --source-dir /path/to/baron-release
+sh ./install.sh --version 3.3.0 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -147,19 +147,21 @@ release mirror.
 
 ## Maintainer Release Contract
 
-The Git tag must equal `v<workspace-version>`. A tag mismatch fails before
-packaging. Native runners build and smoke each target. The release job then
+A release starts from an exact 40-character commit SHA already pushed as the
+current `origin/main`. No release tag exists yet. The workflow checks that the
+requested version matches Cargo, runs formatting, the full workspace tests and
+Clippy, then builds and smokes every native target. The final promotion job
 assembles all four archives and runs:
 
 ```bash
-baron release metadata release-assets --release-version 3.2.0 --source-revision <git-sha>
-baron release verify release-assets
+baron release metadata release-assets --release-version 3.3.0 --source-revision <40-character-git-sha>
+baron release verify release-assets --expected-version 3.3.0 --expected-source-revision <40-character-git-sha>
 ```
 
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
 
-Before publishing a `v3.2.0` release, also run:
+Before promoting a `v3.3.0` release, also run:
 
 ```bash
 baron certify run <repo-path> --vault <vault-path> --profile release
@@ -171,18 +173,21 @@ healthy at scale.
 ## Publishing `releases/latest`
 
 `releases/latest` is controlled by GitHub Releases, not by `Cargo.toml` alone.
-After source verification passes:
+Push the verified source commit to `main`, copy its full SHA, and dispatch the
+release workflow:
 
 ```bash
-git tag v3.2.0
 git push origin main
-git push origin v3.2.0
+git rev-parse HEAD
+gh workflow run release.yml -f release_version=3.3.0 -f source_revision=<40-character-git-sha>
 ```
 
-The `Baron Release` workflow builds the native archives, verifies checksums,
-adds both installers, and creates the GitHub Release. When the workflow
+The `Baron Release` workflow refuses an existing tag or Release, builds the
+native archives from that exact SHA, verifies checksums and installer lifecycle,
+and only then creates the annotated tag and immutable GitHub Release. Only the
+final promotion job has repository write permission. When the workflow
 finishes, `https://github.com/thienty1207/Baron-Engine/releases/latest` should
-point at `v3.2.0`.
+point at `v3.3.0`.
 
 Public smoke after the workflow:
 
