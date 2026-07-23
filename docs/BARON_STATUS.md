@@ -1,19 +1,20 @@
 # Baron Build Status
 
-Last updated: 2026-07-08
+Last updated: 2026-07-14
 
 ## Overall
 
-- Stable source release: `v3.2.0`
+- Stable source release: `v3.3.0`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.2.0`
+- Target source release: `v3.3.0`
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
-- Remaining planned phases: 0
-- Current phase: Phase 31 - Automation Certification And Baron 3.2 Release
-- Current phase status: completed
-- Current next action: no implementation phase remains; binary GitHub Release publication remains a separate explicit action.
-- Build confidence: Baron 3.2 formatting, full workspace tests, Clippy, installer lifecycle, release metadata, all-platform certification, and real fullstack-to-mobile Vault smoke pass.
+- Baron 3.3 completion: 98%
+- Remaining planned phases: 1
+- Current phase: Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
+- Current phase status: in_progress
+- Current next action: close the three quality reviews, merge verified source, and push `origin/main`.
+- Build confidence: Phase 32 authority core, CLI, all three generated adapters, normal-help isolation, formatting, and full adapter lifecycle tests pass.
 
 ## Baron 3.0 Direction
 
@@ -134,6 +135,14 @@ Baron 3.2 planned program:
 | 29 | Architecture Governor And Project Expansion | completed | 30% | primary-plus-extension model, safe `baron init --<platform>` expansion, structure/boundary/dependency contracts, old-repo no-destructive-change tests |
 | 30 | Baron Design Quality And Reviewer Closure | completed | 15% | Baron-native frontend quality checks, design-context guidance, bounded post-edit validation, evidence-backed reviewer closure tests |
 | 31 | Automation Certification And Baron 3.2 Release | completed | 15% | automatic adapter behavior, all-platform fixtures, fullstack-to-mobile expansion smoke, full verification, docs/status sync, v3.2.0 source proof |
+
+Baron 3.3 planned program:
+
+| Phase | Name | Status | Baron 3.3 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 32 | Request Authority Contract | completed | 30% | read-only/change/ambiguous classifier, multilingual and mixed-intent tests, generated adapter no-mutation rules |
+| 33 | Coherent State And Completion Integrity | completed | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
+| 34 | Immutable Release Promotion And Baron 3.3 Certification | pending | 35% | exact-source manifest proof, proof-before-tag workflow, native/installer smoke, full verification, v3.3.0 source push |
 
 Phase 16-17 final verification:
 
@@ -494,6 +503,70 @@ Phase 27 final verification:
 - [x] Synchronize README, architecture docs, generated adapter docs, status Markdown/JSON, build logs, version metadata, release assets, and public installation guidance.
 - [x] Push `v3.2.0` source only after all Phase 27-30 evidence is complete and the simple user flow remains intact; keep binary GitHub Release publication explicit.
 
+### Phase 32 - Request Authority Contract
+
+- [x] Classify requests as `read_only`, `change`, or `ambiguous` before Baron automation mutates durable state.
+- [x] Make explicit change outcomes win over review words, for example review plus apply fixes.
+- [x] Keep ambiguous requests read-only until change authority is explicit.
+- [x] Support common English and Vietnamese request intent without claiming perfect language understanding.
+- [x] Expose a hidden AI command and keep normal user help uncluttered.
+- [x] Update Codex, Claude, and generic adapters so answers, explanations, reviews, diagnoses, plans, and status reports do not create plan/Harness/proof/trace noise.
+- [x] Prove classification and no-mutation behavior with core, CLI, and adapter tests.
+
+Phase 32 verification:
+
+- authority RED test failed because the module did not exist
+- 4 core authority classification tests: passed
+- 3 hidden CLI and no-write tests: passed
+- all 19 adapter lifecycle tests: passed
+- normal user help remains uncluttered: passed
+- `cargo fmt --all -- --check`: passed
+
+### Phase 33 - Coherent State And Completion Integrity
+
+- [x] Validate project config, local Vault, capsule, and project identity before mutating execution state.
+- [x] Fail with an actionable `baron update` recovery path and leave files unchanged when state is missing or mismatched.
+- [x] Keep init/update as the only scaffold repair owners.
+- [x] Open SQLite-backed memory/session query paths read-only so inspection cannot fabricate an empty database.
+- [x] Detect completed plan text that lacks verification, proof, or passing trace evidence.
+- [x] Surface integrity diagnostics in plan status without treating hand-edited state as truth.
+- [x] Prove missing-state, mismatch, no-write, query, tampering, and preservation behavior.
+
+Phase 33 verification:
+
+- 4 coherent-state core tests: passed
+- 14 Vault memory tests, including incompatible read-only cache preservation: passed
+- 4 session replay tests, including incompatible read-only cache preservation: passed
+- 6 plan tests, including hand-edited completion detection and valid completion integrity: passed
+- 9 execution CLI tests, including identity mismatch no-repair behavior: passed
+- full `baron-core`, `baron-adapters`, and `baron-cli` all-target suites: passed
+- `cargo fmt --all -- --check`: passed
+
+### Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
+
+- [x] Build releases from an exact source candidate before any release tag exists.
+- [x] Match requested version, Cargo version, source SHA, manifest, native archives, binary versions, and checksums.
+- [x] Prove all supported native targets and installer lifecycle before promotion.
+- [x] Give write permission only to the final promotion job.
+- [x] Refuse existing tags/releases and never replace published assets.
+- [x] Bump Baron to `3.3.0` and synchronize README, release docs, status, JSON, plan, build log, and certification.
+- [x] Pass the final no-skip workspace verification and static scans.
+- [ ] Push verified source to `origin/main`; keep binary release publication separate unless explicitly requested.
+
+Phase 34 candidate verification:
+
+- 8 release identity, checksum, tamper, and exact-source tests: passed
+- 2 release CLI identity tests: passed
+- release workflow proof-before-tag and single-writer contract: passed
+- installer install/update/rollback/uninstall lifecycle: passed
+- release binary reports `baron 3.3.0`: passed
+- real Vault/Codex/fullstack/context/plan/proof/trace/update preservation smoke: passed
+- `cargo fmt --all -- --check`: passed
+- `cargo test --workspace --all-targets` with no skipped tests: passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed
+- `cargo build --release --locked -p baron-cli`: passed
+- status JSON, release YAML lint, static immutability scan, and `git diff --check`: passed
+
 Phase 28-31 final verification:
 
 - all nine platform profile fixtures: passed
@@ -568,7 +641,7 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.2.0` is the current source release. Phases 27-31 are complete. The engine deepens project understanding,
+Baron `3.3.0` is the verified source candidate. Phases 32-33 are complete and Phase 34 awaits quality review closure and push. The engine deepens project understanding,
 platform expertise, safe architectural growth, frontend design quality, reviewer
 closure, and recovery while preserving the simple user command flow, Vault data
 safety, Superpowers workflow ownership, the three core quality gates, bounded

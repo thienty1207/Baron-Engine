@@ -29,12 +29,14 @@ fn ci_covers_all_supported_native_platforms_and_quality_gates() {
 }
 
 #[test]
-fn release_workflow_builds_native_archives_and_publishes_verified_metadata() {
+fn release_workflow_proves_an_exact_candidate_before_immutable_promotion() {
     let workflow =
         fs::read_to_string(workspace_root().join(".github/workflows/release.yml")).unwrap();
 
     for required in [
-        "tags:",
+        "workflow_dispatch:",
+        "release_version:",
+        "source_revision:",
         "actions/checkout@v6",
         "actions/upload-artifact@v7",
         "actions/download-artifact@v8",
@@ -50,10 +52,26 @@ fn release_workflow_builds_native_archives_and_publishes_verified_metadata() {
         "installers/install.sh",
         "gh release create",
         "contents: write",
+        "git ls-remote --exit-code --tags",
+        "gh release view",
+        "git tag -a",
     ] {
         assert!(
             workflow.contains(required),
             "release workflow is missing {required}"
         );
     }
+    assert!(!workflow.contains("tags:\n"));
+    assert!(!workflow.contains("--clobber"));
+    assert!(workflow.contains("contents: read"));
+    assert_eq!(workflow.matches("contents: write").count(), 1);
+    assert!(workflow.contains("ref: ${{ needs.verify-candidate.outputs.source_sha }}"));
+
+    let full_test = workflow
+        .find("cargo test --workspace --all-targets")
+        .unwrap();
+    let create_tag = workflow.find("git tag -a").unwrap();
+    let create_release = workflow.find("gh release create").unwrap();
+    assert!(full_test < create_tag);
+    assert!(create_tag < create_release);
 }

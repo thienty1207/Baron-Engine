@@ -600,6 +600,43 @@ fn every_adapter_automates_platform_architecture_and_review_closure() {
 }
 
 #[test]
+fn every_adapter_classifies_request_authority_before_durable_writes() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    fs::create_dir_all(&repo).unwrap();
+    for adapter in [
+        AgentAdapter::Codex,
+        AgentAdapter::Claude,
+        AgentAdapter::Generic,
+    ] {
+        install_adapter(&repo, adapter).unwrap();
+    }
+
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+        let content = fs::read_to_string(repo.join(path)).unwrap();
+        assert!(
+            content.contains("baron authority classify"),
+            "{path} must classify request authority before automation"
+        );
+        assert!(content.contains("read_only"), "{path}");
+        assert!(content.contains("ambiguous"), "{path}");
+        assert!(
+            content.contains("do not create or update plan, Harness, proof, trace, review, friction, or learning state"),
+            "{path} must keep inspection requests mutation-free"
+        );
+        assert!(
+            content.contains("review and apply fixes"),
+            "{path} must classify by requested outcome, not one keyword"
+        );
+        assert!(content.contains("run `baron update`"), "{path}");
+        assert!(
+            content.contains("never repair Baron metadata by hand"),
+            "{path}"
+        );
+    }
+}
+
+#[test]
 fn generated_indexes_define_strict_contract_fields_and_control_plane_startup() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

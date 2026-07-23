@@ -10,6 +10,7 @@ use crate::vault::project_slug;
 
 const PROJECT_CONFIG_PATH: &str = ".baron/project.toml";
 const LOCAL_CONFIG_PATH: &str = ".baron/local.toml";
+pub const PROJECT_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -103,7 +104,7 @@ pub fn initialize_project_with_options(
         load_project_config(&repo_root)?
     } else {
         ProjectConfig {
-            schema_version: 4,
+            schema_version: PROJECT_SCHEMA_VERSION,
             project_id: project_id_for_path(&repo_root)?,
             project_slug: project_slug(&repo_root),
             platform: None,
@@ -115,7 +116,7 @@ pub fn initialize_project_with_options(
     if config.project_id.is_empty() {
         config.project_id = project_id_for_path(&repo_root)?;
     }
-    config.schema_version = 4;
+    config.schema_version = PROJECT_SCHEMA_VERSION;
     if let Some(platform) = platform {
         reconcile_platform(&mut config, platform);
     }
@@ -143,7 +144,7 @@ pub fn set_project_platform(
 ) -> Result<ProjectConfig> {
     let repo_root = find_project_root(repo_path)?;
     let mut config = load_project_config(&repo_root)?;
-    config.schema_version = 4;
+    config.schema_version = PROJECT_SCHEMA_VERSION;
     reconcile_platform(&mut config, platform);
     atomic_write(
         &repo_root.join(PROJECT_CONFIG_PATH),

@@ -37,7 +37,7 @@ fn collect_public_text_files(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn readme_is_public_trust_landing_page_not_command_dump() {
     let readme = read("README.md");
-    assert!(readme.contains("Current version: `3.2.0`"));
+    assert!(readme.contains("Current version: `3.3.0`"));
     assert!(readme.contains("## Quick Start"));
     assert!(readme.contains("## Demo"));
     assert!(readme.contains("## Public Proof"));
@@ -94,16 +94,37 @@ fn public_demo_and_certification_docs_are_present() {
 }
 
 #[test]
+fn baron_3_3_certification_records_trust_state_and_release_evidence() {
+    let certification = read("docs/assessment/baron-3.3.0-certification.md");
+
+    for required in [
+        "Request Authority",
+        "Coherent State",
+        "Completion Integrity",
+        "cargo test --workspace --all-targets",
+        "cargo clippy --workspace --all-targets -- -D warnings",
+        "cargo build --release --locked -p baron-cli",
+        "exact source revision",
+        "Binary GitHub Release",
+    ] {
+        assert!(
+            certification.contains(required),
+            "Baron 3.3 certification is missing {required}"
+        );
+    }
+}
+
+#[test]
 fn status_tracks_public_trust_phase() {
     let status_md = read("docs/BARON_STATUS.md");
-    assert!(status_md.contains("Stable source release: `v3.2.0`"));
+    assert!(status_md.contains("Stable source release: `v3.3.0`"));
     assert!(status_md.contains("Phase 24 - Public Trust Release"));
     assert!(status_md.contains("Public Trust 3.1.2 final verification"));
 
     let status_json: serde_json::Value =
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
-    assert_eq!(status_json["stableRelease"], "3.2.0");
-    assert_eq!(status_json["targetRelease"], "3.2.0");
+    assert_eq!(status_json["stableRelease"], "3.3.0");
+    assert_eq!(status_json["targetRelease"], "3.3.0");
     assert!(status_json["currentPhase"]
         .as_str()
         .is_some_and(|phase| !phase.is_empty()));

@@ -135,7 +135,7 @@ Release automation uses two hidden maintainer commands:
 
 ```bash
 baron release metadata <artifacts-dir> --release-version <version> --source-revision <git-sha>
-baron release verify <artifacts-dir>
+baron release verify <artifacts-dir> --expected-version <version> --expected-source-revision <40-character-git-sha>
 ```
 
 They generate and verify `SHA256SUMS` plus `release-manifest.json` for the
@@ -321,7 +321,7 @@ Baron 3.0 certification uses the existing release and certification commands:
 baron certify run [repo-path] --vault <vault-path> --profile <smoke|release|extreme>
 baron certify status [repo-path]
 baron release metadata <artifacts-dir> --release-version <version> --source-revision <git-sha>
-baron release verify <artifacts-dir>
+baron release verify <artifacts-dir> --expected-version <version> --expected-source-revision <40-character-git-sha>
 ```
 
 Certification includes memory firewall, context budget, observable automation,

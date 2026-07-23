@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -128,8 +128,7 @@ pub fn search_session_replay(
     if terms.is_empty() {
         return Ok(Vec::new());
     }
-    let connection = Connection::open(session_index_path(vault))?;
-    create_schema(&connection)?;
+    let connection = open_read_index(vault)?;
     let mut statement = connection.prepare(
         "SELECT message_id, project_id, project_slug, source_path, ordinal, role, text
          FROM session_messages
@@ -181,8 +180,7 @@ pub fn replay_session_context(
     if !session_index_path(vault).exists() {
         bail!("Session replay index does not exist. Run `baron session-replay index` first.");
     }
-    let connection = Connection::open(session_index_path(vault))?;
-    create_schema(&connection)?;
+    let connection = open_read_index(vault)?;
     let mut statement = connection.prepare(
         "SELECT project_id, project_slug, source_path, ordinal
          FROM session_messages
@@ -232,6 +230,18 @@ pub fn replay_session_context(
         source_path: target.2,
         messages,
     })
+}
+
+fn open_read_index(vault: &VaultContext) -> Result<Connection> {
+    let connection =
+        Connection::open_with_flags(session_index_path(vault), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    let current: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if current != SCHEMA_VERSION {
+        bail!(
+            "Session replay index schema is incompatible; rebuild it with `baron session-replay index`."
+        );
+    }
+    Ok(connection)
 }
 
 pub fn render_session_replay_hits(hits: &[SessionReplaySearchResult]) -> String {

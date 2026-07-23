@@ -6,7 +6,7 @@ It turns an existing software repository into an agent-ready workspace for
 Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
-Current version: `3.2.0`.
+Current version: `3.3.0`.
 
 ## What Baron Does
 
@@ -22,9 +22,11 @@ Under the hood, Baron combines a repository survey, Vault-backed memory, memory
 firewall, context compiler, active plan state, Product Harness, proof gates,
 trace quality, session replay, safe runtime policy, and strict skill/agent
 routing. Baron now adds deep platform profiles, a non-destructive architecture
-governor, evidence-backed reviewer closure, confirmed task intent, and actionable recovery
-point so a failed or interrupted session can resume without guessing. The
-normal user flow stays small.
+governor, evidence-backed reviewer closure, confirmed task intent, and an
+actionable recovery point so a failed or interrupted session can resume
+without guessing. Baron 3.3 also separates inspection from authorized changes,
+refuses incoherent project/Vault identity, and rechecks completion against real
+proof instead of trusting edited status text. The normal user flow stays small.
 
 ## Quick Start
 
@@ -131,6 +133,8 @@ proof gates, trace output, session replay, and safe runtime backend checks.
 The installer verifies downloads against `SHA256SUMS` before replacing the
 binary. Update keeps a rollback binary. Uninstall removes only Baron itself and
 does not delete project files, adapters, `.baron/`, or Vault Markdown.
+Release tags are created only after the exact source commit, all native builds,
+checksums, and installer lifecycle have passed verification.
 
 For current implementation status, read
 [docs/BARON_STATUS.md](docs/BARON_STATUS.md).

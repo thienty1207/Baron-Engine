@@ -7,6 +7,7 @@ use baron_core::architecture::ensure_architecture_governor;
 use baron_core::asset_lifecycle::{
     audit_runtime_assets, quarantine_failing_assets, stage_skill_update,
 };
+use baron_core::authority::classify_request;
 use baron_core::automation::{
     automation_status, handle_hook, reconcile, record_lifecycle_event, AutomationEvent, HookAdapter,
 };
@@ -54,12 +55,15 @@ use baron_core::plan::{
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
-use baron_core::release::{load_and_verify_release_metadata, write_release_metadata};
+use baron_core::release::{
+    load_and_verify_release_metadata, verify_release_identity, write_release_metadata,
+};
 use baron_core::review_gate::{close_finding, record_finding, review_status, ReviewFindingInput};
 use baron_core::session::{import_sessions, import_state_summary};
 use baron_core::session_replay::{
     index_session_replay, replay_session_context, search_session_replay,
 };
+use baron_core::state_guard::require_coherent_execution_state;
 use baron_core::survey::{render_project_atlas, survey_repository};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
@@ -126,6 +130,11 @@ enum Commands {
         claude: bool,
         #[arg(long = "agent")]
         agent: bool,
+    },
+    #[command(hide = true)]
+    Authority {
+        #[command(subcommand)]
+        command: AuthorityCommands,
     },
     #[command(hide = true)]
     Memory {
@@ -234,6 +243,15 @@ enum Commands {
     Release {
         #[command(subcommand)]
         command: ReleaseCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AuthorityCommands {
+    Classify {
+        request: String,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -628,6 +646,10 @@ enum ReleaseCommands {
     },
     Verify {
         artifacts_dir: PathBuf,
+        #[arg(long)]
+        expected_version: String,
+        #[arg(long)]
+        expected_source_revision: String,
     },
 }
 
@@ -700,6 +722,27 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Some(Commands::Authority { command }) => match command {
+            AuthorityCommands::Classify { request, json } => {
+                let decision = classify_request(&request);
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&decision)?);
+                } else {
+                    println!("# Baron Request Authority\n");
+                    println!("- Authority: `{}`", decision.authority.as_str());
+                    println!(
+                        "- Mutation allowed: `{}`",
+                        if decision.mutation_allowed() {
+                            "yes"
+                        } else {
+                            "no"
+                        }
+                    );
+                    println!("- Reason: {}", decision.reason);
+                    println!("- Next action: {}", decision.next_action);
+                }
+            }
+        },
         Some(Commands::Setup { vault }) => {
             let vault_path = vault.unwrap_or(std::env::current_dir()?);
             let configured = setup_machine_vault(&vault_path)?;
@@ -862,14 +905,14 @@ fn run() -> Result<()> {
             MemoryCommands::Compact { repo_path, vault } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
-                let context = ensure_vault(vault_path, repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
                 print!("{}", compact_memory_brief(&context)?);
             }
             MemoryCommands::ImportSessions { repo_path, vault } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
-                let context = ensure_vault(vault_path, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 let report = import_sessions(&repo_path, &context, 20)?;
                 build_memory_index(&context)?;
                 println!("# Baron Session Import\n");
@@ -889,7 +932,7 @@ fn run() -> Result<()> {
         }) => {
             let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
             let vault_path = resolve_command_vault(vault, &repo_path)?;
-            let context = ensure_vault(vault_path, repo_path)?;
+            let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             build_memory_index(&context)?;
             print!("{}", render_recall(&recall(&context, &query, 8)?));
         }
@@ -910,12 +953,12 @@ fn run() -> Result<()> {
                 .map(agent_adapter)
                 .map(context_target);
             let target = parse_context_target(codex, claude, agent, why, default)?;
+            let vault_context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             if why {
                 print!("{}", compile_context_why(repo_path, vault_path, target)?);
             } else {
                 let output =
                     compile_context_for_task(&repo_path, &vault_path, target, task.as_deref())?;
-                let vault_context = ensure_vault(&vault_path, &repo_path)?;
                 record_lifecycle_event(
                     &vault_context,
                     hook_adapter_for_repo(&repo_path),
@@ -1519,7 +1562,7 @@ fn run() -> Result<()> {
             SessionReplayCommands::Index { repo_path, vault } => {
                 let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_root)?;
-                let context = ensure_vault(vault_path, repo_root)?;
+                let context = coherent_or_bootstrap_context(&repo_root, &vault_path)?;
                 let report = index_session_replay(&context)?;
                 println!("# Baron Session Replay Index\n");
                 println!("- Sources: {}", report.indexed_sources);
@@ -1534,7 +1577,7 @@ fn run() -> Result<()> {
             } => {
                 let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_root)?;
-                let context = ensure_vault(vault_path, repo_root)?;
+                let context = coherent_or_bootstrap_context(&repo_root, &vault_path)?;
                 index_session_replay(&context)?;
                 let hits = search_session_replay(&context, &query, limit)?;
                 println!("# Baron Session Replay Search\n");
@@ -1558,7 +1601,7 @@ fn run() -> Result<()> {
             } => {
                 let repo_root = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
                 let vault_path = resolve_command_vault(vault, &repo_root)?;
-                let context = ensure_vault(vault_path, repo_root)?;
+                let context = coherent_or_bootstrap_context(&repo_root, &vault_path)?;
                 let replay = replay_session_context(&context, &message_id, radius)?;
                 println!("# Baron Session Replay\n");
                 println!("- Project: `{}`", replay.project_slug);
@@ -1761,11 +1804,17 @@ fn run() -> Result<()> {
                 println!("- Source revision: `{}`", manifest.source_revision);
                 println!("- Artifacts: {}", manifest.artifacts.len());
             }
-            ReleaseCommands::Verify { artifacts_dir } => {
+            ReleaseCommands::Verify {
+                artifacts_dir,
+                expected_version,
+                expected_source_revision,
+            } => {
                 let manifest = load_and_verify_release_metadata(&artifacts_dir)?;
+                verify_release_identity(&manifest, &expected_version, &expected_source_revision)?;
                 println!("# Baron Release Verification\n");
                 println!("- Release assets verified");
                 println!("- Version: `{}`", manifest.version);
+                println!("- Source revision: `{}`", manifest.source_revision);
                 println!("- Artifacts: {}", manifest.artifacts.len());
             }
         },
@@ -2092,8 +2141,19 @@ fn execution_context(
 ) -> Result<(PathBuf, baron_core::vault::VaultContext)> {
     let repo_root = configured_repo(repo_path)?;
     let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
-    let vault = ensure_vault(vault_path, &repo_root)?;
+    let vault = require_coherent_execution_state(&repo_root, vault_path)?;
     Ok((repo_root, vault))
+}
+
+fn coherent_or_bootstrap_context(
+    repo_root: &std::path::Path,
+    vault_path: &std::path::Path,
+) -> Result<baron_core::vault::VaultContext> {
+    if repo_root.join(".baron/project.toml").is_file() {
+        require_coherent_execution_state(repo_root, vault_path)
+    } else {
+        ensure_vault(vault_path, repo_root)
+    }
 }
 
 fn hook_adapter_for_repo(repo_root: &std::path::Path) -> HookAdapter {

@@ -2,9 +2,12 @@ use std::fs;
 
 use baron_core::release::{
     build_release_manifest, load_and_verify_release_metadata, render_sha256sums,
-    verify_release_assets, write_release_metadata, ReleaseArtifactInput, SUPPORTED_RELEASE_TARGETS,
+    verify_release_assets, verify_release_identity, write_release_metadata, ReleaseArtifactInput,
+    SUPPORTED_RELEASE_TARGETS,
 };
 use tempfile::tempdir;
+
+const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
 
 #[test]
 fn supported_targets_have_stable_native_archive_names() {
@@ -36,7 +39,7 @@ fn manifest_and_checksum_output_are_deterministic_and_verifiable() {
 
     let manifest = build_release_manifest(
         "3.2.0",
-        "abc123",
+        SOURCE_REVISION,
         &[
             ReleaseArtifactInput::new("x86_64-unknown-linux-gnu", &linux),
             ReleaseArtifactInput::new("x86_64-pc-windows-msvc", &windows),
@@ -47,7 +50,7 @@ fn manifest_and_checksum_output_are_deterministic_and_verifiable() {
     assert_eq!(manifest.schema_version, 1);
     assert_eq!(manifest.product, "Baron Engine");
     assert_eq!(manifest.version, "3.2.0");
-    assert_eq!(manifest.source_revision, "abc123");
+    assert_eq!(manifest.source_revision, SOURCE_REVISION);
     assert_eq!(manifest.artifacts.len(), 2);
     assert_eq!(
         manifest.artifacts[0].name,
@@ -75,7 +78,7 @@ fn verification_rejects_an_archive_modified_after_manifest_generation() {
     fs::write(&archive, b"original").unwrap();
     let manifest = build_release_manifest(
         "3.2.0",
-        "abc123",
+        SOURCE_REVISION,
         &[ReleaseArtifactInput::new(
             "x86_64-unknown-linux-gnu",
             &archive,
@@ -103,7 +106,7 @@ fn release_metadata_writer_requires_and_verifies_the_complete_platform_set() {
         .unwrap();
     }
 
-    write_release_metadata(temp.path(), "3.2.0", "abc123").unwrap();
+    write_release_metadata(temp.path(), "3.2.0", SOURCE_REVISION).unwrap();
 
     assert!(temp.path().join("SHA256SUMS").is_file());
     assert!(temp.path().join("release-manifest.json").is_file());
@@ -120,7 +123,7 @@ fn release_metadata_writer_rejects_a_missing_supported_target() {
     )
     .unwrap();
 
-    let error = write_release_metadata(temp.path(), "3.2.0", "abc123")
+    let error = write_release_metadata(temp.path(), "3.2.0", SOURCE_REVISION)
         .unwrap_err()
         .to_string();
     assert!(error.contains("missing release artifact"));
@@ -136,7 +139,7 @@ fn metadata_verification_rejects_tampered_target_identity() {
         )
         .unwrap();
     }
-    write_release_metadata(temp.path(), "3.2.0", "abc123").unwrap();
+    write_release_metadata(temp.path(), "3.2.0", SOURCE_REVISION).unwrap();
 
     let manifest_path = temp.path().join("release-manifest.json");
     let mut json: serde_json::Value =
@@ -152,4 +155,32 @@ fn metadata_verification_rejects_tampered_target_identity() {
         .unwrap_err()
         .to_string();
     assert!(error.contains("release manifest target set is invalid"));
+}
+
+#[test]
+fn source_revision_must_be_an_exact_git_commit_sha() {
+    let error = build_release_manifest("3.2.0", "abc123", &[])
+        .unwrap_err()
+        .to_string();
+
+    assert!(error.contains("40-character"));
+}
+
+#[test]
+fn release_identity_must_match_the_approved_version_and_source() {
+    let manifest = build_release_manifest("3.2.0", SOURCE_REVISION, &[]).unwrap();
+
+    verify_release_identity(&manifest, "3.2.0", SOURCE_REVISION).unwrap();
+    assert!(verify_release_identity(&manifest, "3.3.0", SOURCE_REVISION)
+        .unwrap_err()
+        .to_string()
+        .contains("version mismatch"));
+    assert!(verify_release_identity(
+        &manifest,
+        "3.2.0",
+        "ffffffffffffffffffffffffffffffffffffffff"
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("source revision mismatch"));
 }

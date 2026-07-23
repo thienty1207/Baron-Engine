@@ -1,5 +1,6 @@
 pub mod architecture;
 pub mod asset_lifecycle;
+pub mod authority;
 pub mod automation;
 pub mod autopilot;
 pub mod capability;
@@ -23,6 +24,7 @@ pub mod review_gate;
 pub mod risk;
 pub mod session;
 pub mod session_replay;
+pub mod state_guard;
 pub mod survey;
 pub mod trace;
 pub mod vault;
@@ -32,7 +34,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "baron-3.2-release"
+    "baron-3.3-release"
 }
 
 #[cfg(test)]
@@ -42,6 +44,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "baron-3.2-release");
+        assert_eq!(phase(), "baron-3.3-release");
     }
 }

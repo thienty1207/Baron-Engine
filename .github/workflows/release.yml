@@ -1,37 +1,77 @@
 name: Baron Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Numeric Baron version to promote, without the v prefix
+        required: true
+        type: string
+      source_revision:
+        description: Exact 40-character commit SHA already present on main
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  verify-version:
-    name: Verify release version
+  verify-candidate:
+    name: Verify exact release candidate
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ steps.identity.outputs.version }}
+      source_sha: ${{ steps.identity.outputs.source_sha }}
     steps:
       - uses: actions/checkout@v6
-      - name: Match tag to Cargo version
-        id: version
+        with:
+          ref: ${{ inputs.source_revision }}
+          fetch-depth: 0
+      - name: Verify version, source identity, and immutability preconditions
+        id: identity
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.release_version }}
+          REQUESTED_SOURCE: ${{ inputs.source_revision }}
         run: |
+          set -euo pipefail
           version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "baron-cli") | .version')"
-          if [[ "v$version" != "$GITHUB_REF_NAME" ]]; then
-            echo "Tag $GITHUB_REF_NAME does not match Baron workspace version $version." >&2
+          source_sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main
+          remote_main="$(git rev-parse origin/main)"
+          if [[ "$REQUESTED_VERSION" != "$version" ]]; then
+            echo "Requested version $REQUESTED_VERSION does not match Baron workspace version $version." >&2
+            exit 1
+          fi
+          if [[ ! "$REQUESTED_SOURCE" =~ ^[0-9a-fA-F]{40}$ ]] || [[ "${REQUESTED_SOURCE,,}" != "${source_sha,,}" ]]; then
+            echo "Requested source revision must exactly match checked-out commit $source_sha." >&2
+            exit 1
+          fi
+          if [[ "$source_sha" != "$remote_main" ]]; then
+            echo "Release source $source_sha is not the current origin/main commit $remote_main." >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null 2>&1; then
+            echo "Release tag v$version already exists; Baron never replaces published release identity." >&2
+            exit 1
+          fi
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "GitHub Release v$version already exists; Baron never replaces published assets." >&2
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Verify source before packaging
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Verify formatting
+        run: cargo fmt --all -- --check
+      - name: Verify full workspace
         run: cargo test --workspace --all-targets
+      - name: Verify Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
   build-native:
     name: Build ${{ matrix.target }}
-    needs: verify-version
+    needs: verify-candidate
     strategy:
       fail-fast: false
       matrix:
@@ -51,6 +91,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.verify-candidate.outputs.source_sha }}
       - name: Install Rust
         shell: bash
         run: |
@@ -58,60 +100,69 @@ jobs:
           rustup default stable
       - name: Build native release binary
         run: cargo build --release --locked -p baron-cli
-      - name: Smoke native release binary
+      - name: Smoke native release binary and exact version
         shell: bash
         run: |
+          expected="baron ${{ needs.verify-candidate.outputs.version }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ./target/release/baron.exe --version
+            actual="$(./target/release/baron.exe --version)"
           else
-            ./target/release/baron --version
+            actual="$(./target/release/baron --version)"
           fi
+          test "$actual" = "$expected"
       - name: Package Windows archive
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $name = "baron-v${{ needs.verify-version.outputs.version }}-${{ matrix.target }}.zip"
-          Compress-Archive -LiteralPath target/release/baron.exe -DestinationPath $name -Force
+          $name = "baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}.zip"
+          Compress-Archive -LiteralPath target/release/baron.exe -DestinationPath $name
       - name: Package Unix archive
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          name="baron-v${{ needs.verify-version.outputs.version }}-${{ matrix.target }}.tar.gz"
+          name="baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}.tar.gz"
           tar -czf "$name" -C target/release baron
       - name: Upload native archive
         uses: actions/upload-artifact@v7
         with:
           name: baron-${{ matrix.target }}
-          path: baron-v${{ needs.verify-version.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+          path: baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
           if-no-files-found: error
           retention-days: 7
 
   publish:
-    name: Verify and publish release assets
+    name: Verify and promote immutable release
     needs:
-      - verify-version
+      - verify-candidate
       - build-native
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.verify-candidate.outputs.source_sha }}
+          fetch-depth: 0
       - name: Download native archives
         uses: actions/download-artifact@v8
         with:
           pattern: baron-*
           path: release-assets
           merge-multiple: true
-      - name: Build release verifier
+      - name: Build release verifier from approved source
         run: cargo build --release --locked -p baron-cli
-      - name: Generate checksums and release manifest
+      - name: Generate checksums and exact-source manifest
         run: |
           ./target/release/baron release metadata release-assets \
-            --release-version "${{ needs.verify-version.outputs.version }}" \
-            --source-revision "$GITHUB_SHA"
-      - name: Verify assembled release assets
+            --release-version "${{ needs.verify-candidate.outputs.version }}" \
+            --source-revision "${{ needs.verify-candidate.outputs.source_sha }}"
+      - name: Verify assembled release identity and assets
         run: |
           test -f release-assets/SHA256SUMS
           test -f release-assets/release-manifest.json
-          ./target/release/baron release verify release-assets
+          ./target/release/baron release verify release-assets \
+            --expected-version "${{ needs.verify-candidate.outputs.version }}" \
+            --expected-source-revision "${{ needs.verify-candidate.outputs.source_sha }}"
       - name: Add checksum-verifying installers
         run: |
           cp installers/install.ps1 release-assets/install.ps1
@@ -120,30 +171,48 @@ jobs:
         run: |
           install_dir="$RUNNER_TEMP/baron-bin"
           sh installers/install.sh --action install \
-            --version "${{ needs.verify-version.outputs.version }}" \
+            --version "${{ needs.verify-candidate.outputs.version }}" \
             --install-dir "$install_dir" \
             --source-dir release-assets
           sh installers/install.sh --action update \
-            --version "${{ needs.verify-version.outputs.version }}" \
+            --version "${{ needs.verify-candidate.outputs.version }}" \
             --install-dir "$install_dir" \
             --source-dir release-assets
           sh installers/install.sh --action rollback \
-            --version "${{ needs.verify-version.outputs.version }}" \
+            --version "${{ needs.verify-candidate.outputs.version }}" \
             --install-dir "$install_dir"
           sh installers/install.sh --action uninstall \
-            --version "${{ needs.verify-version.outputs.version }}" \
+            --version "${{ needs.verify-candidate.outputs.version }}" \
             --install-dir "$install_dir"
-      - name: Upload verified release bundle
-        uses: actions/upload-artifact@v7
-        with:
-          name: baron-release-${{ needs.verify-version.outputs.version }}
-          path: release-assets/*
-          if-no-files-found: error
-      - name: Create GitHub Release
+      - name: Recheck immutable destination immediately before promotion
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release-assets/* \
-            --title "Baron ${{ needs.verify-version.outputs.version }}" \
-            --generate-notes \
-            --verify-tag
+          set -euo pipefail
+          version="${{ needs.verify-candidate.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null 2>&1; then
+            echo "Release tag v$version appeared during verification; refusing promotion." >&2
+            exit 1
+          fi
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "GitHub Release v$version appeared during verification; refusing promotion." >&2
+            exit 1
+          fi
+      - name: Create annotated release tag after all proof passes
+        shell: bash
+        run: |
+          version="${{ needs.verify-candidate.outputs.version }}"
+          source_sha="${{ needs.verify-candidate.outputs.source_sha }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$version" "$source_sha" -m "Baron $version"
+          git push origin "refs/tags/v$version"
+      - name: Create immutable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ needs.verify-candidate.outputs.version }}"
+          gh release create "v$version" release-assets/* \
+            --title "Baron $version" \
+            --generate-notes
