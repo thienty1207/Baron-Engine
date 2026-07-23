@@ -6,15 +6,16 @@ Last updated: 2026-07-23
 
 - Stable source release: `v3.3.0`
 - Baron 2.0 completion: 100%
-- Target source release: `v3.3.0`
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Remaining planned phases: 0
-- Current phase: Phase 34 - Immutable Release Promotion And Baron 3.3 Certification
-- Current phase status: completed
-- Current next action: publish a binary GitHub Release only when explicitly requested.
-- Build confidence: Baron 3.3 source is on `origin/main`; full workspace tests, formatting, Clippy, release build, installer lifecycle, and real project/Vault smoke passed.
+- Target source release: `v3.4.0`
+- Baron 3.4 completion: 0%
+- Remaining planned phases: 4
+- Current phase: Phase 35 - Managed Baseline And Update Planner
+- Current phase status: planned
+- Current next action: implement Phase 35 RED tests and the read-only managed update planner.
+- Build confidence: the Baron 3.3 baseline passes the full no-skip workspace test suite; Baron 3.4 is planned but has no implementation evidence yet.
 
 ## Baron 3.0 Direction
 
@@ -30,7 +31,23 @@ Core remains unchanged:
 - Vault Markdown remains Baron's durable source of truth.
 - Optional skills and optional agents remain lazy-routed, never core.
 
-## Why The Roadmap Is Complete
+## Baron 3.4 Direction
+
+Baron 3.4 makes the simple public `baron update` command safe enough to own both
+runtime updates and Baron-managed project refreshes.
+
+The program has four safety boundaries:
+
+- remember the exact managed baseline before deciding what changed
+- verify the new release candidate before it can touch the project
+- stage conflicts and recover interrupted activation without data loss
+- keep human release authority separate from AI local repair
+
+The normal user still runs only `baron update`. Hidden continuation, abort, and
+local reconciliation surfaces exist for recovery and AI automation without
+crowding the public command flow.
+
+## Completed Foundation
 
 The `v1.0.0` release was the working foundation. Baron `v2.0.0` completes the
 long-horizon program by adding:
@@ -143,6 +160,15 @@ Baron 3.3 planned program:
 | 32 | Request Authority Contract | completed | 30% | read-only/change/ambiguous classifier, multilingual and mixed-intent tests, generated adapter no-mutation rules |
 | 33 | Coherent State And Completion Integrity | completed | 35% | state identity guard, no-write failure behavior, read-only SQLite queries, tampered-completion detection |
 | 34 | Immutable Release Promotion And Baron 3.3 Certification | completed | 35% | exact-source manifest proof, proof-before-tag workflow, native/installer smoke, full verification, v3.3.0 source push |
+
+Baron 3.4 planned program:
+
+| Phase | Name | Status | Baron 3.4 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 35 | Managed Baseline And Update Planner | planned | 25% | managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, read-only dry-run tests |
+| 36 | Verified Release Candidate And Binary Handoff | planned | 25% | exact candidate target/version/source/checksum proof, downgrade refusal, raw release assets, installer compatibility |
+| 37 | Conflict-Safe Activation And Recovery | planned | 30% | no-write conflict staging, frozen continuation, abort, transactional rollback, Windows/Unix recovery tests |
+| 38 | Automation Contract And Baron 3.4 Certification | planned | 20% | local-only AI reconcile, one-command user update, full native/lifecycle certification, version and docs synchronization |
 
 Phase 16-17 final verification:
 
@@ -567,6 +593,50 @@ Phase 34 final verification:
 - `cargo build --release --locked -p baron-cli`: passed
 - status JSON, release YAML lint, static immutability scan, and `git diff --check`: passed
 
+### Phase 35 - Managed Baseline And Update Planner
+
+- [ ] Record the exact last-installed managed content and merge policy under `.baron/managed-state/`.
+- [ ] Keep all manifest paths repository-relative, canonical, and unable to escape the project.
+- [ ] Compute `BASE`, `LOCAL`, and `UPSTREAM` decisions before writing any managed target.
+- [ ] Preserve text outside Baron markers and custom routing blocks.
+- [ ] Preserve custom skills, custom agents, source, plans, Harness records, and Vault memory.
+- [ ] Treat uncertain dual edits as conflicts instead of guessing.
+- [ ] Prove repeated updates advance the baseline only after successful activation.
+- [ ] Pass focused planner, adapter lifecycle, and dry-run CLI tests.
+
+### Phase 36 - Verified Release Candidate And Binary Handoff
+
+- [ ] Extend immutable release metadata with one raw update candidate per supported target.
+- [ ] Resolve production candidates through bounded HTTPS and deterministic injected test sources.
+- [ ] Verify product, schema, version ordering, target, size, checksum, source revision, and candidate-reported version.
+- [ ] Refuse downgrades, wrong targets, malformed identities, redirects outside trusted hosts, and tampered candidates.
+- [ ] Keep project managed targets and installed runtime unchanged until all candidate proof passes.
+- [ ] Add Unix atomic and Windows delayed-finalizer handoff primitives.
+- [ ] Preserve existing checksum-verified PowerShell/Bash installer behavior.
+- [ ] Pass release, workflow, candidate, and installer lifecycle tests.
+
+### Phase 37 - Conflict-Safe Activation And Recovery
+
+- [ ] Store bounded transaction state plus `BASE`, `LOCAL`, `UPSTREAM`, and `RESOLVED` conflict packets.
+- [ ] Freeze hashes and project identity so stale or edited continuations are refused.
+- [ ] Let the verified candidate render the new managed project assets.
+- [ ] Apply managed writes atomically with per-target backup and rollback.
+- [ ] Keep conflicts out of live files and require explicit authority before hidden continuation.
+- [ ] Make abort remove only staged update state.
+- [ ] Recover or roll back after interruption, locked files, receipt failure, or runtime handoff failure.
+- [ ] Prove project assets and active runtime always return to one compatible version.
+
+### Phase 38 - Automation Contract And Baron 3.4 Certification
+
+- [ ] Make public `baron update` the human-authorized complete update command.
+- [ ] Make hidden `baron automation reconcile` local-only and unable to download or replace Baron.
+- [ ] Update Codex, Claude, and generic instructions so AI never silently authorizes a release update.
+- [ ] Keep top-level help and README limited to the simple user flow.
+- [ ] Document the one-time installer bootstrap from pre-3.4 Baron.
+- [ ] Bump source and lockfile to `3.4.0` only after Phases 35-37 pass.
+- [ ] Pass full format, workspace tests, Clippy, release build, YAML, installer, candidate, conflict, recovery, and real project/Vault smoke.
+- [ ] Push verified source only after certification; keep tag/GitHub Release promotion explicit.
+
 Phase 28-31 final verification:
 
 - all nine platform profile fixtures: passed
@@ -637,11 +707,18 @@ Phase 25-26 final verification:
 - Public demo: `docs/demo/README.md`
 - Public certification: `docs/assessment/baron-3-public-certification.md`
 - 3.1.4 installer certification: `docs/assessment/baron-3.1.4-installer-resilience.md`
+- Baron 3.4 design: `docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md`
+- Phase 35-38 plan: `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`
+- Phase 35-38 build log: `notes/build-log/2026-07-23-phase-35-38-baron-3-4-safe-update.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `3.3.0` source is published on `origin/main`. Phases 32-34 are complete. A binary GitHub Release remains an explicit promotion step, not an automatic side effect. The engine deepens project understanding,
+Baron `3.3.0` remains the stable source baseline. Phases 35-38 are approved but
+not implemented. The next implementation must begin with the managed baseline
+and read-only update planner; it must not jump directly to networking or binary
+replacement. A binary GitHub Release remains an explicit promotion step, not an
+automatic side effect. The engine deepens project understanding,
 platform expertise, safe architectural growth, frontend design quality, reviewer
 closure, and recovery while preserving the simple user command flow, Vault data
 safety, Superpowers workflow ownership, the three core quality gates, bounded

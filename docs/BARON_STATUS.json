@@ -3,13 +3,13 @@
   "lastUpdated": "2026-07-23",
   "stableRelease": "3.3.0",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.3.0",
-  "targetReleaseCompletionPercent": 100,
-  "remainingPhaseCount": 0,
-  "currentPhase": "phase-34-immutable-release-promotion-certification",
-  "currentPhaseStatus": "completed",
-  "nextAction": "Publish a binary GitHub Release only when explicitly requested.",
-  "buildConfidence": "Baron 3.3 source is on origin main after full no skip workspace tests formatting Clippy release build installer lifecycle and real project Vault smoke passed.",
+  "targetRelease": "3.4.0",
+  "targetReleaseCompletionPercent": 0,
+  "remainingPhaseCount": 4,
+  "currentPhase": "phase-35-managed-baseline-update-planner",
+  "currentPhaseStatus": "planned",
+  "nextAction": "Implement Phase 35 RED tests and the read only managed update planner.",
+  "buildConfidence": "The Baron 3.3 baseline passes the full no skip workspace test suite. Baron 3.4 is planned and has no implementation evidence yet.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -44,7 +44,12 @@
     "skill lifecycle supports quality scoring quarantine staged diffs approval and safe self-improvement",
     "session replay searches and scrolls real prior conversation records without flooding context",
     "background learning proposes memory skill harness and continuity improvements without writing unapproved bad state",
-    "capability runtime and safe backend policy prevent false tool claims and unsafe execution assumptions"
+    "capability runtime and safe backend policy prevent false tool claims and unsafe execution assumptions",
+    "baron update verifies a native release candidate before it can modify project managed assets or the installed runtime",
+    "managed updates compare baseline local and upstream content and stage uncertain conflicts instead of overwriting them",
+    "custom skills custom agents project source plans Harness records and Vault memory remain outside the update overwrite boundary",
+    "AI local repair cannot silently download or activate a Baron release",
+    "interrupted project and runtime activation can complete safely or roll back to one compatible version"
   ],
   "phases": [
     {
@@ -540,10 +545,73 @@
         "publish only write permission and immutable release guard",
         "full tests Clippy installer smoke status sync and v3.3.0 source push"
       ]
+    },
+    {
+      "id": 35,
+      "name": "Managed Baseline And Update Planner",
+      "status": "planned",
+      "targetReleaseWeightPercent": 25,
+      "completionPercent": 0,
+      "requiredProof": [
+        "managed baseline manifest and exact baseline copies use safe repository relative paths",
+        "deterministic BASE LOCAL UPSTREAM decision tests pass",
+        "marker routing JSON and full text ownership rules preserve user content",
+        "custom skills agents source plans Harness records and Vault memory never enter the managed update set",
+        "dry run planning does not modify live targets",
+        "repeated successful updates advance the baseline only after activation"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "Verified Release Candidate And Binary Handoff",
+      "status": "planned",
+      "targetReleaseWeightPercent": 25,
+      "completionPercent": 0,
+      "requiredProof": [
+        "immutable manifest contains one raw update candidate for every supported native target",
+        "candidate product schema version source target size checksum and reported version all match",
+        "same version is a safe no op and downgrade wrong target malformed identity and tampering are refused",
+        "candidate discovery and verification write only to the staged update workspace",
+        "Unix atomic and Windows delayed finalizer handoff primitives pass",
+        "existing PowerShell Bash and release archive installer lifecycle remains compatible"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "Conflict-Safe Activation And Recovery",
+      "status": "planned",
+      "targetReleaseWeightPercent": 30,
+      "completionPercent": 0,
+      "requiredProof": [
+        "conflicts stage BASE LOCAL UPSTREAM and RESOLVED without writing live targets",
+        "continuation refuses stale identity target candidate or staged hashes",
+        "abort deletes only staged update state",
+        "verified candidate renders and applies managed assets transactionally",
+        "write runtime handoff receipt and interruption failures restore a compatible project and binary",
+        "custom assets shared Vault memory same name projects and irregular old repositories survive"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "Automation Contract And Baron 3.4 Certification",
+      "status": "planned",
+      "targetReleaseWeightPercent": 20,
+      "completionPercent": 0,
+      "requiredProof": [
+        "public baron update remains the one command human authorized update flow",
+        "AI baron automation reconcile remains local only and cannot download or replace the runtime",
+        "Codex Claude and generic adapter contracts separate local repair from release authority",
+        "one time pre 3.4 installer bootstrap is documented honestly",
+        "full workspace format Clippy release build YAML installer candidate conflict recovery and real project Vault smoke pass",
+        "version source docs tests runtime assets release metadata and installers agree at 3.4.0 before source push"
+      ]
     }
   ],
   "readFirst": [
     "docs/BARON_STATUS.md",
+    "docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md",
+    "notes/build-log/2026-07-23-phase-35-38-baron-3-4-safe-update.md",
+    "docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md",
     "docs/superpowers/plans/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md",
     "notes/build-log/2026-07-14-phase-32-34-baron-3-3-trust-state-safety.md",
     "docs/superpowers/specs/2026-07-14-baron-3-3-trust-state-safety-design.md",

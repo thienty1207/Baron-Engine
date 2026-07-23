@@ -1,34 +1,34 @@
 # Current Build Note
 
 Date: 2026-07-23
-Target: Baron 3.3.0
+Target: Baron 3.4.0
 
 ## Current Phase
 
-Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`completed`, source pushed).
+Phase 35 - Managed Baseline And Update Planner (`planned`, not started).
 
 ## What Is Being Built
 
-- Phase 32 separates read-only requests from authorized repository changes.
-- Phase 33 blocks durable state writes when project/Vault identity is incoherent, keeps SQLite query paths read-only, and detects completion claims without evidence.
-- Phase 34 promotes releases only after exact-source, native-artifact, checksum, installer, and upgrade proof.
+- Phase 35 records the managed baseline and plans safe three-way updates without writing live targets.
+- Phase 36 resolves and verifies the exact native release candidate before project activation.
+- Phase 37 applies project/runtime changes transactionally, stages conflicts, and recovers interrupted updates.
+- Phase 38 separates human update authority from AI local repair and certifies Baron 3.4.
 
 ## Resume Point
 
 1. Read `docs/BARON_STATUS.md`.
-2. Read `docs/superpowers/specs/2026-07-14-baron-3-3-trust-state-safety-design.md`.
-3. Treat the Baron 3.3 program as complete; do not reopen it without a new approved task.
-4. Publish a binary GitHub Release only when explicitly requested.
+2. Read `docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md`.
+3. Execute `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
+4. Begin with Phase 35 RED tests. Do not implement release download or binary replacement first.
+5. Update the phase log after every verified checkpoint.
 
 ## Verified Baseline
 
-- Isolated branch: `codex/baron-3-3-trust-safety`.
-- Baseline commit: `b10bf3efc0064d34e44f7631eb0d932c870097cd`.
-- Baseline `cargo test --workspace --all-targets`: passed.
-- Phase 32 core, CLI, adapter, normal-help, formatting, and full adapter lifecycle tests pass.
-- Phase 33 state coherence, no-repair, read-only query, completion integrity, CLI, adapter, and formatting tests pass.
-- Phase 34 full no-skip tests, Clippy, release build, installer lifecycle, real project/Vault smoke, JSON, YAML, and static checks pass.
-- Full verification passed again on merged `main`; source commit `34a6cf4` is pushed to `origin/main`.
+- Isolated branch: `codex/baron-3-4-safe-update-plan`.
+- Baseline commit: `d4ab320`.
+- Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
+- Current source version remains `3.3.0`.
+- Baron 3.4 currently has planning evidence only.
 
 ## Non-Negotiables
 
@@ -36,4 +36,6 @@ Phase 34 - Immutable Release Promotion And Baron 3.3 Certification (`completed`,
 - Core agents remain `code-reviewer`, `security-auditor`, and `test-engineer`.
 - Vault Markdown remains source of truth.
 - Normal users keep the simple install/setup/init/update flow.
+- AI never silently downloads or activates a release.
+- Conflicting managed edits never overwrite live project content.
 - No release tag or GitHub Release exists before its source and artifacts pass proof.

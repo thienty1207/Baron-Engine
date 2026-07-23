@@ -124,7 +124,22 @@ fn status_tracks_public_trust_phase() {
     let status_json: serde_json::Value =
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
     assert_eq!(status_json["stableRelease"], "3.3.0");
-    assert_eq!(status_json["targetRelease"], "3.3.0");
+    assert_eq!(status_json["targetRelease"], "3.4.0");
+    assert_eq!(status_json["remainingPhaseCount"], 4);
+    assert!(status_json["phases"]
+        .as_array()
+        .is_some_and(|phases| phases.iter().any(|phase| {
+            phase["id"] == 35
+                && phase["name"] == "Managed Baseline And Update Planner"
+                && phase["status"] == "planned"
+        })));
+    assert!(status_json["phases"]
+        .as_array()
+        .is_some_and(|phases| phases.iter().any(|phase| {
+            phase["id"] == 38
+                && phase["name"] == "Automation Contract And Baron 3.4 Certification"
+                && phase["status"] == "planned"
+        })));
     assert!(status_json["currentPhase"]
         .as_str()
         .is_some_and(|phase| !phase.is_empty()));
