@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,9 +19,11 @@ use crate::identity::project_id_for_path;
 
 pub const CODE_GRAPH_CACHE_DIR: &str = ".baron/cache/code-graph";
 pub const CODE_GRAPH_STATE_FILE: &str = "state.json";
+pub const CODE_GRAPH_QUERY_CACHE_FILE: &str = "last-query.json";
 pub const MAX_GRAPH_BYTES: u64 = 256 * 1024 * 1024;
 pub const MAX_QUERY_HITS: usize = 8;
 pub const MAX_QUERY_CHARS: usize = 2_400;
+const MAX_SOURCE_VERIFICATION_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -64,6 +67,37 @@ pub struct CodeGraphState {
     pub freshness: GraphFreshness,
     #[serde(default)]
     pub diagnostics: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CodeGraphQueryCache {
+    pub schema_version: u32,
+    pub project_id: String,
+    pub repo_root: String,
+    pub source_fingerprint: String,
+    pub graph_sha256: String,
+    pub question: String,
+    pub queried_at: String,
+    pub hits: Vec<CodeGraphHit>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceVerificationStatus {
+    Verified,
+    Advisory,
+    MissingSource,
+    MissingEvidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceVerification {
+    pub status: SourceVerificationStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_file: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<String>,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -193,6 +227,10 @@ pub fn ensure_code_graph_cache_root(repo_root: impl AsRef<Path>) -> Result<PathB
 
 pub fn code_graph_state_path(repo_root: impl AsRef<Path>) -> Result<PathBuf> {
     Ok(code_graph_cache_root(repo_root)?.join(CODE_GRAPH_STATE_FILE))
+}
+
+pub fn code_graph_query_cache_path(repo_root: impl AsRef<Path>) -> Result<PathBuf> {
+    Ok(code_graph_cache_root(repo_root)?.join(CODE_GRAPH_QUERY_CACHE_FILE))
 }
 
 pub fn graphify_graph_path(
@@ -380,6 +418,67 @@ pub fn load_code_graph_state(repo_root: impl AsRef<Path>) -> Result<Option<CodeG
     Ok(Some(state))
 }
 
+pub fn write_code_graph_query_cache(
+    repo_root: impl AsRef<Path>,
+    state: &CodeGraphState,
+    question: &str,
+    hits: Vec<CodeGraphHit>,
+) -> Result<CodeGraphQueryCache> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    validate_code_graph_state(&repo_root, state)?;
+    let question = normalize_query(question)?;
+    let hits = normalize_code_graph_hits(&repo_root, hits, QueryLimits::default())?;
+    let cache = CodeGraphQueryCache {
+        schema_version: 1,
+        project_id: current_project_id(&repo_root)?,
+        repo_root: normalize_absolute_path(&repo_root),
+        source_fingerprint: state.source_fingerprint.clone(),
+        graph_sha256: state.graph_sha256.clone(),
+        question,
+        queried_at: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        hits,
+    };
+    validate_code_graph_query_cache(&repo_root, &cache)?;
+    let path = ensure_code_graph_cache_root(&repo_root)?.join(CODE_GRAPH_QUERY_CACHE_FILE);
+    atomic_write_json(&path, &cache)?;
+    Ok(cache)
+}
+
+pub fn load_code_graph_query_cache(
+    repo_root: impl AsRef<Path>,
+) -> Result<Option<CodeGraphQueryCache>> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    let path = code_graph_query_cache_path(&repo_root)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("Could not read {}", path.display()))?;
+    let cache: CodeGraphQueryCache = serde_json::from_str(&content)
+        .with_context(|| format!("Could not parse {}", path.display()))?;
+    validate_code_graph_query_cache(&repo_root, &cache)?;
+    Ok(Some(cache))
+}
+
+pub fn cached_code_graph_hits_for_task(
+    repo_root: impl AsRef<Path>,
+    state: &CodeGraphState,
+    task: &str,
+) -> Result<Option<Vec<CodeGraphHit>>> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    validate_code_graph_state(&repo_root, state)?;
+    let Some(cache) = load_code_graph_query_cache(&repo_root)? else {
+        return Ok(None);
+    };
+    if cache.source_fingerprint != state.source_fingerprint
+        || cache.graph_sha256 != state.graph_sha256
+        || normalize_task_key(&cache.question) != normalize_task_key(task)
+    {
+        return Ok(None);
+    }
+    Ok(Some(cache.hits))
+}
+
 pub fn validate_code_graph_state(
     repo_root: impl AsRef<Path>,
     state: &CodeGraphState,
@@ -412,6 +511,222 @@ pub fn validate_code_graph_state(
         bail!("Code graph state exceeds the graph size limit");
     }
     Ok(())
+}
+
+fn validate_code_graph_query_cache(repo_root: &Path, cache: &CodeGraphQueryCache) -> Result<()> {
+    if cache.schema_version != 1 {
+        bail!(
+            "Unsupported code graph query cache schema: {}",
+            cache.schema_version
+        );
+    }
+    if cache.project_id != current_project_id(repo_root)? {
+        bail!("Code graph query cache belongs to another project identity");
+    }
+    if cache.repo_root != normalize_absolute_path(repo_root) {
+        bail!("Code graph query cache belongs to another repository root");
+    }
+    validate_fingerprint(&cache.source_fingerprint)?;
+    if cache.graph_sha256.len() != 64
+        || !cache
+            .graph_sha256
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        bail!("Code graph query cache has an invalid graph checksum");
+    }
+    normalize_query(&cache.question)?;
+    normalize_code_graph_hits(repo_root, cache.hits.clone(), QueryLimits::default())?;
+    Ok(())
+}
+
+pub fn verify_graph_hit_source(
+    repo_root: impl AsRef<Path>,
+    hit: &CodeGraphHit,
+) -> Result<SourceVerification> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    let Some(source_file) = hit.source_file.as_deref() else {
+        return Ok(SourceVerification {
+            status: SourceVerificationStatus::MissingSource,
+            source_file: None,
+            evidence: None,
+            message: "graph result has no source file to verify".to_string(),
+        });
+    };
+    let relative = Path::new(source_file.trim());
+    validate_safe_relative_path(relative, "Code graph source path")?;
+    let source_path = repo_root.join(relative);
+    validate_existing_ancestors_within_repo(&repo_root, &source_path)?;
+    let metadata = match fs::symlink_metadata(&source_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return Ok(SourceVerification {
+                status: SourceVerificationStatus::MissingSource,
+                source_file: Some(normalize_relative_path(relative)),
+                evidence: None,
+                message: "graph source file no longer exists in this repository".to_string(),
+            })
+        }
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!("Could not inspect source file: {}", source_path.display())
+            })
+        }
+    };
+    if metadata.file_type().is_symlink() || is_link_or_reparse_point(&source_path)? {
+        bail!("Code graph source file must not be a symlink or junction")
+    }
+    if !metadata.is_file() {
+        return Ok(SourceVerification {
+            status: SourceVerificationStatus::MissingSource,
+            source_file: Some(normalize_relative_path(relative)),
+            evidence: None,
+            message: "graph source path is not a regular repository file".to_string(),
+        });
+    }
+    if metadata.len() > MAX_SOURCE_VERIFICATION_BYTES {
+        return Ok(SourceVerification {
+            status: SourceVerificationStatus::MissingEvidence,
+            source_file: Some(normalize_relative_path(relative)),
+            evidence: None,
+            message: "graph source file exceeds the bounded verification read limit".to_string(),
+        });
+    }
+    let content = match fs::read_to_string(&source_path) {
+        Ok(content) => content,
+        Err(_) => {
+            return Ok(SourceVerification {
+                status: SourceVerificationStatus::MissingEvidence,
+                source_file: Some(normalize_relative_path(relative)),
+                evidence: None,
+                message: "graph source file is not readable as current text evidence".to_string(),
+            })
+        }
+    };
+    let matched = [hit.label.trim(), hit.node_id.trim()]
+        .into_iter()
+        .filter(|term| !term.is_empty())
+        .find(|term| content.contains(term));
+    let source_file = normalize_relative_path(relative);
+    if hit.confidence == GraphConfidence::Inferred {
+        return Ok(SourceVerification {
+            status: SourceVerificationStatus::Advisory,
+            source_file: Some(source_file),
+            evidence: matched.map(|term| format!("current source contains `{term}`")),
+            message: "inferred graph guidance remains advisory and cannot become proof".to_string(),
+        });
+    }
+    match matched {
+        Some(term) => Ok(SourceVerification {
+            status: SourceVerificationStatus::Verified,
+            source_file: Some(source_file),
+            evidence: Some(format!("current source contains extracted symbol `{term}`")),
+            message: "extracted graph guidance is verified against current source".to_string(),
+        }),
+        None => Ok(SourceVerification {
+            status: SourceVerificationStatus::MissingEvidence,
+            source_file: Some(source_file),
+            evidence: None,
+            message: "current source does not contain the extracted graph symbol".to_string(),
+        }),
+    }
+}
+
+pub fn task_needs_code_map(task: Option<&str>) -> bool {
+    let Some(task) = task.map(str::trim).filter(|task| !task.is_empty()) else {
+        return false;
+    };
+    let normalized = task.to_ascii_lowercase();
+    let lightweight = ["readme", "docs", "copy", "typo", "wording", "config text"];
+    if lightweight.iter().any(|term| normalized.contains(term)) {
+        return false;
+    }
+    [
+        "architecture",
+        "dependency",
+        "dependencies",
+        "impact",
+        "ownership",
+        "owner",
+        "entrypoint",
+        "entry point",
+        "call flow",
+        "callflow",
+        "cross-module",
+        "cross module",
+        "module",
+        "refactor",
+        "affected",
+        "trace",
+    ]
+    .iter()
+    .any(|term| normalized.contains(term))
+}
+
+pub fn render_optional_code_map_context(
+    repo_root: impl AsRef<Path>,
+    task: Option<&str>,
+) -> Result<String> {
+    if !task_needs_code_map(task) {
+        return Ok(String::new());
+    }
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    let task = task.expect("checked above").trim();
+    let mut output = String::from("## Optional Code Map\n\n");
+    let state = match load_code_graph_state(&repo_root) {
+        Ok(Some(state)) => state,
+        Ok(None) => {
+            output.push_str("- No local code map is ready for this code-navigation task.\n");
+            output.push_str("- AI action: silently run `baron automation code-map refresh`, then `baron automation code-map query \"<task>\"`. Survey remains active while the map is unavailable.\n\n");
+            return Ok(output);
+        }
+        Err(_) => {
+            output
+                .push_str("- Local code-map state is invalid; Survey fallback remains active.\n\n");
+            return Ok(output);
+        }
+    };
+    if state.provider != "graphify-local" || state.provider_version != "0.9.25" {
+        output.push_str("- Local code map is incompatible; Survey fallback remains active.\n\n");
+        return Ok(output);
+    }
+    match graph_state_freshness(&repo_root, &state) {
+        Ok(GraphFreshness::Fresh) => {}
+        Ok(_) => {
+            output.push_str("- Local code map is stale for the current repository.\n");
+            output.push_str("- AI action: silently refresh it before querying; Survey remains active until then.\n\n");
+            return Ok(output);
+        }
+        Err(_) => {
+            output.push_str(
+                "- Local code map cannot be validated; Survey fallback remains active.\n\n",
+            );
+            return Ok(output);
+        }
+    }
+    match cached_code_graph_hits_for_task(&repo_root, &state, task) {
+        Ok(Some(hits)) if !hits.is_empty() => {
+            output.push_str("- Fresh task-matched local graph hints; they are navigation guidance, not proof.\n\n");
+            output.push_str(&render_code_graph_hits(&hits, QueryLimits::default()));
+            if hits
+                .iter()
+                .any(|hit| hit.confidence == GraphConfidence::Inferred)
+            {
+                output.push_str("- Inferred results: verify against source before proof, trace, or durable memory.\n");
+            }
+            output.push('\n');
+        }
+        Ok(_) => {
+            output.push_str("- A fresh local code map is available but has no cached answer for this exact task.\n");
+            output.push_str("- AI action: silently run `baron automation code-map query \"<task>\"`; verify selected source before edits or proof.\n\n");
+        }
+        Err(_) => {
+            output.push_str(
+                "- Local code-map query cache is invalid; Survey fallback remains active.\n\n",
+            );
+        }
+    }
+    Ok(output)
 }
 
 pub fn graph_state_freshness(
@@ -588,14 +903,20 @@ fn is_link_or_reparse_point(path: &Path) -> Result<bool> {
 }
 
 fn is_skipped_source_path(path: &Path) -> bool {
-    path.components().any(|component| {
-        let Component::Normal(name) = component else {
-            return false;
-        };
+    let names = path
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name.to_string_lossy().to_ascii_lowercase()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    names.iter().any(|name| {
         matches!(
-            name.to_string_lossy().as_ref(),
+            name.as_str(),
             ".git"
                 | ".baron"
+                | ".codex"
+                | ".claude"
                 | "node_modules"
                 | "target"
                 | "dist"
@@ -606,7 +927,9 @@ fn is_skipped_source_path(path: &Path) -> bool {
                 | "graphify-out"
                 | "__pycache__"
         )
-    })
+    }) || names
+        .windows(2)
+        .any(|pair| pair[0] == "docs" && pair[1] == "baron")
 }
 
 fn validate_fingerprint(value: &str) -> Result<()> {
@@ -629,6 +952,25 @@ fn normalize_optional_label(value: Option<String>) -> Option<String> {
         let value = value.trim();
         (!value.is_empty()).then(|| value.to_string())
     })
+}
+
+fn normalize_query(value: &str) -> Result<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        bail!("Code graph query must not be empty");
+    }
+    if value.chars().count() > MAX_QUERY_CHARS {
+        bail!("Code graph query exceeds the bounded input limit");
+    }
+    Ok(value.to_string())
+}
+
+fn normalize_task_key(value: &str) -> String {
+    value
+        .split_whitespace()
+        .map(|part| part.to_ascii_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn normalize_relative_path(path: &Path) -> String {

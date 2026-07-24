@@ -4,15 +4,15 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 44 - Automatic Bounded Context And Source Verification
+- Active phase: Phase 45 - Isolation, Scale, And Baron 3.6 Certification
 - Status: `in_progress`
 - Verification: Baron 3.5 source certification passed: full workspace tests,
   Clippy, locked release build, adapter parity, local-only reconcile recovery,
   custom-asset preservation, bounded context, and public-flow contracts.
   `v3.5.0` is the stable source baseline; no tag or GitHub Release was created.
-- Next action: add bounded task-routing, hidden AI automation commands, and
-  direct source verification without making normal context wait for a graph
-  refresh.
+- Next action: prove multi-project isolation, large/old repository bounds,
+  fallback recovery, and adapter preservation; then run the full release gate
+  and bump the source to 3.6.0.
 
 ## Baron 3.4 Contract
 
@@ -37,9 +37,10 @@ Last updated: 2026-07-24
 - Baron 3.6, Phases 42-43: provider-neutral project-scoped cache/identity
   contract plus exact local-only adapter completed with deterministic fallback
   evidence.
-- Baron 3.6, Phases 44-45: bounded source verification, strict isolation, and
-  certification.
-- Total remaining planned phases: 2.
+- Baron 3.6, Phase 44: bounded task routing, hidden AI automation, query
+  cache, and source verification completed without startup blocking.
+- Baron 3.6, Phase 45: strict isolation and certification remain.
+- Total remaining planned phases: 1.
 
 ## Active Documents
 

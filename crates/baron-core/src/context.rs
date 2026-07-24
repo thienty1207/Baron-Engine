@@ -6,6 +6,7 @@ use anyhow::Result;
 use crate::architecture::render_architecture_context;
 use crate::autopilot::render_autopilot_context_summary;
 use crate::capability::{load_registry, render_capability_summary, render_runtime_policy_summary};
+use crate::code_graph::render_optional_code_map_context;
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
 use crate::control_plane::validate_control_plane;
 use crate::domain_language::{ensure_domain_language, render_domain_language_context};
@@ -98,6 +99,7 @@ pub fn compile_context_for_task(
     output.push_str(&render_continuity_resume(repo_path));
     output.push_str(&render_actionable_recovery(repo_path));
     output.push_str(&render_survey_context(&survey));
+    output.push_str(&render_optional_code_map_context(repo_path, task)?);
     output.push_str(&render_execution_state(repo_path));
     output.push_str(&render_execution_evidence(repo_path));
     if domain_language.term_count > 0 && domain_language.mirror_in_sync {
@@ -351,6 +353,9 @@ pub fn compile_context_why(
     );
     output.push_str(
         "- Skipped: adapter refresh because init/update owns managed files; context remains read-only.\n",
+    );
+    output.push_str(
+        "- Skipped: Optional Code Map provider invocation because context does not run Graphify or wait for a graph refresh.\n",
     );
     output.push_str(&format!(
         "- Survey unknowns retained: {}.\n",

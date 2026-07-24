@@ -224,11 +224,25 @@ fn source_fingerprint_tracks_real_source_changes_without_heavy_folder_noise() {
     write(&repo.join("src/api.rs"), "pub fn login() {}\n");
     write(&repo.join("node_modules/package/index.js"), "ignored one\n");
     write(&repo.join("target/debug/old.bin"), "ignored two\n");
+    write(
+        &repo.join("docs/baron/harness/CURRENT.md"),
+        "generated state\n",
+    );
+    write(&repo.join(".codex/skills/INDEX.md"), "generated routing\n");
 
     let initial = compute_code_source_fingerprint(&repo).unwrap();
     write(
         &repo.join("node_modules/package/index.js"),
         "ignored folder changed\n",
+    );
+    assert_eq!(initial, compute_code_source_fingerprint(&repo).unwrap());
+    write(
+        &repo.join("docs/baron/harness/CURRENT.md"),
+        "new generated state\n",
+    );
+    write(
+        &repo.join(".codex/skills/INDEX.md"),
+        "new generated routing\n",
     );
     assert_eq!(initial, compute_code_source_fingerprint(&repo).unwrap());
 

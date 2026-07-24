@@ -936,6 +936,9 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
         );
         assert!(content.contains("baron proof record"));
         assert!(content.contains("baron autopilot review"));
+        assert!(content.contains("baron automation code-map refresh"));
+        assert!(content.contains("baron automation code-map query"));
+        assert!(content.contains("verify selected source files"));
     }
     let claude_context =
         fs::read_to_string(repo.join(".claude/commands/baron-context.md")).unwrap();
@@ -948,6 +951,13 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
     assert!(generic_context
         .contains("\"runtimeCheckCommand\": \"baron runtime check --adapter agent\""));
     assert!(generic_context.contains("\"autopilotStatusCommand\": \"baron autopilot status\""));
+    assert!(generic_context
+        .contains("\"codeMapRefreshCommand\": \"baron automation code-map refresh\""));
+    let generic_json: serde_json::Value = serde_json::from_str(&generic_context).unwrap();
+    assert_eq!(
+        generic_json["codeMapQueryCommand"],
+        "baron automation code-map query \"<task>\""
+    );
 }
 
 #[test]

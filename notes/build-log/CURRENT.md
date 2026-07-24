@@ -6,7 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 44 - Automatic Bounded Context And Source Verification (`in_progress`).
+Phase 45 - Isolation, Scale, And Baron 3.6 Certification (`in_progress`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -87,11 +87,15 @@ outside its write set.
    `0.9.25`, permits only local probe/code-only extraction/bounded query calls,
    disables provider query logging, uses bounded subprocess files and atomic
    cache promotion, and keeps the last good graph on every tested failure.
-10. Begin Phase 44 with hidden AI automation and source verification. Context
-   must stay bounded and must never wait for a graph refresh at startup.
-11. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
+10. Phase 44 completed: task-matched context never invokes Graphify, caches at
+   most eight local hints, and routes AI to hidden refresh/query only when
+   needed. Every graph result is checked against current repo source; inferred
+   results remain advisory.
+11. Begin Phase 45 with isolation/scale/fallback verification and Baron 3.6.0
+   release certification. Do not bump version before all release evidence passes.
+12. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
-12. Do not begin a later phase before the preceding phase has fresh evidence.
+13. Do not begin a later phase before the preceding phase has fresh evidence.
 
 ## Verified Baseline
 
@@ -100,8 +104,8 @@ outside its write set.
 - Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
 - Source and stable-source version are now `3.5.0` after Phase 41's full gate.
 - Baron 3.4 and 3.5 have source certification; no GitHub Release/tag was made.
-- Baron 3.6 Phases 42-43 have focused source/test evidence; Phases 44-45 remain.
-- The program has 2 planned phases remaining: 44 through 45.
+- Baron 3.6 Phases 42-44 have focused source/test evidence; Phase 45 remains.
+- The program has 1 planned phase remaining: 45.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD
   semantic smoke, and visual-server behavior tests: passed on 2026-07-24.

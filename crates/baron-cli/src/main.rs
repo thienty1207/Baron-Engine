@@ -31,7 +31,11 @@ use baron_core::certification::{
     latest_certification_status, render_certification_report, run_certification,
     CertificationProfile,
 };
-use baron_core::code_graph::ensure_code_map_capability;
+use baron_core::code_graph::{
+    code_graph_cache_root, ensure_code_map_capability, graph_state_freshness,
+    load_code_graph_state, verify_graph_hit_source, write_code_graph_query_cache,
+    CodeGraphProvider, GraphFreshness, QueryLimits, SourceVerification,
+};
 use baron_core::config::{
     find_project_root, initialize_project, initialize_project_with_options, load_project_config,
     resolve_vault_path_for_repo, set_project_platform, setup_machine_vault, AdapterKind,
@@ -46,6 +50,7 @@ use baron_core::control_plane::{
     gate_evidence_status, record_gate_evidence, route_task, validate_control_plane,
 };
 use baron_core::firewall::{compact_memory_brief, recall, render_recall};
+use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
 use baron_core::harness::{
     ensure_harness_workspace, harness_status, record_decision, record_friction,
     start_or_resume_intake,
@@ -639,6 +644,31 @@ enum AutomationCommands {
         repo_path: Option<PathBuf>,
         #[arg(long, value_enum)]
         adapter: AdapterArg,
+    },
+    #[command(name = "code-map")]
+    CodeMap {
+        #[command(subcommand)]
+        command: CodeMapCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum CodeMapCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Refresh {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Query {
+        question: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -2211,6 +2241,75 @@ fn run() -> Result<()> {
                 println!("- Remote release download: not attempted");
                 println!("- Runtime replacement: not attempted");
             }
+            AutomationCommands::CodeMap { command } => match command {
+                CodeMapCommands::Status { repo_path, json } => {
+                    let repo_root = configured_repo(repo_path)?;
+                    let report = code_map_status(&repo_root)?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&report)?);
+                    } else {
+                        print!("{}", render_code_map_status(&report));
+                    }
+                }
+                CodeMapCommands::Refresh { repo_path, json } => {
+                    let repo_root = configured_repo(repo_path)?;
+                    let provider = GraphifyProvider::new("graphify");
+                    let cache_root = code_graph_cache_root(&repo_root)?;
+                    let state = provider.refresh(&repo_root, &cache_root)?;
+                    let report = CodeMapRefreshReport {
+                        provider: "graphify-local".to_string(),
+                        version: state.provider_version.clone(),
+                        source_fingerprint: state.source_fingerprint.clone(),
+                        graph_size_bytes: state.graph_size_bytes,
+                        action: "query".to_string(),
+                    };
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&report)?);
+                    } else {
+                        println!("# Baron Code Map Refresh\n");
+                        println!("- Provider: `{}`", report.provider);
+                        println!("- Version: `{}`", report.version);
+                        println!("- Graph size: {} bytes", report.graph_size_bytes);
+                        println!("- Next AI action: query this task, then verify source.");
+                    }
+                }
+                CodeMapCommands::Query {
+                    question,
+                    repo_path,
+                    json,
+                } => {
+                    let repo_root = configured_repo(repo_path)?;
+                    let provider = GraphifyProvider::new("graphify");
+                    let cache_root = code_graph_cache_root(&repo_root)?;
+                    let hits = provider.query(
+                        &repo_root,
+                        &cache_root,
+                        &question,
+                        QueryLimits::default(),
+                    )?;
+                    let state = load_code_graph_state(&repo_root)?.context(
+                        "No local code map is available; Survey fallback remains active",
+                    )?;
+                    write_code_graph_query_cache(&repo_root, &state, &question, hits.clone())?;
+                    let hits = hits
+                        .into_iter()
+                        .map(|hit| {
+                            let verification = verify_graph_hit_source(&repo_root, &hit)?;
+                            Ok(CodeMapQueryHit { hit, verification })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    let report = CodeMapQueryReport {
+                        provider: "graphify-local".to_string(),
+                        action: "verify_source".to_string(),
+                        hits,
+                    };
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&report)?);
+                    } else {
+                        print!("{}", render_code_map_query(&report));
+                    }
+                }
+            },
             AutomationCommands::Hook {
                 event,
                 repo_path,
@@ -2754,6 +2853,139 @@ fn execution_context(
     let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
     let vault = require_coherent_execution_state(&repo_root, vault_path)?;
     Ok((repo_root, vault))
+}
+
+#[derive(Debug, serde::Serialize)]
+struct CodeMapStatusReport {
+    provider: String,
+    supported_version: String,
+    present: bool,
+    detected_version: Option<String>,
+    freshness: String,
+    action: String,
+    diagnostics: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct CodeMapRefreshReport {
+    provider: String,
+    version: String,
+    source_fingerprint: String,
+    graph_size_bytes: u64,
+    action: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct CodeMapQueryHit {
+    hit: baron_core::code_graph::CodeGraphHit,
+    verification: SourceVerification,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct CodeMapQueryReport {
+    provider: String,
+    action: String,
+    hits: Vec<CodeMapQueryHit>,
+}
+
+fn code_map_status(repo_root: &std::path::Path) -> Result<CodeMapStatusReport> {
+    let provider = GraphifyProvider::new("graphify");
+    let probe = provider.probe(repo_root)?;
+    let mut diagnostics = probe.diagnostics;
+    let freshness = match load_code_graph_state(repo_root) {
+        Ok(Some(state)) => match graph_state_freshness(repo_root, &state) {
+            Ok(freshness) => freshness,
+            Err(_) => {
+                diagnostics.push("local code-map state could not be validated".to_string());
+                GraphFreshness::Invalid
+            }
+        },
+        Ok(None) => GraphFreshness::Missing,
+        Err(_) => {
+            diagnostics.push("local code-map state is invalid".to_string());
+            GraphFreshness::Invalid
+        }
+    };
+    let compatible = probe.present && probe.version.as_deref() == Some(SUPPORTED_GRAPHIFY_VERSION);
+    let action = if !compatible {
+        "survey_fallback"
+    } else if freshness == GraphFreshness::Fresh {
+        "query"
+    } else {
+        "refresh"
+    };
+    Ok(CodeMapStatusReport {
+        provider: "graphify-local".to_string(),
+        supported_version: SUPPORTED_GRAPHIFY_VERSION.to_string(),
+        present: probe.present,
+        detected_version: probe.version,
+        freshness: graph_freshness_name(freshness).to_string(),
+        action: action.to_string(),
+        diagnostics,
+    })
+}
+
+fn render_code_map_status(report: &CodeMapStatusReport) -> String {
+    format!(
+        "# Baron Code Map Status\n\n- Provider: `{}`\n- Supported version: `{}`\n- Present: `{}`\n- Detected version: `{}`\n- Cache freshness: `{}`\n- AI action: `{}`\n- Diagnostics: {}\n",
+        report.provider,
+        report.supported_version,
+        if report.present { "yes" } else { "no" },
+        report.detected_version.as_deref().unwrap_or("unknown"),
+        report.freshness,
+        report.action,
+        list_or_none(&report.diagnostics),
+    )
+}
+
+fn render_code_map_query(report: &CodeMapQueryReport) -> String {
+    let mut output = format!(
+        "# Baron Code Map Query\n\n- Provider: `{}`\n- Next action: `{}`\n",
+        report.provider, report.action
+    );
+    if report.hits.is_empty() {
+        output.push_str("- No bounded graph hits returned. Survey fallback remains active.\n");
+        return output;
+    }
+    for item in &report.hits {
+        output.push_str(&format!(
+            "\n## {}\n\n- Source: `{}`\n- Confidence: `{}`\n- Verification: `{}`\n- Evidence: {}\n- Rule: {}\n",
+            item.hit.label,
+            item.hit.source_file.as_deref().unwrap_or("unknown"),
+            graph_confidence_name(item.hit.confidence),
+            source_verification_name(item.verification.status),
+            item.verification.evidence.as_deref().unwrap_or("none"),
+            item.verification.message,
+        ));
+    }
+    output
+}
+
+fn graph_freshness_name(freshness: GraphFreshness) -> &'static str {
+    match freshness {
+        GraphFreshness::Fresh => "fresh",
+        GraphFreshness::Stale => "stale",
+        GraphFreshness::Missing => "missing",
+        GraphFreshness::Invalid => "invalid",
+    }
+}
+
+fn graph_confidence_name(confidence: baron_core::code_graph::GraphConfidence) -> &'static str {
+    match confidence {
+        baron_core::code_graph::GraphConfidence::Extracted => "extracted",
+        baron_core::code_graph::GraphConfidence::Inferred => "inferred",
+    }
+}
+
+fn source_verification_name(
+    status: baron_core::code_graph::SourceVerificationStatus,
+) -> &'static str {
+    match status {
+        baron_core::code_graph::SourceVerificationStatus::Verified => "verified",
+        baron_core::code_graph::SourceVerificationStatus::Advisory => "advisory",
+        baron_core::code_graph::SourceVerificationStatus::MissingSource => "missing_source",
+        baron_core::code_graph::SourceVerificationStatus::MissingEvidence => "missing_evidence",
+    }
 }
 
 fn coherent_or_bootstrap_context(

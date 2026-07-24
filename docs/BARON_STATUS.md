@@ -13,16 +13,16 @@ Last updated: 2026-07-24
 - Program target release: `v3.6.0`
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
-- Baron 3.6 completion: 55%
-- Remaining planned phases: 2
-- Current phase: Phase 44 - Automatic Bounded Context And Source Verification
+- Baron 3.6 completion: 80%
+- Remaining planned phases: 1
+- Current phase: Phase 45 - Isolation, Scale, And Baron 3.6 Certification
 - Current phase status: in_progress
-- Current next action: connect the optional local code map to matching AI
-  context only, then verify every selected result against current source before
-  it can support an edit, proof, trace, or durable memory.
-- Build confidence: Baron 3.5 is source-certified. Phases 42-43 now add a
-  provider-neutral cache plus a deterministic exact-version local Graphify
-  adapter with bounded process output, atomic refresh, and Survey fallback. A
+- Current next action: certify same-name project isolation, old/large-repo
+  boundedness, adapter/custom-asset preservation, and the full Baron 3.6.0
+  release gate before changing the source version.
+- Build confidence: Baron 3.5 is source-certified. Phases 42-44 now add a
+  provider-neutral cache, deterministic exact-version local Graphify adapter,
+  bounded task routing, and source verification without startup blocking. A
   tag/GitHub Release is still an explicit human promotion, not a side effect of
   source certification.
 
@@ -246,8 +246,8 @@ Baron 3.6 planned program:
 | --- | --- | --- | --- | --- |
 | 42 | Code-Graph Provider Contract | completed | 25% | provider-neutral local graph model, explicit confidence, bounded output, project identity, rebuildable cache, and Survey fallback |
 | 43 | Graphify Local Code-Only Adapter | completed | 30% | exact-version local extraction/query, no installers/hooks/global memory, timeout/size guards, malformed-output fallback |
-| 44 | Automatic Bounded Context And Source Verification | in_progress | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
-| 45 | Isolation, Scale, And Baron 3.6 Certification | planned | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
+| 44 | Automatic Bounded Context And Source Verification | completed | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
+| 45 | Isolation, Scale, And Baron 3.6 Certification | in_progress | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
 
 Phase 16-17 final verification:
 
@@ -795,13 +795,13 @@ Phase 34 final verification:
 
 ### Phase 44 - Automatic Bounded Context And Source Verification
 
-- [ ] Let AI automation refresh/query the graph only when task scope benefits.
-- [ ] Keep normal user commands limited to install, Vault setup, agent/platform
+- [x] Let AI automation refresh/query the graph only when task scope benefits.
+- [x] Keep normal user commands limited to install, Vault setup, agent/platform
   init, and update.
-- [ ] Put a small `Optional Code Map` section in context only when useful.
-- [ ] Require direct source verification before graph guidance supports a
+- [x] Put a small `Optional Code Map` section in context only when useful.
+- [x] Require direct source verification before graph guidance supports a
   decision, proof, trace, or durable memory.
-- [ ] Explain provider/fallback decisions without dumping the graph.
+- [x] Explain provider/fallback decisions without dumping the graph.
 
 ### Phase 45 - Isolation, Scale, And Baron 3.6 Certification
 

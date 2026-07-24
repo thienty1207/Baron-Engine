@@ -301,7 +301,7 @@ fn adapter_name(adapter: AgentAdapter) -> &'static str {
 }
 
 fn claude_context_command() -> String {
-    "# Baron Context\n\nRun `baron capability check --adapter claude`, `baron runtime check --adapter claude`, `baron autopilot status`, and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n".to_string()
+    "# Baron Context\n\nRun `baron capability check --adapter claude`, `baron runtime check --adapter claude`, `baron autopilot status`, and then `baron context --claude` silently. For architecture, dependency, impact, entrypoint, ownership, call-flow, refactor, or cross-module work, run task context first. If its Optional Code Map section requests it, silently run `baron automation code-map refresh` then `baron automation code-map query \"<task>\"`; verify selected source files before using any hit as proof. Capability presence and graph hints are not execution evidence.\n".to_string()
 }
 
 fn claude_status_command() -> String {
@@ -309,7 +309,7 @@ fn claude_status_command() -> String {
 }
 
 fn generic_context_markdown() -> String {
-    "# Baron Context Contract\n\nRun `baron capability check --adapter agent`, `baron runtime check --adapter agent`, `baron autopilot status`, and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n".to_string()
+    "# Baron Context Contract\n\nRun `baron capability check --adapter agent`, `baron runtime check --adapter agent`, `baron autopilot status`, and then `baron context --agent` at session start. For architecture, dependency, impact, entrypoint, ownership, call-flow, refactor, or cross-module work, run task context first. If its Optional Code Map section requests it, silently run `baron automation code-map refresh` then `baron automation code-map query \"<task>\"`; verify selected source files before using any hit as proof. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence and graph hints are not execution evidence.\n".to_string()
 }
 
 fn generic_context_json() -> Result<String> {
@@ -321,6 +321,9 @@ fn generic_context_json() -> Result<String> {
         "autopilotStatusCommand": "baron autopilot status",
         "autopilotReviewCommand": "baron autopilot review \"<summary>\"",
         "contextCommand": "baron context --agent",
+        "codeMapRefreshCommand": "baron automation code-map refresh",
+        "codeMapQueryCommand": "baron automation code-map query \"<task>\"",
+        "codeMapRule": "Use only when task context requests a code map; verify selected source before proof.",
         "automatic": true,
         "sourceOfTruth": ["repository", "vault-markdown"]
     }))?)
@@ -511,12 +514,13 @@ fn startup_contract(agent: &str, adapter: &str) -> String {
     format!(
         "# Baron Automatic Agent Contract\n\n\
     You are using Baron through the {agent} adapter.\n\n\
-- Before any durable Baron or repository write, silently run `baron authority classify \"<requested outcome>\"`; classify by the outcome, so `review and apply fixes` is a change request even though it contains `review`.\n\
+    - Before any durable Baron or repository write, silently run `baron authority classify \"<requested outcome>\"`; classify by the outcome, so `review and apply fixes` is a change request even though it contains `review`.\n\
     - When authority is `read_only` or `ambiguous`, inspect only what is needed to answer and do not create or update plan, Harness, proof, trace, review, friction, or learning state. Ambiguous authority stays read-only until the user explicitly requests a change.\n\
     - If Baron reports project, Vault, capsule, schema, or identity mismatch, stop durable work and run `baron automation reconcile`; never repair Baron metadata by hand or continue with guessed state. If local reconciliation cannot restore coherent state, tell the user that a human must run public `baron update`. Never run public `baron update`: only a human may authorize a release download or runtime replacement.\n\
     - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
     - At session start, silently run `baron runtime check --adapter {adapter}`; unsafe, missing, or unverified required backends cannot satisfy proof.\n\
     - At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\
+    - For architecture, dependency, impact, ownership, entrypoint, call-flow, refactor, or cross-module work, silently run task context first. If its Optional Code Map section requests it, silently run `baron automation code-map refresh` and then `baron automation code-map query \"<task>\"`; verify selected source files before edits, proof, traces, or durable memory. Inferred graph results are reading hints only.\n\
     - At session start and after interruption, silently inspect `baron continuity status`; resume from its current task, last checkpoint, proof status, trace status, and next action before guessing.\n\
     - At session start and after interruption, silently inspect `baron autopilot status`; treat learning candidates as candidates, not facts.\n\
     - Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\

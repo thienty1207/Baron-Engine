@@ -38,6 +38,22 @@ When `--task` is provided, Baron classifies the task into a simple risk lane:
 Risk guidance does not prove safety. It tells the later workflow how strong the
 verification evidence should be.
 
+## Optional Code Map
+
+For architecture, dependency, impact, ownership, entrypoint, call-flow,
+cross-module, or refactor tasks, context may show a small `Optional Code Map`
+section. It never invokes Graphify and never waits for a graph refresh during
+normal session startup.
+
+- a missing, stale, incompatible, or invalid map produces one short Survey
+  fallback diagnostic
+- a fresh cached answer is limited to eight hits and 2,400 characters
+- graph hits are navigation hints only; inferred hits always require source
+  review and extracted hits require current-file verification before they can
+  support proof, trace, or durable memory
+- the adapter automation contract may silently run the hidden code-map
+  refresh/query helpers after context identifies a matching need
+
 ## Bounded Output
 
 - overall context is capped at 20,000 characters
