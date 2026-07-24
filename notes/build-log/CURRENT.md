@@ -6,7 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 42 - Code-Graph Provider Contract (`in_progress`).
+Phase 43 - Graphify Local Code-Only Adapter (`in_progress`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -80,12 +80,15 @@ outside its write set.
    withhold divergent repo/Vault terms from trusted context.
 7. Phase 41 completed: local assets, narrow routing, adapter parity, user
    preservation, public flow, and the Baron 3.5 source gate passed.
-8. Begin Phase 42 with RED provider-neutral code-graph cache, identity,
-   confidence, safety-bound, and Survey-fallback contracts. Do not invoke a
-   provider yet.
-9. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
+8. Phase 42 completed: provider-neutral graph state, source fingerprint,
+   project identity, cache path, junction, query-bound, and optional-capability
+   contracts passed without provider invocation.
+9. Begin Phase 43 with a deterministic fake Graphify provider. Allow only the
+   pinned local code-only probe/extract/query commands; protect refresh with
+   timeout, output, graph-size, checksum, and atomic-state tests.
+10. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
-10. Do not begin a later phase before the preceding phase has fresh evidence.
+11. Do not begin a later phase before the preceding phase has fresh evidence.
 
 ## Verified Baseline
 
@@ -94,8 +97,8 @@ outside its write set.
 - Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
 - Source and stable-source version are now `3.5.0` after Phase 41's full gate.
 - Baron 3.4 and 3.5 have source certification; no GitHub Release/tag was made.
-- Baron 3.6 has design/plan evidence only.
-- The program has 4 planned phases remaining: 42 through 45.
+- Baron 3.6 Phase 42 has focused source/test evidence; Phase 43-45 remain.
+- The program has 3 planned phases remaining: 43 through 45.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD
   semantic smoke, and visual-server behavior tests: passed on 2026-07-24.

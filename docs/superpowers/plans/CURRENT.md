@@ -4,14 +4,15 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 42 - Code-Graph Provider Contract
+- Active phase: Phase 43 - Graphify Local Code-Only Adapter
 - Status: `in_progress`
 - Verification: Baron 3.5 source certification passed: full workspace tests,
   Clippy, locked release build, adapter parity, local-only reconcile recovery,
   custom-asset preservation, bounded context, and public-flow contracts.
   `v3.5.0` is the stable source baseline; no tag or GitHub Release was created.
-- Next action: add the provider-neutral, project-scoped code-graph contract and
-  its RED cache/identity/confidence/fallback tests before accepting a provider.
+- Next action: add the exact-version local code-only Graphify adapter and its
+  deterministic fake-provider command-safety, timeout, output-cap, and atomic
+  refresh tests.
 
 ## Baron 3.4 Contract
 
@@ -33,9 +34,11 @@ Last updated: 2026-07-24
 - Baron 3.4, Phases 35-38: one runtime source and safe recoverable update.
 - Baron 3.5, Phases 39-41: certified local skill intelligence with no duplicate
   workflow.
-- Baron 3.6, Phases 42-45: optional local project code map, source verification,
+- Baron 3.6, Phase 42: provider-neutral project-scoped cache/identity contract
+  completed without provider invocation.
+- Baron 3.6, Phases 43-45: exact local adapter, bounded source verification,
   strict isolation, and Survey fallback.
-- Total remaining planned phases: 4.
+- Total remaining planned phases: 3.
 
 ## Active Documents
 
@@ -56,9 +59,9 @@ Last updated: 2026-07-24
 ## Rules
 
 - Follow RED/GREEN TDD for every production behavior.
-- Keep Phase 35-41 evidence intact before 3.6 work.
+- Keep Phase 35-42 evidence intact before provider invocation.
 - Update the build log and status Markdown/JSON after every phase checkpoint.
 - Do not mark a phase complete from test intent; record fresh command evidence.
 - Keep the normal user command surface small.
-- Do not accept a graph provider before Phase 42 contract tests are green.
-- Do not start Phase 43 before Phase 42 contract evidence is recorded.
+- Do not invoke a graph provider outside the exact Phase 43 command allowlist.
+- Do not start Phase 44 before Phase 43 provider safety evidence is recorded.

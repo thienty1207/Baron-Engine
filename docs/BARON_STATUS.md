@@ -13,18 +13,18 @@ Last updated: 2026-07-24
 - Program target release: `v3.6.0`
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
-- Baron 3.6 completion: 0%
-- Remaining planned phases: 4
-- Current phase: Phase 42 - Code-Graph Provider Contract
+- Baron 3.6 completion: 25%
+- Remaining planned phases: 3
+- Current phase: Phase 43 - Graphify Local Code-Only Adapter
 - Current phase status: in_progress
-- Current next action: add the provider-neutral, project-scoped code-graph
-  contract with identity, cache, confidence, safety limits, and Survey fallback
-  before accepting any local provider.
-- Build confidence: Baron 3.5 is source-certified. The fresh full suite,
-  Clippy, locked release binary, adapter parity, local-only reconcile recovery,
-  custom-asset preservation, bounded context, and public-flow contracts passed.
-  A tag/GitHub Release is still an explicit human promotion, not a side effect
-  of source certification.
+- Current next action: implement the exact-version local code-only Graphify
+  adapter against a deterministic fake provider, with strict command allowlist,
+  timeout, output cap, atomic refresh, and fallback proof.
+- Build confidence: Baron 3.5 is source-certified. Phase 42 adds a
+  provider-neutral graph cache, project identity, confidence, path,
+  fingerprint, junction, and fallback contract without invoking an external
+  provider. A tag/GitHub Release is still an explicit human promotion, not a
+  side effect of source certification.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -769,13 +769,18 @@ Phase 34 final verification:
 
 ### Phase 42 - Code-Graph Provider Contract
 
-- [ ] Add a Baron-owned provider-neutral graph contract with explicit extracted
+- [x] Add a Baron-owned provider-neutral graph contract with explicit extracted
   versus inferred confidence.
-- [ ] Store graph state only in a project-scoped rebuildable
+- [x] Store graph state only in a project-scoped rebuildable
   `.baron/cache/code-graph/`.
-- [ ] Bound hit count, characters, paths, subprocess time, and graph size.
-- [ ] Reject unsafe paths, stale project identity, and unverified graph output.
-- [ ] Keep Survey Engine as the mandatory fallback.
+- [x] Bound hit count, characters, paths, and graph size; reserve subprocess
+  limits for the provider adapter phase.
+- [x] Reject unsafe paths, stale project identity, and cache symlink/junction
+  traversal before any state write.
+- [x] Keep Survey Engine as the mandatory fallback; no provider invocation
+  exists in this phase.
+- [x] Register `graphify-local` only as an optional `code-map` capability and
+  preserve any project-owned `code-map` provider.
 
 ### Phase 43 - Graphify Local Code-Only Adapter
 

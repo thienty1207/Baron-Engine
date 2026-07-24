@@ -6,6 +6,7 @@ use baron_core::capability::{
     register_provider, remove_provider, CapabilityProvider, CheckOptions, Presence, ProviderKind,
     Requirement,
 };
+use baron_core::code_graph::ensure_code_map_capability;
 use baron_core::config::{initialize_project, AdapterKind};
 use tempfile::tempdir;
 
@@ -38,6 +39,51 @@ fn identifiers_are_normalized_to_stable_kebab_case() {
         Some("security-scan".to_string())
     );
     assert_eq!(normalize_identifier("___"), None);
+}
+
+#[test]
+fn optional_code_map_provider_is_registered_once_without_overwriting_custom_ownership() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let default_repo = temp.path().join("default-project");
+    let custom_repo = temp.path().join("custom-project");
+    fs::create_dir_all(&default_repo).unwrap();
+    fs::create_dir_all(&custom_repo).unwrap();
+    initialize_project(&default_repo, AdapterKind::Codex, &vault).unwrap();
+    initialize_project(&custom_repo, AdapterKind::Codex, &vault).unwrap();
+
+    ensure_code_map_capability(&default_repo).unwrap();
+    ensure_code_map_capability(&default_repo).unwrap();
+    let default_registry = load_registry(&default_repo).unwrap();
+    let defaults = default_registry
+        .providers
+        .iter()
+        .filter(|provider| provider.capability == "code-map")
+        .collect::<Vec<_>>();
+    assert_eq!(defaults.len(), 1);
+    assert_eq!(defaults[0].name, "graphify-local");
+    assert_eq!(defaults[0].kind, ProviderKind::Cli);
+    assert_eq!(defaults[0].requirement, Requirement::Optional);
+    assert_eq!(defaults[0].command.as_deref(), Some("graphify"));
+
+    let mut custom = provider(
+        "project-map",
+        "code-map",
+        ProviderKind::Cli,
+        Requirement::Optional,
+    );
+    custom.command = Some("project-map".to_string());
+    register_provider(&custom_repo, custom).unwrap();
+    ensure_code_map_capability(&custom_repo).unwrap();
+    let custom_registry = load_registry(&custom_repo).unwrap();
+    assert!(custom_registry
+        .providers
+        .iter()
+        .any(|provider| provider.name == "project-map"));
+    assert!(!custom_registry
+        .providers
+        .iter()
+        .any(|provider| provider.name == "graphify-local"));
 }
 
 #[test]

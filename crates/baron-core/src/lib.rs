@@ -5,6 +5,7 @@ pub mod automation;
 pub mod autopilot;
 pub mod capability;
 pub mod certification;
+pub mod code_graph;
 pub mod config;
 pub mod context;
 pub mod continuity;

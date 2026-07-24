@@ -39,6 +39,21 @@ Only the third fact can support a tool-backed completion claim.
 - Present required provider without execution evidence: Proof is insufficient.
 - Trace scoring inherits failed capability gates and blocks completion.
 
+## Optional Project Code Map
+
+Baron may register `graphify-local` as an optional `code-map` CLI provider for
+an initialized project. Its registration is a capability declaration, not a
+permission to run it and not proof that the provider is installed.
+
+- The provider remains optional; absence never blocks a task or a proof gate.
+- Baron registers it only when the project has no existing `code-map` provider.
+  A project-owned provider keeps ownership unchanged.
+- Code-map cache and state live only under
+  `.baron/cache/code-graph/` in the current repository. They never enter Vault
+  Markdown, cross-project recall, or durable memory.
+- A future local provider must be bounded and source-verified. Survey Engine
+  remains the fallback when no usable map is available.
+
 ## Adapter Awareness
 
 Presence is evaluated for Codex, Claude, or generic-agent context. A cached

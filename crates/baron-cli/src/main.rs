@@ -31,6 +31,7 @@ use baron_core::certification::{
     latest_certification_status, render_certification_report, run_certification,
     CertificationProfile,
 };
+use baron_core::code_graph::ensure_code_map_capability;
 use baron_core::config::{
     find_project_root, initialize_project, initialize_project_with_options, load_project_config,
     resolve_vault_path_for_repo, set_project_platform, setup_machine_vault, AdapterKind,
@@ -844,6 +845,7 @@ fn run() -> Result<()> {
                 ensure_platform_intelligence(&repo_root, &config)?;
                 ensure_architecture_governor(&repo_root, &config)?;
                 ensure_harness_workspace(&repo_root, &context)?;
+                ensure_code_map_capability(&repo_root)?;
                 let report = install_adapter(&repo_root, adapter)?;
                 println!("# Baron Adapter Init\n");
                 println!("- Project: `{}`", context.project_slug);
@@ -867,6 +869,7 @@ fn run() -> Result<()> {
                 let repo_root = find_project_root(&repo_path)?;
                 ensure_platform_intelligence(&repo_root, &config)?;
                 ensure_architecture_governor(&repo_root, &config)?;
+                ensure_code_map_capability(&repo_root)?;
                 println!("# Baron Platform Focus\n");
                 println!("- Project: `{}`", config.project_slug);
                 println!(
@@ -2164,6 +2167,7 @@ fn run() -> Result<()> {
                         ensure_platform_intelligence(&repo_root, &config)?;
                         ensure_architecture_governor(&repo_root, &config)?;
                         ensure_harness_workspace(&repo_root, &vault)?;
+                        ensure_code_map_capability(&repo_root)?;
                         record_lifecycle_event(
                             &vault,
                             hook_adapter_for_repo(&repo_root),

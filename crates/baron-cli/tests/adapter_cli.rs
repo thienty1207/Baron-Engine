@@ -39,6 +39,10 @@ fn non_shadow_init_installs_codex_and_configuration() {
 
     assert!(repo.join(".baron/project.toml").exists());
     assert!(repo.join(".baron/local.toml").exists());
+    let capabilities = fs::read_to_string(repo.join(".baron/capabilities.toml")).unwrap();
+    assert!(capabilities.contains("graphify-local"));
+    assert!(capabilities.contains("code-map"));
+    assert!(capabilities.contains("optional"));
     assert!(repo.join("AGENTS.md").exists());
     assert!(repo.join(".codex/skills/superpowers/SKILL.md").exists());
     assert!(repo.join("docs/baron/harness/DOMAIN_LANGUAGE.md").exists());
