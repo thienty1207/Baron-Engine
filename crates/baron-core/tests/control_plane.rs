@@ -173,6 +173,43 @@ fn routes_frontend_tasks_narrowly_with_review_and_test_gates() {
 }
 
 #[test]
+fn frontend_route_stays_local_and_backend_work_does_not_load_it() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let frontend = route_task(
+        repo,
+        "implement responsive checkout payment form with loading and error states",
+        RiskLane::High,
+    )
+    .unwrap();
+    assert!(frontend
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "frontend-design"));
+    assert_eq!(
+        frontend.mandatory_agents,
+        ["code-reviewer", "security-auditor", "test-engineer"]
+    );
+    assert!(!frontend
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "hallmark"));
+
+    let backend = route_task(
+        repo,
+        "design a REST API transaction boundary for the billing service",
+        RiskLane::Medium,
+    )
+    .unwrap();
+    assert!(!backend
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "frontend-design"));
+}
+
+#[test]
 fn routes_security_tasks_to_security_skill_and_all_core_gates() {
     let temp = tempdir().unwrap();
     let repo = temp.path();

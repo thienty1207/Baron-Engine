@@ -22,6 +22,31 @@ Use this when the task asks for frontend implementation, UI design, visual refin
 
 Do not use it for backend-only, database-only, CLI-only, cloud-only, or pure security work unless a visible frontend surface is part of the task.
 
+## Select The Right Frontend Mode
+
+Choose the least disruptive mode that matches the request and the evidence.
+
+| Mode | Use when | Boundary |
+| --- | --- | --- |
+| `audit` | Review an existing screen, flow, or component. | Preserve the current product structure and report evidence-backed findings. |
+| `refine` | Improve a known surface without changing its product job. | Preserve information architecture, user flows, and established design language. |
+| `redesign` | The user explicitly asks for a redesign, or verified evidence shows the current structure cannot serve its job. | Record the approved scope and the evidence for changing structure before editing. |
+
+Do not turn an audit or refinement into a redesign because a new composition
+looks more interesting. If product intent, brand evidence, or user constraints
+are absent, mark them unknown rather than inventing them.
+
+## Load Only The Needed Reference
+
+This skill is intentionally narrow. Load one or more references only when the
+task needs them; do not read every reference for a small CSS or copy change.
+
+- New composition or an approved redesign: read `references/brief-fingerprint.md`.
+- Visual refinement, dashboard, landing page, or component redesign: read
+  `references/anti-template-gates.md`.
+- Responsive layout, stateful flow, form, checkout, or accessibility work: read
+  `references/responsive-state-proof.md`.
+
 ## Design Thinking
 
 Before coding frontend UI, identify the product context and choose a deliberate aesthetic direction:
@@ -31,6 +56,13 @@ Before coding frontend UI, identify the product context and choose a deliberate 
 - Tone: choose a coherent direction such as calm focus, editorial clarity, friendly learning, refined minimalism, operational density, or playful exploration.
 - Constraints: framework, performance, accessibility, content density, responsive layout, and nearby implementation conventions.
 - Differentiation: identify the product signal that makes the interface feel designed for this project, not generic.
+
+Before changing a visual composition, write a short brief fingerprint from
+repository and user evidence. It must state the product job, audience or
+interaction pressure, one justified macrostructure, three product-specific
+signals, and generic defaults rejected for this surface. Preserve existing
+information architecture unless the selected mode and evidence allow a
+redesign.
 
 ## Implementation Standard
 
@@ -73,6 +105,25 @@ Before final response, check:
 - Performance: images, fonts, heavy components, route loading, and unnecessary re-render risks are identified.
 - Baron evidence: changed files, browser/smoke proof, remaining core-agent gates, and trace/proof gaps are clear.
 
+## Changed-Surface Quality Gate
+
+Run this bounded gate before final response for meaningful frontend work. Check
+only the changed surface and the directly related flow; do not turn it into a
+whole-product redesign or an unrelated visual scan.
+
+- Reject interchangeable card grids, decorative gradient/blob themes, generic
+  dark dashboards, or oversized marketing typography when they do not follow
+  product evidence.
+- Check that containers express information hierarchy rather than repeating
+  rounded panels without purpose.
+- Do not introduce arbitrary imagery, iconography, or invented product copy.
+- Treat a theme-only swap that leaves a weak composition unchanged as an
+  unresolved design issue.
+- Check contrast, visible focus, reduced motion, long content, and mobile
+  overflow for the changed interaction when relevant.
+- Record each check as `observed`, `not applicable with reason`, or `not
+  verified`. Never translate missing evidence into a passing claim.
+
 ## Verification
 
 - Run the smallest useful browser, DOM, screenshot, component, build, or smoke check that proves the UI behavior.
@@ -83,26 +134,19 @@ Before final response, check:
 - For visual work, compare against existing design tokens and nearby screens instead of inventing a disconnected style.
 - For performance-sensitive screens, do not claim faster rendering without measurement; label static concerns as potential impact.
 - Record proof and trace evidence through Baron when the frontend task is meaningful or medium/high risk.
-
-## Baron Design Quality Gate
-
-For matching frontend work, run a bounded post-edit check against the changed
-surface only. Do not scan unrelated screens.
-
-- Check overflow and clipping with long content at mobile and desktop widths.
-- Check contrast, semantic hierarchy, typography scale, spacing rhythm, and token reuse.
-- Check keyboard/focus behavior, labels, reduced motion, loading, empty, error, and disabled states when applicable.
-- Check responsive structure at a narrow and a wide viewport; do not claim device coverage that was not observed.
-- Check design-system drift by comparing changed components with nearby project-owned patterns.
-- Treat static performance observations as potential impact until browser measurements exist.
-- Record concrete reviewer findings in the Baron review ledger. A finding remains open until fix evidence and verification are both recorded.
+- Use only `observed`, `not applicable with reason`, or `not verified` for
+  responsive and interaction evidence. A viewport or state that was not
+  checked remains `not verified`.
 
 ## Output Contract
 
 When reporting frontend work, include:
 
 - what UI surface changed or was reviewed
+- selected frontend mode and the evidence that justified it
 - files touched or inspected
 - accessibility, responsive, and interaction-state risks
+- brief fingerprint, anti-template, and responsive/state evidence when those
+  checks applied
 - browser/screenshot/smoke verification performed, or why it could not run
 - remaining gaps that should go to `code-reviewer`, `security-auditor`, or `test-engineer`

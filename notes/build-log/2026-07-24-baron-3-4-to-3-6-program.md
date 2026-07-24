@@ -81,8 +81,8 @@ Claude, and generic adapters prove parity from `assets/core/`.
 | 36 | 3.4.0 | Verified release candidate and binary handoff | completed |
 | 37 | 3.4.0 | Conflict-safe activation and recovery | completed |
 | 38 | 3.4.0 | Automation contract and certification | completed |
-| 39 | 3.5.0 | Hallmark frontend distillation | planned |
-| 40 | 3.5.0 | Deep modules and product domain language | planned |
+| 39 | 3.5.0 | Hallmark frontend distillation | completed |
+| 40 | 3.5.0 | Deep modules and product domain language | in_progress |
 | 41 | 3.5.0 | Routing, preservation, and certification | planned |
 | 42 | 3.6.0 | Code-graph provider contract | planned |
 | 43 | 3.6.0 | Graphify local code-only adapter | planned |
@@ -108,9 +108,10 @@ Claude, and generic adapters prove parity from `assets/core/`.
 2. Read `notes/build-log/CURRENT.md`.
 3. Read the master program.
 4. Open the 3.5 release plan.
-5. Write Phase 39 RED contracts for one deep local frontend owner.
-6. Update status/logs at the Phase 39 checkpoint.
-7. Start Phase 40 only after Phase 39 focused evidence is recorded.
+5. Read the Phase 39 certification record and focused evidence.
+6. Write Phase 40 RED contracts for deep-module assets and project-scoped
+   domain language.
+7. Start Phase 41 only after Phase 40 focused evidence is recorded.
 
 ## Not Performed At This Checkpoint
 
@@ -122,6 +123,20 @@ Claude, and generic adapters prove parity from `assets/core/`.
   certification.
 - No release tag or GitHub Release has been created.
 - No source push has been performed from this worktree yet.
+
+## Phase 39 Verified Checkpoint
+
+- RED adapter contract failed before the local frontend references existed.
+- The focused three-adapter installation contract passed after adding the
+  references and local attribution notice.
+- The frontend and backend routing contract passed: frontend work selects the
+  existing frontend owner with all three quality gates; backend-only work does
+  not select it.
+- A deterministic source comparison against pre-3.5 revision `b268ccb` and
+  the controlled pressure fixtures is recorded in
+  `docs/assessment/baron-3.5.0-skill-intelligence-certification.md`.
+- Operational frontend guidance contains no live URL, installer command, raw
+  remote dependency, or second workflow owner.
 
 ## 2026-07-24 Implementation Checkpoint
 

@@ -221,6 +221,55 @@ fn codex_adapter_installs_core_and_optional_assets() {
 }
 
 #[test]
+fn frontend_design_is_local_deep_and_has_one_routing_owner() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    for adapter in [
+        AgentAdapter::Codex,
+        AgentAdapter::Claude,
+        AgentAdapter::Generic,
+    ] {
+        install_adapter(repo, adapter).unwrap();
+    }
+
+    for root in [
+        repo.join(".codex/skills"),
+        repo.join(".claude/skills"),
+        repo.join(".baron/core/skills"),
+    ] {
+        let frontend = root.join("frontend-design");
+        let operational_paths = [
+            frontend.join("SKILL.md"),
+            frontend.join("references/brief-fingerprint.md"),
+            frontend.join("references/anti-template-gates.md"),
+            frontend.join("references/responsive-state-proof.md"),
+        ];
+        for path in &operational_paths {
+            assert!(path.is_file(), "missing local frontend guidance: {}", path.display());
+        }
+        assert!(!root.join("hallmark").exists());
+        assert!(!root.join("matt-skills").exists());
+
+        let operational = operational_paths
+            .iter()
+            .map(|path| fs::read_to_string(path).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(operational.contains("Superpowers remains the workflow authority"));
+        for forbidden in ["npx skills add", "raw.githubusercontent.com", "http://", "https://"] {
+            assert!(
+                !operational.contains(forbidden),
+                "frontend operational guidance must be self-contained, found {forbidden}"
+            );
+        }
+        assert!(
+            !operational.to_ascii_lowercase().contains("hallmark"),
+            "frontend guidance must not create a Hallmark runtime owner"
+        );
+    }
+}
+
+#[test]
 fn superpowers_core_is_pinned_to_v6_2_and_installs_the_complete_workflow() {
     let temp = tempdir().unwrap();
     let repo = temp.path();

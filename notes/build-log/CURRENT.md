@@ -1,12 +1,12 @@
 # Current Build Note
 
 Date: 2026-07-24
-Target: Baron 3.4.0
+Target: Baron 3.5.0
 Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 39 - Hallmark Frontend Distillation (`planned`).
+Phase 40 - Deep Modules And Product Domain Language (`in_progress`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -71,9 +71,12 @@ outside its write set.
    `docs/superpowers/specs/2026-07-24-baron-3-4-to-3-6-controlled-extension-design.md`.
 4. Execute
    `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
-5. Begin Phase 39 with RED frontend asset/routing tests. Do not add Hallmark as
-   a new skill, runtime dependency, or second frontend owner.
-6. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
+5. Phase 39 completed: local frontend guidance now has a brief fingerprint,
+   anti-template gates, responsive/state proof, three-adapter installation
+   proof, narrow routing proof, and no operational live dependency.
+6. Begin Phase 40 with RED Product Harness domain-language and deep-module
+   asset contracts. Do not add a second workflow or architecture skill owner.
+7. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
 7. Do not begin the 3.5 or 3.6 plans before the preceding release is certified.
 

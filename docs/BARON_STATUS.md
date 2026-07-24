@@ -12,14 +12,14 @@ Last updated: 2026-07-24
 - Target source release: `v3.5.0`
 - Program target release: `v3.6.0`
 - Baron 3.4 completion: 100%
-- Baron 3.5 completion: 0%
+- Baron 3.5 completion: 35%
 - Baron 3.6 completion: 0%
-- Remaining planned phases: 7
-- Current phase: Phase 39 - Hallmark Frontend Distillation
-- Current phase status: planned
-- Current next action: begin Phase 39 with RED adapter/control-plane contracts,
-  then rewrite local `frontend-design` references without adding a second
-  frontend owner or a Hallmark runtime dependency.
+- Remaining planned phases: 6
+- Current phase: Phase 40 - Deep Modules And Product Domain Language
+- Current phase status: in_progress
+- Current next action: write RED domain-language and deep-module asset
+  contracts, then add project-scoped Product Harness terminology without
+  inventing or sharing terms across projects.
 - Build confidence: Baron 3.4 is source-certified. The fresh full suite,
   Clippy, locked release binary, workflow-YAML, installer lifecycle,
   candidate/transaction/recovery fixtures, local-only reconcile, and
@@ -49,7 +49,7 @@ Last updated: 2026-07-24
 
 Phase 35 through Phase 38 are complete. The decisions above still do not add
 Graphify or alter the approved release order. Version `3.4.0` is the current
-source-certified baseline before Phase 39 begins.
+source-certified baseline before Baron 3.5 certification completes.
 
 ## Baron 3.0 Direction
 
@@ -729,15 +729,16 @@ Phase 34 final verification:
 
 ### Phase 39 - Hallmark Frontend Distillation
 
-- [ ] Keep `frontend-design` as the single frontend skill owner.
-- [ ] Add a project-evidence brief fingerprint before visual decisions.
-- [ ] Add bounded anti-template checks that reject interchangeable AI-looking
+- [x] Keep `frontend-design` as the single frontend skill owner.
+- [x] Add a project-evidence brief fingerprint before visual decisions.
+- [x] Add bounded anti-template checks that reject interchangeable AI-looking
   layouts without forcing one house style.
-- [ ] Add responsive, loading, empty, error, focus, disabled, and reduced-motion
+- [x] Add responsive, loading, empty, error, focus, disabled, and reduced-motion
   proof states.
-- [ ] Keep source attribution and licensing in local provenance/notice files,
+- [x] Keep source attribution and licensing in local provenance/notice files,
   never as a live runtime dependency.
-- [ ] Prove behavior through three-adapter and pressure tests.
+- [x] Prove behavior through three-adapter, routing, static pressure contracts,
+  and source-baseline comparison.
 
 ### Phase 40 - Deep Modules And Product Domain Language
 
@@ -884,7 +885,7 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.3.0` remains the stable source baseline. Phases 35-45 are planned in
+Baron `3.4.0` remains the stable source baseline. Phases 35-45 are planned in
 strict release order: `3.4.0` update safety, `3.5.0` skill intelligence, then
 `3.6.0` optional code-map intelligence. The next implementation must first prove
 the managed baseline after the completed blueprint cleanup; it must not jump
