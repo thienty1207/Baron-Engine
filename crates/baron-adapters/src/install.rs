@@ -6,7 +6,10 @@ use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 
 use crate::managed::{upsert_managed_block, upsert_routing_block, write_managed_file};
-use crate::AgentAdapter;
+use crate::{
+    ensure_managed_baseline, managed_content_for_kind, AgentAdapter, ManagedAssetPayload,
+    ManagedMergeKind,
+};
 
 static CORE_ASSETS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../assets/core");
 
@@ -22,11 +25,338 @@ pub fn install_adapter(
     adapter: AgentAdapter,
 ) -> Result<InstallReport> {
     let repo_root = repo_root.as_ref();
-    match adapter {
+    let report = match adapter {
         AgentAdapter::Codex => install_codex(repo_root),
         AgentAdapter::Claude => install_claude(repo_root),
         AgentAdapter::Generic => install_generic(repo_root),
+    }?;
+    let payloads = managed_payloads_for_adapter(adapter)?;
+    ensure_managed_baseline(repo_root, &payloads, env!("CARGO_PKG_VERSION"))?;
+    Ok(report)
+}
+
+/// Renders exactly the Baron-owned portions of an adapter installation without
+/// reading or writing a target repository. This is the upstream side of the
+/// safe three-way update planner.
+pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<ManagedAssetPayload>> {
+    let adapter_name = adapter_name(adapter).to_string();
+    let mut payloads = match adapter {
+        AgentAdapter::Codex => vec![
+            payload(
+                &adapter_name,
+                "AGENTS.md",
+                ManagedMergeKind::MarkerBlock,
+                &managed_block(&startup_contract("Codex", "codex")),
+            ),
+            payload(
+                &adapter_name,
+                ".codex/INDEX.md",
+                ManagedMergeKind::FullText,
+                &codex_index(),
+            ),
+            payload(
+                &adapter_name,
+                ".codex/skills/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&skills_index(".codex/skills")),
+            ),
+            payload(
+                &adapter_name,
+                ".codex/agents/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&agents_index()),
+            ),
+            payload(
+                &adapter_name,
+                ".codex/hooks.json",
+                ManagedMergeKind::JsonOwnedEntries,
+                &managed_content_for_kind(
+                    &native_hooks_document("codex")?,
+                    ManagedMergeKind::JsonOwnedEntries,
+                )?,
+            ),
+        ],
+        AgentAdapter::Claude => vec![
+            payload(
+                &adapter_name,
+                "CLAUDE.md",
+                ManagedMergeKind::MarkerBlock,
+                &managed_block(&startup_contract("Claude", "claude")),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/commands/baron-context.md",
+                ManagedMergeKind::FullText,
+                &claude_context_command(),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/commands/baron-status.md",
+                ManagedMergeKind::FullText,
+                &claude_status_command(),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/skills/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&skills_index(".claude/skills")),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/agents/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&agents_index()),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/settings.json",
+                ManagedMergeKind::JsonOwnedEntries,
+                &managed_content_for_kind(
+                    &native_hooks_document("claude")?,
+                    ManagedMergeKind::JsonOwnedEntries,
+                )?,
+            ),
+            payload(
+                &adapter_name,
+                ".claude/agents/code-reviewer.md",
+                ManagedMergeKind::FullText,
+                &claude_agent_content("code-reviewer", "Review findings first. Focus on correctness, regressions, maintainability, architecture fit, and missing tests. Use evidence."),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/agents/security-auditor.md",
+                ManagedMergeKind::FullText,
+                &claude_agent_content("security-auditor", "Report defensive security findings with severity, evidence, impact, fix, and verification. Never provide weaponized exploitation."),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/agents/test-engineer.md",
+                ManagedMergeKind::FullText,
+                &claude_agent_content("test-engineer", "Identify the smallest sufficient proof, missing coverage, and exact verification evidence. Never replace tests with confidence."),
+            ),
+            payload(
+                &adapter_name,
+                ".claude/agents/web-performance-auditor.md",
+                ManagedMergeKind::FullText,
+                &claude_agent_content("web-performance-auditor", "Optional web performance auditor. Use only for web performance tasks. Never fabricate metrics; mark static findings as potential impact. Not included in mandatory gates."),
+            ),
+        ],
+        AgentAdapter::Generic => vec![
+            payload(
+                &adapter_name,
+                "AGENT.md",
+                ManagedMergeKind::MarkerBlock,
+                &managed_block(&startup_contract("generic agents", "agent")),
+            ),
+            payload(
+                &adapter_name,
+                "baron-context.md",
+                ManagedMergeKind::FullText,
+                &generic_context_markdown(),
+            ),
+            payload(
+                &adapter_name,
+                "baron-context.json",
+                ManagedMergeKind::FullText,
+                &generic_context_json()?,
+            ),
+            payload(
+                &adapter_name,
+                ".baron/core/skills/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&skills_index(".baron/core/skills")),
+            ),
+            payload(
+                &adapter_name,
+                ".baron/core/agents/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&agents_index()),
+            ),
+        ],
+    };
+
+    match adapter {
+        AgentAdapter::Codex => {
+            collect_embedded_asset_payloads(
+                "skills",
+                Path::new(".codex/skills"),
+                &adapter_name,
+                &mut payloads,
+            )?;
+            collect_embedded_asset_payloads(
+                "agents",
+                Path::new(".codex/agents"),
+                &adapter_name,
+                &mut payloads,
+            )?;
+        }
+        AgentAdapter::Claude => {
+            collect_embedded_asset_payloads(
+                "skills",
+                Path::new(".claude/skills"),
+                &adapter_name,
+                &mut payloads,
+            )?;
+        }
+        AgentAdapter::Generic => {
+            collect_embedded_asset_payloads(
+                "skills",
+                Path::new(".baron/core/skills"),
+                &adapter_name,
+                &mut payloads,
+            )?;
+            collect_embedded_asset_payloads(
+                "agents",
+                Path::new(".baron/core/agents"),
+                &adapter_name,
+                &mut payloads,
+            )?;
+        }
     }
+
+    Ok(payloads)
+}
+
+fn payload(
+    adapter: &str,
+    relative_path: &str,
+    merge_kind: ManagedMergeKind,
+    content: &str,
+) -> ManagedAssetPayload {
+    ManagedAssetPayload {
+        adapter: adapter.to_string(),
+        relative_path: PathBuf::from(relative_path),
+        merge_kind,
+        content: content.to_string(),
+    }
+}
+
+fn managed_block(body: &str) -> String {
+    format!(
+        "<!-- BARON:MANAGED:START -->\n{}\n<!-- BARON:MANAGED:END -->",
+        body.trim()
+    )
+}
+
+fn routing_block(body: &str) -> String {
+    format!(
+        "<!-- BARON:ROUTING:START -->\n{}\n<!-- BARON:ROUTING:END -->",
+        body.trim()
+    )
+}
+
+fn collect_embedded_asset_payloads(
+    source: &str,
+    destination: &Path,
+    adapter: &str,
+    payloads: &mut Vec<ManagedAssetPayload>,
+) -> Result<()> {
+    let directory = CORE_ASSETS
+        .get_dir(source)
+        .with_context(|| format!("Embedded Baron asset directory missing: {source}"))?;
+    collect_embedded_directory_payloads(directory, destination, adapter, payloads)?;
+    Ok(())
+}
+
+fn collect_embedded_directory_payloads(
+    directory: &Dir<'_>,
+    destination: &Path,
+    adapter: &str,
+    payloads: &mut Vec<ManagedAssetPayload>,
+) -> Result<()> {
+    for file in directory.files() {
+        let relative = file
+            .path()
+            .strip_prefix(directory.path())
+            .unwrap_or(file.path());
+        let content = std::str::from_utf8(file.contents()).with_context(|| {
+            format!(
+                "Embedded Baron asset is not UTF-8: {}",
+                file.path().display()
+            )
+        })?;
+        payloads.push(ManagedAssetPayload {
+            adapter: adapter.to_string(),
+            relative_path: destination.join(relative),
+            merge_kind: ManagedMergeKind::FullText,
+            content: content.to_string(),
+        });
+    }
+    for child in directory.dirs() {
+        let relative = child
+            .path()
+            .strip_prefix(directory.path())
+            .unwrap_or(child.path());
+        collect_embedded_directory_payloads(child, &destination.join(relative), adapter, payloads)?;
+    }
+    Ok(())
+}
+
+fn adapter_name(adapter: AgentAdapter) -> &'static str {
+    match adapter {
+        AgentAdapter::Codex => "codex",
+        AgentAdapter::Claude => "claude",
+        AgentAdapter::Generic => "agent",
+    }
+}
+
+fn claude_context_command() -> String {
+    "# Baron Context\n\nRun `baron capability check --adapter claude`, `baron runtime check --adapter claude`, `baron autopilot status`, and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n".to_string()
+}
+
+fn claude_status_command() -> String {
+    "# Baron Status\n\nRun `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score.\n".to_string()
+}
+
+fn generic_context_markdown() -> String {
+    "# Baron Context Contract\n\nRun `baron capability check --adapter agent`, `baron runtime check --adapter agent`, `baron autopilot status`, and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n".to_string()
+}
+
+fn generic_context_json() -> Result<String> {
+    Ok(serde_json::to_string_pretty(&serde_json::json!({
+        "engine": "baron",
+        "adapter": "agent",
+        "capabilityCheckCommand": "baron capability check --adapter agent",
+        "runtimeCheckCommand": "baron runtime check --adapter agent",
+        "autopilotStatusCommand": "baron autopilot status",
+        "autopilotReviewCommand": "baron autopilot review \"<summary>\"",
+        "contextCommand": "baron context --agent",
+        "automatic": true,
+        "sourceOfTruth": ["repository", "vault-markdown"]
+    }))?)
+}
+
+fn claude_agent_content(name: &str, instructions: &str) -> String {
+    format!(
+        "---\nname: {name}\ndescription: Baron core quality gate\n---\n\n# {name}\n\n{instructions}\n\nSuperpowers remains the workflow core. Do not orchestrate other agents.\n"
+    )
+}
+
+fn native_hooks_document(adapter: &str) -> Result<String> {
+    let mut hooks = serde_json::Map::new();
+    for (event, command, matcher) in [
+        ("SessionStart", "session-start", None),
+        ("UserPromptSubmit", "prompt", None),
+        ("PostToolUse", "checkpoint", Some("Edit|Write|apply_patch")),
+        ("Stop", "stop", None),
+    ] {
+        let mut group = serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": format!("baron automation hook {command} --adapter {adapter}"),
+                "commandWindows": format!("baron automation hook {command} --adapter {adapter}"),
+                "timeout": 120
+            }]
+        });
+        if let Some(matcher) = matcher {
+            group["matcher"] = serde_json::Value::String(matcher.to_string());
+        }
+        hooks.insert(event.to_string(), serde_json::Value::Array(vec![group]));
+    }
+    Ok(format!(
+        "{}\n",
+        serde_json::to_string_pretty(&serde_json::json!({ "hooks": hooks }))?
+    ))
 }
 
 fn install_codex(repo: &Path) -> Result<InstallReport> {
@@ -66,11 +396,11 @@ fn install_claude(repo: &Path) -> Result<InstallReport> {
     )?;
     write_managed_file(
         &repo.join(".claude/commands/baron-context.md"),
-        "# Baron Context\n\nRun `baron capability check --adapter claude`, `baron runtime check --adapter claude`, `baron autopilot status`, and then `baron context --claude` silently. Follow the bounded context bundle. Capability presence is not execution evidence.\n",
+        &claude_context_command(),
     )?;
     write_managed_file(
         &repo.join(".claude/commands/baron-status.md"),
-        "# Baron Status\n\nRun `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score.\n",
+        &claude_status_command(),
     )?;
     upsert_routing_block(
         &repo.join(".claude/skills/INDEX.md"),
@@ -149,24 +479,8 @@ fn install_generic(repo: &Path) -> Result<InstallReport> {
         &repo.join("AGENT.md"),
         &startup_contract("generic agents", "agent"),
     )?;
-    write_managed_file(
-        &repo.join("baron-context.md"),
-        "# Baron Context Contract\n\nRun `baron capability check --adapter agent`, `baron runtime check --adapter agent`, `baron autopilot status`, and then `baron context --agent` at session start. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence is not execution evidence.\n",
-    )?;
-    write_managed_file(
-        &repo.join("baron-context.json"),
-        &serde_json::to_string_pretty(&serde_json::json!({
-            "engine": "baron",
-            "adapter": "agent",
-            "capabilityCheckCommand": "baron capability check --adapter agent",
-            "runtimeCheckCommand": "baron runtime check --adapter agent",
-            "autopilotStatusCommand": "baron autopilot status",
-            "autopilotReviewCommand": "baron autopilot review \"<summary>\"",
-            "contextCommand": "baron context --agent",
-            "automatic": true,
-            "sourceOfTruth": ["repository", "vault-markdown"]
-        }))?,
-    )?;
+    write_managed_file(&repo.join("baron-context.md"), &generic_context_markdown())?;
+    write_managed_file(&repo.join("baron-context.json"), &generic_context_json()?)?;
     upsert_routing_block(
         &repo.join(".baron/core/skills/INDEX.md"),
         &skills_index(".baron/core/skills"),
@@ -340,12 +654,9 @@ fn write_claude_agents(repo: &Path) -> Result<()> {
         ),
     ];
     for (name, instructions) in agents {
-        let content = format!(
-            "---\nname: {name}\ndescription: Baron core quality gate\n---\n\n# {name}\n\n{instructions}\n\nSuperpowers remains the workflow core. Do not orchestrate other agents.\n"
-        );
         write_managed_file(
             &repo.join(".claude/agents").join(format!("{name}.md")),
-            &content,
+            &claude_agent_content(name, instructions),
         )?;
     }
     upsert_routing_block(

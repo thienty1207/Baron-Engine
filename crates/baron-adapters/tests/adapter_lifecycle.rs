@@ -42,7 +42,10 @@ fn assets_core_is_the_only_bundled_runtime_source() {
         "agents/security-auditor.toml",
         "agents/test-engineer.toml",
     ] {
-        assert!(assets.join(required).is_file(), "missing runtime asset {required}");
+        assert!(
+            assets.join(required).is_file(),
+            "missing runtime asset {required}"
+        );
     }
 
     assert!(
@@ -69,7 +72,12 @@ fn assets_core_is_the_only_bundled_runtime_source() {
         .filter_map(|path| {
             fs::read_to_string(&path).ok().and_then(|content| {
                 (content.contains("blueprints/core") || content.contains("blueprints\\\\core"))
-                    .then(|| path.strip_prefix(&workspace_root).unwrap().display().to_string())
+                    .then(|| {
+                        path.strip_prefix(&workspace_root)
+                            .unwrap()
+                            .display()
+                            .to_string()
+                    })
             })
         })
         .collect::<Vec<_>>();
@@ -81,7 +89,11 @@ fn assets_core_is_the_only_bundled_runtime_source() {
 
     let temp = tempdir().unwrap();
     let repo = temp.path();
-    for adapter in [AgentAdapter::Codex, AgentAdapter::Claude, AgentAdapter::Generic] {
+    for adapter in [
+        AgentAdapter::Codex,
+        AgentAdapter::Claude,
+        AgentAdapter::Generic,
+    ] {
         install_adapter(repo, adapter).unwrap();
     }
     for root in [
@@ -90,9 +102,18 @@ fn assets_core_is_the_only_bundled_runtime_source() {
         repo.join(".baron/core"),
     ] {
         assert!(root.join("skills/superpowers/SKILL.md").is_file());
-        assert!(root.join("agents/code-reviewer.toml").is_file() || root.join("agents/code-reviewer.md").is_file());
-        assert!(root.join("agents/security-auditor.toml").is_file() || root.join("agents/security-auditor.md").is_file());
-        assert!(root.join("agents/test-engineer.toml").is_file() || root.join("agents/test-engineer.md").is_file());
+        assert!(
+            root.join("agents/code-reviewer.toml").is_file()
+                || root.join("agents/code-reviewer.md").is_file()
+        );
+        assert!(
+            root.join("agents/security-auditor.toml").is_file()
+                || root.join("agents/security-auditor.md").is_file()
+        );
+        assert!(
+            root.join("agents/test-engineer.toml").is_file()
+                || root.join("agents/test-engineer.md").is_file()
+        );
     }
 }
 
@@ -124,7 +145,8 @@ fn superpowers_upstream_tree_digest(root: &Path) -> (usize, String) {
                 continue;
             }
             let content = fs::read(entry.path()).unwrap();
-            let file_hash = Sha256::digest(content)
+            let normalized = canonicalize_line_endings(&content);
+            let file_hash = Sha256::digest(normalized)
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>();
@@ -137,6 +159,21 @@ fn superpowers_upstream_tree_digest(root: &Path) -> (usize, String) {
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     (entries.len(), digest)
+}
+
+fn canonicalize_line_endings(content: &[u8]) -> Vec<u8> {
+    let mut normalized = Vec::with_capacity(content.len());
+    let mut index = 0;
+    while index < content.len() {
+        if content[index] == b'\r' && content.get(index + 1) == Some(&b'\n') {
+            normalized.push(b'\n');
+            index += 2;
+        } else {
+            normalized.push(content[index]);
+            index += 1;
+        }
+    }
+    normalized
 }
 
 #[test]
@@ -191,7 +228,6 @@ fn superpowers_core_is_pinned_to_v6_2_and_installs_the_complete_workflow() {
     install_adapter(repo, AgentAdapter::Codex).unwrap();
     install_adapter(repo, AgentAdapter::Claude).unwrap();
     install_adapter(repo, AgentAdapter::Generic).unwrap();
-
     for root in [
         repo.join(".codex/skills/superpowers"),
         repo.join(".claude/skills/superpowers"),
@@ -209,6 +245,7 @@ fn superpowers_core_is_pinned_to_v6_2_and_installs_the_complete_workflow() {
             provenance["upstreamTreeSha256"],
             "e76b5a985b27d626b7338028e292ecd944664ef5d85981c6fd05a8ae71b9291a"
         );
+        assert_eq!(provenance["vendoredTreeHashNormalization"], "LF");
         assert_eq!(
             provenance["baronPatches"][0]["path"],
             "brainstorming/scripts/server.cjs"
@@ -220,7 +257,9 @@ fn superpowers_core_is_pinned_to_v6_2_and_installs_the_complete_workflow() {
         );
         assert_eq!(
             tree_digest,
-            provenance["vendoredTreeSha256"].as_str().unwrap()
+            provenance["vendoredTreeSha256"].as_str().unwrap(),
+            "vendored Superpowers tree changed at {}",
+            root.display()
         );
         let baron_contract = fs::read_to_string(root.join("SKILL.md")).unwrap();
         assert!(baron_contract.contains("plan-scoped SDD workspace"));
@@ -388,6 +427,23 @@ fn update_preserves_user_text_outside_managed_block() {
     assert!(content.contains("# User Rules"));
     assert!(content.contains("Never delete this."));
     assert_eq!(content.matches("BARON:MANAGED:START").count(), 1);
+}
+
+#[test]
+fn adapter_update_rejects_malformed_managed_markers_without_overwriting_user_content() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    let malformed = "# User Header\n\n<!-- BARON:MANAGED:START -->\npartial Baron content\n";
+    fs::write(repo.join("AGENTS.md"), malformed).unwrap();
+
+    let error = install_adapter(repo, AgentAdapter::Codex).unwrap_err();
+
+    assert!(error.to_string().contains("malformed"));
+    assert_eq!(
+        fs::read_to_string(repo.join("AGENTS.md")).unwrap(),
+        malformed
+    );
 }
 
 #[test]

@@ -6,7 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 35 - Single Runtime Source And Managed Baseline (`in_progress`).
+Phase 36 - Verified Release Candidate And Binary Handoff (`planned`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -41,15 +41,18 @@ The two apparent core trees are not equal maintained sources:
   `blueprints/core/`.
 
 Phase 35 completed the source-of-truth contract, deletion of
-`blueprints/core/`, and the adapter parity proof. The RED test failed on the
-stale directory; the same focused test passed after removal. The managed
-baseline work can now start without legitimizing conflicting stale content.
+`blueprints/core/`, adapter parity proof, managed baseline, conservative
+three-way planner, malformed-marker refusal, and no-write CLI preview. The
+RED test failed on the stale directory; the same focused test passed after
+removal. A fresh install now records only repository-relative Baron-owned
+content under `.baron/managed-state/`; custom assets and project state remain
+outside its write set.
 
 ## What Is Being Built
 
-- Phase 35 removes stale blueprints, proves `assets/core/` is the only runtime
-  source, then records the managed baseline and plans safe three-way updates
-  without writing live targets.
+- Phase 35 has removed stale blueprints, proved `assets/core/` is the only
+  runtime source, and recorded the managed baseline plus safe read-only
+  three-way preview.
 - Phase 36 resolves and verifies the exact native release candidate before project activation.
 - Phase 37 applies project/runtime changes transactionally, stages conflicts, and recovers interrupted updates.
 - Phase 38 separates human update authority from AI local repair and certifies Baron 3.4.
@@ -68,21 +71,22 @@ baseline work can now start without legitimizing conflicting stale content.
    `docs/superpowers/specs/2026-07-24-baron-3-4-to-3-6-controlled-extension-design.md`.
 4. Execute
    `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
-5. Begin the Phase 35 managed-baseline RED tests. Do not implement networking
-   or replace a binary first.
+5. Begin the Phase 36 release-candidate/resolver RED tests. Do not implement
+   project activation or replace a binary first.
 6. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
 7. Do not begin the 3.5 or 3.6 plans before the preceding release is certified.
 
 ## Verified Baseline
 
-- Isolated branch: `codex/baron-3-4-safe-update-plan`.
-- Baseline commit: `d4ab320`.
+- Isolated branch: `codex/baron-3-4-to-3-6`.
+- Planning baseline commit: `b6e619b`.
 - Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
 - Current source version remains `3.3.0`.
-- Baron 3.4 currently has planning evidence only.
+- Baron 3.4 has Phase 35 implementation evidence only; candidate, activation,
+  and certification work remains.
 - Baron 3.5 and 3.6 currently have design/plan evidence only.
-- The program has 11 planned phases remaining: 35 through 45.
+- The program has 10 planned phases remaining: 36 through 45.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD
   semantic smoke, and visual-server behavior tests: passed on 2026-07-24.

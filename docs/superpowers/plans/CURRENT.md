@@ -4,11 +4,13 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 35 - Single Runtime Source And Managed Baseline
+- Active phase: Phase 36 - Verified Release Candidate And Binary Handoff
 - Status: `planned`
-- Verification: Baron 3.3 baseline `cargo test --workspace --all-targets` passed; no Baron 3.4 implementation evidence exists yet
-- Next action: write the RED runtime-source test, remove `blueprints/core/`,
-  prove adapter parity from `assets/core/`, then begin managed-baseline work
+- Verification: Phase 35 baseline/planner evidence passed: `cargo test -p
+  baron-adapters --all-targets` and `cargo test -p baron-cli --test
+  adapter_cli`; the full Baron 3.4 certification has not run.
+- Next action: write Phase 36 release-candidate/resolver RED tests before any
+  network, archive, or runtime-handoff implementation.
 
 ## Baron 3.4 Contract
 
@@ -53,8 +55,7 @@ Last updated: 2026-07-24
 ## Rules
 
 - Follow RED/GREEN TDD for every production behavior.
-- Remove stale blueprints and complete Phase 35 before beginning release
-  networking.
+- Keep Phase 35 baseline evidence intact before beginning release networking.
 - Update the build log and status Markdown/JSON after every phase checkpoint.
 - Do not mark a phase complete from test intent; record fresh command evidence.
 - Keep the normal user command surface small.

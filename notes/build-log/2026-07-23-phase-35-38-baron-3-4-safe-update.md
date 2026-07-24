@@ -56,19 +56,47 @@ The implementation is split into four phases:
 - `rg -n 'blueprints/core|blueprints\\core' crates/baron-adapters/src crates/baron-core/src crates/baron-cli/src installers .github Cargo.toml`: no production runtime references.
 - `git diff --check`: passed.
 
+## Phase 35 Managed Baseline And Planner Verification
+
+- RED: `cargo test -p baron-adapters --test update_planner` initially failed
+  because the managed baseline and planner API did not exist.
+- GREEN: `crates/baron-adapters/src/update.rs` now records only canonical
+  repository-relative Baron-owned payloads under
+  `.baron/managed-state/{manifest.json,base/}`. It rejects traversal,
+  duplicate ownership, symlink/junction traversal, unsupported schemas,
+  missing baseline copies, and malformed marker blocks.
+- The planner makes conservative `BASE`/`LOCAL`/`UPSTREAM` decisions without
+  writing the target: upstream-only changes apply, local-only changes remain,
+  equal content deduplicates, managed blocks merge while preserving surrounding
+  user text, and dual managed edits become conflicts.
+- A fresh Codex installation is proved byte-compatible with the in-memory
+  candidate renderer; no preview reads a target as its upstream source.
+- `baron update --dry-run --installed` is hidden from the normal user flow. It
+  displays a bounded safe preview and does not call platform/architecture
+  writers, write project files, or create `.baron/update/` state.
+- Superpowers provenance now hashes vendored text with LF normalization. This
+  avoids false Windows worktree failures caused only by CRLF conversion; the
+  pinned content and upstream revision remain unchanged.
+- Focused GREEN evidence on 2026-07-24:
+  - `cargo test -p baron-adapters --all-targets`: passed (30 tests).
+  - `cargo test -p baron-cli --test adapter_cli`: passed (9 tests).
+  - `cargo fmt --all -- --check`: passed.
+  - `git diff --check`: passed.
+
 ## Resume Point
 
 1. Read `docs/BARON_STATUS.md`.
 2. Read `docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md`.
 3. Execute `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
-4. Start with Phase 35 managed-baseline RED tests. Do not begin candidate
-   networking or binary replacement before the baseline/planner contract is green.
+4. Start with Phase 36 release candidate/resolver RED tests. Do not begin
+   project activation or binary replacement before candidate verification is
+   isolated and green.
 5. Update this log and status Markdown/JSON after every phase checkpoint.
 
 ## Current Evidence State
 
-- Phase 35: in progress; runtime-source cleanup completed, baseline/planner not
-  implemented yet
+- Phase 35: completed; runtime source, managed baseline, planner, malformed
+  marker refusal, and read-only dry-run preview are verified
 - Phase 36: planned, no implementation evidence
 - Phase 37: planned, no implementation evidence
 - Phase 38: planned, no implementation evidence

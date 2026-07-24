@@ -126,13 +126,13 @@ fn status_tracks_current_program() {
     assert_eq!(status_json["stableRelease"], "3.3.0");
     assert_eq!(status_json["targetRelease"], "3.4.0");
     assert_eq!(status_json["programTargetRelease"], "3.6.0");
-    assert_eq!(status_json["remainingPhaseCount"], 11);
+    assert_eq!(status_json["remainingPhaseCount"], 10);
     assert!(status_json["phases"]
         .as_array()
         .is_some_and(|phases| phases.iter().any(|phase| {
             phase["id"] == 35
                 && phase["name"] == "Single Runtime Source And Managed Baseline"
-                && phase["status"] == "in_progress"
+                && phase["status"] == "completed"
         })));
     assert!(status_json["phases"]
         .as_array()

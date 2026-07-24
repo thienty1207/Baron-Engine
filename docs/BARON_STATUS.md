@@ -11,16 +11,19 @@ Last updated: 2026-07-24
 - Baron 3.3 completion: 100%
 - Target source release: `v3.4.0`
 - Program target release: `v3.6.0`
-- Baron 3.4 completion: 0%
+- Baron 3.4 completion: 25%
 - Baron 3.5 completion: 0%
 - Baron 3.6 completion: 0%
-- Remaining planned phases: 11
-- Current phase: Phase 35 - Single Runtime Source And Managed Baseline
-- Current phase status: in_progress
-- Current next action: write the managed-baseline and three-way planner RED
-  tests; the stale blueprint source has been removed and adapter parity is
-  verified.
-- Build confidence: the Baron 3.3 baseline and the final Superpowers 6.2 refresh pass the full no-skip workspace suite, Clippy, release build, adapter smoke, and upstream visual-server behavior tests; Baron 3.4 is planned but has no implementation evidence yet.
+- Remaining planned phases: 10
+- Current phase: Phase 36 - Verified Release Candidate And Binary Handoff
+- Current phase status: planned
+- Current next action: write the candidate manifest/resolver RED tests. The
+  managed baseline, read-only three-way preview, and custom-content boundary
+  are now verified.
+- Build confidence: Baron 3.3 remains fully certified. Phase 35 passed its
+  focused adapter and CLI evidence, including a fresh baseline, deterministic
+  three-way decisions, malformed-marker refusal, and a no-write dry run; the
+  3.4 candidate, transaction, and release certification work remains ahead.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -43,8 +46,8 @@ Last updated: 2026-07-24
   project isolation, a fallback, and automated proof before it can ship.
 - Full rationale: `docs/decisions/0002-extension-ownership-and-code-graph.md`.
 
-Phase 35 is now in progress. The decisions above still do not add Graphify,
-bump the version, or alter the approved release order.
+Phase 35 is complete. The decisions above still do not add Graphify, bump the
+version, or alter the approved release order.
 
 ## Baron 3.0 Direction
 
@@ -222,7 +225,7 @@ Baron 3.4 planned program:
 
 | Phase | Name | Status | Baron 3.4 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 35 | Single Runtime Source And Managed Baseline | in_progress | 25% | `blueprints/core/` removed after a no-runtime-reference RED/GREEN test, `assets/core/` proven as the sole source, managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, read-only dry-run tests |
+| 35 | Single Runtime Source And Managed Baseline | completed | 25% | `blueprints/core/` removed after a no-runtime-reference RED/GREEN test, `assets/core/` proven as the sole source, managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, malformed-marker refusal, and read-only dry-run tests |
 | 36 | Verified Release Candidate And Binary Handoff | planned | 25% | exact candidate target/version/source/checksum proof, downgrade refusal, raw release assets, installer compatibility |
 | 37 | Conflict-Safe Activation And Recovery | planned | 30% | no-write conflict staging, frozen continuation, abort, transactional rollback, Windows/Unix recovery tests |
 | 38 | Automation Contract And Baron 3.4 Certification | planned | 20% | local-only AI reconcile, one-command user update, full native/lifecycle certification, version and docs synchronization |
@@ -676,14 +679,14 @@ Phase 34 final verification:
 - [x] Remove active documentation that treats blueprints as a maintained source.
 - [x] Prove installed Codex, Claude, and generic assets still match
   `assets/core/` after cleanup.
-- [ ] Record the exact last-installed managed content and merge policy under `.baron/managed-state/`.
-- [ ] Keep all manifest paths repository-relative, canonical, and unable to escape the project.
-- [ ] Compute `BASE`, `LOCAL`, and `UPSTREAM` decisions before writing any managed target.
-- [ ] Preserve text outside Baron markers and custom routing blocks.
-- [ ] Preserve custom skills, custom agents, source, plans, Harness records, and Vault memory.
-- [ ] Treat uncertain dual edits as conflicts instead of guessing.
-- [ ] Prove repeated updates advance the baseline only after successful activation.
-- [ ] Pass focused planner, adapter lifecycle, and dry-run CLI tests.
+- [x] Record the exact last-installed managed content and merge policy under `.baron/managed-state/`.
+- [x] Keep all manifest paths repository-relative, canonical, and unable to escape the project.
+- [x] Compute `BASE`, `LOCAL`, and `UPSTREAM` decisions before writing any managed target.
+- [x] Preserve text outside Baron markers and custom routing blocks.
+- [x] Preserve custom skills, custom agents, source, plans, Harness records, and Vault memory.
+- [x] Treat uncertain dual edits as conflicts instead of guessing.
+- [x] Prove the prepared baseline replacement advances the next comparison ancestor only after a successful activation boundary supplies it.
+- [x] Pass focused planner, adapter lifecycle, and dry-run CLI tests.
 
 ### Phase 36 - Verified Release Candidate And Binary Handoff
 

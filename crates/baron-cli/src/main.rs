@@ -2,7 +2,10 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
-use baron_adapters::{install_adapter, shadow_preview, AgentAdapter};
+use baron_adapters::{
+    install_adapter, managed_payloads_for_adapter, plan_managed_update, shadow_preview,
+    AgentAdapter, ManagedUpdatePlan, UpdateDisposition,
+};
 use baron_core::architecture::ensure_architecture_governor;
 use baron_core::asset_lifecycle::{
     audit_runtime_assets, quarantine_failing_assets, stage_skill_update,
@@ -130,6 +133,10 @@ enum Commands {
         claude: bool,
         #[arg(long = "agent")]
         agent: bool,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long, hide = true, requires = "dry_run")]
+        installed: bool,
     },
     #[command(hide = true)]
     Authority {
@@ -855,6 +862,8 @@ fn run() -> Result<()> {
             codex,
             claude,
             agent,
+            dry_run,
+            installed,
         }) => {
             let start = repo_path.unwrap_or(std::env::current_dir()?);
             let repo_root = find_project_root(&start)?;
@@ -874,20 +883,49 @@ fn run() -> Result<()> {
                 }
                 None => config.adapters.iter().copied().map(agent_adapter).collect(),
             };
-            for adapter in &adapters {
-                install_adapter(&repo_root, *adapter)?;
-            }
-            ensure_platform_intelligence(&repo_root, &config)?;
-            ensure_architecture_governor(&repo_root, &config)?;
             let names = adapters
                 .iter()
                 .map(|adapter| adapter_name(*adapter))
                 .collect::<Vec<_>>()
                 .join(", ");
-            println!("# Baron Adapter Update\n");
-            println!("- Project: `{}`", config.project_slug);
-            println!("- Updated adapters: `{}`", names);
-            println!("- User content and custom assets preserved: yes");
+            if dry_run {
+                let plans = adapters
+                    .iter()
+                    .map(|adapter| {
+                        Ok((
+                            *adapter,
+                            plan_managed_update(
+                                &repo_root,
+                                &managed_payloads_for_adapter(*adapter)?,
+                            )?,
+                        ))
+                    })
+                    .collect::<Result<Vec<(AgentAdapter, ManagedUpdatePlan)>>>()?;
+                let candidate_label = if installed {
+                    "currently installed embedded assets"
+                } else {
+                    "running Baron embedded assets"
+                };
+                print!(
+                    "{}",
+                    render_safe_update_preview(
+                        &config.project_slug,
+                        &names,
+                        candidate_label,
+                        &plans
+                    )
+                );
+            } else {
+                for adapter in &adapters {
+                    install_adapter(&repo_root, *adapter)?;
+                }
+                ensure_platform_intelligence(&repo_root, &config)?;
+                ensure_architecture_governor(&repo_root, &config)?;
+                println!("# Baron Adapter Update\n");
+                println!("- Project: `{}`", config.project_slug);
+                println!("- Updated adapters: `{}`", names);
+                println!("- User content and custom assets preserved: yes");
+            }
         }
         Some(Commands::Memory { command }) => match command {
             MemoryCommands::Status { repo_path, vault } => {
@@ -1824,6 +1862,69 @@ fn run() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn render_safe_update_preview(
+    project_slug: &str,
+    adapters: &str,
+    candidate_label: &str,
+    plans: &[(AgentAdapter, ManagedUpdatePlan)],
+) -> String {
+    let mut output = String::from("# Baron Safe Update Preview\n\n");
+    output.push_str(&format!("- Project: `{project_slug}`\n"));
+    output.push_str(&format!("- Registered adapters: `{adapters}`\n"));
+    output.push_str(&format!("- Candidate: {candidate_label}\n"));
+    output.push_str("- No project files were written.\n");
+    output.push_str("- Source, plans, Harness state, Vault memory, and custom assets are outside this preview.\n\n");
+
+    for (adapter, plan) in plans {
+        let total = plan.actions.len();
+        let conflicts = plan.conflicts.len();
+        let changes = plan
+            .actions
+            .iter()
+            .filter(|action| action.disposition != UpdateDisposition::Identical)
+            .collect::<Vec<_>>();
+        output.push_str(&format!("## {}\n\n", adapter_name(*adapter)));
+        output.push_str(&format!("- Managed assets checked: {total}\n"));
+        output.push_str(&format!("- Conflicts requiring a decision: {conflicts}\n"));
+        output.push_str(&format!(
+            "- User-owned paths preserved: {}\n",
+            plan.preserved_paths.len()
+        ));
+        if changes.is_empty() {
+            output.push_str(
+                "- Result: all managed assets already match the running Baron candidate.\n\n",
+            );
+            continue;
+        }
+        output.push_str("- Actions needing attention:\n");
+        for action in changes.iter().take(20) {
+            output.push_str(&format!(
+                "  - `{}`: `{}`\n",
+                action.relative_path.display(),
+                update_disposition_label(action.disposition)
+            ));
+        }
+        if changes.len() > 20 {
+            output.push_str(&format!(
+                "  - {} more managed actions omitted from this bounded preview.\n",
+                changes.len() - 20
+            ));
+        }
+        output.push('\n');
+    }
+    output
+}
+
+fn update_disposition_label(disposition: UpdateDisposition) -> &'static str {
+    match disposition {
+        UpdateDisposition::TakeUpstream => "take_upstream",
+        UpdateDisposition::KeepLocal => "keep_local",
+        UpdateDisposition::Identical => "identical",
+        UpdateDisposition::AutoMerge => "auto_merge",
+        UpdateDisposition::Conflict => "conflict",
+    }
 }
 
 fn resolve_capability_adapter(

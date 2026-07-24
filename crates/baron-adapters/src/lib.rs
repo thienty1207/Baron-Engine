@@ -2,8 +2,15 @@ use serde::{Deserialize, Serialize};
 
 mod install;
 mod managed;
+mod update;
 
-pub use install::{install_adapter, InstallReport};
+pub use install::{install_adapter, managed_payloads_for_adapter, InstallReport};
+pub use update::{
+    ensure_managed_baseline, load_managed_baseline, managed_content_for_kind, managed_state_dir,
+    plan_managed_update, record_managed_baseline, replace_managed_baseline, ManagedAssetPayload,
+    ManagedAssetRecord, ManagedBaseline, ManagedMergeKind, ManagedUpdateAction, ManagedUpdatePlan,
+    UpdateDisposition,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentAdapter {

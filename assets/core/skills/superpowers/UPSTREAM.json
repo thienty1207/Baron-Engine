@@ -6,7 +6,8 @@
   "vendoredPath": "skills",
   "vendoredFileCount": 50,
   "upstreamTreeSha256": "e76b5a985b27d626b7338028e292ecd944664ef5d85981c6fd05a8ae71b9291a",
-  "vendoredTreeSha256": "57dc7963c3610b035da7568ae5876577e3cd977baa9e239176044b09e08c8e82",
+  "vendoredTreeSha256": "baa4c2ba5519fb8ffb94f4c7ce6e35a438db1324fc4b2f4f91cd89b23e53a7c0",
+  "vendoredTreeHashNormalization": "LF",
   "license": "MIT",
   "baronPatches": [
     {

@@ -235,6 +235,45 @@ fn update_from_nested_path_refreshes_registered_adapters() {
 }
 
 #[test]
+fn update_dry_run_previews_the_safe_merge_without_writing_project_files() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let nested = repo.join("src/features");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&nested).unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "init",
+            repo.to_str().unwrap(),
+            "--codex",
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    write(
+        &repo.join("AGENTS.md"),
+        "# User Header\n\n<!-- BARON:MANAGED:START -->\nlocal edit\n<!-- BARON:MANAGED:END -->\n",
+    );
+    let before = fs::read_to_string(repo.join("AGENTS.md")).unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&nested)
+        .args(["update", "--dry-run", "--installed"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("# Baron Safe Update Preview"))
+        .stdout(predicate::str::contains("No project files were written."))
+        .stdout(predicate::str::contains("AGENTS.md"));
+
+    assert_eq!(fs::read_to_string(repo.join("AGENTS.md")).unwrap(), before);
+    assert!(!repo.join(".baron/update").exists());
+}
+
+#[test]
 fn context_uses_registered_adapter_and_local_vault_automatically() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
