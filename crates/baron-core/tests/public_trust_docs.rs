@@ -132,7 +132,7 @@ fn status_tracks_current_program() {
         .is_some_and(|phases| phases.iter().any(|phase| {
             phase["id"] == 35
                 && phase["name"] == "Single Runtime Source And Managed Baseline"
-                && phase["status"] == "planned"
+                && phase["status"] == "in_progress"
         })));
     assert!(status_json["phases"]
         .as_array()

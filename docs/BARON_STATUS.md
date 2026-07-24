@@ -16,10 +16,10 @@ Last updated: 2026-07-24
 - Baron 3.6 completion: 0%
 - Remaining planned phases: 11
 - Current phase: Phase 35 - Single Runtime Source And Managed Baseline
-- Current phase status: planned
-- Current next action: write the RED runtime-source test, remove
-  `blueprints/core/`, and prove `assets/core/` is the only embedded runtime
-  source before recording any managed baseline.
+- Current phase status: in_progress
+- Current next action: write the managed-baseline and three-way planner RED
+  tests; the stale blueprint source has been removed and adapter parity is
+  verified.
 - Build confidence: the Baron 3.3 baseline and the final Superpowers 6.2 refresh pass the full no-skip workspace suite, Clippy, release build, adapter smoke, and upstream visual-server behavior tests; Baron 3.4 is planned but has no implementation evidence yet.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
@@ -36,15 +36,15 @@ Last updated: 2026-07-24
   `frontend-design` skill; they do not create a second frontend workflow owner.
 - Matt Pocock workflow, TDD, planning, and grilling content will not duplicate
   Superpowers. Only clearly non-overlapping domain techniques may be evaluated.
-- `assets/core/` is the sole runtime source. `blueprints/core/` is a stale
-  historical duplicate scheduled for evidence-backed cleanup, not a second
-  source to maintain.
+- `assets/core/` is the sole runtime source. The stale historical
+  `blueprints/core/` duplicate was removed in Phase 35 after a RED/GREEN
+  runtime-source contract and adapter parity verification.
 - Every future extension must have one owner, lazy routing, bounded output,
   project isolation, a fallback, and automated proof before it can ship.
 - Full rationale: `docs/decisions/0002-extension-ownership-and-code-graph.md`.
 
-These decisions do not start Phase 35, add Graphify, bump the version, or alter
-the approved Baron 3.4 phase order.
+Phase 35 is now in progress. The decisions above still do not add Graphify,
+bump the version, or alter the approved release order.
 
 ## Baron 3.0 Direction
 
@@ -65,9 +65,8 @@ Core remains unchanged:
 Baron 3.4 makes the simple public `baron update` command safe enough to own both
 runtime updates and Baron-managed project refreshes.
 
-Phase 35 first removes the obsolete `blueprints/core/` tree so the update
-baseline can never record two conflicting copies of the same core assets. The
-program then has four safety boundaries:
+Phase 35 removed the obsolete `blueprints/core/` tree before the update
+baseline can record any core assets. The program now has four safety boundaries:
 
 - keep `assets/core/` as the one runtime asset source
 - remember the exact managed baseline before deciding what changed
@@ -223,7 +222,7 @@ Baron 3.4 planned program:
 
 | Phase | Name | Status | Baron 3.4 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 35 | Single Runtime Source And Managed Baseline | planned | 25% | `blueprints/core/` removed after a no-runtime-reference RED/GREEN test, `assets/core/` proven as the sole source, managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, read-only dry-run tests |
+| 35 | Single Runtime Source And Managed Baseline | in_progress | 25% | `blueprints/core/` removed after a no-runtime-reference RED/GREEN test, `assets/core/` proven as the sole source, managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, read-only dry-run tests |
 | 36 | Verified Release Candidate And Binary Handoff | planned | 25% | exact candidate target/version/source/checksum proof, downgrade refusal, raw release assets, installer compatibility |
 | 37 | Conflict-Safe Activation And Recovery | planned | 30% | no-write conflict staging, frozen continuation, abort, transactional rollback, Windows/Unix recovery tests |
 | 38 | Automation Contract And Baron 3.4 Certification | planned | 20% | local-only AI reconcile, one-command user update, full native/lifecycle certification, version and docs synchronization |
@@ -262,7 +261,7 @@ Phase 16-17 final verification:
 - [x] Architecture docs exist.
 - [x] Temporary build notes exist.
 - [x] Historical Phase 0 blueprints existed for the original skeleton.
-- [ ] Phase 35 retires the stale `blueprints/core/` tree after proving no
+- [x] Phase 35 retired the stale `blueprints/core/` tree after proving no
   runtime path depends on it; `assets/core/` remains the only managed source.
 - [x] `cargo test` passes.
 - [x] `cargo run -p baron-cli -- --help` works.
@@ -671,11 +670,11 @@ Phase 34 final verification:
 
 ### Phase 35 - Single Runtime Source And Managed Baseline
 
-- [ ] Add a RED contract proving runtime installers, adapters, tests, and
+- [x] Add a RED contract proving runtime installers, adapters, tests, and
   manifests embed/read `assets/core/` only.
-- [ ] Delete all seven stale files under `blueprints/core/`.
-- [ ] Remove active documentation that treats blueprints as a maintained source.
-- [ ] Prove installed Codex, Claude, and generic assets still match
+- [x] Delete all seven stale files under `blueprints/core/`.
+- [x] Remove active documentation that treats blueprints as a maintained source.
+- [x] Prove installed Codex, Claude, and generic assets still match
   `assets/core/` after cleanup.
 - [ ] Record the exact last-installed managed content and merge policy under `.baron/managed-state/`.
 - [ ] Keep all manifest paths repository-relative, canonical, and unable to escape the project.
@@ -879,9 +878,9 @@ Phase 25-26 final verification:
 Baron `3.3.0` remains the stable source baseline. Phases 35-45 are planned in
 strict release order: `3.4.0` update safety, `3.5.0` skill intelligence, then
 `3.6.0` optional code-map intelligence. The next implementation must first prove
-and remove stale `blueprints/core/`, then record the managed baseline; it must
-not jump directly to networking, binary replacement, Hallmark/Matt
-distillation, or Graphify. Each release gets fresh certification and an
+the managed baseline after the completed blueprint cleanup; it must not jump
+directly to networking, binary replacement, Hallmark/Matt distillation, or
+Graphify. Each release gets fresh certification and an
 independent version gate. A binary GitHub Release remains an explicit promotion
 step, not an automatic side effect. The engine deepens project understanding,
 platform expertise, safe architectural growth, frontend design quality,

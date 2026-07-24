@@ -9,8 +9,8 @@
   "programCompletionPercent": 0,
   "remainingPhaseCount": 11,
   "currentPhase": "phase-35-single-runtime-source-and-managed-baseline",
-  "currentPhaseStatus": "planned",
-  "nextAction": "Write the RED runtime source test remove blueprints core and prove assets core is the only embedded runtime source before recording a managed baseline.",
+  "currentPhaseStatus": "in_progress",
+  "nextAction": "Write the managed baseline and three way planner RED tests. The stale blueprint source has been removed and adapter parity is verified.",
   "buildConfidence": "The Baron 3.3 baseline and final Superpowers 6.2 refresh pass the full no skip workspace suite Clippy release build adapter smoke and upstream visual server behavior tests. Baron 3.4 is planned and has no implementation evidence yet.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
@@ -554,7 +554,7 @@
     {
       "id": 35,
       "name": "Single Runtime Source And Managed Baseline",
-      "status": "planned",
+      "status": "in_progress",
       "release": "3.4.0",
       "targetReleaseWeightPercent": 25,
       "completionPercent": 0,
@@ -735,8 +735,8 @@
     },
     {
       "topic": "runtime-assets",
-      "status": "approved-phase-35-first-gate",
-      "decision": "Assets core is the sole runtime source. Blueprints core is a stale historical duplicate that Phase 35 must remove after a no runtime reference RED GREEN test and before recording the managed baseline."
+      "status": "completed-phase-35-first-gate",
+      "decision": "Assets core is the sole runtime source. Phase 35 removed the stale blueprints core duplicate after a no runtime reference RED GREEN test and before recording the managed baseline."
     }
   ],
   "readFirst": [

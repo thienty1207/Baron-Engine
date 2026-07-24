@@ -6,8 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 35 - Single Runtime Source And Managed Baseline (`planned`, not
-started).
+Phase 35 - Single Runtime Source And Managed Baseline (`in_progress`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -27,8 +26,8 @@ The bundled Superpowers workflow core has been refreshed to the pinned upstream
 - extension boundaries for code graphs and optional skill sources are accepted
   in `docs/decisions/0002-extension-ownership-and-code-graph.md`
 
-This checkpoint does not start Phase 35, bump the Baron version, add Graphify,
-or change the 3.4 phase order.
+This checkpoint starts Phase 35 only. It does not bump the Baron version, add
+Graphify, or change the 3.4 phase order.
 
 ## Blueprint Audit
 
@@ -41,10 +40,10 @@ The two apparent core trees are not equal maintained sources:
 - No Rust crate, installer, manifest, test, or workflow reads
   `blueprints/core/`.
 
-Phase 35 therefore begins with a RED/GREEN source-of-truth contract, deletion
-of `blueprints/core/`, and an adapter parity proof. The managed baseline must
-not be recorded before this cleanup or it could legitimize conflicting stale
-content.
+Phase 35 completed the source-of-truth contract, deletion of
+`blueprints/core/`, and the adapter parity proof. The RED test failed on the
+stale directory; the same focused test passed after removal. The managed
+baseline work can now start without legitimizing conflicting stale content.
 
 ## What Is Being Built
 
@@ -69,8 +68,8 @@ content.
    `docs/superpowers/specs/2026-07-24-baron-3-4-to-3-6-controlled-extension-design.md`.
 4. Execute
    `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
-5. Begin with the Phase 35 RED runtime-source test and blueprint deletion. Do
-   not record a baseline, implement networking, or replace a binary first.
+5. Begin the Phase 35 managed-baseline RED tests. Do not implement networking
+   or replace a binary first.
 6. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
 7. Do not begin the 3.5 or 3.6 plans before the preceding release is certified.

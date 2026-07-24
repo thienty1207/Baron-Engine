@@ -15,8 +15,8 @@ Deliverables:
 - architecture docs
 - roadmap
 - temporary build notes
-- core asset blueprints
-- adapter blueprints
+- initial asset and adapter design notes (historical; the runtime now has one
+  authoritative bundled asset tree: `assets/core/`)
 - first commit
 
 Verification:

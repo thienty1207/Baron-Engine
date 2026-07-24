@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use baron_adapters::{install_adapter, AgentAdapter};
 use sha2::{Digest, Sha256};
@@ -10,6 +10,90 @@ fn write(path: &Path, content: &str) {
         fs::create_dir_all(parent).unwrap();
     }
     fs::write(path, content).unwrap();
+}
+
+fn collect_text_files(root: &Path, files: &mut Vec<PathBuf>) {
+    if !root.exists() {
+        return;
+    }
+
+    for entry in fs::read_dir(root).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if entry.file_type().unwrap().is_dir() {
+            collect_text_files(&path, files);
+        } else {
+            files.push(path);
+        }
+    }
+}
+
+#[test]
+fn assets_core_is_the_only_bundled_runtime_source() {
+    let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let assets = workspace_root.join("assets/core");
+
+    for required in [
+        "skills/superpowers/SKILL.md",
+        "agents/code-reviewer.toml",
+        "agents/security-auditor.toml",
+        "agents/test-engineer.toml",
+    ] {
+        assert!(assets.join(required).is_file(), "missing runtime asset {required}");
+    }
+
+    assert!(
+        !workspace_root.join("blueprints/core").exists(),
+        "stale duplicate runtime source exists: blueprints/core"
+    );
+
+    let mut runtime_files = Vec::new();
+    for relative in [
+        "crates/baron-adapters/src",
+        "crates/baron-core/src",
+        "crates/baron-cli/src",
+        "installers",
+        ".github",
+    ] {
+        collect_text_files(&workspace_root.join(relative), &mut runtime_files);
+    }
+    for manifest in ["Cargo.toml", "Cargo.lock"] {
+        runtime_files.push(workspace_root.join(manifest));
+    }
+
+    let offenders = runtime_files
+        .into_iter()
+        .filter_map(|path| {
+            fs::read_to_string(&path).ok().and_then(|content| {
+                (content.contains("blueprints/core") || content.contains("blueprints\\\\core"))
+                    .then(|| path.strip_prefix(&workspace_root).unwrap().display().to_string())
+            })
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        offenders.is_empty(),
+        "runtime code must not read stale blueprints: {}",
+        offenders.join(", ")
+    );
+
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    for adapter in [AgentAdapter::Codex, AgentAdapter::Claude, AgentAdapter::Generic] {
+        install_adapter(repo, adapter).unwrap();
+    }
+    for root in [
+        repo.join(".codex"),
+        repo.join(".claude"),
+        repo.join(".baron/core"),
+    ] {
+        assert!(root.join("skills/superpowers/SKILL.md").is_file());
+        assert!(root.join("agents/code-reviewer.toml").is_file() || root.join("agents/code-reviewer.md").is_file());
+        assert!(root.join("agents/security-auditor.toml").is_file() || root.join("agents/security-auditor.md").is_file());
+        assert!(root.join("agents/test-engineer.toml").is_file() || root.join("agents/test-engineer.md").is_file());
+    }
 }
 
 fn superpowers_upstream_tree_digest(root: &Path) -> (usize, String) {
