@@ -4,15 +4,15 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 43 - Graphify Local Code-Only Adapter
+- Active phase: Phase 44 - Automatic Bounded Context And Source Verification
 - Status: `in_progress`
 - Verification: Baron 3.5 source certification passed: full workspace tests,
   Clippy, locked release build, adapter parity, local-only reconcile recovery,
   custom-asset preservation, bounded context, and public-flow contracts.
   `v3.5.0` is the stable source baseline; no tag or GitHub Release was created.
-- Next action: add the exact-version local code-only Graphify adapter and its
-  deterministic fake-provider command-safety, timeout, output-cap, and atomic
-  refresh tests.
+- Next action: add bounded task-routing, hidden AI automation commands, and
+  direct source verification without making normal context wait for a graph
+  refresh.
 
 ## Baron 3.4 Contract
 
@@ -34,11 +34,12 @@ Last updated: 2026-07-24
 - Baron 3.4, Phases 35-38: one runtime source and safe recoverable update.
 - Baron 3.5, Phases 39-41: certified local skill intelligence with no duplicate
   workflow.
-- Baron 3.6, Phase 42: provider-neutral project-scoped cache/identity contract
-  completed without provider invocation.
-- Baron 3.6, Phases 43-45: exact local adapter, bounded source verification,
-  strict isolation, and Survey fallback.
-- Total remaining planned phases: 3.
+- Baron 3.6, Phases 42-43: provider-neutral project-scoped cache/identity
+  contract plus exact local-only adapter completed with deterministic fallback
+  evidence.
+- Baron 3.6, Phases 44-45: bounded source verification, strict isolation, and
+  certification.
+- Total remaining planned phases: 2.
 
 ## Active Documents
 

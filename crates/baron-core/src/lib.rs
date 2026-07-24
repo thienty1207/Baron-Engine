@@ -12,6 +12,7 @@ pub mod continuity;
 pub mod control_plane;
 pub mod domain_language;
 pub mod firewall;
+pub mod graphify;
 pub mod harness;
 pub mod harness_improvement;
 pub mod identity;

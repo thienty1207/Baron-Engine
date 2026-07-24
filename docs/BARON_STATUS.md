@@ -13,18 +13,18 @@ Last updated: 2026-07-24
 - Program target release: `v3.6.0`
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
-- Baron 3.6 completion: 25%
-- Remaining planned phases: 3
-- Current phase: Phase 43 - Graphify Local Code-Only Adapter
+- Baron 3.6 completion: 55%
+- Remaining planned phases: 2
+- Current phase: Phase 44 - Automatic Bounded Context And Source Verification
 - Current phase status: in_progress
-- Current next action: implement the exact-version local code-only Graphify
-  adapter against a deterministic fake provider, with strict command allowlist,
-  timeout, output cap, atomic refresh, and fallback proof.
-- Build confidence: Baron 3.5 is source-certified. Phase 42 adds a
-  provider-neutral graph cache, project identity, confidence, path,
-  fingerprint, junction, and fallback contract without invoking an external
-  provider. A tag/GitHub Release is still an explicit human promotion, not a
-  side effect of source certification.
+- Current next action: connect the optional local code map to matching AI
+  context only, then verify every selected result against current source before
+  it can support an edit, proof, trace, or durable memory.
+- Build confidence: Baron 3.5 is source-certified. Phases 42-43 now add a
+  provider-neutral cache plus a deterministic exact-version local Graphify
+  adapter with bounded process output, atomic refresh, and Survey fallback. A
+  tag/GitHub Release is still an explicit human promotion, not a side effect of
+  source certification.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -244,9 +244,9 @@ Baron 3.6 planned program:
 
 | Phase | Name | Status | Baron 3.6 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 42 | Code-Graph Provider Contract | planned | 25% | provider-neutral local graph model, explicit confidence, bounded output, project identity, rebuildable cache, and Survey fallback |
-| 43 | Graphify Local Code-Only Adapter | planned | 30% | exact-version local extraction/query, no installers/hooks/global memory, timeout/size guards, malformed-output fallback |
-| 44 | Automatic Bounded Context And Source Verification | planned | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
+| 42 | Code-Graph Provider Contract | completed | 25% | provider-neutral local graph model, explicit confidence, bounded output, project identity, rebuildable cache, and Survey fallback |
+| 43 | Graphify Local Code-Only Adapter | completed | 30% | exact-version local extraction/query, no installers/hooks/global memory, timeout/size guards, malformed-output fallback |
+| 44 | Automatic Bounded Context And Source Verification | in_progress | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
 | 45 | Isolation, Scale, And Baron 3.6 Certification | planned | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
 
 Phase 16-17 final verification:
@@ -784,14 +784,14 @@ Phase 34 final verification:
 
 ### Phase 43 - Graphify Local Code-Only Adapter
 
-- [ ] Support only the pinned compatible Graphify version and local code-only
+- [x] Support only the pinned compatible Graphify version and local code-only
   extraction/query surfaces.
-- [ ] Never invoke Graphify installers, hooks, instruction writers, work
+- [x] Never invoke Graphify installers, hooks, instruction writers, work
   memory, global graph, semantic backends, or platform setup.
-- [ ] Disable provider-side query logging for Baron-owned calls.
-- [ ] Fall back cleanly on absence, mismatch, timeout, malformed output, or
+- [x] Disable provider-side query logging for Baron-owned calls.
+- [x] Fall back cleanly on absence, mismatch, timeout, malformed output, or
   oversize results.
-- [ ] Prove no target source, Vault memory, or agent instruction is mutated.
+- [x] Prove no target source, Vault memory, or agent instruction is mutated.
 
 ### Phase 44 - Automatic Bounded Context And Source Verification
 

@@ -143,6 +143,54 @@ pub fn code_graph_cache_root(repo_root: impl AsRef<Path>) -> Result<PathBuf> {
     validate_code_graph_cache_path(&repo_root, &cache_root)
 }
 
+/// Creates Baron-owned cache directories one component at a time after checking
+/// every existing component. This avoids following a project-controlled link or
+/// junction while keeping the cache strictly project-local.
+pub fn ensure_code_graph_cache_root(repo_root: impl AsRef<Path>) -> Result<PathBuf> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    let cache_root = code_graph_cache_root(&repo_root)?;
+    let relative = cache_root
+        .strip_prefix(&repo_root)
+        .context("Code graph cache root is outside the current repository")?;
+    let mut current = repo_root.clone();
+    for component in relative.components() {
+        let Component::Normal(part) = component else {
+            continue;
+        };
+        current.push(part);
+        if current.exists() {
+            validate_existing_ancestors_within_repo(&repo_root, &current)?;
+            if !current.is_dir() {
+                bail!(
+                    "Code graph cache component is not a directory: {}",
+                    current.display()
+                );
+            }
+            continue;
+        }
+        match fs::create_dir(&current) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Could not create Baron-owned cache directory: {}",
+                        current.display()
+                    )
+                })
+            }
+        }
+        validate_existing_ancestors_within_repo(&repo_root, &current)?;
+        if !current.is_dir() {
+            bail!(
+                "Code graph cache component is not a directory: {}",
+                current.display()
+            );
+        }
+    }
+    validate_code_graph_cache_path(&repo_root, &cache_root)
+}
+
 pub fn code_graph_state_path(repo_root: impl AsRef<Path>) -> Result<PathBuf> {
     Ok(code_graph_cache_root(repo_root)?.join(CODE_GRAPH_STATE_FILE))
 }
@@ -290,9 +338,32 @@ pub fn write_code_graph_state(
         diagnostics: Vec::new(),
     };
     validate_code_graph_state(&repo_root, &state)?;
-    let state_path = code_graph_state_path(&repo_root)?;
+    let state_path = ensure_code_graph_cache_root(&repo_root)?.join(CODE_GRAPH_STATE_FILE);
     atomic_write_json(&state_path, &state)?;
     Ok(state)
+}
+
+/// Confirms that the state still points to the exact project-local graph that
+/// was recorded at refresh time. The graph is cache data, never Vault memory.
+pub fn validate_code_graph_artifact(
+    repo_root: impl AsRef<Path>,
+    state: &CodeGraphState,
+) -> Result<PathBuf> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    validate_code_graph_state(&repo_root, state)?;
+    let graph_path = graphify_graph_path(&repo_root, &state.source_fingerprint)?;
+    let metadata = fs::metadata(&graph_path)
+        .with_context(|| format!("Could not read code graph: {}", graph_path.display()))?;
+    if !metadata.is_file() {
+        bail!("Code graph must be a file: {}", graph_path.display());
+    }
+    if metadata.len() > MAX_GRAPH_BYTES || metadata.len() != state.graph_size_bytes {
+        bail!("Code graph artifact does not match its recorded size");
+    }
+    if sha256_file(&graph_path)? != state.graph_sha256 {
+        bail!("Code graph artifact does not match its recorded checksum");
+    }
+    Ok(graph_path)
 }
 
 pub fn load_code_graph_state(repo_root: impl AsRef<Path>) -> Result<Option<CodeGraphState>> {
@@ -582,7 +653,12 @@ fn sha256_file(path: &Path) -> Result<String> {
 
 fn atomic_write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     let parent = path.parent().context("Code graph state has no parent")?;
-    fs::create_dir_all(parent)?;
+    if !parent.is_dir() {
+        bail!(
+            "Code graph state parent does not exist: {}",
+            parent.display()
+        );
+    }
     let temp = parent.join(format!(
         ".{}-{}-tmp",
         path.file_name()

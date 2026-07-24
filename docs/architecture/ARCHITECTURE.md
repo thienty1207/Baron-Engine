@@ -64,3 +64,19 @@ repo + vault + user task
 - Release installers must verify SHA-256 and staged binary version before
   replacing the active executable.
 - Rollback and uninstall must never traverse into project or Vault paths.
+
+## Optional Local Code Map
+
+The optional `graphify-local` provider is a project-scoped code-navigation
+accelerator for large or older repositories. It is not part of Baron's memory,
+instruction, hook, workflow, or global-context systems.
+
+- Baron accepts only its pinned compatible local provider version.
+- Baron permits only a version probe, code-only extraction into
+  `.baron/cache/code-graph/`, and bounded local JSON queries.
+- Provider output is staged, size-checked, path-checked, identity-bound, and
+  checksummed before the cache state changes.
+- A missing, incompatible, stale, malformed, timed-out, or failed provider
+  leaves the last known-good cache intact and returns to the Survey Engine.
+- Graph results are navigation hints only. Current repository files remain the
+  source required for implementation, proof, traces, and durable memory.
