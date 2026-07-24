@@ -889,18 +889,14 @@ fn run() -> Result<()> {
                 .collect::<Vec<_>>()
                 .join(", ");
             if dry_run {
-                let plans = adapters
+                let payloads = adapters
                     .iter()
-                    .map(|adapter| {
-                        Ok((
-                            *adapter,
-                            plan_managed_update(
-                                &repo_root,
-                                &managed_payloads_for_adapter(*adapter)?,
-                            )?,
-                        ))
-                    })
-                    .collect::<Result<Vec<(AgentAdapter, ManagedUpdatePlan)>>>()?;
+                    .map(|adapter| managed_payloads_for_adapter(*adapter))
+                    .collect::<Result<Vec<_>>>()?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                let plan = plan_managed_update(&repo_root, &payloads)?;
                 let candidate_label = if installed {
                     "currently installed embedded assets"
                 } else {
@@ -912,7 +908,7 @@ fn run() -> Result<()> {
                         &config.project_slug,
                         &names,
                         candidate_label,
-                        &plans
+                        &plan
                     )
                 );
             } else {
@@ -1868,7 +1864,7 @@ fn render_safe_update_preview(
     project_slug: &str,
     adapters: &str,
     candidate_label: &str,
-    plans: &[(AgentAdapter, ManagedUpdatePlan)],
+    plan: &ManagedUpdatePlan,
 ) -> String {
     let mut output = String::from("# Baron Safe Update Preview\n\n");
     output.push_str(&format!("- Project: `{project_slug}`\n"));
@@ -1877,42 +1873,42 @@ fn render_safe_update_preview(
     output.push_str("- No project files were written.\n");
     output.push_str("- Source, plans, Harness state, Vault memory, and custom assets are outside this preview.\n\n");
 
-    for (adapter, plan) in plans {
-        let total = plan.actions.len();
-        let conflicts = plan.conflicts.len();
-        let changes = plan
-            .actions
-            .iter()
-            .filter(|action| action.disposition != UpdateDisposition::Identical)
-            .collect::<Vec<_>>();
-        output.push_str(&format!("## {}\n\n", adapter_name(*adapter)));
-        output.push_str(&format!("- Managed assets checked: {total}\n"));
-        output.push_str(&format!("- Conflicts requiring a decision: {conflicts}\n"));
+    let changes = plan
+        .actions
+        .iter()
+        .filter(|action| action.disposition != UpdateDisposition::Identical)
+        .collect::<Vec<_>>();
+    output.push_str(&format!(
+        "- Managed assets checked: {}\n",
+        plan.actions.len()
+    ));
+    output.push_str(&format!(
+        "- Conflicts requiring a decision: {}\n",
+        plan.conflicts.len()
+    ));
+    output.push_str(&format!(
+        "- User-owned paths preserved: {}\n",
+        plan.preserved_paths.len()
+    ));
+    if changes.is_empty() {
+        output
+            .push_str("- Result: all managed assets already match the running Baron candidate.\n");
+        return output;
+    }
+    output.push_str("- Actions needing attention:\n");
+    for action in changes.iter().take(20) {
         output.push_str(&format!(
-            "- User-owned paths preserved: {}\n",
-            plan.preserved_paths.len()
+            "  - `[{}] {}`: `{}`\n",
+            action.adapter,
+            action.relative_path.display(),
+            update_disposition_label(action.disposition)
         ));
-        if changes.is_empty() {
-            output.push_str(
-                "- Result: all managed assets already match the running Baron candidate.\n\n",
-            );
-            continue;
-        }
-        output.push_str("- Actions needing attention:\n");
-        for action in changes.iter().take(20) {
-            output.push_str(&format!(
-                "  - `{}`: `{}`\n",
-                action.relative_path.display(),
-                update_disposition_label(action.disposition)
-            ));
-        }
-        if changes.len() > 20 {
-            output.push_str(&format!(
-                "  - {} more managed actions omitted from this bounded preview.\n",
-                changes.len() - 20
-            ));
-        }
-        output.push('\n');
+    }
+    if changes.len() > 20 {
+        output.push_str(&format!(
+            "  - {} more managed actions omitted from this bounded preview.\n",
+            changes.len() - 20
+        ));
     }
     output
 }

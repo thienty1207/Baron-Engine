@@ -9,9 +9,9 @@
   "programCompletionPercent": 6,
   "remainingPhaseCount": 10,
   "currentPhase": "phase-36-verified-release-candidate-and-binary-handoff",
-  "currentPhaseStatus": "planned",
+  "currentPhaseStatus": "in_progress",
   "nextAction": "Write the Phase 36 candidate manifest and resolver RED tests. The managed baseline, conservative three way preview, malformed-marker refusal, and custom-content boundary are verified.",
-  "buildConfidence": "Baron 3.3 remains fully certified. Phase 35 passed focused adapter and CLI evidence for fresh baselines, deterministic three-way decisions, malformed-marker refusal, and no-write preview. Candidate, transaction, and 3.4 certification evidence remains outstanding.",
+  "buildConfidence": "Baron 3.3 remains fully certified. Phase 35 passed focused adapter and CLI evidence for fresh baselines, deterministic multi-adapter three-way decisions, baseline hash verification, junction refusal, malformed-marker refusal, failed-replacement preservation, and no-write preview. Candidate, transaction, and 3.4 certification evidence remains outstanding.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -562,18 +562,18 @@
         "runtime installers adapters tests and manifests read or embed assets core only",
         "all seven stale blueprints core files are removed after a no runtime reference RED GREEN test",
         "Codex Claude and generic installed assets still match assets core after cleanup",
-        "managed baseline manifest and exact baseline copies use safe repository relative paths",
-        "deterministic BASE LOCAL UPSTREAM decision tests pass",
+        "managed baseline manifest and exact baseline copies use safe repository relative paths and refuse symlink or junction traversal",
+        "baseline copy hashes are verified before deterministic BASE LOCAL UPSTREAM decision tests pass",
         "marker routing JSON and full text ownership rules preserve user content",
         "custom skills agents source plans Harness records and Vault memory never enter the managed update set",
-        "dry run planning does not modify live targets",
-        "repeated successful updates advance the baseline only after activation"
+        "dry run planning does not modify live targets and plans all registered adapters as one candidate",
+        "a failed replacement retains the prior valid manifest and repeated successful updates advance the baseline only after activation"
       ]
     },
     {
       "id": 36,
       "name": "Verified Release Candidate And Binary Handoff",
-      "status": "planned",
+      "status": "in_progress",
       "release": "3.4.0",
       "targetReleaseWeightPercent": 25,
       "completionPercent": 0,

@@ -78,8 +78,16 @@ The implementation is split into four phases:
   avoids false Windows worktree failures caused only by CRLF conversion; the
   pinned content and upstream revision remain unchanged.
 - Focused GREEN evidence on 2026-07-24:
-  - `cargo test -p baron-adapters --all-targets`: passed (30 tests).
-  - `cargo test -p baron-cli --test adapter_cli`: passed (9 tests).
+  - Independent-review closure added baseline-copy hash verification before a
+    merge ancestor is trusted, symlink/junction refusal for managed-state,
+    strict duplicate/inverted marker refusal, and preservation of the old
+    manifest when a replacement fails before publishing a new one.
+  - The planner now collects all registered adapter payloads in one pass,
+    labels every action with its owning adapter, and includes new upstream
+    assets instead of classifying them as user content.
+  - `cargo test -p baron-adapters --all-targets`: passed (38 tests).
+  - `cargo test -p baron-cli --test adapter_cli`: passed (10 tests), including
+    a whole-repository byte snapshot around a multi-adapter dry run.
   - `cargo fmt --all -- --check`: passed.
   - `git diff --check`: passed.
 
@@ -95,9 +103,11 @@ The implementation is split into four phases:
 
 ## Current Evidence State
 
-- Phase 35: completed; runtime source, managed baseline, planner, malformed
-  marker refusal, and read-only dry-run preview are verified
-- Phase 36: planned, no implementation evidence
+- Phase 35: completed; runtime source, hash-verified and reparse-safe managed
+  baseline, multi-adapter planner, malformed marker refusal, replacement
+  preservation, and read-only dry-run preview are verified
+- Phase 36: in progress; candidate source and release metadata code are being
+  tested before any runtime activation work
 - Phase 37: planned, no implementation evidence
 - Phase 38: planned, no implementation evidence
 

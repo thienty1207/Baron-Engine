@@ -16,7 +16,7 @@ Last updated: 2026-07-24
 - Baron 3.6 completion: 0%
 - Remaining planned phases: 10
 - Current phase: Phase 36 - Verified Release Candidate And Binary Handoff
-- Current phase status: planned
+- Current phase status: in_progress
 - Current next action: write the candidate manifest/resolver RED tests. The
   managed baseline, read-only three-way preview, and custom-content boundary
   are now verified.
@@ -681,11 +681,15 @@ Phase 34 final verification:
   `assets/core/` after cleanup.
 - [x] Record the exact last-installed managed content and merge policy under `.baron/managed-state/`.
 - [x] Keep all manifest paths repository-relative, canonical, and unable to escape the project.
+- [x] Refuse a symlink or Windows junction anywhere in the managed-state write path.
+- [x] Verify each baseline copy hash before treating it as a three-way merge ancestor.
 - [x] Compute `BASE`, `LOCAL`, and `UPSTREAM` decisions before writing any managed target.
+- [x] Plan all registered adapters together and include newly introduced upstream assets under their own adapter.
 - [x] Preserve text outside Baron markers and custom routing blocks.
 - [x] Preserve custom skills, custom agents, source, plans, Harness records, and Vault memory.
 - [x] Treat uncertain dual edits as conflicts instead of guessing.
 - [x] Prove the prepared baseline replacement advances the next comparison ancestor only after a successful activation boundary supplies it.
+- [x] Keep the prior manifest loadable when a replacement fails before the new manifest is ready.
 - [x] Pass focused planner, adapter lifecycle, and dry-run CLI tests.
 
 ### Phase 36 - Verified Release Candidate And Binary Handoff

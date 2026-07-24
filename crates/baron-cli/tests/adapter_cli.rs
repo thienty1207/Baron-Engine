@@ -1,5 +1,6 @@
+use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use assert_cmd::Command;
@@ -234,6 +235,31 @@ fn update_from_nested_path_refreshes_registered_adapters() {
     assert!(!agents.contains("\nstale\n"));
 }
 
+fn snapshot_files(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+    fn collect(root: &Path, current: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
+        let mut entries = fs::read_dir(current)
+            .unwrap()
+            .map(Result::unwrap)
+            .collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let path = entry.path();
+            if path.is_dir() {
+                collect(root, &path, files);
+            } else if path.is_file() {
+                files.insert(
+                    path.strip_prefix(root).unwrap().to_path_buf(),
+                    fs::read(&path).unwrap(),
+                );
+            }
+        }
+    }
+
+    let mut files = BTreeMap::new();
+    collect(root, root, &mut files);
+    files
+}
+
 #[test]
 fn update_dry_run_previews_the_safe_merge_without_writing_project_files() {
     let temp = tempdir().unwrap();
@@ -271,6 +297,42 @@ fn update_dry_run_previews_the_safe_merge_without_writing_project_files() {
 
     assert_eq!(fs::read_to_string(repo.join("AGENTS.md")).unwrap(), before);
     assert!(!repo.join(".baron/update").exists());
+}
+
+#[test]
+fn update_dry_run_merges_all_registered_adapters_without_writing_any_repo_file() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let nested = repo.join("src/features");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&nested).unwrap();
+
+    for adapter in ["--codex", "--claude"] {
+        Command::cargo_bin("baron")
+            .unwrap()
+            .args([
+                "init",
+                repo.to_str().unwrap(),
+                adapter,
+                "--vault",
+                vault.to_str().unwrap(),
+            ])
+            .assert()
+            .success();
+    }
+    let before = snapshot_files(&repo);
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&nested)
+        .args(["update", "--dry-run", "--installed"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("# Baron Safe Update Preview"))
+        .stdout(predicate::str::contains("`AGENTS.md`: `keep_local`").not())
+        .stdout(predicate::str::contains("`CLAUDE.md`: `keep_local`").not());
+
+    assert_eq!(snapshot_files(&repo), before);
 }
 
 #[test]

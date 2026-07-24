@@ -6,6 +6,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::managed::delimited_block_bounds;
+
 const MANAGED_STATE_SCHEMA_VERSION: u32 = 1;
 const MANAGED_STATE_DIR: &str = ".baron/managed-state";
 const MANAGED_BASE_DIR: &str = "base";
@@ -61,6 +63,7 @@ pub enum UpdateDisposition {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ManagedUpdateAction {
+    pub adapter: String,
     pub relative_path: PathBuf,
     pub merge_kind: ManagedMergeKind,
     pub disposition: UpdateDisposition,
@@ -82,27 +85,68 @@ impl ManagedUpdatePlan {
             .iter()
             .find(|action| action.relative_path == PathBuf::from(relative_path))
     }
+
+    pub fn action_for_adapter(
+        &self,
+        adapter: &str,
+        relative_path: &str,
+    ) -> Option<&ManagedUpdateAction> {
+        self.actions.iter().find(|action| {
+            action.adapter == adapter && action.relative_path == PathBuf::from(relative_path)
+        })
+    }
 }
 
 pub fn managed_state_dir(repo_root: impl AsRef<Path>) -> PathBuf {
     repo_root.as_ref().join(MANAGED_STATE_DIR)
 }
 
+fn managed_manifest_path(repo_root: &Path) -> Result<PathBuf> {
+    checked_state_path(repo_root, Path::new(MANAGED_MANIFEST), false)
+}
+
+fn managed_manifest_exists(repo_root: &Path) -> Result<bool> {
+    let path = managed_manifest_path(repo_root)?;
+    match fs::metadata(&path) {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "Could not inspect managed baseline manifest: {}",
+                path.display()
+            )
+        }),
+    }
+}
+
 pub fn load_managed_baseline(repo_root: impl AsRef<Path>) -> Result<ManagedBaseline> {
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
-    let path = managed_state_dir(&repo_root).join(MANAGED_MANIFEST);
+    let path = managed_manifest_path(&repo_root)?;
     let content = fs::read_to_string(&path)
         .with_context(|| format!("Managed baseline manifest is missing: {}", path.display()))?;
     let baseline: ManagedBaseline = serde_json::from_str(&content)
         .with_context(|| format!("Managed baseline manifest is malformed: {}", path.display()))?;
     validate_baseline(&baseline)?;
     for record in &baseline.records {
-        let base_path = baseline_copy_path(&repo_root, record)?;
+        let base_path = baseline_copy_path(&repo_root, record, false)?;
         if !base_path.is_file() {
             bail!(
                 "Managed baseline copy is missing for `{}`: {}",
                 record.relative_path.display(),
                 base_path.display()
+            );
+        }
+        let content = fs::read_to_string(&base_path).with_context(|| {
+            format!(
+                "Could not read managed baseline copy for `{}`: {}",
+                record.relative_path.display(),
+                base_path.display()
+            )
+        })?;
+        if sha256(&content) != record.base_sha256 {
+            bail!(
+                "Managed baseline hash mismatch for `{}`; refuse to use a tampered merge ancestor",
+                record.relative_path.display()
             );
         }
     }
@@ -116,7 +160,7 @@ pub fn record_managed_baseline(
 ) -> Result<()> {
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
     let baseline = baseline_from_payloads(payloads, installed_version)?;
-    write_baseline(&repo_root, &baseline, payloads, true)
+    write_baseline(&repo_root, &baseline, payloads)
 }
 
 pub fn ensure_managed_baseline(
@@ -125,37 +169,34 @@ pub fn ensure_managed_baseline(
     installed_version: &str,
 ) -> Result<()> {
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
-    match load_managed_baseline(&repo_root) {
-        Ok(mut baseline) => {
-            let existing = baseline
-                .records
-                .iter()
-                .map(|record| (record.adapter.clone(), record.relative_path.clone()))
-                .collect::<HashSet<_>>();
-            let additions = payloads
-                .iter()
-                .filter(|payload| {
-                    !existing.contains(&(payload.adapter.clone(), payload.relative_path.clone()))
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            if additions.is_empty() {
-                return Ok(());
-            }
-            let additional_baseline = baseline_from_payloads(&additions, installed_version)?;
-            baseline.records.extend(additional_baseline.records);
-            baseline.records.sort_by(|left, right| {
-                left.adapter
-                    .cmp(&right.adapter)
-                    .then_with(|| left.relative_path.cmp(&right.relative_path))
-            });
-            validate_baseline(&baseline)?;
-            write_baseline(&repo_root, &baseline, &additions, false)
+    if managed_manifest_exists(&repo_root)? {
+        let mut baseline = load_managed_baseline(&repo_root)?;
+        let existing = baseline
+            .records
+            .iter()
+            .map(|record| (record.adapter.clone(), record.relative_path.clone()))
+            .collect::<HashSet<_>>();
+        let additions = payloads
+            .iter()
+            .filter(|payload| {
+                !existing.contains(&(payload.adapter.clone(), payload.relative_path.clone()))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if additions.is_empty() {
+            return Ok(());
         }
-        Err(error) if is_missing_baseline_error(&error) => {
-            record_managed_baseline(&repo_root, payloads, installed_version)
-        }
-        Err(error) => Err(error),
+        let additional_baseline = baseline_from_payloads(&additions, installed_version)?;
+        baseline.records.extend(additional_baseline.records);
+        baseline.records.sort_by(|left, right| {
+            left.adapter
+                .cmp(&right.adapter)
+                .then_with(|| left.relative_path.cmp(&right.relative_path))
+        });
+        validate_baseline(&baseline)?;
+        write_baseline(&repo_root, &baseline, &additions)
+    } else {
+        record_managed_baseline(&repo_root, payloads, installed_version)
     }
 }
 
@@ -186,6 +227,11 @@ pub fn plan_managed_update(
     let mut actions = Vec::new();
     let mut conflicts = Vec::new();
     let mut diagnostics = Vec::new();
+    let baseline_keys = baseline
+        .records
+        .iter()
+        .map(|record| (record.adapter.clone(), record.relative_path.clone()))
+        .collect::<HashSet<_>>();
 
     for record in &baseline.records {
         let Some(payload) = upstream.get(&(record.adapter.clone(), record.relative_path.clone()))
@@ -195,6 +241,7 @@ pub fn plan_managed_update(
                 record.relative_path.display()
             ));
             actions.push(ManagedUpdateAction {
+                adapter: record.adapter.clone(),
                 relative_path: record.relative_path.clone(),
                 merge_kind: record.merge_kind,
                 disposition: UpdateDisposition::KeepLocal,
@@ -211,6 +258,7 @@ pub fn plan_managed_update(
             diagnostics.push(diagnostic.clone());
             conflicts.push(record.relative_path.clone());
             actions.push(ManagedUpdateAction {
+                adapter: record.adapter.clone(),
                 relative_path: record.relative_path.clone(),
                 merge_kind: record.merge_kind,
                 disposition: UpdateDisposition::Conflict,
@@ -219,7 +267,7 @@ pub fn plan_managed_update(
             });
             continue;
         }
-        let base = fs::read_to_string(baseline_copy_path(&repo_root, record)?)?;
+        let base = fs::read_to_string(baseline_copy_path(&repo_root, record, false)?)?;
         let local_path = checked_repo_path(&repo_root, &record.relative_path)?;
         let local = fs::read_to_string(&local_path).unwrap_or_default();
         let action = plan_one(record, &base, &local, &payload.content)?;
@@ -232,13 +280,36 @@ pub fn plan_managed_update(
         actions.push(action);
     }
 
-    actions.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    for payload in upstream_payloads {
+        if baseline_keys.contains(&(payload.adapter.clone(), payload.relative_path.clone())) {
+            continue;
+        }
+        let action = plan_new_upstream_payload(&repo_root, payload)?;
+        if action.disposition == UpdateDisposition::Conflict {
+            conflicts.push(payload.relative_path.clone());
+            if let Some(diagnostic) = &action.diagnostic {
+                diagnostics.push(diagnostic.clone());
+            }
+        }
+        actions.push(action);
+    }
+
+    actions.sort_by(|left, right| {
+        left.adapter
+            .cmp(&right.adapter)
+            .then_with(|| left.relative_path.cmp(&right.relative_path))
+    });
     conflicts.sort();
     conflicts.dedup();
     let managed_paths = baseline
         .records
         .iter()
         .map(|record| record.relative_path.clone())
+        .chain(
+            upstream_payloads
+                .iter()
+                .map(|payload| payload.relative_path.clone()),
+        )
         .collect::<HashSet<_>>();
     let preserved = collect_preserved_paths(&repo_root, &managed_paths)?;
     if preserved.truncated {
@@ -251,6 +322,94 @@ pub fn plan_managed_update(
         conflicts,
         preserved_paths: preserved.paths,
         diagnostics,
+    })
+}
+
+fn plan_new_upstream_payload(
+    repo_root: &Path,
+    payload: &ManagedAssetPayload,
+) -> Result<ManagedUpdateAction> {
+    let local_path = checked_repo_path(repo_root, &payload.relative_path)?;
+    let local_exists = local_path.exists();
+    let local = if local_exists {
+        fs::read_to_string(&local_path).with_context(|| {
+            format!(
+                "Could not read existing local managed candidate: {}",
+                local_path.display()
+            )
+        })?
+    } else {
+        String::new()
+    };
+    let (disposition, resolved_content, diagnostic) = match payload.merge_kind {
+        ManagedMergeKind::FullText if !local_exists => {
+            (UpdateDisposition::TakeUpstream, Some(payload.content.clone()), None)
+        }
+        ManagedMergeKind::FullText if local == payload.content => {
+            (UpdateDisposition::Identical, None, None)
+        }
+        ManagedMergeKind::FullText => (
+            UpdateDisposition::Conflict,
+            None,
+            Some(format!(
+                "A new Baron-managed full-text asset would overwrite existing local content at `{}`.",
+                payload.relative_path.display()
+            )),
+        ),
+        ManagedMergeKind::MarkerBlock => {
+            let local_managed = managed_content_for_kind(&local, payload.merge_kind)?;
+            if local_managed == payload.content {
+                (UpdateDisposition::Identical, None, None)
+            } else {
+                (
+                    UpdateDisposition::AutoMerge,
+                    Some(replace_delimited_block(
+                        &local,
+                        MANAGED_START,
+                        MANAGED_END,
+                        &payload.content,
+                    )?),
+                    None,
+                )
+            }
+        }
+        ManagedMergeKind::RoutingBlock => {
+            let local_managed = managed_content_for_kind(&local, payload.merge_kind)?;
+            if local_managed == payload.content {
+                (UpdateDisposition::Identical, None, None)
+            } else {
+                (
+                    UpdateDisposition::AutoMerge,
+                    Some(replace_delimited_block(
+                        &local,
+                        ROUTING_START,
+                        ROUTING_END,
+                        &payload.content,
+                    )?),
+                    None,
+                )
+            }
+        }
+        ManagedMergeKind::JsonOwnedEntries => {
+            let local_managed = managed_content_for_kind(&local, payload.merge_kind)?;
+            if local_managed == payload.content {
+                (UpdateDisposition::Identical, None, None)
+            } else {
+                (
+                    UpdateDisposition::AutoMerge,
+                    Some(merge_owned_json(&local, &payload.content)?),
+                    None,
+                )
+            }
+        }
+    };
+    Ok(ManagedUpdateAction {
+        adapter: payload.adapter.clone(),
+        relative_path: payload.relative_path.clone(),
+        merge_kind: payload.merge_kind,
+        disposition,
+        resolved_content,
+        diagnostic,
     })
 }
 
@@ -305,6 +464,7 @@ fn plan_one(
         (UpdateDisposition::Conflict, None, Some(diagnostic))
     };
     Ok(ManagedUpdateAction {
+        adapter: record.adapter.clone(),
         relative_path: record.relative_path.clone(),
         merge_kind: record.merge_kind,
         disposition,
@@ -347,18 +507,10 @@ fn write_baseline(
     repo_root: &Path,
     baseline: &ManagedBaseline,
     payloads: &[ManagedAssetPayload],
-    replace_all: bool,
 ) -> Result<()> {
     validate_baseline(baseline)?;
     validate_payloads(payloads)?;
-    let state_dir = managed_state_dir(repo_root);
-    let base_root = state_dir.join(MANAGED_BASE_DIR);
-    fs::create_dir_all(&base_root)?;
-    if replace_all && state_dir.join(MANAGED_MANIFEST).exists() {
-        let staged_old = state_dir.join("manifest.previous.json");
-        let _ = fs::remove_file(&staged_old);
-        fs::rename(state_dir.join(MANAGED_MANIFEST), staged_old)?;
-    }
+    let manifest_path = checked_state_path(repo_root, Path::new(MANAGED_MANIFEST), true)?;
     for payload in payloads {
         let record = baseline
             .records
@@ -367,11 +519,11 @@ fn write_baseline(
                 record.adapter == payload.adapter && record.relative_path == payload.relative_path
             })
             .ok_or_else(|| anyhow!("Managed baseline record is missing for payload"))?;
-        let path = baseline_copy_path(repo_root, record)?;
+        let path = baseline_copy_path(repo_root, record, true)?;
         atomic_write(&path, &payload.content)?;
     }
     let manifest = serde_json::to_string_pretty(baseline)?;
-    atomic_write(&state_dir.join(MANAGED_MANIFEST), &format!("{manifest}\n"))
+    atomic_write(&manifest_path, &format!("{manifest}\n"))
 }
 
 fn validate_baseline(baseline: &ManagedBaseline) -> Result<()> {
@@ -463,7 +615,7 @@ fn checked_repo_path(repo_root: &Path, relative_path: &Path) -> Result<PathBuf> 
             unreachable!("validated managed path")
         };
         current.push(part);
-        if current.exists() && fs::symlink_metadata(&current)?.file_type().is_symlink() {
+        if current.exists() && is_link_or_reparse_point(&current)? {
             bail!(
                 "Managed path cannot traverse a symlink or junction: {}",
                 relative_path.display()
@@ -473,30 +625,99 @@ fn checked_repo_path(repo_root: &Path, relative_path: &Path) -> Result<PathBuf> 
     Ok(path)
 }
 
-fn baseline_copy_path(repo_root: &Path, record: &ManagedAssetRecord) -> Result<PathBuf> {
+fn baseline_copy_path(
+    repo_root: &Path,
+    record: &ManagedAssetRecord,
+    create_parent: bool,
+) -> Result<PathBuf> {
     validate_adapter(&record.adapter)?;
     validate_relative_path(&record.relative_path)?;
-    let base_root = managed_state_dir(repo_root)
-        .join(MANAGED_BASE_DIR)
-        .join(&record.adapter);
-    let path = base_root.join(&record.relative_path);
-    if !path.starts_with(&base_root) {
-        bail!("Managed baseline path escapes its adapter root");
+    checked_state_path(
+        repo_root,
+        &Path::new(MANAGED_BASE_DIR)
+            .join(&record.adapter)
+            .join(&record.relative_path),
+        create_parent,
+    )
+}
+
+fn checked_state_path(
+    repo_root: &Path,
+    state_relative: &Path,
+    create_parent: bool,
+) -> Result<PathBuf> {
+    validate_relative_path(state_relative)?;
+    let relative = Path::new(".baron")
+        .join("managed-state")
+        .join(state_relative);
+    validate_relative_path(&relative)?;
+    let components = relative.components().collect::<Vec<_>>();
+    let mut current = repo_root.to_path_buf();
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(part) = component else {
+            unreachable!("validated managed state path")
+        };
+        current.push(part);
+        let is_final = index + 1 == components.len();
+        if current.exists() {
+            if is_link_or_reparse_point(&current)? {
+                bail!(
+                    "Managed baseline state cannot traverse a symlink or junction: {}",
+                    relative.display()
+                );
+            }
+            if !is_final && !fs::metadata(&current)?.is_dir() {
+                bail!(
+                    "Managed baseline state parent is not a directory: {}",
+                    current.display()
+                );
+            }
+            continue;
+        }
+        if !create_parent || is_final {
+            break;
+        }
+        match fs::create_dir(&current) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Could not create managed baseline state directory: {}",
+                        current.display()
+                    )
+                })
+            }
+        }
+        if is_link_or_reparse_point(&current)? || !fs::metadata(&current)?.is_dir() {
+            bail!(
+                "Managed baseline state path became unsafe while creating: {}",
+                current.display()
+            );
+        }
     }
-    Ok(path)
+    Ok(repo_root.join(relative))
+}
+
+fn is_link_or_reparse_point(path: &Path) -> Result<bool> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Ok(true);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+
+        return Ok(metadata.file_attributes() & 0x0400 != 0);
+    }
+    #[cfg(not(windows))]
+    Ok(false)
 }
 
 fn extract_delimited_block(content: &str, start: &str, end: &str) -> Result<String> {
-    match (content.find(start), content.find(end)) {
-        (Some(begin), Some(finish)) if finish >= begin => {
-            let after = finish + end.len();
-            if content[after..].contains(start) || content[after..].contains(end) {
-                bail!("Managed markers are duplicated or malformed");
-            }
-            Ok(content[begin..after].to_string())
-        }
-        (None, None) => Ok(String::new()),
-        _ => bail!("Managed markers are malformed or incomplete"),
+    match delimited_block_bounds(content, start, end, "managed")? {
+        Some((begin, finish)) => Ok(content[begin..finish + end.len()].to_string()),
+        None => Ok(String::new()),
     }
 }
 
@@ -506,12 +727,9 @@ fn replace_delimited_block(
     end: &str,
     replacement: &str,
 ) -> Result<String> {
-    match (content.find(start), content.find(end)) {
-        (Some(begin), Some(finish)) if finish >= begin => {
+    match delimited_block_bounds(content, start, end, "managed")? {
+        Some((begin, finish)) => {
             let after = finish + end.len();
-            if content[after..].contains(start) || content[after..].contains(end) {
-                bail!("Managed markers are duplicated or malformed");
-            }
             Ok(format!(
                 "{}{}{}",
                 &content[..begin],
@@ -519,9 +737,8 @@ fn replace_delimited_block(
                 &content[after..]
             ))
         }
-        (None, None) if content.trim().is_empty() => Ok(format!("{replacement}\n")),
-        (None, None) => Ok(format!("{}\n\n{replacement}\n", content.trim_end())),
-        _ => bail!("Managed markers are malformed or incomplete"),
+        None if content.trim().is_empty() => Ok(format!("{replacement}\n")),
+        None => Ok(format!("{}\n\n{replacement}\n", content.trim_end())),
     }
 }
 
@@ -685,8 +902,14 @@ fn sha256(content: &str) -> String {
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+    let parent = path
+        .parent()
+        .context("Managed baseline path has no parent directory")?;
+    if !parent.is_dir() {
+        bail!(
+            "Managed baseline parent directory is missing: {}",
+            parent.display()
+        );
     }
     let temp = path.with_extension("baron-tmp");
     fs::write(&temp, content).with_context(|| format!("Could not write {}", temp.display()))?;
@@ -694,10 +917,4 @@ fn atomic_write(path: &Path, content: &str) -> Result<()> {
         fs::remove_file(path).with_context(|| format!("Could not replace {}", path.display()))?;
     }
     fs::rename(&temp, path).with_context(|| format!("Could not write {}", path.display()))
-}
-
-fn is_missing_baseline_error(error: &anyhow::Error) -> bool {
-    error
-        .to_string()
-        .contains("Managed baseline manifest is missing")
 }

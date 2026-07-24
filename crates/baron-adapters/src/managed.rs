@@ -53,7 +53,7 @@ pub fn upsert_routing_block(
     atomic_write(path, &format!("{block}\n\n{preserved}\n"))
 }
 
-fn delimited_block_bounds(
+pub(crate) fn delimited_block_bounds(
     content: &str,
     start: &str,
     end: &str,
