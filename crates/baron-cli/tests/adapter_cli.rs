@@ -41,8 +41,13 @@ fn non_shadow_init_installs_codex_and_configuration() {
     assert!(repo.join(".baron/local.toml").exists());
     assert!(repo.join("AGENTS.md").exists());
     assert!(repo.join(".codex/skills/superpowers/SKILL.md").exists());
+    assert!(repo.join("docs/baron/harness/DOMAIN_LANGUAGE.md").exists());
     let context = vault_context_without_create(&vault, &repo).unwrap();
     assert!(context.project_root.join("Facts.md").exists());
+    assert!(context
+        .project_root
+        .join("ProductHarness/DOMAIN_LANGUAGE.md")
+        .exists());
 }
 
 #[test]

@@ -105,7 +105,7 @@ Before final response, check:
 - Performance: images, fonts, heavy components, route loading, and unnecessary re-render risks are identified.
 - Baron evidence: changed files, browser/smoke proof, remaining core-agent gates, and trace/proof gaps are clear.
 
-## Changed-Surface Quality Gate
+## Baron Design Quality Gate (Changed-Surface)
 
 Run this bounded gate before final response for meaningful frontend work. Check
 only the changed surface and the directly related flow; do not turn it into a
@@ -119,6 +119,8 @@ whole-product redesign or an unrelated visual scan.
 - Do not introduce arbitrary imagery, iconography, or invented product copy.
 - Treat a theme-only swap that leaves a weak composition unchanged as an
   unresolved design issue.
+- Check overflow and clipping with long content at a narrow and a wide viewport
+  before claiming responsive coverage.
 - Check contrast, visible focus, reduced motion, long content, and mobile
   overflow for the changed interaction when relevant.
 - Record each check as `observed`, `not applicable with reason`, or `not

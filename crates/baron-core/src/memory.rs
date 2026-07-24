@@ -421,6 +421,14 @@ fn collect_markdown_sources(
         if entry.file_type()?.is_dir() {
             collect_markdown_sources(context, &path, metadata, kind, sources)?;
         } else if path.extension().and_then(|value| value.to_str()) == Some("md") {
+            if kind == MemoryKind::Harness
+                && path.file_name().and_then(|value| value.to_str()) == Some("DOMAIN_LANGUAGE.md")
+            {
+                // Domain language has a dedicated status-aware bounded renderer.
+                // Generic line indexing would turn its full prose into ordinary
+                // memory excerpts and bypass the compact-context boundary.
+                continue;
+            }
             sources.push(descriptor(
                 context,
                 path,

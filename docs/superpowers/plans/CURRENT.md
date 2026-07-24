@@ -4,16 +4,15 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 40 - Deep Modules And Product Domain Language
+- Active phase: Phase 41 - Routing, Preservation, And Baron 3.5 Certification
 - Status: `in_progress`
 - Verification: Baron 3.4 source certification passed: full workspace tests,
   Clippy, locked release build, YAML lint, installer lifecycle, candidate and
   transaction recovery fixtures, local-only reconcile, and release-binary
   read-only smoke. `v3.4.0` is now the stable source baseline; no tag or GitHub
   Release was created.
-- Next action: write and run Phase 40 RED contracts for project-scoped domain
-  language and deep-module guidance before editing Product Harness or API skill
-  assets.
+- Next action: write and run Phase 41 RED preservation/public-flow contracts,
+  then complete the full Baron 3.5 certification gate.
 
 ## Baron 3.4 Contract
 
@@ -37,7 +36,7 @@ Last updated: 2026-07-24
   Baron owners, with no duplicate workflow.
 - Baron 3.6, Phases 42-45: optional local project code map, source verification,
   strict isolation, and Survey fallback.
-- Total remaining planned phases: 6.
+- Total remaining planned phases: 5.
 
 ## Active Documents
 

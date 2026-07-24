@@ -8,6 +8,7 @@ use crate::autopilot::render_autopilot_context_summary;
 use crate::capability::{load_registry, render_capability_summary, render_runtime_policy_summary};
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
 use crate::control_plane::validate_control_plane;
+use crate::domain_language::{ensure_domain_language, render_domain_language_context};
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
 use crate::memory::build_memory_index;
@@ -55,6 +56,7 @@ pub fn compile_context_for_task(
     let repo_path = repo_path.as_ref();
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
+    let domain_language = ensure_domain_language(repo_path, &vault)?;
     if repo_path.join(".baron/project.toml").exists()
         || std::env::var_os("BARON_CODEX_SESSIONS_ROOT").is_some()
         || std::env::var_os("BARON_CLAUDE_SESSIONS_ROOT").is_some()
@@ -98,6 +100,14 @@ pub fn compile_context_for_task(
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_execution_state(repo_path));
     output.push_str(&render_execution_evidence(repo_path));
+    if domain_language.term_count > 0 && domain_language.mirror_in_sync {
+        output.push_str(&render_domain_language_context(repo_path, 1_400)?);
+    } else if domain_language.term_count > 0 {
+        output.push_str("## Product Domain Language\n\n");
+        output.push_str(
+            "- not loaded as trusted context: repository and Vault copies differ; no copy was overwritten automatically\n",
+        );
+    }
     output.push_str(&render_capability_summary(
         repo_path,
         target.adapter_kind(),
@@ -131,6 +141,16 @@ pub fn compile_context_for_task(
     output.push_str("- full intent history; only the bounded current intent was loaded\n");
     output.push_str("- full recovery history; only the bounded current recovery was loaded\n");
     output.push_str("- full session replay history; only bounded matching messages were loaded\n");
+    if domain_language.term_count > 0 {
+        output.push_str(
+            "- full Product Domain Language table; only bounded terms with their status and evidence were loaded\n",
+        );
+        if !domain_language.mirror_in_sync {
+            output.push_str(
+                "- Product Domain Language terms were withheld because repository and Vault copies differ\n",
+            );
+        }
+    }
     output.push_str("- adapter refresh; managed files are owned by `baron init/update`\n");
     output.push_str("- No target repo files were written.\n");
 
@@ -238,6 +258,7 @@ pub fn compile_context_why(
     let repo_path = repo_path.as_ref();
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
+    let domain_language = ensure_domain_language(repo_path, &vault)?;
     let report = build_memory_index(&vault)?;
     let session_report = index_session_replay(&vault)?;
 
@@ -276,6 +297,18 @@ pub fn compile_context_why(
     if repo_path.join("docs/baron/harness/CURRENT.md").is_file() {
         output
             .push_str("- Loaded: bounded Product Harness state because a current story exists.\n");
+    }
+    if domain_language.term_count > 0 && domain_language.mirror_in_sync {
+        output.push_str(
+            "- Loaded: bounded Product Domain Language because canonical terms prevent cross-module drift.\n",
+        );
+        output.push_str(
+            "- Skipped: full Product Domain Language table because compact context retains only terms with status and evidence.\n",
+        );
+    } else if domain_language.term_count > 0 {
+        output.push_str(
+            "- Skipped: Product Domain Language terms because repository and Vault copies differ and Baron will not overwrite either copy automatically.\n",
+        );
     }
     output.push_str(&format!(
         "- Loaded: session replay index metadata with {} current-project messages; full histories stay skipped.\n",

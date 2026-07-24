@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
+use crate::domain_language::{ensure_domain_language, DomainLanguageStatus};
 use crate::intent::require_confirmed_intent;
 use crate::risk::{classify_risk, RiskLane};
 use crate::vault::VaultContext;
@@ -17,12 +18,20 @@ pub struct HarnessStory {
     pub resumed: bool,
 }
 
+pub fn ensure_harness_workspace(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+) -> Result<DomainLanguageStatus> {
+    ensure_domain_language(repo_root, vault)
+}
+
 pub fn start_or_resume_intake(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
     title: &str,
 ) -> Result<HarnessStory> {
     let repo_root = repo_root.as_ref();
+    ensure_harness_workspace(repo_root, vault)?;
     let title = title.trim();
     let risk = classify_risk(title);
     if risk != RiskLane::Low {

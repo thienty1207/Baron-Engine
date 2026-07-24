@@ -11,7 +11,7 @@ required by a generated project.
 | Topic | Audited revision | Accepted locally | Rejected |
 | --- | --- | --- | --- |
 | Frontend composition research | `aeb42fb354ff4efa36ab475773a082315a3af2ce` | Brief fingerprint, bounded anti-template gates, responsive/state proof. | A second frontend skill, installer, command router, or live dependency. |
-| Module and domain-language research | `ed37663cc5fbef691ddfecd080dff42f7e7e350d` | Pending Phase 40. | Workflow, planning, TDD, debugging, review, handoff, setup, personal, or duplicate runtime skills. |
+| Module and domain-language research | `ed37663cc5fbef691ddfecd080dff42f7e7e350d` | Deep module boundaries and project-scoped domain language. | Workflow, planning, TDD, debugging, review, handoff, setup, personal, or duplicate runtime skills. |
 
 ## Phase 39 Evidence
 
@@ -51,8 +51,35 @@ cargo test -p baron-core --test control_plane
 Both commands passed on the Phase 39 working tree. Full Baron 3.5
 certification remains a Phase 41 gate.
 
+## Phase 40 Evidence
+
+- `api_interface_design_has_local_deep_module_guidance_without_duplicate_skills`
+  proves Codex, Claude, and generic installations receive the same local
+  boundary reference and no duplicate architecture or workflow skill.
+- `domain_language.rs` proves first creation, no invented terms, byte-for-byte
+  preservation of user terms, ambiguous-term labeling, bounded rendering, and
+  strict project isolation inside a shared Vault.
+- `context_compiler.rs` proves compact context includes only term, status, and
+  evidence, not the full file body. The memory index deliberately excludes this
+  file because its generic line parser would bypass that bound.
+- When repo and Vault copies differ, Baron preserves both copies, withholds the
+  terms from trusted compact context, and records the mismatch rather than
+  silently choosing a definition. This is an additional safety decision made
+  during implementation to protect durable memory from accidental overwrite.
+
+### Commands Run
+
+```text
+cargo fmt --all -- --check
+cargo test -p baron-core --test domain_language --test context_compiler
+cargo test -p baron-adapters --test adapter_lifecycle
+cargo test -p baron-cli --test adapter_cli
+```
+
+All commands passed on the Phase 40 working tree. Full Baron 3.5 certification
+remains a Phase 41 gate.
+
 ## Remaining 3.5 Gates
 
-- Phase 40 project-scoped domain language and deep-module guidance.
 - Phase 41 adapter preservation, public-flow, full workspace, static, release,
   and smoke verification.

@@ -12,14 +12,13 @@ Last updated: 2026-07-24
 - Target source release: `v3.5.0`
 - Program target release: `v3.6.0`
 - Baron 3.4 completion: 100%
-- Baron 3.5 completion: 35%
+- Baron 3.5 completion: 65%
 - Baron 3.6 completion: 0%
-- Remaining planned phases: 6
-- Current phase: Phase 40 - Deep Modules And Product Domain Language
+- Remaining planned phases: 5
+- Current phase: Phase 41 - Routing, Preservation, And Baron 3.5 Certification
 - Current phase status: in_progress
-- Current next action: write RED domain-language and deep-module asset
-  contracts, then add project-scoped Product Harness terminology without
-  inventing or sharing terms across projects.
+- Current next action: add RED preservation and public-flow contracts, then
+  certify 3.5 without widening the normal user command surface.
 - Build confidence: Baron 3.4 is source-certified. The fresh full suite,
   Clippy, locked release binary, workflow-YAML, installer lifecycle,
   candidate/transaction/recovery fixtures, local-only reconcile, and
@@ -236,9 +235,9 @@ Baron 3.5 planned program:
 
 | Phase | Name | Status | Baron 3.5 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 39 | Hallmark Frontend Distillation | planned | 35% | existing `frontend-design` gains local brief fingerprint, anti-template, responsive, and state proof without a second frontend owner |
-| 40 | Deep Modules And Product Domain Language | planned | 30% | non-overlapping deep-module guidance and project-owned domain language are bounded, source-grounded, and isolated |
-| 41 | Routing, Preservation, And Baron 3.5 Certification | planned | 35% | one workflow owner, three-adapter parity, lazy routing, custom preservation, behavior pressure tests, and version/docs synchronization |
+| 39 | Hallmark Frontend Distillation | completed | 35% | existing `frontend-design` gains local brief fingerprint, anti-template, responsive, and state proof without a second frontend owner |
+| 40 | Deep Modules And Product Domain Language | completed | 30% | non-overlapping deep-module guidance and project-owned domain language are bounded, source-grounded, and isolated |
+| 41 | Routing, Preservation, And Baron 3.5 Certification | in_progress | 35% | one workflow owner, three-adapter parity, lazy routing, custom preservation, behavior pressure tests, and version/docs synchronization |
 
 Baron 3.6 planned program:
 
@@ -742,14 +741,15 @@ Phase 34 final verification:
 
 ### Phase 40 - Deep Modules And Product Domain Language
 
-- [ ] Distill only Matt Pocock deep-module and domain-language techniques that
+- [x] Distill only Matt Pocock deep-module and domain-language techniques that
   do not overlap Superpowers.
-- [ ] Strengthen the existing `api-and-interface-design` owner instead of
+- [x] Strengthen the existing `api-and-interface-design` owner instead of
   creating a Matt workflow skill.
-- [ ] Add project-scoped Product Harness domain language with
+- [x] Add project-scoped Product Harness domain language with
   evidence/unknown/conflict states.
-- [ ] Keep invented terms and cross-project terminology out of trusted context.
-- [ ] Prove bounded loading, project isolation, and no duplicate ownership.
+- [x] Keep invented terms and cross-project terminology out of trusted context.
+- [x] Prove bounded loading, project isolation, divergence withholding, and no
+  duplicate ownership.
 
 ### Phase 41 - Routing, Preservation, And Baron 3.5 Certification
 

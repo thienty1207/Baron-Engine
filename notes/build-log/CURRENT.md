@@ -6,7 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 40 - Deep Modules And Product Domain Language (`in_progress`).
+Phase 41 - Routing, Preservation, And Baron 3.5 Certification (`in_progress`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -74,9 +74,12 @@ outside its write set.
 5. Phase 39 completed: local frontend guidance now has a brief fingerprint,
    anti-template gates, responsive/state proof, three-adapter installation
    proof, narrow routing proof, and no operational live dependency.
-6. Begin Phase 40 with RED Product Harness domain-language and deep-module
-   asset contracts. Do not add a second workflow or architecture skill owner.
-7. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
+6. Phase 40 completed: local deep-module guidance and project-scoped domain
+   language now preserve user content, avoid generic memory leakage, and
+   withhold divergent repo/Vault terms from trusted context.
+7. Begin Phase 41 with RED preservation/public-flow contracts. Do not add a
+   user command or a second workflow/architecture owner.
+8. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
 7. Do not begin the 3.5 or 3.6 plans before the preceding release is certified.
 

@@ -46,7 +46,8 @@ use baron_core::control_plane::{
 };
 use baron_core::firewall::{compact_memory_brief, recall, render_recall};
 use baron_core::harness::{
-    harness_status, record_decision, record_friction, start_or_resume_intake,
+    ensure_harness_workspace, harness_status, record_decision, record_friction,
+    start_or_resume_intake,
 };
 use baron_core::harness_improvement::{
     audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
@@ -842,6 +843,7 @@ fn run() -> Result<()> {
                 build_memory_index(&context)?;
                 ensure_platform_intelligence(&repo_root, &config)?;
                 ensure_architecture_governor(&repo_root, &config)?;
+                ensure_harness_workspace(&repo_root, &context)?;
                 let report = install_adapter(&repo_root, adapter)?;
                 println!("# Baron Adapter Init\n");
                 println!("- Project: `{}`", context.project_slug);

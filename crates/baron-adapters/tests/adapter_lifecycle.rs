@@ -245,7 +245,11 @@ fn frontend_design_is_local_deep_and_has_one_routing_owner() {
             frontend.join("references/responsive-state-proof.md"),
         ];
         for path in &operational_paths {
-            assert!(path.is_file(), "missing local frontend guidance: {}", path.display());
+            assert!(
+                path.is_file(),
+                "missing local frontend guidance: {}",
+                path.display()
+            );
         }
         assert!(!root.join("hallmark").exists());
         assert!(!root.join("matt-skills").exists());
@@ -256,7 +260,12 @@ fn frontend_design_is_local_deep_and_has_one_routing_owner() {
             .collect::<Vec<_>>()
             .join("\n");
         assert!(operational.contains("Superpowers remains the workflow authority"));
-        for forbidden in ["npx skills add", "raw.githubusercontent.com", "http://", "https://"] {
+        for forbidden in [
+            "npx skills add",
+            "raw.githubusercontent.com",
+            "http://",
+            "https://",
+        ] {
             assert!(
                 !operational.contains(forbidden),
                 "frontend operational guidance must be self-contained, found {forbidden}"
@@ -265,6 +274,86 @@ fn frontend_design_is_local_deep_and_has_one_routing_owner() {
         assert!(
             !operational.to_ascii_lowercase().contains("hallmark"),
             "frontend guidance must not create a Hallmark runtime owner"
+        );
+    }
+}
+
+#[test]
+fn api_interface_design_has_local_deep_module_guidance_without_duplicate_skills() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    for adapter in [
+        AgentAdapter::Codex,
+        AgentAdapter::Claude,
+        AgentAdapter::Generic,
+    ] {
+        install_adapter(repo, adapter).unwrap();
+    }
+
+    for root in [
+        repo.join(".codex/skills"),
+        repo.join(".claude/skills"),
+        repo.join(".baron/core/skills"),
+    ] {
+        let skill = root.join("api-and-interface-design");
+        let operational_paths = [
+            skill.join("SKILL.md"),
+            skill.join("references/deep-module-boundaries.md"),
+        ];
+        for path in &operational_paths {
+            assert!(
+                path.is_file(),
+                "missing local interface guidance: {}",
+                path.display()
+            );
+        }
+        for duplicate in [
+            "codebase-design",
+            "domain-modeling",
+            "tdd",
+            "implement",
+            "grilling",
+            "matt-skills",
+        ] {
+            assert!(
+                !root.join(duplicate).exists(),
+                "duplicate optional skill must not be installed: {duplicate}"
+            );
+        }
+
+        let operational = operational_paths
+            .iter()
+            .map(|path| fs::read_to_string(path).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(operational.contains("Superpowers remains the workflow authority"));
+        for forbidden in [
+            "npx skills add",
+            "raw.githubusercontent.com",
+            "http://",
+            "https://",
+        ] {
+            assert!(
+                !operational.contains(forbidden),
+                "interface guidance must be self-contained, found {forbidden}"
+            );
+        }
+    }
+
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+        let contract = fs::read_to_string(repo.join(path)).unwrap();
+        assert!(
+            contract.contains("DOMAIN_LANGUAGE.md"),
+            "missing domain language: {path}"
+        );
+        assert!(
+            contract.contains("canonical terms"),
+            "missing canonical-term rule: {path}"
+        );
+        assert!(
+            contract
+                .contains("Product Harness owns this document; Superpowers still owns workflow"),
+            "missing ownership boundary: {path}"
         );
     }
 }

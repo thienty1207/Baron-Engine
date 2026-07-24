@@ -82,8 +82,8 @@ Claude, and generic adapters prove parity from `assets/core/`.
 | 37 | 3.4.0 | Conflict-safe activation and recovery | completed |
 | 38 | 3.4.0 | Automation contract and certification | completed |
 | 39 | 3.5.0 | Hallmark frontend distillation | completed |
-| 40 | 3.5.0 | Deep modules and product domain language | in_progress |
-| 41 | 3.5.0 | Routing, preservation, and certification | planned |
+| 40 | 3.5.0 | Deep modules and product domain language | completed |
+| 41 | 3.5.0 | Routing, preservation, and certification | in_progress |
 | 42 | 3.6.0 | Code-graph provider contract | planned |
 | 43 | 3.6.0 | Graphify local code-only adapter | planned |
 | 44 | 3.6.0 | Automatic bounded context and source verification | planned |
@@ -109,9 +109,8 @@ Claude, and generic adapters prove parity from `assets/core/`.
 3. Read the master program.
 4. Open the 3.5 release plan.
 5. Read the Phase 39 certification record and focused evidence.
-6. Write Phase 40 RED contracts for deep-module assets and project-scoped
-   domain language.
-7. Start Phase 41 only after Phase 40 focused evidence is recorded.
+6. Read the Phase 40 certification evidence, including divergence handling.
+7. Write Phase 41 RED preservation/public-flow contracts and certify Baron 3.5.
 
 ## Not Performed At This Checkpoint
 
@@ -137,6 +136,21 @@ Claude, and generic adapters prove parity from `assets/core/`.
   `docs/assessment/baron-3.5.0-skill-intelligence-certification.md`.
 - Operational frontend guidance contains no live URL, installer command, raw
   remote dependency, or second workflow owner.
+
+## Phase 40 Verified Checkpoint
+
+- RED tests proved the deep-module reference and domain-language module were
+  absent before implementation.
+- The local `api-and-interface-design` owner now carries the deep-boundary
+  reference; no separate architecture, domain-modeling, or workflow skill is
+  installed.
+- Each project owns `docs/baron/harness/DOMAIN_LANGUAGE.md` plus a separate
+  Vault mirror. The template creates no terms, and verified/ambiguous status
+  plus evidence are explicit.
+- Full domain prose cannot leak through generic memory indexing; compact
+  context uses its dedicated bounded renderer instead.
+- Divergent repo/Vault copies are preserved and withheld from trusted context;
+  Baron does not choose or overwrite either copy automatically.
 
 ## 2026-07-24 Implementation Checkpoint
 

@@ -10,6 +10,7 @@ This bundled optional domain skill is for interface boundary work. It is not a w
 
 ## Baron Contract
 
+- Superpowers remains the workflow authority for planning, TDD, debugging, review, and verification.
 - Use this skill only after `.codex/skills/INDEX.md`, `.claude/skills/INDEX.md`, or Baron control-plane routing selects it.
 - Do not replace Superpowers, `code-reviewer`, `security-auditor`, or `test-engineer`.
 - Treat repository contracts, callers, tests, schemas, docs, and existing traffic examples as evidence.
@@ -31,11 +32,21 @@ This bundled optional domain skill is for interface boundary work. It is not a w
 
 Do not use this skill for implementation-only refactors that keep all interface behavior identical.
 
+## Load Only The Needed Reference
+
+For a task that changes a module boundary, public abstraction, service seam, or
+dependency direction, read `references/deep-module-boundaries.md` before
+designing the boundary. Do not load it for a routine implementation that keeps
+the same interface behavior.
+
 ## Read First
 
 - Existing route/controller/handler files for the changed boundary.
 - Existing tests, schema files, generated clients, OpenAPI/GraphQL definitions, or typed SDK exports.
 - Product Harness story and Active Plan state when the change is medium/high risk.
+- `docs/baron/harness/DOMAIN_LANGUAGE.md` when canonical product terms affect
+  the boundary. Use a verified term only with its evidence; preserve
+  `ambiguous` terms as unresolved.
 - Current auth, tenant, permission, and rate-limit behavior around the boundary.
 - Call sites in frontend, backend, mobile, scripts, workers, or integration folders.
 - README/API docs if they are used by real consumers.
@@ -67,6 +78,18 @@ Before proposing a contract, answer these from evidence:
 - Auth boundary must be enforced server-side, not only hidden in UI.
 - Rate limits and abuse controls should be part of public or risky interfaces.
 - Observability should expose safe request IDs or correlation IDs without leaking PII.
+
+## Deep Module Boundaries
+
+- Keep the public surface smaller than the implementation complexity it owns.
+- Put invariants at the boundary that owns the data and behavior, rather than
+  relying on callers to repeat them.
+- Prefer one explicit entry point and a clear dependency direction over layers
+  that only rename another API.
+- Reject a new abstraction when it does not hide meaningful complexity or make
+  public behavior easier to verify.
+- Preserve compatibility and migration evidence for existing callers before
+  moving an established boundary.
 
 ## Versioning
 
@@ -137,6 +160,8 @@ Return API/interface guidance in this shape:
 6. Recommendation: smallest compatible shape or change.
 7. Verification: exact tests/smoke checks/proof required or already run.
 8. Trace note: what Baron should record for future agents.
+9. Boundary note: public surface, owned invariants, dependency direction, and
+   domain-language evidence when the change crosses modules.
 
 ## Red Flags
 

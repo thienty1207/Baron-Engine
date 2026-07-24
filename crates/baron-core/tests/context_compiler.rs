@@ -200,6 +200,65 @@ fn context_loads_current_execution_state_without_loading_history() {
 }
 
 #[test]
+fn context_loads_bounded_domain_language_with_status_and_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("catalog");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    write(
+        &repo.join("docs/baron/harness/DOMAIN_LANGUAGE.md"),
+        "# Product Domain Language\n\n\
+## Rules\n\n\
+- Add terms only from verified evidence.\n\n\
+## Terms\n\n\
+| Term | Meaning | Status | Evidence |\n\
+| --- | --- | --- | --- |\n\
+| workspace | A tenant-scoped working area. | verified | docs/architecture/tenancy.md |\n\
+| shelf | Archive visibility remains unresolved. | ambiguous | user request |\n\n\
+# Historical Notes\n\nThis full historical body must stay out of compact context.\n",
+    );
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+    let why = compile_context_why(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Product Domain Language"));
+    assert!(bundle.contains("workspace"));
+    assert!(bundle.contains("Status: `verified`"));
+    assert!(bundle.contains("docs/architecture/tenancy.md"));
+    assert!(bundle.contains("shelf"));
+    assert!(bundle.contains("Status: `ambiguous`"));
+    assert!(!bundle.contains("This full historical body must stay out"));
+    assert!(bundle.chars().count() <= 20_000);
+    assert!(why.contains("bounded Product Domain Language"));
+    assert!(why.contains("full Product Domain Language table"));
+}
+
+#[test]
+fn context_withholds_divergent_domain_language_instead_of_guessing_a_canonical_term() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("catalog");
+    let vault_root = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let vault = ensure_vault(&vault_root, &repo).unwrap();
+    write(
+        &repo.join("docs/baron/harness/DOMAIN_LANGUAGE.md"),
+        "# Product Domain Language\n\n## Terms\n\n| Term | Meaning | Status | Evidence |\n| --- | --- | --- | --- |\n| workspace | A tenant-scoped working area. | verified | docs/architecture/tenancy.md |\n",
+    );
+    write(
+        &vault.project_root.join("ProductHarness/DOMAIN_LANGUAGE.md"),
+        "# Product Domain Language\n\n## Terms\n\n| Term | Meaning | Status | Evidence |\n| --- | --- | --- | --- |\n| workspace | A billing workspace. | verified | docs/billing.md |\n",
+    );
+
+    let bundle = compile_context(&repo, &vault_root, ContextTarget::Codex).unwrap();
+    let why = compile_context_why(&repo, &vault_root, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("not loaded as trusted context"));
+    assert!(!bundle.contains("tenant-scoped working area"));
+    assert!(!bundle.contains("A billing workspace"));
+    assert!(why.contains("copies differ"));
+}
+
+#[test]
 fn context_stays_bounded_when_execution_state_is_large() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

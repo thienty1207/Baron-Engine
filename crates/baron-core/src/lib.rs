@@ -9,6 +9,7 @@ pub mod config;
 pub mod context;
 pub mod continuity;
 pub mod control_plane;
+pub mod domain_language;
 pub mod firewall;
 pub mod harness;
 pub mod harness_improvement;
