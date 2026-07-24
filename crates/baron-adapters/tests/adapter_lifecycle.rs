@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use baron_adapters::{install_adapter, AgentAdapter};
+use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
 fn write(path: &Path, content: &str) {
@@ -9,6 +10,49 @@ fn write(path: &Path, content: &str) {
         fs::create_dir_all(parent).unwrap();
     }
     fs::write(path, content).unwrap();
+}
+
+fn superpowers_upstream_tree_digest(root: &Path) -> (usize, String) {
+    let excluded = [
+        "LICENSE.txt",
+        "NOTICE.md",
+        "README.md",
+        "README.upstream.md",
+        "SKILL.md",
+        "UPSTREAM.json",
+    ];
+    let mut stack = vec![root.to_path_buf()];
+    let mut entries = Vec::new();
+    while let Some(directory) = stack.pop() {
+        for entry in fs::read_dir(directory).unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_type().unwrap().is_dir() {
+                stack.push(entry.path());
+                continue;
+            }
+            let relative = entry
+                .path()
+                .strip_prefix(root)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            if excluded.contains(&relative.as_str()) {
+                continue;
+            }
+            let content = fs::read(entry.path()).unwrap();
+            let file_hash = Sha256::digest(content)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            entries.push(format!("{relative}\0{file_hash}"));
+        }
+    }
+    entries.sort();
+    let digest = Sha256::digest(entries.join("\n").as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    (entries.len(), digest)
 }
 
 #[test]
@@ -53,6 +97,106 @@ fn codex_adapter_installs_core_and_optional_assets() {
     assert!(hooks["hooks"]["Stop"]
         .to_string()
         .contains("baron automation hook stop"));
+}
+
+#[test]
+fn superpowers_core_is_pinned_to_v6_2_and_installs_the_complete_workflow() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    install_adapter(repo, AgentAdapter::Claude).unwrap();
+    install_adapter(repo, AgentAdapter::Generic).unwrap();
+
+    for root in [
+        repo.join(".codex/skills/superpowers"),
+        repo.join(".claude/skills/superpowers"),
+        repo.join(".baron/core/skills/superpowers"),
+    ] {
+        let provenance: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(root.join("UPSTREAM.json")).unwrap()).unwrap();
+        assert_eq!(provenance["repository"], "obra/superpowers");
+        assert_eq!(provenance["version"], "6.2.0");
+        assert_eq!(
+            provenance["commit"],
+            "3dcbd5c4b48e02263fbf4a3c01e3fe4f81d584d9"
+        );
+        assert_eq!(
+            provenance["upstreamTreeSha256"],
+            "e76b5a985b27d626b7338028e292ecd944664ef5d85981c6fd05a8ae71b9291a"
+        );
+        assert_eq!(
+            provenance["baronPatches"][0]["path"],
+            "brainstorming/scripts/server.cjs"
+        );
+        let (file_count, tree_digest) = superpowers_upstream_tree_digest(&root);
+        assert_eq!(
+            file_count,
+            provenance["vendoredFileCount"].as_u64().unwrap() as usize
+        );
+        assert_eq!(
+            tree_digest,
+            provenance["vendoredTreeSha256"].as_str().unwrap()
+        );
+        let baron_contract = fs::read_to_string(root.join("SKILL.md")).unwrap();
+        assert!(baron_contract.contains("plan-scoped SDD workspace"));
+        assert!(baron_contract.contains("same basename"));
+        assert!(baron_contract.contains("Rounds 1-3 resume the original implementer"));
+        assert!(baron_contract.contains("Rounds 4-5 use a fresh implementer"));
+        assert!(baron_contract.contains("After round 5"));
+        assert!(baron_contract.contains("Text presence alone is not test proof"));
+
+        for path in [
+            "LICENSE.txt",
+            "NOTICE.md",
+            "subagent-driven-development/task-reviewer-prompt.md",
+            "subagent-driven-development/re-review-prompt.md",
+            "subagent-driven-development/scripts/sdd-workspace",
+            "subagent-driven-development/scripts/task-brief",
+            "subagent-driven-development/scripts/review-package",
+            "test-driven-development/writing-good-tests.md",
+            "using-superpowers/references/antigravity-tools.md",
+            "using-superpowers/references/gemini-tools.md",
+            "using-superpowers/references/pi-tools.md",
+        ] {
+            assert!(
+                root.join(path).is_file(),
+                "missing Superpowers 6.2 asset {path}"
+            );
+        }
+
+        for obsolete in [
+            "subagent-driven-development/code-quality-reviewer-prompt.md",
+            "subagent-driven-development/spec-reviewer-prompt.md",
+            "test-driven-development/testing-anti-patterns.md",
+            "using-superpowers/references/copilot-tools.md",
+        ] {
+            assert!(
+                !root.join(obsolete).exists(),
+                "obsolete Superpowers asset survived refresh: {obsolete}"
+            );
+        }
+
+        let visual_server =
+            fs::read_to_string(root.join("brainstorming/scripts/server.cjs")).unwrap();
+        assert!(visual_server.contains("Baron Superpowers v"));
+        assert!(visual_server.contains("UPSTREAM.json"));
+        assert!(!visual_server.contains("https://"));
+        assert!(!visual_server.contains("TELEMETRY"));
+    }
+
+    let root = repo.join(".codex/skills/superpowers");
+    let sdd = fs::read_to_string(root.join("subagent-driven-development/SKILL.md")).unwrap();
+    assert!(sdd.contains(".superpowers/sdd/<plan-basename>/"));
+    assert!(sdd.contains("resume the original implementer"));
+    assert!(sdd.contains("Five rounds maximum per task"));
+    assert!(sdd.contains("scoped re-review"));
+
+    let good_tests =
+        fs::read_to_string(root.join("test-driven-development/writing-good-tests.md")).unwrap();
+    assert!(good_tests.contains("Behavior, not text"));
+    assert!(good_tests.contains("production change"));
+    assert!(good_tests.contains("The Mutation Check"));
 }
 
 #[test]

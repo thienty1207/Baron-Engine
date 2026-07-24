@@ -1,6 +1,6 @@
 # Baron Build Status
 
-Last updated: 2026-07-23
+Last updated: 2026-07-24
 
 ## Overall
 
@@ -15,7 +15,31 @@ Last updated: 2026-07-23
 - Current phase: Phase 35 - Managed Baseline And Update Planner
 - Current phase status: planned
 - Current next action: implement Phase 35 RED tests and the read-only managed update planner.
-- Build confidence: the Baron 3.3 baseline passes the full no-skip workspace test suite; Baron 3.4 is planned but has no implementation evidence yet.
+- Build confidence: the Baron 3.3 baseline and the final Superpowers 6.2 refresh pass the full no-skip workspace suite, Clippy, release build, adapter smoke, and upstream visual-server behavior tests; Baron 3.4 is planned but has no implementation evidence yet.
+
+## 2026-07-24 Verified Core Refresh And Decisions
+
+- Superpowers remains Baron's only workflow core and is now pinned to upstream
+  `v6.2.0` commit `3dcbd5c4b48e02263fbf4a3c01e3fe4f81d584d9`.
+- The complete 50-file upstream skill subtree is vendored locally with one
+  documented offline hardening patch, provenance, MIT license, adapter parity,
+  and no runtime download dependency.
+- Graphify is accepted only as a future optional project-scoped code-map
+  provider. It cannot own Baron memory, instructions, hooks, or cross-project
+  context.
+- Hallmark-derived design checks may strengthen the existing
+  `frontend-design` skill; they do not create a second frontend workflow owner.
+- Matt Pocock workflow, TDD, planning, and grilling content will not duplicate
+  Superpowers. Only clearly non-overlapping domain techniques may be evaluated.
+- `assets/core/` is the sole runtime source. `blueprints/core/` is a stale
+  historical duplicate scheduled for evidence-backed cleanup, not a second
+  source to maintain.
+- Every future extension must have one owner, lazy routing, bounded output,
+  project isolation, a fallback, and automated proof before it can ship.
+- Full rationale: `docs/decisions/0002-extension-ownership-and-code-graph.md`.
+
+These decisions do not start Phase 35, add Graphify, bump the version, or alter
+the approved Baron 3.4 phase order.
 
 ## Baron 3.0 Direction
 

@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-07-23",
+  "lastUpdated": "2026-07-24",
   "stableRelease": "3.3.0",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "3.4.0",
@@ -9,7 +9,7 @@
   "currentPhase": "phase-35-managed-baseline-update-planner",
   "currentPhaseStatus": "planned",
   "nextAction": "Implement Phase 35 RED tests and the read only managed update planner.",
-  "buildConfidence": "The Baron 3.3 baseline passes the full no skip workspace test suite. Baron 3.4 is planned and has no implementation evidence yet.",
+  "buildConfidence": "The Baron 3.3 baseline and final Superpowers 6.2 refresh pass the full no skip workspace suite Clippy release build adapter smoke and upstream visual server behavior tests. Baron 3.4 is planned and has no implementation evidence yet.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -17,7 +17,7 @@
     "memory firewall prevents shared-vault project noise",
     "context compiler produces bounded task-relevant context",
     "Codex Claude and generic adapters work",
-    "Superpowers remains workflow core",
+    "Superpowers remains the sole workflow core and its vendored upstream subtree is revision pinned provenance tracked adapter consistent and locally verified",
     "three core quality agents are shipped and routed",
     "optional frontend and security skills are shipped and lazy-routed",
     "active plan state works",
@@ -49,7 +49,10 @@
     "managed updates compare baseline local and upstream content and stage uncertain conflicts instead of overwriting them",
     "custom skills custom agents project source plans Harness records and Vault memory remain outside the update overwrite boundary",
     "AI local repair cannot silently download or activate a Baron release",
-    "interrupted project and runtime activation can complete safely or roll back to one compatible version"
+    "interrupted project and runtime activation can complete safely or roll back to one compatible version",
+    "new extensions have one responsibility owner lazy bounded routing project isolation fallback and automated proof before shipping",
+    "optional code graph providers cannot become memory instruction hook workflow or cross project context owners",
+    "assets core is the only runtime source for bundled skills and agents"
   ],
   "phases": [
     {
@@ -607,8 +610,32 @@
       ]
     }
   ],
+  "decisions20260724": [
+    {
+      "topic": "superpowers-core-refresh",
+      "status": "verified-checkpoint",
+      "decision": "Vendor the complete Superpowers v6.2.0 skills snapshot at commit 3dcbd5c4b48e02263fbf4a3c01e3fe4f81d584d9 with one recorded offline visual companion patch while preserving Baron owned routing and adapter integration."
+    },
+    {
+      "topic": "optional-code-graph",
+      "status": "accepted-design-not-implemented",
+      "decision": "Evaluate Graphify only as a project scoped bounded optional code map provider with source verification no external hook ownership no global graph and Baron Survey fallback."
+    },
+    {
+      "topic": "optional-skill-sources",
+      "status": "accepted-boundary",
+      "decision": "Distill only non overlapping Hallmark or Matt Pocock techniques into existing Baron owned domain assets. Do not duplicate Superpowers frontend workflow or quality gate ownership."
+    },
+    {
+      "topic": "runtime-assets",
+      "status": "accepted-cleanup-boundary",
+      "decision": "Assets core is the sole runtime source. Blueprints core is a stale historical duplicate to remove only after a no runtime reference test."
+    }
+  ],
   "readFirst": [
     "docs/BARON_STATUS.md",
+    "docs/decisions/0002-extension-ownership-and-code-graph.md",
+    "notes/build-log/2026-07-24-superpowers-6-2-and-extension-decisions.md",
     "docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md",
     "notes/build-log/2026-07-23-phase-35-38-baron-3-4-safe-update.md",
     "docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md",

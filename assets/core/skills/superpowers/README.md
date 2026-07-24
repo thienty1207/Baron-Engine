@@ -2,6 +2,11 @@
 
 Use this file to choose one Superpowers workflow skill. Superpowers controls process discipline; specialist knowledge should come from repo context, current docs, or targeted subagents.
 
+The bundled workflow directories are pinned to upstream Superpowers `v6.2.0`.
+`UPSTREAM.json`, `NOTICE.md`, and `LICENSE.txt` record the exact source and
+license plus Baron's local-only visual companion patch. Runtime behavior never
+downloads or executes changing upstream content.
+
 ## Routing
 
 | Task shape | Load |
@@ -22,6 +27,9 @@ Use this file to choose one Superpowers workflow skill. Superpowers controls pro
 ## Priority
 
 - Use Superpowers first when the task involves planning, debugging, coding, review, verification, or branch finishing.
+- Keep Subagent-Driven Development scratch state plan-scoped; never reuse another plan's ledger.
+- Resume the original implementer for bounded review-fix rounds and use scoped re-review before accepting fixes.
+- Require behavior-protecting tests; text-presence checks alone do not prove scripts, prompts, or skills work.
 - Follow the coding discipline guardrails in `AGENTS.md` for simplicity, surgical edits, assumptions, and verification criteria.
 - Load another skill only when it is installed locally and `.codex/skills/INDEX.md` routes to it.
 - Do not load every Superpowers skill. Pick the one row that matches the immediate workflow.

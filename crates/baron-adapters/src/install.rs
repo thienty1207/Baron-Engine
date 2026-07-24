@@ -287,6 +287,7 @@ fn write_directory(directory: &Dir<'_>, destination: &Path) -> Result<()> {
         }
         fs::write(&path, file.contents())
             .with_context(|| format!("Could not write {}", path.display()))?;
+        apply_embedded_mode(&path, file.contents())?;
     }
     for child in directory.dirs() {
         let relative = child
@@ -295,6 +296,27 @@ fn write_directory(directory: &Dir<'_>, destination: &Path) -> Result<()> {
             .unwrap_or(child.path());
         write_directory(child, &destination.join(relative))?;
     }
+    Ok(())
+}
+
+fn desired_embedded_mode(contents: &[u8]) -> Option<u32> {
+    contents.starts_with(b"#!").then_some(0o755)
+}
+
+#[cfg(unix)]
+fn apply_embedded_mode(path: &Path, contents: &[u8]) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    if let Some(mode) = desired_embedded_mode(contents) {
+        fs::set_permissions(path, fs::Permissions::from_mode(mode))
+            .with_context(|| format!("Could not set executable mode on {}", path.display()))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn apply_embedded_mode(_path: &Path, contents: &[u8]) -> Result<()> {
+    let _ = desired_embedded_mode(contents);
     Ok(())
 }
 
@@ -345,4 +367,16 @@ fn report(adapter: &str, files: &[&str]) -> InstallReport {
 #[allow(dead_code)]
 fn _normalize(path: PathBuf) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desired_embedded_mode;
+
+    #[test]
+    fn embedded_shebang_assets_are_executable_but_docs_are_not() {
+        assert_eq!(desired_embedded_mode(b"#!/usr/bin/env bash\n"), Some(0o755));
+        assert_eq!(desired_embedded_mode(b"# Skill\n"), None);
+        assert_eq!(desired_embedded_mode(b""), None);
+    }
 }
