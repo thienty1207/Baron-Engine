@@ -1,10 +1,11 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use baron_adapters::{
     ensure_managed_baseline, install_adapter, load_managed_baseline, managed_payloads_for_adapter,
-    plan_managed_update, record_managed_baseline, replace_managed_baseline, AgentAdapter,
-    ManagedAssetPayload, ManagedMergeKind, UpdateDisposition,
+    plan_managed_update, reconcile_installed_managed_assets, record_managed_baseline,
+    replace_managed_baseline, AgentAdapter, ManagedAssetPayload, ManagedMergeKind,
+    UpdateDisposition,
 };
 use tempfile::tempdir;
 
@@ -30,6 +31,59 @@ const BASE_MARKER: &str = "<!-- BARON:MANAGED:START -->\nbase\n<!-- BARON:MANAGE
 const UPSTREAM_MARKER: &str = "<!-- BARON:MANAGED:START -->\nupstream\n<!-- BARON:MANAGED:END -->";
 
 #[test]
+fn local_reconcile_restores_only_a_missing_embedded_managed_asset() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    let missing = repo.join(".codex/skills/superpowers/SKILL.md");
+    fs::remove_file(&missing).unwrap();
+    let custom = repo.join(".codex/skills/custom/SKILL.md");
+    fs::create_dir_all(custom.parent().unwrap()).unwrap();
+    fs::write(&custom, "custom user skill").unwrap();
+
+    let report = reconcile_installed_managed_assets(
+        repo,
+        &managed_payloads_for_adapter(AgentAdapter::Codex).unwrap(),
+        "3.3.0",
+    )
+    .unwrap();
+
+    assert!(report.conflicts.is_empty());
+    assert!(report
+        .applied_paths
+        .iter()
+        .any(|path| path.ends_with("SKILL.md")));
+    assert!(missing.is_file());
+    assert_eq!(fs::read_to_string(custom).unwrap(), "custom user skill");
+}
+
+#[test]
+fn local_reconcile_leaves_an_ambiguous_managed_edit_untouched() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    let agents = repo.join("AGENTS.md");
+    fs::write(
+        &agents,
+        "<!-- BARON:MANAGED:START -->\nlocal change\n<!-- BARON:MANAGED:END -->\n",
+    )
+    .unwrap();
+    let before = fs::read_to_string(&agents).unwrap();
+    let mut upstream = managed_payloads_for_adapter(AgentAdapter::Codex).unwrap();
+    let agents_payload = upstream
+        .iter_mut()
+        .find(|payload| payload.relative_path == Path::new("AGENTS.md"))
+        .unwrap();
+    agents_payload.content = UPSTREAM_MARKER.to_string();
+
+    let report = reconcile_installed_managed_assets(repo, &upstream, "3.3.0").unwrap();
+
+    assert_eq!(report.conflicts, vec![PathBuf::from("AGENTS.md")]);
+    assert!(report.applied_paths.is_empty());
+    assert_eq!(fs::read_to_string(&agents).unwrap(), before);
+}
+
+#[test]
 fn first_install_records_relative_managed_baseline_copies() {
     let temp = tempdir().unwrap();
     let repo = temp.path();
@@ -39,7 +93,7 @@ fn first_install_records_relative_managed_baseline_copies() {
     let baseline = load_managed_baseline(repo).unwrap();
     assert_eq!(baseline.schema_version, 1);
     assert!(baseline.records.iter().any(|record| {
-        record.relative_path == PathBuf::from("AGENTS.md")
+        record.relative_path == Path::new("AGENTS.md")
             && record.merge_kind == ManagedMergeKind::MarkerBlock
     }));
     assert!(baseline
@@ -121,7 +175,7 @@ fn planner_includes_a_new_upstream_asset_for_its_own_adapter() {
     let action = plan
         .actions
         .iter()
-        .find(|action| action.relative_path == PathBuf::from(".claude/commands/baron.md"))
+        .find(|action| action.relative_path == Path::new(".claude/commands/baron.md"))
         .expect("a new upstream Claude asset must be in the managed update plan");
     assert_eq!(action.disposition, UpdateDisposition::TakeUpstream);
     assert_eq!(

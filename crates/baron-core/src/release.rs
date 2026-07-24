@@ -372,7 +372,7 @@ pub fn validate_release_manifest(manifest: &ReleaseManifest) -> Result<()> {
         bail!("release manifest product is not Baron Engine");
     }
     validate_version(&manifest.version)?;
-    validate_complete_manifest(&manifest)?;
+    validate_complete_manifest(manifest)?;
     Ok(())
 }
 

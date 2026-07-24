@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
+use std::ffi::OsString;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use baron_core::release::{
@@ -20,6 +21,7 @@ const MAX_CANDIDATE_BYTES: u64 = 128 * 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_REDIRECTS: usize = 3;
+const CANDIDATE_PROTOCOL_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub const DEFAULT_LATEST_MANIFEST_URL: &str =
     "https://github.com/thienty1207/Baron-Engine/releases/latest/download/release-manifest.json";
@@ -300,6 +302,63 @@ pub fn stage_verified_candidate(
     })
 }
 
+pub fn invoke_verified_candidate(
+    candidate: &UpdateCandidate,
+    repo_root: &Path,
+    arguments: &[OsString],
+) -> Result<()> {
+    let repo_root = repo_root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve Baron project root: {}",
+            repo_root.display()
+        )
+    })?;
+    if !fs::metadata(&repo_root)?.is_dir() {
+        bail!("Baron candidate protocol project root is not a directory");
+    }
+    let candidate_path = candidate.staged_path.canonicalize().with_context(|| {
+        format!(
+            "Verified Baron candidate is unavailable: {}",
+            candidate.staged_path.display()
+        )
+    })?;
+    let metadata = fs::metadata(&candidate_path)?;
+    if !metadata.is_file()
+        || metadata.len() != candidate.size_bytes
+        || sha256_file(&candidate_path)? != candidate.sha256
+    {
+        bail!("Verified Baron candidate changed before its protocol step could run");
+    }
+    let mut child = Command::new(&candidate_path)
+        .args(arguments)
+        .current_dir(&repo_root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .with_context(|| {
+            format!(
+                "Could not start the verified Baron candidate protocol: {}",
+                candidate_path.display()
+            )
+        })?;
+    let deadline = Instant::now() + CANDIDATE_PROTOCOL_TIMEOUT;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            if status.success() {
+                return Ok(());
+            }
+            bail!("Verified Baron candidate protocol exited unsuccessfully: {status}");
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!("Verified Baron candidate protocol timed out after 120 seconds");
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 pub fn prepare_runtime_handoff(
     repo_root: &Path,
     candidate: &UpdateCandidate,
@@ -337,7 +396,7 @@ pub fn prepare_runtime_handoff(
             expected_sha256: candidate.sha256.clone(),
         };
         write_json_atomically(&finalizer_path, &handoff)?;
-        return Ok(handoff);
+        Ok(handoff)
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -379,6 +438,196 @@ pub fn activate_unix_handoff(handoff: &RuntimeHandoff) -> Result<()> {
             .with_context(|| "Could not atomically activate verified Baron candidate");
     }
     Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn rollback_unix_handoff(handoff: &RuntimeHandoff) -> Result<()> {
+    let RuntimeHandoff::UnixAtomic {
+        candidate_path,
+        installed_binary,
+        backup_path,
+    } = handoff
+    else {
+        bail!("The provided runtime handoff is not an atomic Unix handoff");
+    };
+    if !backup_path.exists() {
+        bail!("Baron runtime backup is missing; cannot roll back Unix activation");
+    }
+    if installed_binary.exists() {
+        if candidate_path.exists() {
+            fs::remove_file(candidate_path)?;
+        }
+        fs::rename(installed_binary, candidate_path).with_context(|| {
+            format!(
+                "Could not move failed Baron runtime aside for rollback: {}",
+                installed_binary.display()
+            )
+        })?;
+    }
+    fs::rename(backup_path, installed_binary).with_context(|| {
+        format!(
+            "Could not restore prior Baron runtime backup: {}",
+            installed_binary.display()
+        )
+    })
+}
+
+#[cfg(target_os = "windows")]
+pub fn finalize_windows_handoff(
+    handoff: &RuntimeHandoff,
+    inspector: &dyn CandidateBinaryInspector,
+    expected_version: &str,
+) -> Result<()> {
+    let RuntimeHandoff::WindowsDelayed {
+        candidate_path,
+        installed_binary,
+        backup_path,
+        expected_sha256,
+        ..
+    } = handoff
+    else {
+        bail!("The provided runtime handoff is not a delayed Windows handoff");
+    };
+    if !candidate_path.is_file() || sha256_file(candidate_path)? != *expected_sha256 {
+        bail!("Windows Baron finalizer candidate no longer matches its verified checksum");
+    }
+    if let Some(parent) = installed_binary.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let had_installed = installed_binary.exists();
+    if had_installed {
+        if backup_path.exists() {
+            fs::remove_file(backup_path)?;
+        }
+        fs::rename(installed_binary, backup_path).with_context(|| {
+            format!(
+                "Could not stage existing Baron runtime backup: {}",
+                installed_binary.display()
+            )
+        })?;
+    }
+    let activation = (|| -> Result<()> {
+        fs::rename(candidate_path, installed_binary).with_context(|| {
+            format!(
+                "Could not replace Baron runtime from delayed finalizer: {}",
+                installed_binary.display()
+            )
+        })?;
+        let reported = inspector.reported_version(installed_binary)?;
+        let expected = format!("baron {expected_version}");
+        if reported != expected {
+            bail!("Delayed Baron finalizer reported `{reported}`; expected `{expected}`");
+        }
+        Ok(())
+    })();
+    if let Err(error) = activation {
+        if installed_binary.exists() {
+            let _ = fs::remove_file(installed_binary);
+        }
+        if had_installed && backup_path.exists() {
+            let _ = fs::rename(backup_path, installed_binary);
+        }
+        return Err(error)
+            .context("Delayed Baron finalizer restored the prior runtime after failure");
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn rollback_windows_handoff(handoff: &RuntimeHandoff) -> Result<()> {
+    let RuntimeHandoff::WindowsDelayed {
+        candidate_path,
+        installed_binary,
+        backup_path,
+        ..
+    } = handoff
+    else {
+        bail!("The provided runtime handoff is not a delayed Windows handoff");
+    };
+    if !backup_path.exists() {
+        bail!("Baron runtime backup is missing; cannot roll back Windows activation");
+    }
+    if installed_binary.exists() {
+        if candidate_path.exists() {
+            fs::remove_file(candidate_path)?;
+        }
+        fs::rename(installed_binary, candidate_path).with_context(|| {
+            format!(
+                "Could not move activated Baron runtime aside for rollback: {}",
+                installed_binary.display()
+            )
+        })?;
+    }
+    fs::rename(backup_path, installed_binary).with_context(|| {
+        format!(
+            "Could not restore prior Baron runtime backup: {}",
+            installed_binary.display()
+        )
+    })
+}
+
+#[cfg(target_os = "windows")]
+pub fn launch_windows_finalizer(
+    candidate: &UpdateCandidate,
+    repo_root: &Path,
+    state_path: &Path,
+    parent_pid: u32,
+) -> Result<PathBuf> {
+    let candidate_parent = candidate
+        .staged_path
+        .parent()
+        .context("Verified Baron candidate has no staging parent")?;
+    let finalizer = candidate_parent.join(format!("baron-finalizer-{parent_pid}.exe"));
+    fs::copy(&candidate.staged_path, &finalizer).with_context(|| {
+        format!(
+            "Could not create delayed Baron finalizer copy: {}",
+            finalizer.display()
+        )
+    })?;
+    if sha256_file(&finalizer)? != candidate.sha256 {
+        let _ = fs::remove_file(&finalizer);
+        bail!("Delayed Baron finalizer copy failed checksum verification");
+    }
+    let child = Command::new(&finalizer)
+        .arg("update")
+        .arg(repo_root)
+        .arg("--baron-finalize")
+        .arg("--transaction")
+        .arg(state_path)
+        .arg("--parent-pid")
+        .arg(parent_pid.to_string())
+        .spawn()
+        .with_context(|| {
+            format!(
+                "Could not launch delayed Baron finalizer: {}",
+                finalizer.display()
+            )
+        })?;
+    if child.id() == 0 {
+        bail!("Delayed Baron finalizer did not return a process id");
+    }
+    Ok(finalizer)
+}
+
+#[cfg(target_os = "windows")]
+pub fn wait_for_parent_exit(parent_pid: u32) -> Result<()> {
+    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0, WAIT_TIMEOUT};
+    use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject};
+
+    // SYNCHRONIZE is a Win32 generic access mask. windows-sys does not expose
+    // it from the Threading module on every supported crate version.
+    const SYNCHRONIZE_ACCESS: u32 = 0x0010_0000;
+    let handle = unsafe { OpenProcess(SYNCHRONIZE_ACCESS, 0, parent_pid) };
+    if handle.is_null() {
+        return Ok(());
+    }
+    let result = unsafe { WaitForSingleObject(handle, 120_000) };
+    unsafe { CloseHandle(handle) };
+    match result {
+        WAIT_OBJECT_0 => Ok(()),
+        WAIT_TIMEOUT => bail!("Delayed Baron finalizer timed out waiting for its parent process"),
+        _ => bail!("Delayed Baron finalizer could not wait for its parent process"),
+    }
 }
 
 fn ensure_upgrade(candidate_version: &str, running_version: &str) -> Result<()> {
@@ -530,7 +779,7 @@ fn is_link_or_reparse_point(path: &Path) -> Result<bool> {
     {
         use std::os::windows::fs::MetadataExt;
 
-        return Ok(metadata.file_attributes() & 0x0400 != 0);
+        Ok(metadata.file_attributes() & 0x0400 != 0)
     }
     #[cfg(not(windows))]
     Ok(false)
@@ -1016,5 +1265,64 @@ mod tests {
 
         assert!(error.contains("symlink or junction"));
         assert!(fs::read_dir(&outside).unwrap().next().is_none());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_delayed_finalizer_activates_only_a_verified_candidate() {
+        let temp = tempdir().unwrap();
+        let candidate = temp.path().join("candidate.exe");
+        let installed = temp.path().join("baron.exe");
+        let backup = temp.path().join("baron.backup.exe");
+        fs::write(&candidate, "new-runtime").unwrap();
+        fs::write(&installed, "old-runtime").unwrap();
+        let handoff = RuntimeHandoff::WindowsDelayed {
+            finalizer_path: temp.path().join("finalizer.json"),
+            candidate_path: candidate.clone(),
+            installed_binary: installed.clone(),
+            backup_path: backup.clone(),
+            expected_sha256: sha256_file(&candidate).unwrap(),
+        };
+
+        finalize_windows_handoff(
+            &handoff,
+            &StaticInspector("baron 3.4.0".to_string()),
+            "3.4.0",
+        )
+        .unwrap();
+
+        assert_eq!(fs::read_to_string(&installed).unwrap(), "new-runtime");
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "old-runtime");
+        assert!(!candidate.exists());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_delayed_finalizer_restores_backup_when_version_proof_fails() {
+        let temp = tempdir().unwrap();
+        let candidate = temp.path().join("candidate.exe");
+        let installed = temp.path().join("baron.exe");
+        let backup = temp.path().join("baron.backup.exe");
+        fs::write(&candidate, "new-runtime").unwrap();
+        fs::write(&installed, "old-runtime").unwrap();
+        let handoff = RuntimeHandoff::WindowsDelayed {
+            finalizer_path: temp.path().join("finalizer.json"),
+            candidate_path: candidate.clone(),
+            installed_binary: installed.clone(),
+            backup_path: backup,
+            expected_sha256: sha256_file(&candidate).unwrap(),
+        };
+
+        let error = finalize_windows_handoff(
+            &handoff,
+            &StaticInspector("baron 3.3.0".to_string()),
+            "3.4.0",
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("restored"));
+        assert_eq!(fs::read_to_string(&installed).unwrap(), "old-runtime");
+        assert!(!temp.path().join("baron.backup.exe").exists());
     }
 }

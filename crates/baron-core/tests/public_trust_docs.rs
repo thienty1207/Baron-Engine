@@ -37,7 +37,7 @@ fn collect_public_text_files(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn readme_is_public_trust_landing_page_not_command_dump() {
     let readme = read("README.md");
-    assert!(readme.contains("Current version: `3.3.0`"));
+    assert!(readme.contains("Current source version: `3.4.0`"));
     assert!(readme.contains("## Quick Start"));
     assert!(readme.contains("## Demo"));
     assert!(readme.contains("## Public Proof"));
@@ -115,18 +115,36 @@ fn baron_3_3_certification_records_trust_state_and_release_evidence() {
 }
 
 #[test]
+fn baron_3_4_safe_update_certification_states_its_release_boundary() {
+    let certification = read("docs/assessment/baron-3.4.0-safe-update-certification.md");
+    for required in [
+        "Baron 3.4.0 Safe Update Certification",
+        "baron update",
+        "baron automation reconcile",
+        "BASE`, `LOCAL`, `UPSTREAM`, and `RESOLVED`",
+        "AI agents never run public `baron update`",
+        "Git tag or GitHub Release",
+    ] {
+        assert!(
+            certification.contains(required),
+            "Baron 3.4 safe-update certification is missing {required}"
+        );
+    }
+}
+
+#[test]
 fn status_tracks_current_program() {
     let status_md = read("docs/BARON_STATUS.md");
-    assert!(status_md.contains("Stable source release: `v3.3.0`"));
+    assert!(status_md.contains("Stable source release: `v3.4.0`"));
     assert!(status_md.contains("Phase 24 - Public Trust Release"));
     assert!(status_md.contains("Public Trust 3.1.2 final verification"));
 
     let status_json: serde_json::Value =
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
-    assert_eq!(status_json["stableRelease"], "3.3.0");
-    assert_eq!(status_json["targetRelease"], "3.4.0");
+    assert_eq!(status_json["stableRelease"], "3.4.0");
+    assert_eq!(status_json["targetRelease"], "3.5.0");
     assert_eq!(status_json["programTargetRelease"], "3.6.0");
-    assert_eq!(status_json["remainingPhaseCount"], 10);
+    assert_eq!(status_json["remainingPhaseCount"], 7);
     assert!(status_json["phases"]
         .as_array()
         .is_some_and(|phases| phases.iter().any(|phase| {
@@ -139,7 +157,7 @@ fn status_tracks_current_program() {
         .is_some_and(|phases| phases.iter().any(|phase| {
             phase["id"] == 38
                 && phase["name"] == "Automation Contract And Baron 3.4 Certification"
-                && phase["status"] == "planned"
+                && phase["status"] == "completed"
         })));
     assert!(status_json["phases"]
         .as_array()

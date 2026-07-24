@@ -78,7 +78,7 @@ fn three_adapters_expand_fullstack_to_mobile_without_losing_custom_or_legacy_fil
         .success();
     Command::cargo_bin("baron")
         .unwrap()
-        .args(["update", repo.to_str().unwrap()])
+        .args(["automation", "reconcile", repo.to_str().unwrap()])
         .assert()
         .success();
 
@@ -107,11 +107,11 @@ fn three_adapters_expand_fullstack_to_mobile_without_losing_custom_or_legacy_fil
 }
 
 #[test]
-fn release_binary_reports_3_3_0() {
+fn release_binary_reports_3_4_0() {
     Command::cargo_bin("baron")
         .unwrap()
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 3.3.0"));
+        .stdout(predicate::str::contains("baron 3.4.0"));
 }

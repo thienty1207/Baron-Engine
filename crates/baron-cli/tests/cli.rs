@@ -55,7 +55,7 @@ fn cli_reports_the_release_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 3.3.0"));
+        .stdout(predicate::str::contains("baron 3.4.0"));
 }
 
 #[test]
@@ -74,6 +74,20 @@ fn top_level_help_stays_focused_on_user_commands() {
         .stdout(predicate::str::contains("runtime").not())
         .stdout(predicate::str::contains("control-plane").not())
         .stdout(predicate::str::contains("harness").not());
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["update", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--codex").not())
+        .stdout(predicate::str::contains("--claude").not())
+        .stdout(predicate::str::contains("--agent").not())
+        .stdout(predicate::str::contains("--dry-run").not())
+        .stdout(predicate::str::contains("--verify-candidate").not())
+        .stdout(predicate::str::contains("--candidate-plan").not())
+        .stdout(predicate::str::contains("--continue").not())
+        .stdout(predicate::str::contains("--abort").not());
 
     Command::cargo_bin("baron")
         .unwrap()

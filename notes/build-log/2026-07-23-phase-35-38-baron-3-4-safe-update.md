@@ -112,9 +112,12 @@ The implementation is split into four phases:
   target rejection, tamper rejection, Unix handoff preparation, Windows delayed
   handoff metadata, workflow raw-candidate contract, and installer lifecycle
   compatibility are verified. No candidate was activated.
-- Phase 37: in progress; transaction, continuation, abort, rollback, and
-  recovery tests are the next required gate
-- Phase 38: planned, no implementation evidence
+- Phase 37: completed; sealed transaction states, staged conflict packets,
+  frozen continuation inputs, per-target backup/rollback, explicit abort, and
+  startup recovery are covered by focused unit and CLI fixtures.
+- Phase 38: in progress; local-only AI reconciliation, human release authority,
+  hidden protocol flags, version `3.4.0`, and natural-language update docs are
+  implemented. Final release-wide certification remains required.
 
 ## Phase 36 Verified Release Candidate Evidence
 
@@ -152,3 +155,51 @@ The implementation is split into four phases:
 - AI does not silently install releases.
 - No ambiguous managed-file overwrite.
 - No completion claim without fresh tests and lifecycle smoke.
+
+## Phase 37 Transaction And Recovery Evidence
+
+- `cargo test -p baron-cli --test update_recovery_cli`: passed 2 tests. A
+  verified local immutable candidate can stage and plan packets without project
+  or Vault writes, then abort cleanly; a public update seeing a pending conflict
+  preserves the project, runtime, and Vault while reporting the staged review.
+- `cargo test -p baron-adapters --test update_transaction`: passed. Baseline
+  state is kept separate from the live project target.
+- `cargo test -p baron-adapters --test update_planner`: passed 15 tests,
+  including missing managed asset repair and ambiguous local-edit preservation.
+- `cargo test -p baron-cli --test automation_cli`: passed 4 tests, including
+  local-only reconcile with no `.baron/update` workspace or runtime authority.
+- Windows delayed-finalizer behavior remains unit-tested separately; it is not
+  represented as completed runtime replacement until the parent-exit handoff
+  is observed.
+
+## Phase 38 Interim Evidence
+
+- Workspace package and lockfile package versions are now `3.4.0`.
+- `baron update --help` hides legacy adapter flags and all candidate,
+  continuation, abort, finalizer, and dry-run protocol flags. The focused RED
+  test failed before this change and passed afterward.
+- `README.md`, `docs/RELEASE.md`, and architecture docs now distinguish normal
+  human `baron update` from AI-local `baron automation reconcile`; the
+  one-time pre-3.4 installer boundary is documented.
+- `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D
+  warnings`, `npx --yes yaml-lint .github/workflows/release.yml`, and
+  `git diff --check` passed during this checkpoint.
+- `cargo build --release --locked -p baron-cli` produced
+  `target/release/baron.exe`, which reported `baron 3.4.0`.
+
+## Phase 38 Source Certification
+
+- `cargo test --workspace --all-targets --no-fail-fast`: passed from source
+  version `3.4.0`.
+- `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D
+  warnings`, `cargo build --release --locked -p baron-cli`,
+  `npx --yes yaml-lint .github/workflows/release.yml`, and `git diff --check`:
+  passed.
+- The locked release binary reported `baron 3.4.0`; read-only `survey --json`
+  and Codex shadow-init smoke passed.
+- Full destructive lifecycle behavior stays inside isolated Rust fixtures;
+  those fixtures passed custom-asset preservation, local-only reconcile,
+  candidate staging, conflict, abort, rollback, and recovery without a real
+  public release download.
+- `docs/assessment/baron-3.4.0-safe-update-certification.md` records the
+  certification boundary. No tag or GitHub Release has been created.

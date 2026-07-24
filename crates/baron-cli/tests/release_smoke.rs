@@ -56,7 +56,7 @@ fn fresh_and_old_projects_preserve_user_owned_content() {
     init(&old, &vault, "--codex");
     Command::cargo_bin("baron")
         .unwrap()
-        .args(["update", old.to_str().unwrap()])
+        .args(["automation", "reconcile", old.to_str().unwrap()])
         .assert()
         .success();
 

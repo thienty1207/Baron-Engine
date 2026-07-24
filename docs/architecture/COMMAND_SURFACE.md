@@ -59,17 +59,18 @@ baron init --library
 baron init --data
 baron init --cloud
 baron init --codex --fullstack
-baron update --codex
-baron update --claude
-baron update --agent
+baron update [repo-path]
 ```
 
 Implemented syntax accepts optional `[repo-path]`. `init` accepts
 `--vault <vault-path>`, `BARON_VAULT`, or the machine Vault configured by
 `baron setup --vault`; later commands may use `.baron/local.toml`. Platform
 flags store focus in `.baron/project.toml` so AI agents prioritize the right
-domain knowledge without creating new workflow ownership. `update` without an
-adapter refreshes all registered adapters.
+domain knowledge without creating new workflow ownership. `baron update` is a
+human-authorized verified release transaction: the candidate process renders
+managed assets, ambiguous edits stage for review, and custom assets/Vault
+memory remain outside its write set. AI agents use local-only automation
+reconciliation and cannot authorize a download or runtime replacement.
 
 ## Phase 5
 
@@ -128,8 +129,9 @@ required before a registered required capability can support completion.
 ## Phase 8
 
 Normal users install Baron through the checksum-verifying PowerShell or shell
-installer documented in `docs/RELEASE.md`. Install, update, rollback, and
-uninstall are installer actions rather than project commands.
+installer documented in `docs/RELEASE.md`. The installer provides install,
+one-time pre-3.4 upgrade, rollback, and uninstall. From Baron 3.4 onward,
+normal project/runtime updates use `baron update`.
 
 Release automation uses two hidden maintainer commands:
 
@@ -140,6 +142,17 @@ baron release verify <artifacts-dir> --expected-version <version> --expected-sou
 
 They generate and verify `SHA256SUMS` plus `release-manifest.json` for the
 complete Windows, Linux, Intel macOS, and Apple Silicon macOS artifact set.
+
+## Phase 38
+
+`baron update` is the sole normal-user update command. It verifies an official
+target-specific candidate, lets that verified candidate plan and activate only
+Baron-managed project assets, stages conflicts outside live files, and records
+a recoverable runtime handoff. Hidden continuation, abort, and finalizer flags
+exist only for the verified candidate protocol and are deliberately absent from
+normal help. `baron automation reconcile` has a narrower AI-facing contract:
+it uses the currently installed embedded assets only and cannot use the network
+or replace the Baron executable.
 
 ## Phase 9
 

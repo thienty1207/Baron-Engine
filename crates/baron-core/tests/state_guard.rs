@@ -43,7 +43,7 @@ fn identity_mismatch_is_rejected_without_repairing_or_overwriting_metadata() {
         .to_string();
 
     assert!(error.contains("identity mismatch"));
-    assert!(error.contains("baron update"));
+    assert!(error.contains("baron automation reconcile"));
     assert_eq!(fs::read_to_string(metadata).unwrap(), tampered);
 }
 
@@ -58,7 +58,7 @@ fn missing_capsule_is_rejected_and_not_silently_recreated() {
         .to_string();
 
     assert!(error.contains("capsule is missing"));
-    assert!(error.contains("baron update"));
+    assert!(error.contains("baron automation reconcile"));
     assert!(!context.project_root.exists());
 }
 
@@ -76,6 +76,6 @@ fn unsupported_project_schema_is_rejected_without_rewriting_config() {
         .to_string();
 
     assert!(error.contains("schema"));
-    assert!(error.contains("baron update"));
+    assert!(error.contains("baron automation reconcile"));
     assert_eq!(fs::read_to_string(config_path).unwrap(), tampered);
 }

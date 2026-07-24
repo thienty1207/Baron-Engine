@@ -6,10 +6,11 @@ mod update;
 
 pub use install::{install_adapter, managed_payloads_for_adapter, InstallReport};
 pub use update::{
-    ensure_managed_baseline, load_managed_baseline, managed_content_for_kind, managed_state_dir,
-    plan_managed_update, record_managed_baseline, replace_managed_baseline, ManagedAssetPayload,
-    ManagedAssetRecord, ManagedBaseline, ManagedMergeKind, ManagedUpdateAction, ManagedUpdatePlan,
-    UpdateDisposition,
+    ensure_managed_baseline, load_managed_baseline, managed_baseline_content,
+    managed_content_for_kind, managed_state_dir, managed_target_path, plan_managed_update,
+    reconcile_installed_managed_assets, record_managed_baseline, replace_managed_baseline,
+    LocalReconcileReport, ManagedAssetPayload, ManagedAssetRecord, ManagedBaseline,
+    ManagedMergeKind, ManagedUpdateAction, ManagedUpdatePlan, UpdateDisposition,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

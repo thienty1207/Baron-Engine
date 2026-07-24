@@ -6,7 +6,7 @@ It turns an existing software repository into an agent-ready workspace for
 Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
-Current version: `3.3.0`.
+Current source version: `3.4.0`.
 
 ## What Baron Does
 
@@ -86,6 +86,17 @@ original fullstack foundation or rearrange existing code.
 ```bash
 baron update
 ```
+
+From Baron 3.4 onward, this one command checks the official release,
+verifies the candidate before use, refreshes only Baron-managed project files,
+and keeps a recoverable transaction if a local edit needs review. It never
+overwrites an ambiguous managed edit, custom skill, custom agent, project
+source file, or Vault memory. On Windows, Baron may finish replacing its own
+binary after the current process exits; the command reports that plainly.
+
+If Baron 3.3 or an older version is already installed, use the installer once
+to cross the 3.4 update boundary. The short recovery instructions are in
+[docs/RELEASE.md](docs/RELEASE.md).
 
 ## What The AI Runs Automatically
 

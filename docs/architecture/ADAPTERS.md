@@ -5,8 +5,10 @@ Adapters only translate that core into the shape expected by an agent tool.
 
 All adapters share `.baron/project.toml` for committed project identity and
 `.baron/local.toml` for the machine-local Vault path. Repeated init may register
-multiple adapters. `baron update` refreshes registered adapters without
-deleting unknown custom assets.
+multiple adapters. `baron automation reconcile` repairs only missing installed
+Baron-managed assets locally without deleting unknown custom assets. A human-run
+`baron update` additionally verifies and activates an official Baron release;
+agents never receive that download or runtime-replacement authority.
 
 ## Initial Adapters
 

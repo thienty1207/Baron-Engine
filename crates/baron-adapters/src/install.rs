@@ -513,7 +513,7 @@ fn startup_contract(agent: &str, adapter: &str) -> String {
     You are using Baron through the {agent} adapter.\n\n\
 - Before any durable Baron or repository write, silently run `baron authority classify \"<requested outcome>\"`; classify by the outcome, so `review and apply fixes` is a change request even though it contains `review`.\n\
     - When authority is `read_only` or `ambiguous`, inspect only what is needed to answer and do not create or update plan, Harness, proof, trace, review, friction, or learning state. Ambiguous authority stays read-only until the user explicitly requests a change.\n\
-    - If Baron reports project, Vault, capsule, schema, or identity mismatch, stop durable work and run `baron update`; never repair Baron metadata by hand or continue with guessed state.\n\
+    - If Baron reports project, Vault, capsule, schema, or identity mismatch, stop durable work and run `baron automation reconcile`; never repair Baron metadata by hand or continue with guessed state. If local reconciliation cannot restore coherent state, tell the user that a human must run public `baron update`. Never run public `baron update`: only a human may authorize a release download or runtime replacement.\n\
     - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
     - At session start, silently run `baron runtime check --adapter {adapter}`; unsafe, missing, or unverified required backends cannot satisfy proof.\n\
     - At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\

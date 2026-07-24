@@ -1,9 +1,9 @@
 # Baron 3.4 To 3.6 Program Planning Log
 
 Date: 2026-07-24
-Checkpoint type: design and implementation planning only
-Stable source: `3.3.0`
-Current release target: `3.4.0`
+Checkpoint type: implementation checkpoint
+Stable source: `3.4.0`
+Current release target: `3.5.0`
 Program target: `3.6.0`
 
 ## What Was Decided
@@ -77,10 +77,10 @@ Claude, and generic adapters prove parity from `assets/core/`.
 
 | Phase | Release | Scope | Status |
 | --- | --- | --- | --- |
-| 35 | 3.4.0 | Single runtime source and managed baseline | planned |
-| 36 | 3.4.0 | Verified release candidate and binary handoff | planned |
-| 37 | 3.4.0 | Conflict-safe activation and recovery | planned |
-| 38 | 3.4.0 | Automation contract and certification | planned |
+| 35 | 3.4.0 | Single runtime source and managed baseline | completed |
+| 36 | 3.4.0 | Verified release candidate and binary handoff | completed |
+| 37 | 3.4.0 | Conflict-safe activation and recovery | completed |
+| 38 | 3.4.0 | Automation contract and certification | completed |
 | 39 | 3.5.0 | Hallmark frontend distillation | planned |
 | 40 | 3.5.0 | Deep modules and product domain language | planned |
 | 41 | 3.5.0 | Routing, preservation, and certification | planned |
@@ -107,17 +107,28 @@ Claude, and generic adapters prove parity from `assets/core/`.
 1. Read `docs/BARON_STATUS.md`.
 2. Read `notes/build-log/CURRENT.md`.
 3. Read the master program.
-4. Open the 3.4 release plan.
-5. Write the Phase 35 RED runtime-source test.
-6. Delete `blueprints/core/` only after the RED assertion is demonstrated.
-7. Record exact commands and proof before changing phase status.
+4. Open the 3.5 release plan.
+5. Write Phase 39 RED contracts for one deep local frontend owner.
+6. Update status/logs at the Phase 39 checkpoint.
+7. Start Phase 40 only after Phase 39 focused evidence is recorded.
 
 ## Not Performed At This Checkpoint
 
-- No runtime source was modified.
-- `blueprints/core/` was not deleted yet.
-- No Hallmark or Matt-derived runtime content was added.
-- Graphify was not installed or integrated.
-- The source version remains `3.3.0`.
-- No release tag or GitHub Release was created.
-- No push was performed.
+- `assets/core/` is now the sole runtime source; stale `blueprints/core/` was
+  removed after adapter parity proof.
+- No Hallmark or Matt-derived runtime content has been added yet.
+- Graphify has not been installed or integrated.
+- Source version and stable-source baseline are `3.4.0` after Phase 38
+  certification.
+- No release tag or GitHub Release has been created.
+- No source push has been performed from this worktree yet.
+
+## 2026-07-24 Implementation Checkpoint
+
+- Phase 35 delivered one embedded asset source and a conservative managed
+  baseline/update planner.
+- Phase 36 delivered immutable raw update-candidate verification and handoff
+  preparation.
+- Phase 37 delivered sealed, recoverable project/runtime update transactions.
+- Phase 38 keeps public update authority human-only and AI repair local-only;
+  its full source certification is complete.

@@ -198,7 +198,7 @@ fn repeated_init_registers_codex_and_claude() {
 }
 
 #[test]
-fn update_from_nested_path_refreshes_registered_adapters() {
+fn automation_reconcile_from_nested_path_preserves_ambiguous_local_marker_content() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let nested = repo.join("src/features");
@@ -224,15 +224,16 @@ fn update_from_nested_path_refreshes_registered_adapters() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&nested)
-        .arg("update")
+        .args(["automation", "reconcile"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Updated adapters: `codex`"));
+        .stdout(predicate::str::contains(
+            "Remote release download: not attempted",
+        ));
 
     let agents = fs::read_to_string(repo.join("AGENTS.md")).unwrap();
     assert!(agents.contains("# User Header"));
-    assert!(agents.contains("Baron Automatic Agent Contract"));
-    assert!(!agents.contains("\nstale\n"));
+    assert!(agents.contains("\nstale\n"));
 }
 
 fn snapshot_files(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {

@@ -199,7 +199,20 @@ fn execution_command_rejects_identity_mismatch_without_repairing_vault_state() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("identity mismatch"))
-        .stderr(predicate::str::contains("baron update"));
+        .stderr(predicate::str::contains("baron automation reconcile"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["automation", "reconcile"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Automation evidence recorded: no (state is not coherent)",
+        ))
+        .stdout(predicate::str::contains(
+            "Runtime replacement: not attempted",
+        ));
 
     assert_eq!(fs::read_to_string(metadata_path).unwrap(), tampered);
     let plan_index = repo.join("docs/baron/plans/INDEX.md");

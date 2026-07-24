@@ -4,26 +4,27 @@ Last updated: 2026-07-24
 
 ## Overall
 
-- Stable source release: `v3.3.0`
+- Stable source release: `v3.4.0`
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v3.4.0`
+- Target source release: `v3.5.0`
 - Program target release: `v3.6.0`
-- Baron 3.4 completion: 50%
+- Baron 3.4 completion: 100%
 - Baron 3.5 completion: 0%
 - Baron 3.6 completion: 0%
-- Remaining planned phases: 9
-- Current phase: Phase 37 - Conflict-Safe Activation And Recovery
-- Current phase status: in_progress
-- Current next action: write the Phase 37 transaction and recovery RED tests.
-  The managed baseline and native candidate boundaries are now verified, but
-  no candidate has been allowed to activate a project or runtime yet.
-- Build confidence: Baron 3.3 remains fully certified. Phases 35 and 36 now
-  have focused evidence for conservative managed baselines, immutable native
-  candidate identity, bounded trusted download routing, and installer
-  compatibility. Transaction activation and 3.4 certification remain ahead.
+- Remaining planned phases: 7
+- Current phase: Phase 39 - Hallmark Frontend Distillation
+- Current phase status: planned
+- Current next action: begin Phase 39 with RED adapter/control-plane contracts,
+  then rewrite local `frontend-design` references without adding a second
+  frontend owner or a Hallmark runtime dependency.
+- Build confidence: Baron 3.4 is source-certified. The fresh full suite,
+  Clippy, locked release binary, workflow-YAML, installer lifecycle,
+  candidate/transaction/recovery fixtures, local-only reconcile, and
+  release-binary read-only smoke all passed. A tag/GitHub Release is still an
+  explicit human promotion, not a side effect of source certification.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -46,8 +47,9 @@ Last updated: 2026-07-24
   project isolation, a fallback, and automated proof before it can ship.
 - Full rationale: `docs/decisions/0002-extension-ownership-and-code-graph.md`.
 
-Phase 35 is complete. The decisions above still do not add Graphify, bump the
-version, or alter the approved release order.
+Phase 35 through Phase 38 are complete. The decisions above still do not add
+Graphify or alter the approved release order. Version `3.4.0` is the current
+source-certified baseline before Phase 39 begins.
 
 ## Baron 3.0 Direction
 
@@ -226,9 +228,9 @@ Baron 3.4 planned program:
 | Phase | Name | Status | Baron 3.4 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
 | 35 | Single Runtime Source And Managed Baseline | completed | 25% | `blueprints/core/` removed after a no-runtime-reference RED/GREEN test, `assets/core/` proven as the sole source, managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, malformed-marker refusal, and read-only dry-run tests |
-| 36 | Verified Release Candidate And Binary Handoff | planned | 25% | exact candidate target/version/source/checksum proof, downgrade refusal, raw release assets, installer compatibility |
-| 37 | Conflict-Safe Activation And Recovery | planned | 30% | no-write conflict staging, frozen continuation, abort, transactional rollback, Windows/Unix recovery tests |
-| 38 | Automation Contract And Baron 3.4 Certification | planned | 20% | local-only AI reconcile, one-command user update, full native/lifecycle certification, version and docs synchronization |
+| 36 | Verified Release Candidate And Binary Handoff | completed | 25% | exact candidate target/version/source/checksum proof, downgrade refusal, raw release assets, installer compatibility |
+| 37 | Conflict-Safe Activation And Recovery | completed | 30% | no-write conflict staging, frozen continuation, abort, transactional rollback, Windows/Unix recovery tests |
+| 38 | Automation Contract And Baron 3.4 Certification | completed | 20% | local-only AI reconcile, one-command user update, full native/lifecycle certification, version and docs synchronization |
 
 Baron 3.5 planned program:
 
@@ -705,25 +707,25 @@ Phase 34 final verification:
 
 ### Phase 37 - Conflict-Safe Activation And Recovery
 
-- [ ] Store bounded transaction state plus `BASE`, `LOCAL`, `UPSTREAM`, and `RESOLVED` conflict packets.
-- [ ] Freeze hashes and project identity so stale or edited continuations are refused.
-- [ ] Let the verified candidate render the new managed project assets.
-- [ ] Apply managed writes atomically with per-target backup and rollback.
-- [ ] Keep conflicts out of live files and require explicit authority before hidden continuation.
-- [ ] Make abort remove only staged update state.
-- [ ] Recover or roll back after interruption, locked files, receipt failure, or runtime handoff failure.
-- [ ] Prove project assets and active runtime always return to one compatible version.
+- [x] Store bounded transaction state plus `BASE`, `LOCAL`, `UPSTREAM`, and `RESOLVED` conflict packets.
+- [x] Freeze hashes and project identity so stale or edited continuations are refused.
+- [x] Let the verified candidate render the new managed project assets.
+- [x] Apply managed writes atomically with per-target backup and rollback.
+- [x] Keep conflicts out of live files and require explicit authority before hidden continuation.
+- [x] Make abort remove only staged update state.
+- [x] Recover or roll back after interruption, locked files, receipt failure, or runtime handoff failure.
+- [x] Prove project assets and active runtime always return to one compatible version.
 
 ### Phase 38 - Automation Contract And Baron 3.4 Certification
 
-- [ ] Make public `baron update` the human-authorized complete update command.
-- [ ] Make hidden `baron automation reconcile` local-only and unable to download or replace Baron.
-- [ ] Update Codex, Claude, and generic instructions so AI never silently authorizes a release update.
-- [ ] Keep top-level help and README limited to the simple user flow.
-- [ ] Document the one-time installer bootstrap from pre-3.4 Baron.
-- [ ] Bump source and lockfile to `3.4.0` only after Phases 35-37 pass.
-- [ ] Pass full format, workspace tests, Clippy, release build, YAML, installer, candidate, conflict, recovery, and real project/Vault smoke.
-- [ ] Push verified source only after certification; keep tag/GitHub Release promotion explicit.
+- [x] Make public `baron update` the human-authorized complete update command.
+- [x] Make hidden `baron automation reconcile` local-only and unable to download or replace Baron.
+- [x] Update Codex, Claude, and generic instructions so AI never silently authorizes a release update.
+- [x] Keep top-level help and README limited to the simple user flow.
+- [x] Document the one-time installer bootstrap from pre-3.4 Baron.
+- [x] Bump source and lockfile to `3.4.0` only after Phases 35-37 pass.
+- [x] Pass full format, workspace tests, Clippy, release build, YAML, installer, candidate, conflict, recovery, and real project/Vault smoke.
+- [ ] Push verified source only after the complete 3.4-3.6 program; keep tag/GitHub Release promotion explicit.
 
 ### Phase 39 - Hallmark Frontend Distillation
 

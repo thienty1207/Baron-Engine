@@ -42,6 +42,57 @@ fn automation_hook_reads_native_payload_and_reports_status() {
 }
 
 #[test]
+fn automation_reconcile_repairs_only_local_embedded_assets_without_release_authority() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "init",
+            repo.to_str().unwrap(),
+            "--codex",
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let missing = repo.join(".codex/skills/superpowers/SKILL.md");
+    fs::remove_file(&missing).unwrap();
+    let custom = repo.join(".codex/skills/local/SKILL.md");
+    fs::create_dir_all(custom.parent().unwrap()).unwrap();
+    fs::write(&custom, "custom user skill").unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .args(["automation", "reconcile"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Remote release download: not attempted",
+        ))
+        .stdout(predicate::str::contains(
+            "Runtime replacement: not attempted",
+        ));
+
+    assert!(missing.is_file());
+    assert_eq!(fs::read_to_string(custom).unwrap(), "custom user skill");
+    assert!(!repo.join(".baron/update").exists());
+    let journal_exists = fs::read_dir(vault.join("Projects"))
+        .unwrap()
+        .filter_map(Result::ok)
+        .any(|project| {
+            project
+                .path()
+                .join("Artifacts/automation-journal.jsonl")
+                .is_file()
+        });
+    assert!(journal_exists);
+}
+
+#[test]
 fn continuity_checkpoint_and_status_are_available_for_ai_resume() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

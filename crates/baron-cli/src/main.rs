@@ -1,12 +1,15 @@
+use std::ffi::OsString;
 use std::io::Read;
 use std::path::PathBuf;
 
 mod self_update;
+mod update_transaction;
 
 use anyhow::{bail, Context, Result};
 use baron_adapters::{
-    install_adapter, managed_payloads_for_adapter, plan_managed_update, shadow_preview,
-    AgentAdapter, ManagedUpdatePlan, UpdateDisposition,
+    install_adapter, managed_payloads_for_adapter, plan_managed_update,
+    reconcile_installed_managed_assets, shadow_preview, AgentAdapter, ManagedUpdatePlan,
+    UpdateDisposition,
 };
 use baron_core::architecture::ensure_architecture_governor;
 use baron_core::asset_lifecycle::{
@@ -129,13 +132,13 @@ enum Commands {
     },
     Update {
         repo_path: Option<PathBuf>,
-        #[arg(long)]
+        #[arg(long, hide = true)]
         codex: bool,
-        #[arg(long)]
+        #[arg(long, hide = true)]
         claude: bool,
-        #[arg(long = "agent")]
+        #[arg(long = "agent", hide = true)]
         agent: bool,
-        #[arg(long)]
+        #[arg(long, hide = true)]
         dry_run: bool,
         #[arg(long, hide = true, requires = "dry_run")]
         installed: bool,
@@ -143,6 +146,22 @@ enum Commands {
         verify_candidate: bool,
         #[arg(long, hide = true, requires = "verify_candidate")]
         candidate_dir: Option<PathBuf>,
+        #[arg(long = "candidate-plan", hide = true, requires = "transaction", conflicts_with_all = ["dry_run", "installed", "verify_candidate", "continue_update", "abort_update"])]
+        candidate_plan: bool,
+        #[arg(long = "continue", hide = true, requires = "transaction", conflicts_with_all = ["dry_run", "installed", "verify_candidate", "candidate_plan", "abort_update"])]
+        continue_update: bool,
+        #[arg(long = "runtime-binary", hide = true, requires = "continue_update")]
+        runtime_binary: Option<PathBuf>,
+        #[arg(long = "runtime-parent-pid", hide = true, requires = "continue_update")]
+        runtime_parent_pid: Option<u32>,
+        #[arg(long = "abort", hide = true, requires = "transaction", conflicts_with_all = ["dry_run", "installed", "verify_candidate", "candidate_plan", "continue_update"])]
+        abort_update: bool,
+        #[arg(long = "baron-finalize", hide = true, requires_all = ["transaction", "parent_pid"], conflicts_with_all = ["dry_run", "installed", "verify_candidate", "candidate_plan", "continue_update", "abort_update"])]
+        finalize_update: bool,
+        #[arg(long, hide = true, requires = "finalize_update")]
+        parent_pid: Option<u32>,
+        #[arg(long, hide = true)]
+        transaction: Option<PathBuf>,
     },
     #[command(hide = true)]
     Authority {
@@ -872,6 +891,14 @@ fn run() -> Result<()> {
             installed,
             verify_candidate,
             candidate_dir,
+            candidate_plan,
+            continue_update,
+            runtime_binary,
+            runtime_parent_pid,
+            abort_update,
+            finalize_update,
+            parent_pid,
+            transaction,
         }) => {
             let start = repo_path.unwrap_or(std::env::current_dir()?);
             let repo_root = find_project_root(&start)?;
@@ -896,7 +923,232 @@ fn run() -> Result<()> {
                 .map(|adapter| adapter_name(*adapter))
                 .collect::<Vec<_>>()
                 .join(", ");
-            if verify_candidate {
+            // A later ordinary update must never silently skip an interrupted
+            // project activation. Continue/finalize own their active state;
+            // every other update entry point restores it before doing new work.
+            if !dry_run && !continue_update && !finalize_update && !abort_update {
+                let recovered = update_transaction::recover_incomplete_transactions(
+                    &repo_root,
+                    &config.project_id,
+                )?;
+                if !recovered.is_empty() {
+                    eprintln!(
+                        "Baron recovered incomplete update transaction(s): {}",
+                        recovered.join(", ")
+                    );
+                }
+            }
+            if finalize_update {
+                let state_path = transaction
+                    .context("Baron delayed finalizer requires --transaction <state-path>.")?;
+                #[cfg(target_os = "windows")]
+                {
+                    self_update::wait_for_parent_exit(
+                        parent_pid.expect("Clap requires --parent-pid"),
+                    )?;
+                    let candidate = update_transaction::candidate_for_transaction(
+                        &repo_root,
+                        &state_path,
+                        &config.project_id,
+                    )?;
+                    let installed_binary = update_transaction::runtime_binary_for_transaction(
+                        &repo_root,
+                        &state_path,
+                        &config.project_id,
+                    )?;
+                    let handoff = self_update::prepare_runtime_handoff(
+                        &repo_root,
+                        &candidate,
+                        &installed_binary,
+                    )?;
+                    let finalize_result = self_update::finalize_windows_handoff(
+                        &handoff,
+                        &self_update::ProcessBinaryInspector,
+                        &candidate.version,
+                    );
+                    if let Err(error) = finalize_result {
+                        let _ = update_transaction::recover_transaction(
+                            &repo_root,
+                            &state_path,
+                            &config.project_id,
+                        );
+                        return Err(error.context(
+                            "Baron delayed finalizer failed; project activation was rolled back",
+                        ));
+                    }
+                    let completed = match update_transaction::complete_transaction(
+                        &repo_root,
+                        &state_path,
+                        &config.project_id,
+                        &format!("{} --version matched", installed_binary.display()),
+                    ) {
+                        Ok(completed) => completed,
+                        Err(error) => {
+                            let _ = self_update::rollback_windows_handoff(&handoff);
+                            let _ = update_transaction::recover_transaction(
+                                &repo_root,
+                                &state_path,
+                                &config.project_id,
+                            );
+                            return Err(error.context("Baron finalizer receipt failed; runtime and project activation were rolled back"));
+                        }
+                    };
+                    println!("# Baron Delayed Update Finalizer\n");
+                    println!("- Transaction: `{}`", completed.transaction_id);
+                    println!("- Status: `{}`", completed.status.as_str());
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = parent_pid;
+                    bail!("The delayed Baron finalizer is supported only on Windows");
+                }
+            } else if candidate_plan {
+                let state_path = transaction
+                    .context("Baron candidate planning requires --transaction <state-path>.")?;
+                let payloads = adapters
+                    .iter()
+                    .map(|adapter| managed_payloads_for_adapter(*adapter))
+                    .collect::<Result<Vec<_>>>()?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                let planned = update_transaction::plan_candidate_transaction(
+                    &repo_root,
+                    &state_path,
+                    &config.project_id,
+                    env!("CARGO_PKG_VERSION"),
+                    &payloads,
+                )?;
+                println!("# Baron Candidate Update Plan\n");
+                println!("- Transaction: `{}`", planned.transaction_id);
+                println!("- Status: `{}`", planned.status.as_str());
+                println!("- Managed packets: {}", planned.packets.len());
+                println!(
+                    "- Candidate rendered only staged packets; project files remain unchanged."
+                );
+            } else if continue_update {
+                let state_path = transaction
+                    .context("Baron update continuation requires --transaction <state-path>.")?;
+                let applied = update_transaction::continue_transaction(
+                    &repo_root,
+                    &state_path,
+                    &config.project_id,
+                )?;
+                let candidate = update_transaction::candidate_for_transaction(
+                    &repo_root,
+                    &state_path,
+                    &config.project_id,
+                )?;
+                // A verified candidate runs the hidden continuation protocol,
+                // but it must replace the original installed Baron binary, not
+                // the staged candidate process that is rendering new assets.
+                let installed_binary = runtime_binary.unwrap_or(std::env::current_exe()?);
+                let runtime_pending = update_transaction::mark_runtime_pending(
+                    &repo_root,
+                    &state_path,
+                    &config.project_id,
+                    &installed_binary,
+                )?;
+                #[cfg(not(target_os = "windows"))]
+                let _ = (&runtime_pending, runtime_parent_pid);
+                #[cfg(target_os = "windows")]
+                let (runtime_status, runtime_message) = {
+                    let finalizer = self_update::launch_windows_finalizer(
+                        &candidate,
+                        &repo_root,
+                        &state_path,
+                        runtime_parent_pid.unwrap_or(std::process::id()),
+                    );
+                    match finalizer {
+                        Ok(path) => (
+                            runtime_pending.status.as_str().to_string(),
+                            format!("delayed finalizer launched at `{}`", path.display()),
+                        ),
+                        Err(error) => {
+                            let _ = update_transaction::recover_transaction(
+                                &repo_root,
+                                &state_path,
+                                &config.project_id,
+                            );
+                            return Err(error.context("Could not launch delayed finalizer; project activation was rolled back"));
+                        }
+                    }
+                };
+                #[cfg(not(target_os = "windows"))]
+                let (runtime_status, runtime_message) = {
+                    let handoff = self_update::prepare_runtime_handoff(
+                        &repo_root,
+                        &candidate,
+                        &installed_binary,
+                    )?;
+                    if let Err(error) = self_update::activate_unix_handoff(&handoff) {
+                        let _ = update_transaction::recover_transaction(
+                            &repo_root,
+                            &state_path,
+                            &config.project_id,
+                        );
+                        return Err(error.context(
+                            "Baron runtime activation failed; project activation was rolled back",
+                        ));
+                    }
+                    let verification = self_update::ProcessBinaryInspector
+                        .reported_version(&installed_binary)
+                        .and_then(|reported| {
+                            let expected = format!("baron {}", candidate.version);
+                            if reported == expected {
+                                Ok(())
+                            } else {
+                                bail!("Activated Baron runtime reported `{reported}`; expected `{expected}`")
+                            }
+                        });
+                    if let Err(error) = verification {
+                        let _ = self_update::rollback_unix_handoff(&handoff);
+                        let _ = update_transaction::recover_transaction(
+                            &repo_root,
+                            &state_path,
+                            &config.project_id,
+                        );
+                        return Err(error.context("Activated Baron runtime failed verification; project activation was rolled back"));
+                    }
+                    let completed = if let Err(error) = update_transaction::complete_transaction(
+                        &repo_root,
+                        &state_path,
+                        &config.project_id,
+                        &format!("{} --version matched", installed_binary.display()),
+                    ) {
+                        let _ = self_update::rollback_unix_handoff(&handoff);
+                        let _ = update_transaction::recover_transaction(
+                            &repo_root,
+                            &state_path,
+                            &config.project_id,
+                        );
+                        return Err(error.context("Baron runtime receipt failed; runtime and project activation were rolled back"));
+                    } else {
+                        update_transaction::inspect_transaction(
+                            &repo_root,
+                            &state_path,
+                            &config.project_id,
+                        )?
+                    };
+                    (
+                        completed.status.as_str().to_string(),
+                        "atomic Unix runtime activation completed".to_string(),
+                    )
+                };
+                println!("# Baron Update Transaction\n");
+                println!("- Transaction: `{}`", applied.transaction_id);
+                println!("- Status: `{runtime_status}`");
+                println!("- Project managed assets: activated transactionally");
+                println!("- Runtime activation: {runtime_message}");
+            } else if abort_update {
+                let state_path = transaction
+                    .context("Baron update abort requires --transaction <state-path>.")?;
+                update_transaction::abort_transaction(&repo_root, &state_path, &config.project_id)?;
+                println!("# Baron Update Transaction\n");
+                println!("- Status: `aborted`");
+                println!("- Project managed assets: unchanged");
+                println!("- Vault and user-owned files: unchanged");
+            } else if verify_candidate {
                 let target = self_update::current_release_target()?;
                 let inspector = self_update::ProcessBinaryInspector;
                 let candidate = if let Some(directory) = candidate_dir {
@@ -923,6 +1175,17 @@ fn run() -> Result<()> {
                     &candidate,
                     &std::env::current_exe()?,
                 )?;
+                let adapter_names = adapters
+                    .iter()
+                    .map(|adapter| adapter_name(*adapter).to_string())
+                    .collect::<Vec<_>>();
+                let (paths, _) = update_transaction::create_verified_transaction(
+                    &repo_root,
+                    &config,
+                    &candidate,
+                    env!("CARGO_PKG_VERSION"),
+                    &adapter_names,
+                )?;
                 println!("# Baron Verified Update Candidate\n");
                 println!("- Version: `{}`", candidate.version);
                 println!("- Target: `{}`", candidate.target);
@@ -932,6 +1195,7 @@ fn run() -> Result<()> {
                     "- Handoff prepared: `{}`",
                     self_update::handoff_label(&handoff)
                 );
+                println!("- Transaction state: `{}`", paths.state_path.display());
                 println!("- Runtime activation: not performed");
                 println!("- Project managed files: unchanged");
             } else if dry_run {
@@ -958,15 +1222,105 @@ fn run() -> Result<()> {
                     )
                 );
             } else {
-                for adapter in &adapters {
-                    install_adapter(&repo_root, *adapter)?;
+                let running_binary = std::env::current_exe().context(
+                    "Could not resolve the installed Baron runtime for the verified update protocol",
+                )?;
+                let pending =
+                    update_transaction::pending_transaction(&repo_root, &config.project_id)?;
+                let (state_path, mut transaction, candidate) = if let Some(pending) = pending {
+                    let candidate = update_transaction::candidate_for_transaction(
+                        &repo_root,
+                        &pending.state_path,
+                        &config.project_id,
+                    )?;
+                    (pending.state_path, pending.transaction, candidate)
+                } else {
+                    let target = self_update::current_release_target()?;
+                    let source = self_update::HttpsCandidateSource::github_release()?;
+                    let candidate = self_update::stage_verified_candidate(
+                        &repo_root,
+                        &source,
+                        &self_update::ProcessBinaryInspector,
+                        env!("CARGO_PKG_VERSION"),
+                        target,
+                    )?;
+                    let adapter_names = adapters
+                        .iter()
+                        .map(|adapter| adapter_name(*adapter).to_string())
+                        .collect::<Vec<_>>();
+                    let (paths, transaction) = update_transaction::create_verified_transaction(
+                        &repo_root,
+                        &config,
+                        &candidate,
+                        env!("CARGO_PKG_VERSION"),
+                        &adapter_names,
+                    )?;
+                    (paths.state_path, transaction, candidate)
+                };
+
+                if transaction.status == update_transaction::TransactionStatus::Verified {
+                    self_update::invoke_verified_candidate(
+                        &candidate,
+                        &repo_root,
+                        &candidate_plan_arguments(&repo_root, &state_path, &transaction.adapters)?,
+                    )?;
+                    transaction = update_transaction::inspect_transaction(
+                        &repo_root,
+                        &state_path,
+                        &config.project_id,
+                    )?;
                 }
-                ensure_platform_intelligence(&repo_root, &config)?;
-                ensure_architecture_governor(&repo_root, &config)?;
-                println!("# Baron Adapter Update\n");
+
+                if transaction.status == update_transaction::TransactionStatus::Conflict {
+                    println!("# Baron Update Needs Review\n");
+                    println!("- Transaction: `{}`", transaction.transaction_id);
+                    println!("- Project managed assets: unchanged");
+                    println!("- Runtime: unchanged");
+                    println!(
+                        "- Staged conflict packets: `{}`",
+                        state_path
+                            .parent()
+                            .expect("transaction state has parent")
+                            .display()
+                    );
+                    println!("- Next: resolve the staged `RESOLVED/` packets with an agent, then run `baron update` again.");
+                    return Ok(());
+                }
+                if transaction.status != update_transaction::TransactionStatus::Planned {
+                    bail!(
+                        "Baron update candidate did not produce an actionable planned transaction; current status is `{}`",
+                        transaction.status.as_str()
+                    );
+                }
+
+                self_update::invoke_verified_candidate(
+                    &candidate,
+                    &repo_root,
+                    &candidate_continue_arguments(&repo_root, &state_path, &running_binary),
+                )?;
+                let completed = update_transaction::inspect_transaction(
+                    &repo_root,
+                    &state_path,
+                    &config.project_id,
+                )?;
+                println!("# Baron Update\n");
                 println!("- Project: `{}`", config.project_slug);
-                println!("- Updated adapters: `{}`", names);
-                println!("- User content and custom assets preserved: yes");
+                println!("- Transaction: `{}`", completed.transaction_id);
+                println!("- Project managed assets: activated transactionally");
+                match completed.status {
+                    update_transaction::TransactionStatus::Completed => {
+                        println!("- Runtime: verified and activated");
+                        println!("- Status: `completed`");
+                    }
+                    update_transaction::TransactionStatus::RuntimePending => {
+                        println!("- Runtime: delayed Windows finalizer will activate after this Baron process exits");
+                        println!("- Status: `runtime_pending`");
+                    }
+                    status => bail!(
+                        "Baron candidate returned without a completed or pending runtime handoff; current status is `{}`",
+                        status.as_str()
+                    ),
+                }
             }
         }
         Some(Commands::Memory { command }) => match command {
@@ -1785,11 +2139,65 @@ fn run() -> Result<()> {
             }
             AutomationCommands::Reconcile { repo_path } => {
                 let repo_root = configured_repo(repo_path)?;
+                let config = load_project_config(&repo_root)?;
+                let payloads = config
+                    .adapters
+                    .iter()
+                    .map(|adapter| managed_payloads_for_adapter(agent_adapter(*adapter)))
+                    .collect::<Result<Vec<_>>>()?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                let assets = reconcile_installed_managed_assets(
+                    &repo_root,
+                    &payloads,
+                    env!("CARGO_PKG_VERSION"),
+                )?;
+                let automation_evidence_recorded = match execution_context(Some(repo_root.clone()))
+                {
+                    Ok((_, vault)) => {
+                        record_lifecycle_event(
+                            &vault,
+                            hook_adapter_for_repo(&repo_root),
+                            AutomationEvent::Checkpoint,
+                        )?;
+                        true
+                    }
+                    Err(_) => false,
+                };
                 let report = reconcile(&repo_root)?;
+                let applied = assets
+                    .applied_paths
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>();
+                let conflicts = assets
+                    .conflicts
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>();
                 println!("# Baron Automation Reconciliation\n");
                 println!("- Passed: `{}`", if report.passed { "yes" } else { "no" });
                 println!("- Active plan: `{}`", report.active_plan);
                 println!("- Gaps: {}", list_or_none(&report.gaps));
+                println!(
+                    "- Local managed assets repaired: {}",
+                    list_or_none(&applied)
+                );
+                println!(
+                    "- Managed conflicts preserved: {}",
+                    list_or_none(&conflicts)
+                );
+                println!(
+                    "- Automation evidence recorded: {}",
+                    if automation_evidence_recorded {
+                        "yes"
+                    } else {
+                        "no (state is not coherent)"
+                    }
+                );
+                println!("- Remote release download: not attempted");
+                println!("- Runtime replacement: not attempted");
             }
             AutomationCommands::Hook {
                 event,
@@ -2261,6 +2669,54 @@ fn adapter_name(adapter: AgentAdapter) -> &'static str {
         AgentAdapter::Claude => "claude",
         AgentAdapter::Generic => "agent",
     }
+}
+
+fn candidate_adapter_flags(adapters: &[String]) -> Result<Vec<OsString>> {
+    let mut flags = Vec::new();
+    for adapter in adapters {
+        let flag = match adapter.as_str() {
+            "codex" => "--codex",
+            "claude" => "--claude",
+            "agent" => "--agent",
+            _ => bail!("Baron update transaction contains an unsupported adapter: {adapter}"),
+        };
+        flags.push(OsString::from(flag));
+    }
+    Ok(flags)
+}
+
+fn candidate_plan_arguments(
+    repo_root: &std::path::Path,
+    state_path: &std::path::Path,
+    adapters: &[String],
+) -> Result<Vec<OsString>> {
+    let mut arguments = vec![
+        OsString::from("update"),
+        repo_root.as_os_str().to_os_string(),
+        OsString::from("--candidate-plan"),
+        OsString::from("--transaction"),
+        state_path.as_os_str().to_os_string(),
+    ];
+    arguments.extend(candidate_adapter_flags(adapters)?);
+    Ok(arguments)
+}
+
+fn candidate_continue_arguments(
+    repo_root: &std::path::Path,
+    state_path: &std::path::Path,
+    runtime_binary: &std::path::Path,
+) -> Vec<OsString> {
+    vec![
+        OsString::from("update"),
+        repo_root.as_os_str().to_os_string(),
+        OsString::from("--continue"),
+        OsString::from("--transaction"),
+        state_path.as_os_str().to_os_string(),
+        OsString::from("--runtime-binary"),
+        runtime_binary.as_os_str().to_os_string(),
+        OsString::from("--runtime-parent-pid"),
+        OsString::from(std::process::id().to_string()),
+    ]
 }
 
 fn resolve_repo_root(path: PathBuf) -> Result<PathBuf> {

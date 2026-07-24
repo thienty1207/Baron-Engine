@@ -40,7 +40,34 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
 The default location is `~/.local/bin/baron`. If that directory is not already
 on PATH, the installer prints the exact directory that needs to be added.
 
-## Update
+## Update A Project And Baron
+
+From Baron 3.4 onward, stand in an initialized project and run:
+
+```powershell
+baron update
+```
+
+This is the normal update command. Baron downloads a release candidate from
+the official release source, verifies its identity before use, refreshes only
+the Baron-managed files for the project, and activates the runtime through a
+recoverable transaction. Custom skills, custom agents, source code, plans,
+and Vault Markdown are outside the update write set. If Baron finds an
+ambiguous edit to a managed file, it leaves the live project and runtime
+unchanged and reports the review location.
+
+AI agents never run this public command. They may only repair already-installed
+Baron-managed files locally through Baron’s internal automation contract; they
+cannot download a release or replace the runtime.
+
+On Windows, a verified runtime replacement can finish after the current Baron
+process exits. Open a new terminal before checking the new `baron --version`.
+
+## One-Time Upgrade From Baron 3.3 Or Older
+
+The installer remains the safe way to cross into Baron 3.4 for the first time.
+Run the matching command once, then use `baron update` for normal project and
+runtime updates.
 
 Windows:
 
@@ -57,8 +84,10 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
   sh -s -- --action update
 ```
 
-Update verifies the new archive, checks the downloaded binary version, saves
-the current executable as a rollback copy, and only then replaces it.
+The installer verifies the new archive, checks the downloaded binary version,
+saves the current executable as a rollback copy, and only then replaces it.
+It also remains useful for a recovery install when a Baron executable is no
+longer runnable.
 
 ## Roll Back
 
@@ -121,7 +150,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v3.3.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v3.4.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -133,13 +162,13 @@ Download one native archive and `SHA256SUMS` into the same directory.
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 3.3.0 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 3.4.0 -SourceDirectory D:\baron-release
 ```
 
 Linux or macOS:
 
 ```bash
-sh ./install.sh --version 3.3.0 --source-dir /path/to/baron-release
+sh ./install.sh --version 3.4.0 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -154,14 +183,14 @@ Clippy, then builds and smokes every native target. The final promotion job
 assembles all four archives and runs:
 
 ```bash
-baron release metadata release-assets --release-version 3.3.0 --source-revision <40-character-git-sha>
-baron release verify release-assets --expected-version 3.3.0 --expected-source-revision <40-character-git-sha>
+baron release metadata release-assets --release-version 3.4.0 --source-revision <40-character-git-sha>
+baron release verify release-assets --expected-version 3.4.0 --expected-source-revision <40-character-git-sha>
 ```
 
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
 
-Before promoting a `v3.3.0` release, also run:
+Before promoting a `v3.4.0` release, also run:
 
 ```bash
 baron certify run <repo-path> --vault <vault-path> --profile release
@@ -179,7 +208,7 @@ release workflow:
 ```bash
 git push origin main
 git rev-parse HEAD
-gh workflow run release.yml -f release_version=3.3.0 -f source_revision=<40-character-git-sha>
+gh workflow run release.yml -f release_version=3.4.0 -f source_revision=<40-character-git-sha>
 ```
 
 The `Baron Release` workflow refuses an existing tag or Release, builds the
@@ -187,7 +216,7 @@ native archives from that exact SHA, verifies checksums and installer lifecycle,
 and only then creates the annotated tag and immutable GitHub Release. Only the
 final promotion job has repository write permission. When the workflow
 finishes, `https://github.com/thienty1207/Baron-Engine/releases/latest` should
-point at `v3.3.0`.
+point at `v3.4.0`.
 
 Public smoke after the workflow:
 

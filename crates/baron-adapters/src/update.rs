@@ -79,11 +79,18 @@ pub struct ManagedUpdatePlan {
     pub diagnostics: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalReconcileReport {
+    pub applied_paths: Vec<PathBuf>,
+    pub conflicts: Vec<PathBuf>,
+    pub preserved_paths: Vec<String>,
+}
+
 impl ManagedUpdatePlan {
     pub fn action_for(&self, relative_path: &str) -> Option<&ManagedUpdateAction> {
         self.actions
             .iter()
-            .find(|action| action.relative_path == PathBuf::from(relative_path))
+            .find(|action| action.relative_path == Path::new(relative_path))
     }
 
     pub fn action_for_adapter(
@@ -92,7 +99,7 @@ impl ManagedUpdatePlan {
         relative_path: &str,
     ) -> Option<&ManagedUpdateAction> {
         self.actions.iter().find(|action| {
-            action.adapter == adapter && action.relative_path == PathBuf::from(relative_path)
+            action.adapter == adapter && action.relative_path == Path::new(relative_path)
         })
     }
 }
@@ -151,6 +158,26 @@ pub fn load_managed_baseline(repo_root: impl AsRef<Path>) -> Result<ManagedBasel
         }
     }
     Ok(baseline)
+}
+
+pub fn managed_baseline_content(
+    repo_root: impl AsRef<Path>,
+    record: &ManagedAssetRecord,
+) -> Result<String> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    let path = baseline_copy_path(&repo_root, record, false)?;
+    fs::read_to_string(&path).with_context(|| {
+        format!(
+            "Could not read managed baseline copy for `{}`: {}",
+            record.relative_path.display(),
+            path.display()
+        )
+    })
+}
+
+pub fn managed_target_path(repo_root: impl AsRef<Path>, relative_path: &Path) -> Result<PathBuf> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    checked_repo_path(&repo_root, relative_path)
 }
 
 pub fn record_managed_baseline(
@@ -322,6 +349,126 @@ pub fn plan_managed_update(
         conflicts,
         preserved_paths: preserved.paths,
         diagnostics,
+    })
+}
+
+/// Repairs only the managed files represented by the currently embedded
+/// Baron assets. It never downloads a release or changes the runtime. Any
+/// ambiguous merge leaves every project file and baseline untouched.
+pub fn reconcile_installed_managed_assets(
+    repo_root: impl AsRef<Path>,
+    upstream_payloads: &[ManagedAssetPayload],
+    installed_version: &str,
+) -> Result<LocalReconcileReport> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    let plan = plan_managed_update(&repo_root, upstream_payloads)?;
+    if !plan.conflicts.is_empty() {
+        return Ok(LocalReconcileReport {
+            applied_paths: Vec::new(),
+            conflicts: plan.conflicts,
+            preserved_paths: plan.preserved_paths,
+        });
+    }
+
+    let payloads = upstream_payloads
+        .iter()
+        .map(|payload| {
+            (
+                (payload.adapter.clone(), payload.relative_path.clone()),
+                payload,
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let previous_baseline = load_managed_baseline(&repo_root)?;
+    let previous_payloads = previous_baseline
+        .records
+        .iter()
+        .map(|record| {
+            Ok(ManagedAssetPayload {
+                adapter: record.adapter.clone(),
+                relative_path: record.relative_path.clone(),
+                merge_kind: record.merge_kind,
+                content: managed_baseline_content(&repo_root, record)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let mut seen_targets = HashSet::new();
+    let mut rewrites = Vec::new();
+    for action in &plan.actions {
+        let key = (action.adapter.clone(), action.relative_path.clone());
+        let Some(payload) = payloads.get(&key) else {
+            continue;
+        };
+        let target = checked_repo_path(&repo_root, &action.relative_path)?;
+        let target_exists = target.exists();
+        let replacement = action.resolved_content.clone().or_else(|| {
+            (!target_exists && action.disposition == UpdateDisposition::KeepLocal)
+                .then(|| payload.content.clone())
+        });
+        let Some(replacement) = replacement else {
+            continue;
+        };
+        if !seen_targets.insert(action.relative_path.clone()) {
+            bail!(
+                "Baron local reconciliation refuses duplicate target ownership: {}",
+                action.relative_path.display()
+            );
+        }
+        let previous = if target_exists {
+            fs::read_to_string(&target).with_context(|| {
+                format!(
+                    "Could not read managed target for local reconciliation: {}",
+                    target.display()
+                )
+            })?
+        } else {
+            String::new()
+        };
+        if previous != replacement {
+            rewrites.push((target, target_exists, previous, replacement));
+        }
+    }
+
+    let mut applied = Vec::new();
+    for (target, _existed, _previous, replacement) in &rewrites {
+        if let Err(error) = ensure_safe_target_parent(&repo_root, target)
+            .and_then(|_| atomic_write(target, replacement))
+        {
+            rollback_local_reconcile(&rewrites, &applied)?;
+            return Err(error
+                .context("Baron local reconciliation failed and restored prior managed targets"));
+        }
+        applied.push(target.clone());
+    }
+
+    if let Err(error) = replace_managed_baseline(&repo_root, upstream_payloads, installed_version) {
+        let rollback_targets = rollback_local_reconcile(&rewrites, &applied);
+        let rollback_baseline = replace_managed_baseline(
+            &repo_root,
+            &previous_payloads,
+            &previous_baseline.installed_version,
+        );
+        return match (rollback_targets, rollback_baseline) {
+            (Ok(()), Ok(())) => Err(error.context(
+                "Baron local reconciliation could not publish its baseline and restored prior state",
+            )),
+            (target_error, baseline_error) => Err(error.context(format!(
+                "Baron local reconciliation failed; target rollback: {}; baseline rollback: {}",
+                target_error
+                    .map(|_| "ok".to_string())
+                    .unwrap_or_else(|rollback| rollback.to_string()),
+                baseline_error
+                    .map(|_| "ok".to_string())
+                    .unwrap_or_else(|rollback| rollback.to_string())
+            ))),
+        };
+    }
+
+    Ok(LocalReconcileReport {
+        applied_paths: applied,
+        conflicts: Vec::new(),
+        preserved_paths: plan.preserved_paths,
     })
 }
 
@@ -625,6 +772,82 @@ fn checked_repo_path(repo_root: &Path, relative_path: &Path) -> Result<PathBuf> 
     Ok(path)
 }
 
+fn ensure_safe_target_parent(repo_root: &Path, target: &Path) -> Result<()> {
+    let parent = target
+        .parent()
+        .context("Managed target has no parent directory")?;
+    let relative = parent
+        .strip_prefix(repo_root)
+        .context("Managed target parent escaped the repository")?;
+    let mut current = repo_root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(part) = component else {
+            bail!("Managed target parent escapes the repository");
+        };
+        current.push(part);
+        if current.exists() {
+            if is_link_or_reparse_point(&current)? || !fs::metadata(&current)?.is_dir() {
+                bail!("Managed target parent is unsafe: {}", current.display());
+            }
+        } else {
+            fs::create_dir(&current).or_else(|error| {
+                if error.kind() == std::io::ErrorKind::AlreadyExists {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
+            })?;
+            if is_link_or_reparse_point(&current)? || !fs::metadata(&current)?.is_dir() {
+                bail!("Managed target parent became unsafe: {}", current.display());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn rollback_local_reconcile(
+    rewrites: &[(PathBuf, bool, String, String)],
+    applied: &[PathBuf],
+) -> Result<()> {
+    let mut failures = Vec::new();
+    for target in applied.iter().rev() {
+        let Some((_, existed, previous, _)) = rewrites.iter().find(|rewrite| &rewrite.0 == target)
+        else {
+            failures.push(format!("missing rollback record for {}", target.display()));
+            continue;
+        };
+        let result = if *existed {
+            atomic_write(target, previous)
+        } else if target.exists() {
+            if is_link_or_reparse_point(target)? {
+                bail!(
+                    "Managed target became unsafe during rollback: {}",
+                    target.display()
+                );
+            }
+            fs::remove_file(target).with_context(|| {
+                format!(
+                    "Could not remove local reconciliation target: {}",
+                    target.display()
+                )
+            })
+        } else {
+            Ok(())
+        };
+        if let Err(error) = result {
+            failures.push(format!("{}: {error:#}", target.display()));
+        }
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        bail!(
+            "Baron local reconciliation could not restore all managed targets: {}",
+            failures.join("; ")
+        )
+    }
+}
+
 fn baseline_copy_path(
     repo_root: &Path,
     record: &ManagedAssetRecord,
@@ -708,7 +931,7 @@ fn is_link_or_reparse_point(path: &Path) -> Result<bool> {
     {
         use std::os::windows::fs::MetadataExt;
 
-        return Ok(metadata.file_attributes() & 0x0400 != 0);
+        Ok(metadata.file_attributes() & 0x0400 != 0)
     }
     #[cfg(not(windows))]
     Ok(false)
@@ -874,7 +1097,7 @@ fn collect_preserved_paths_recursive(
 }
 
 fn should_skip_preserved_path(relative: &Path) -> bool {
-    if relative == PathBuf::from(".git") || relative.starts_with(".baron/managed-state") {
+    if relative == ".git" || relative.starts_with(".baron/managed-state") {
         return true;
     }
     relative.file_name().is_some_and(|name| {

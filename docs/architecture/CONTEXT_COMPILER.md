@@ -49,4 +49,6 @@ verification evidence should be.
 
 The Context Compiler may create or refresh Vault scaffold/index artifacts
 through the Phase 2 memory engine. It does not write to the target repository.
-`baron init` and `baron update` own managed adapter-file generation and refresh.
+`baron init` owns first adapter generation. Local `baron automation reconcile`
+can repair only installed managed assets; human-run `baron update` verifies a
+release before it activates managed-project and runtime changes.

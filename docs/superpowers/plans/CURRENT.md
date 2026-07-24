@@ -4,15 +4,15 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 37 - Conflict-Safe Activation And Recovery
-- Status: `in_progress`
-- Verification: Phase 35 baseline/planner evidence and Phase 36 release
-  candidate evidence passed: `cargo test -p baron-adapters --all-targets`,
-  `cargo test -p baron-core --test release`, candidate/self-update CLI tests,
-  release workflow tests, and the Windows installer lifecycle test. The full
-  Baron 3.4 certification has not run.
-- Next action: write Phase 37 transaction/recovery RED tests before any
-  candidate is allowed to modify managed project files or the installed runtime.
+- Active phase: Phase 39 - Hallmark Frontend Distillation
+- Status: `planned`
+- Verification: Baron 3.4 source certification passed: full workspace tests,
+  Clippy, locked release build, YAML lint, installer lifecycle, candidate and
+  transaction recovery fixtures, local-only reconcile, and release-binary
+  read-only smoke. `v3.4.0` is now the stable source baseline; no tag or GitHub
+  Release was created.
+- Next action: write and run Phase 39 RED contracts for local deep frontend
+  guidance before editing `assets/core/skills/frontend-design`.
 
 ## Baron 3.4 Contract
 
@@ -36,7 +36,7 @@ Last updated: 2026-07-24
   Baron owners, with no duplicate workflow.
 - Baron 3.6, Phases 42-45: optional local project code map, source verification,
   strict isolation, and Survey fallback.
-- Total remaining planned phases: 9.
+- Total remaining planned phases: 7.
 
 ## Active Documents
 
@@ -57,10 +57,10 @@ Last updated: 2026-07-24
 ## Rules
 
 - Follow RED/GREEN TDD for every production behavior.
-- Keep Phase 35 and Phase 36 evidence intact before transaction activation.
+- Keep Phase 35-38 evidence intact before 3.5 certification.
 - Update the build log and status Markdown/JSON after every phase checkpoint.
 - Do not mark a phase complete from test intent; record fresh command evidence.
 - Keep the normal user command surface small.
-- Do not bump the source version before Phases 35-37 are green.
-- Do not start Phase 39 before Baron 3.4 certification.
+- Do not bump the source version before Phases 39-40 are green.
+- Do not start Phase 42 before Baron 3.5 certification.
 - Do not start Phase 42 before Baron 3.5 certification.

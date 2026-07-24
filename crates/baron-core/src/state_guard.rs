@@ -6,7 +6,7 @@ use crate::config::{load_local_config, load_project_config, PROJECT_SCHEMA_VERSI
 use crate::vault::{load_capsule_metadata, vault_context_without_create, VaultContext};
 
 const REPAIR_GUIDANCE: &str =
-    "Run `baron update` to reconcile Baron-managed state before continuing.";
+    "Run `baron automation reconcile` to reconcile installed Baron-managed state before continuing. A human must run public `baron update` to authorize a release update.";
 const CAPSULE_SCHEMA_VERSION: u32 = 2;
 
 pub fn require_coherent_execution_state(
