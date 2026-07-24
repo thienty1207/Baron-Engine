@@ -2,13 +2,57 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `baron update` safely update both the Baron runtime and Baron-managed project assets while preserving user content, custom skills/agents, Vault memory, and a recoverable working installation.
+**Goal:** Remove the stale duplicate core blueprint source, then make `baron update` safely update both the Baron runtime and Baron-managed project assets while preserving user content, custom skills/agents, Vault memory, and a recoverable working installation.
 
-**Architecture:** Record the last installed managed baseline, compute a conservative three-way update plan, verify an immutable platform-specific release candidate, let that candidate render the new assets, and activate project/runtime changes as one recoverable transaction. Human `baron update` owns remote update authority; AI `baron automation reconcile` remains local-only.
+**Architecture:** Establish `assets/core/` as the only bundled runtime source before recording any baseline. Then record the last installed managed baseline, compute a conservative three-way update plan, verify an immutable platform-specific release candidate, let that candidate render the new assets, and activate project/runtime changes as one recoverable transaction. Human `baron update` owns remote update authority; AI `baron automation reconcile` remains local-only.
 
 **Tech Stack:** Rust 2021, Clap, Serde JSON, SHA-256, existing Baron adapter/release modules, HTTPS client with rustls, filesystem transactions, PowerShell/Bash installer compatibility, GitHub Actions.
 
 ---
+
+### Task 0: Phase 35 Single Runtime Source Cleanup
+
+**Files:**
+- Delete: `blueprints/core/README.md`
+- Delete: `blueprints/core/agents/code-reviewer.toml`
+- Delete: `blueprints/core/agents/security-auditor.toml`
+- Delete: `blueprints/core/agents/test-engineer.toml`
+- Delete: `blueprints/core/skills/frontend-design/SKILL.md`
+- Delete: `blueprints/core/skills/superpowers/SKILL.md`
+- Delete: `blueprints/core/skills/vibe-security-scan/SKILL.md`
+- Modify: `crates/baron-adapters/tests/adapter_lifecycle.rs`
+- Modify: `crates/baron-core/tests/public_trust_docs.rs`
+- Modify: `docs/roadmap/2026-06-08-implementation-roadmap.md`
+- Modify: `docs/BARON_STATUS.md`
+- Modify: `docs/BARON_STATUS.json`
+- Modify: `notes/build-log/CURRENT.md`
+
+- [ ] Write a RED test named `assets_core_is_the_only_bundled_runtime_source`.
+- [ ] Assert `assets/core/` exists and contains the workflow core plus all three mandatory quality agents.
+- [ ] Assert `blueprints/core/` does not exist.
+- [ ] Scan `crates/`, `installers/`, `.github/`, and workspace manifests for runtime reads of `blueprints/core`; fail with the exact source path if one appears.
+- [ ] Install Codex, Claude, and generic adapters and prove every bundled skill/agent comes from the embedded `assets/core/` tree.
+- [ ] Run the focused test and confirm RED because the seven stale blueprint files still exist.
+- [ ] Delete the complete `blueprints/core/` tree. Delete the parent `blueprints/` directory if it becomes empty.
+- [ ] Replace active roadmap/status wording that calls blueprints a current component. Historical build logs may retain dated evidence, but current instructions must name `assets/core/` as the only source.
+- [ ] Run:
+
+```powershell
+cargo test -p baron-adapters --test adapter_lifecycle assets_core_is_the_only_bundled_runtime_source -- --exact
+cargo test -p baron-core --test public_trust_docs
+rg -n "blueprints/core|blueprints\\\\core" crates installers .github Cargo.toml
+git diff --check
+```
+
+Expected: tests PASS; the runtime-reference scan returns no matches.
+
+- [ ] Record the exact deleted paths and verification in the Phase 35 build log.
+- [ ] Commit independently:
+
+```powershell
+git add -A blueprints crates/baron-adapters/tests/adapter_lifecycle.rs crates/baron-core/tests/public_trust_docs.rs docs/roadmap/2026-06-08-implementation-roadmap.md docs/BARON_STATUS.md docs/BARON_STATUS.json notes/build-log/CURRENT.md
+git commit -m "chore: remove stale Baron core blueprints"
+```
 
 ### Task 1: Phase 35 Managed Baseline And Update Planner
 
@@ -210,6 +254,7 @@ git diff --check
 ## Plan Self-Review
 
 - The public experience remains one command: `baron update`.
+- `assets/core/` is the only runtime asset source before the first managed baseline is recorded.
 - The AI never receives silent authority to download or activate a release.
 - The old binary never renders new release assets.
 - Project source and Vault memory are outside the update write set.

@@ -115,7 +115,7 @@ fn baron_3_3_certification_records_trust_state_and_release_evidence() {
 }
 
 #[test]
-fn status_tracks_public_trust_phase() {
+fn status_tracks_current_program() {
     let status_md = read("docs/BARON_STATUS.md");
     assert!(status_md.contains("Stable source release: `v3.3.0`"));
     assert!(status_md.contains("Phase 24 - Public Trust Release"));
@@ -125,12 +125,13 @@ fn status_tracks_public_trust_phase() {
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
     assert_eq!(status_json["stableRelease"], "3.3.0");
     assert_eq!(status_json["targetRelease"], "3.4.0");
-    assert_eq!(status_json["remainingPhaseCount"], 4);
+    assert_eq!(status_json["programTargetRelease"], "3.6.0");
+    assert_eq!(status_json["remainingPhaseCount"], 11);
     assert!(status_json["phases"]
         .as_array()
         .is_some_and(|phases| phases.iter().any(|phase| {
             phase["id"] == 35
-                && phase["name"] == "Managed Baseline And Update Planner"
+                && phase["name"] == "Single Runtime Source And Managed Baseline"
                 && phase["status"] == "planned"
         })));
     assert!(status_json["phases"]
@@ -138,6 +139,13 @@ fn status_tracks_public_trust_phase() {
         .is_some_and(|phases| phases.iter().any(|phase| {
             phase["id"] == 38
                 && phase["name"] == "Automation Contract And Baron 3.4 Certification"
+                && phase["status"] == "planned"
+        })));
+    assert!(status_json["phases"]
+        .as_array()
+        .is_some_and(|phases| phases.iter().any(|phase| {
+            phase["id"] == 45
+                && phase["name"] == "Isolation Scale And Baron 3.6 Certification"
                 && phase["status"] == "planned"
         })));
     assert!(status_json["currentPhase"]

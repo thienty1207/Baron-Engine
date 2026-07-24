@@ -2,10 +2,12 @@
 
 Date: 2026-07-24
 Target: Baron 3.4.0
+Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 35 - Managed Baseline And Update Planner (`planned`, not started).
+Phase 35 - Single Runtime Source And Managed Baseline (`planned`, not
+started).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -28,21 +30,50 @@ The bundled Superpowers workflow core has been refreshed to the pinned upstream
 This checkpoint does not start Phase 35, bump the Baron version, add Graphify,
 or change the 3.4 phase order.
 
+## Blueprint Audit
+
+The two apparent core trees are not equal maintained sources:
+
+- `assets/core/` has 145 runtime asset files and is embedded by
+  `baron-adapters`.
+- `blueprints/core/` has 7 stale historical files.
+- Six paths overlap and all six have different content.
+- No Rust crate, installer, manifest, test, or workflow reads
+  `blueprints/core/`.
+
+Phase 35 therefore begins with a RED/GREEN source-of-truth contract, deletion
+of `blueprints/core/`, and an adapter parity proof. The managed baseline must
+not be recorded before this cleanup or it could legitimize conflicting stale
+content.
+
 ## What Is Being Built
 
-- Phase 35 records the managed baseline and plans safe three-way updates without writing live targets.
+- Phase 35 removes stale blueprints, proves `assets/core/` is the only runtime
+  source, then records the managed baseline and plans safe three-way updates
+  without writing live targets.
 - Phase 36 resolves and verifies the exact native release candidate before project activation.
 - Phase 37 applies project/runtime changes transactionally, stages conflicts, and recovers interrupted updates.
 - Phase 38 separates human update authority from AI local repair and certifies Baron 3.4.
+- Phases 39-41 produce Baron 3.5 by distilling selected Hallmark and Matt Pocock
+  techniques into existing Baron owners, with no second workflow or frontend
+  skill.
+- Phases 42-45 produce Baron 3.6 with an optional project-scoped Graphify
+  code-only provider, bounded context, source verification, strict isolation,
+  and Survey fallback.
 
 ## Resume Point
 
 1. Read `docs/BARON_STATUS.md`.
-2. Read `notes/build-log/2026-07-24-superpowers-6-2-and-extension-decisions.md`.
-3. Read `docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md`.
-4. Execute `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
-5. Begin with Phase 35 RED tests. Do not implement release download or binary replacement first.
-6. Update the phase log after every verified checkpoint.
+2. Read `docs/superpowers/plans/2026-07-24-baron-3-4-to-3-6-program.md`.
+3. Read
+   `docs/superpowers/specs/2026-07-24-baron-3-4-to-3-6-controlled-extension-design.md`.
+4. Execute
+   `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
+5. Begin with the Phase 35 RED runtime-source test and blueprint deletion. Do
+   not record a baseline, implement networking, or replace a binary first.
+6. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
+   verified phase checkpoint.
+7. Do not begin the 3.5 or 3.6 plans before the preceding release is certified.
 
 ## Verified Baseline
 
@@ -51,6 +82,8 @@ or change the 3.4 phase order.
 - Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
 - Current source version remains `3.3.0`.
 - Baron 3.4 currently has planning evidence only.
+- Baron 3.5 and 3.6 currently have design/plan evidence only.
+- The program has 11 planned phases remaining: 35 through 45.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD
   semantic smoke, and visual-server behavior tests: passed on 2026-07-24.
@@ -65,5 +98,10 @@ or change the 3.4 phase order.
 - Conflicting managed edits never overwrite live project content.
 - No release tag or GitHub Release exists before its source and artifacts pass proof.
 - `assets/core/` is the only runtime source for bundled skills and agents.
+- `blueprints/core/` must be removed before any managed baseline is trusted.
 - Optional providers and skills cannot become a second workflow, memory, or
   instruction owner.
+- Baron 3.5 may deepen existing owners but must not create Hallmark or Matt
+  workflow skills.
+- Baron 3.6 may use Graphify only as a local optional code map; it cannot own
+  hooks, instructions, Vault memory, global context, or workflow state.

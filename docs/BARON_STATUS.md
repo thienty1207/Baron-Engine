@@ -10,11 +10,16 @@ Last updated: 2026-07-24
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
 - Target source release: `v3.4.0`
+- Program target release: `v3.6.0`
 - Baron 3.4 completion: 0%
-- Remaining planned phases: 4
-- Current phase: Phase 35 - Managed Baseline And Update Planner
+- Baron 3.5 completion: 0%
+- Baron 3.6 completion: 0%
+- Remaining planned phases: 11
+- Current phase: Phase 35 - Single Runtime Source And Managed Baseline
 - Current phase status: planned
-- Current next action: implement Phase 35 RED tests and the read-only managed update planner.
+- Current next action: write the RED runtime-source test, remove
+  `blueprints/core/`, and prove `assets/core/` is the only embedded runtime
+  source before recording any managed baseline.
 - Build confidence: the Baron 3.3 baseline and the final Superpowers 6.2 refresh pass the full no-skip workspace suite, Clippy, release build, adapter smoke, and upstream visual-server behavior tests; Baron 3.4 is planned but has no implementation evidence yet.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
@@ -60,8 +65,11 @@ Core remains unchanged:
 Baron 3.4 makes the simple public `baron update` command safe enough to own both
 runtime updates and Baron-managed project refreshes.
 
-The program has four safety boundaries:
+Phase 35 first removes the obsolete `blueprints/core/` tree so the update
+baseline can never record two conflicting copies of the same core assets. The
+program then has four safety boundaries:
 
+- keep `assets/core/` as the one runtime asset source
 - remember the exact managed baseline before deciding what changed
 - verify the new release candidate before it can touch the project
 - stage conflicts and recover interrupted activation without data loss
@@ -70,6 +78,32 @@ The program has four safety boundaries:
 The normal user still runs only `baron update`. Hidden continuation, abort, and
 local reconciliation surfaces exist for recovery and AI automation without
 crowding the public command flow.
+
+## Baron 3.5 Direction
+
+Baron 3.5 improves the knowledge already owned by Baron without adding another
+workflow core or another frontend owner:
+
+- distill Hallmark's useful brief, anti-template, responsive, and state checks
+  into the existing `frontend-design` skill
+- distill only Matt Pocock techniques that do not overlap Superpowers into the
+  existing interface/architecture guidance and Product Harness domain language
+- reject duplicate planning, TDD, debugging, review, handoff, setup, and
+  workflow ownership
+- keep all operational guidance local, version-pinned, lazy-routed, and tested
+
+## Baron 3.6 Direction
+
+Baron 3.6 adds an optional local code map for large and old repositories:
+
+- Baron owns the provider contract, cache boundary, context budget, and fallback
+- Graphify may supply a project-scoped code-only graph when the exact supported
+  version is available
+- Graphify cannot install hooks, own memory, write instructions, create a
+  global graph, or become mandatory
+- every graph result remains advisory until current source files verify it
+- missing, stale, failed, or incompatible graph providers fall back to Baron
+  Survey Engine without breaking the workflow
 
 ## Completed Foundation
 
@@ -189,10 +223,27 @@ Baron 3.4 planned program:
 
 | Phase | Name | Status | Baron 3.4 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 35 | Managed Baseline And Update Planner | planned | 25% | managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, read-only dry-run tests |
+| 35 | Single Runtime Source And Managed Baseline | planned | 25% | `blueprints/core/` removed after a no-runtime-reference RED/GREEN test, `assets/core/` proven as the sole source, managed baseline manifest, deterministic three-way decisions, custom/user asset exclusion, read-only dry-run tests |
 | 36 | Verified Release Candidate And Binary Handoff | planned | 25% | exact candidate target/version/source/checksum proof, downgrade refusal, raw release assets, installer compatibility |
 | 37 | Conflict-Safe Activation And Recovery | planned | 30% | no-write conflict staging, frozen continuation, abort, transactional rollback, Windows/Unix recovery tests |
 | 38 | Automation Contract And Baron 3.4 Certification | planned | 20% | local-only AI reconcile, one-command user update, full native/lifecycle certification, version and docs synchronization |
+
+Baron 3.5 planned program:
+
+| Phase | Name | Status | Baron 3.5 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 39 | Hallmark Frontend Distillation | planned | 35% | existing `frontend-design` gains local brief fingerprint, anti-template, responsive, and state proof without a second frontend owner |
+| 40 | Deep Modules And Product Domain Language | planned | 30% | non-overlapping deep-module guidance and project-owned domain language are bounded, source-grounded, and isolated |
+| 41 | Routing, Preservation, And Baron 3.5 Certification | planned | 35% | one workflow owner, three-adapter parity, lazy routing, custom preservation, behavior pressure tests, and version/docs synchronization |
+
+Baron 3.6 planned program:
+
+| Phase | Name | Status | Baron 3.6 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 42 | Code-Graph Provider Contract | planned | 25% | provider-neutral local graph model, explicit confidence, bounded output, project identity, rebuildable cache, and Survey fallback |
+| 43 | Graphify Local Code-Only Adapter | planned | 30% | exact-version local extraction/query, no installers/hooks/global memory, timeout/size guards, malformed-output fallback |
+| 44 | Automatic Bounded Context And Source Verification | planned | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
+| 45 | Isolation, Scale, And Baron 3.6 Certification | planned | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
 
 Phase 16-17 final verification:
 
@@ -210,8 +261,9 @@ Phase 16-17 final verification:
 - [x] Roadmap exists.
 - [x] Architecture docs exist.
 - [x] Temporary build notes exist.
-- [x] Core asset blueprints exist.
-- [x] Adapter blueprints exist.
+- [x] Historical Phase 0 blueprints existed for the original skeleton.
+- [ ] Phase 35 retires the stale `blueprints/core/` tree after proving no
+  runtime path depends on it; `assets/core/` remains the only managed source.
 - [x] `cargo test` passes.
 - [x] `cargo run -p baron-cli -- --help` works.
 - [x] Phase 0 committed.
@@ -617,8 +669,14 @@ Phase 34 final verification:
 - `cargo build --release --locked -p baron-cli`: passed
 - status JSON, release YAML lint, static immutability scan, and `git diff --check`: passed
 
-### Phase 35 - Managed Baseline And Update Planner
+### Phase 35 - Single Runtime Source And Managed Baseline
 
+- [ ] Add a RED contract proving runtime installers, adapters, tests, and
+  manifests embed/read `assets/core/` only.
+- [ ] Delete all seven stale files under `blueprints/core/`.
+- [ ] Remove active documentation that treats blueprints as a maintained source.
+- [ ] Prove installed Codex, Claude, and generic assets still match
+  `assets/core/` after cleanup.
 - [ ] Record the exact last-installed managed content and merge policy under `.baron/managed-state/`.
 - [ ] Keep all manifest paths repository-relative, canonical, and unable to escape the project.
 - [ ] Compute `BASE`, `LOCAL`, and `UPSTREAM` decisions before writing any managed target.
@@ -660,6 +718,81 @@ Phase 34 final verification:
 - [ ] Bump source and lockfile to `3.4.0` only after Phases 35-37 pass.
 - [ ] Pass full format, workspace tests, Clippy, release build, YAML, installer, candidate, conflict, recovery, and real project/Vault smoke.
 - [ ] Push verified source only after certification; keep tag/GitHub Release promotion explicit.
+
+### Phase 39 - Hallmark Frontend Distillation
+
+- [ ] Keep `frontend-design` as the single frontend skill owner.
+- [ ] Add a project-evidence brief fingerprint before visual decisions.
+- [ ] Add bounded anti-template checks that reject interchangeable AI-looking
+  layouts without forcing one house style.
+- [ ] Add responsive, loading, empty, error, focus, disabled, and reduced-motion
+  proof states.
+- [ ] Keep source attribution and licensing in local provenance/notice files,
+  never as a live runtime dependency.
+- [ ] Prove behavior through three-adapter and pressure tests.
+
+### Phase 40 - Deep Modules And Product Domain Language
+
+- [ ] Distill only Matt Pocock deep-module and domain-language techniques that
+  do not overlap Superpowers.
+- [ ] Strengthen the existing `api-and-interface-design` owner instead of
+  creating a Matt workflow skill.
+- [ ] Add project-scoped Product Harness domain language with
+  evidence/unknown/conflict states.
+- [ ] Keep invented terms and cross-project terminology out of trusted context.
+- [ ] Prove bounded loading, project isolation, and no duplicate ownership.
+
+### Phase 41 - Routing, Preservation, And Baron 3.5 Certification
+
+- [ ] Re-audit every bundled skill trigger, exclusion, owner, and dependency.
+- [ ] Prove Codex, Claude, and generic adapter parity.
+- [ ] Prove custom skills, agents, routing blocks, plans, Harness records, and
+  Vault memory survive updates.
+- [ ] Run static scans against live links, duplicate workflow ownership, and
+  Hallmark/Matt installer instructions.
+- [ ] Run full Baron 3.5 verification before bumping source/lock/docs to
+  `3.5.0`.
+
+### Phase 42 - Code-Graph Provider Contract
+
+- [ ] Add a Baron-owned provider-neutral graph contract with explicit extracted
+  versus inferred confidence.
+- [ ] Store graph state only in a project-scoped rebuildable
+  `.baron/cache/code-graph/`.
+- [ ] Bound hit count, characters, paths, subprocess time, and graph size.
+- [ ] Reject unsafe paths, stale project identity, and unverified graph output.
+- [ ] Keep Survey Engine as the mandatory fallback.
+
+### Phase 43 - Graphify Local Code-Only Adapter
+
+- [ ] Support only the pinned compatible Graphify version and local code-only
+  extraction/query surfaces.
+- [ ] Never invoke Graphify installers, hooks, instruction writers, work
+  memory, global graph, semantic backends, or platform setup.
+- [ ] Disable provider-side query logging for Baron-owned calls.
+- [ ] Fall back cleanly on absence, mismatch, timeout, malformed output, or
+  oversize results.
+- [ ] Prove no target source, Vault memory, or agent instruction is mutated.
+
+### Phase 44 - Automatic Bounded Context And Source Verification
+
+- [ ] Let AI automation refresh/query the graph only when task scope benefits.
+- [ ] Keep normal user commands limited to install, Vault setup, agent/platform
+  init, and update.
+- [ ] Put a small `Optional Code Map` section in context only when useful.
+- [ ] Require direct source verification before graph guidance supports a
+  decision, proof, trace, or durable memory.
+- [ ] Explain provider/fallback decisions without dumping the graph.
+
+### Phase 45 - Isolation, Scale, And Baron 3.6 Certification
+
+- [ ] Prove same-name repositories cannot share graph state.
+- [ ] Prove large and ten-year repository fixtures stay bounded and recover from
+  stale/corrupt caches.
+- [ ] Prove custom assets and all three adapters survive update.
+- [ ] Run full workspace, Clippy, release build, installer, Vault, adapter, and
+  old-repository smoke verification.
+- [ ] Bump source/lock/docs to `3.6.0` only after all Phase 42-44 evidence passes.
 
 Phase 28-31 final verification:
 
@@ -732,21 +865,29 @@ Phase 25-26 final verification:
 - Public certification: `docs/assessment/baron-3-public-certification.md`
 - 3.1.4 installer certification: `docs/assessment/baron-3.1.4-installer-resilience.md`
 - Baron 3.4 design: `docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md`
+- Baron 3.4-3.6 controlled extension design: `docs/superpowers/specs/2026-07-24-baron-3-4-to-3-6-controlled-extension-design.md`
+- Baron 3.4-3.6 master program: `docs/superpowers/plans/2026-07-24-baron-3-4-to-3-6-program.md`
 - Phase 35-38 plan: `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`
 - Phase 35-38 build log: `notes/build-log/2026-07-23-phase-35-38-baron-3-4-safe-update.md`
+- Phase 39-41 plan: `docs/superpowers/plans/2026-07-24-phase-39-41-baron-3-5-skill-intelligence.md`
+- Phase 42-45 plan: `docs/superpowers/plans/2026-07-24-phase-42-45-baron-3-6-code-graph.md`
+- Baron 3.4-3.6 planning log: `notes/build-log/2026-07-24-baron-3-4-to-3-6-program.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
 ## Current Rule
 
-Baron `3.3.0` remains the stable source baseline. Phases 35-38 are approved but
-not implemented. The next implementation must begin with the managed baseline
-and read-only update planner; it must not jump directly to networking or binary
-replacement. A binary GitHub Release remains an explicit promotion step, not an
-automatic side effect. The engine deepens project understanding,
-platform expertise, safe architectural growth, frontend design quality, reviewer
-closure, and recovery while preserving the simple user command flow, Vault data
-safety, Superpowers workflow ownership, the three core quality gates, bounded
-context, and evidence-backed completion.
+Baron `3.3.0` remains the stable source baseline. Phases 35-45 are planned in
+strict release order: `3.4.0` update safety, `3.5.0` skill intelligence, then
+`3.6.0` optional code-map intelligence. The next implementation must first prove
+and remove stale `blueprints/core/`, then record the managed baseline; it must
+not jump directly to networking, binary replacement, Hallmark/Matt
+distillation, or Graphify. Each release gets fresh certification and an
+independent version gate. A binary GitHub Release remains an explicit promotion
+step, not an automatic side effect. The engine deepens project understanding,
+platform expertise, safe architectural growth, frontend design quality,
+reviewer closure, and recovery while preserving the simple user command flow,
+Vault data safety, Superpowers workflow ownership, the three core quality
+gates, bounded context, and evidence-backed completion.
 
 Phase 18-20 final verification:
 
