@@ -74,12 +74,17 @@ fn package_current_binary(source_dir: &Path) -> PathBuf {
     }
 
     let checksum = sha256_file(&archive).unwrap();
+    let raw_candidate = source_dir.join(target.update_candidate_name("3.3.0"));
+    fs::copy(&binary, &raw_candidate).unwrap();
+    let raw_candidate_checksum = sha256_file(&raw_candidate).unwrap();
     fs::write(
         source_dir.join("SHA256SUMS"),
         format!(
-            "{}  {}\n",
+            "{}  {}\n{}  {}\n",
             checksum,
-            archive.file_name().unwrap().to_string_lossy()
+            archive.file_name().unwrap().to_string_lossy(),
+            raw_candidate_checksum,
+            raw_candidate.file_name().unwrap().to_string_lossy()
         ),
     )
     .unwrap();

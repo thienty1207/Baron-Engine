@@ -7,6 +7,9 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+const RELEASE_MANIFEST_SCHEMA_V1: u32 = 1;
+const RELEASE_MANIFEST_SCHEMA_V2: u32 = 2;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArchiveKind {
     Zip,
@@ -27,6 +30,15 @@ impl ReleaseTarget {
             ArchiveKind::TarGz => "tar.gz",
         };
         format!("baron-v{version}-{}.{extension}", self.triple)
+    }
+
+    pub fn update_candidate_name(&self, version: &str) -> String {
+        let extension = if self.binary_name.ends_with(".exe") {
+            ".exe"
+        } else {
+            ""
+        };
+        format!("baron-v{version}-{}{extension}", self.triple)
     }
 }
 
@@ -78,12 +90,23 @@ pub struct ReleaseArtifact {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReleaseUpdateArtifact {
+    pub name: String,
+    pub target: String,
+    pub binary: String,
+    pub sha256: String,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReleaseManifest {
     pub schema_version: u32,
     pub product: String,
     pub version: String,
     pub source_revision: String,
     pub artifacts: Vec<ReleaseArtifact>,
+    #[serde(default)]
+    pub update_candidates: Vec<ReleaseUpdateArtifact>,
 }
 
 pub fn supported_release_target(target: &str) -> Result<ReleaseTarget> {
@@ -143,19 +166,79 @@ pub fn build_release_manifest(
     });
 
     Ok(ReleaseManifest {
-        schema_version: 1,
+        schema_version: RELEASE_MANIFEST_SCHEMA_V1,
         product: "Baron Engine".to_string(),
         version: version.to_string(),
         source_revision: source_revision.to_string(),
         artifacts,
+        update_candidates: Vec::new(),
     })
+}
+
+fn build_update_candidates(
+    version: &str,
+    inputs: &[ReleaseArtifactInput],
+) -> Result<Vec<ReleaseUpdateArtifact>> {
+    if inputs.len() != SUPPORTED_RELEASE_TARGETS.len() {
+        bail!("raw update candidate target set is invalid");
+    }
+    let mut candidates = Vec::with_capacity(inputs.len());
+    let mut seen_targets = BTreeSet::new();
+    let mut seen_names = BTreeSet::new();
+    for input in inputs {
+        let target = supported_release_target(&input.target)
+            .map_err(|_| anyhow::anyhow!("raw update candidate target set is invalid"))?;
+        let expected_name = target.update_candidate_name(version);
+        let actual_name = input
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .with_context(|| {
+                format!(
+                    "raw update candidate has no valid file name: {:?}",
+                    input.path
+                )
+            })?;
+        if actual_name != expected_name
+            || !seen_targets.insert(target.triple)
+            || !seen_names.insert(actual_name)
+        {
+            bail!("raw update candidate target set is invalid");
+        }
+        let metadata = fs::metadata(&input.path)
+            .with_context(|| format!("cannot read raw update candidate: {:?}", input.path))?;
+        if !metadata.is_file() {
+            bail!("raw update candidate is not a file: {:?}", input.path);
+        }
+        candidates.push(ReleaseUpdateArtifact {
+            name: expected_name,
+            target: target.triple.to_string(),
+            binary: target.binary_name.to_string(),
+            sha256: sha256_file(&input.path)?,
+            size_bytes: metadata.len(),
+        });
+    }
+    candidates.sort_by_key(|candidate| {
+        SUPPORTED_RELEASE_TARGETS
+            .iter()
+            .position(|target| target.triple == candidate.target)
+            .unwrap_or(usize::MAX)
+    });
+    Ok(candidates)
 }
 
 pub fn render_sha256sums(manifest: &ReleaseManifest) -> String {
     manifest
         .artifacts
         .iter()
-        .map(|artifact| format!("{}  {}\n", artifact.sha256, artifact.name))
+        .map(|artifact| (&artifact.sha256, &artifact.name))
+        .chain(
+            manifest
+                .update_candidates
+                .iter()
+                .map(|candidate| (&candidate.sha256, &candidate.name)),
+        )
+        .map(|(sha256, name)| format!("{sha256}  {name}\n"))
         .collect()
 }
 
@@ -165,33 +248,44 @@ pub fn verify_release_assets(
     checksums: &str,
 ) -> Result<()> {
     let checksum_entries = parse_sha256sums(checksums)?;
-    if checksum_entries.len() != manifest.artifacts.len() {
+    let expected = manifest
+        .artifacts
+        .iter()
+        .map(|artifact| (&artifact.name, &artifact.sha256, artifact.size_bytes))
+        .chain(
+            manifest
+                .update_candidates
+                .iter()
+                .map(|candidate| (&candidate.name, &candidate.sha256, candidate.size_bytes)),
+        )
+        .collect::<Vec<_>>();
+    if checksum_entries.len() != expected.len() {
         bail!(
             "checksum entry count mismatch: expected {}, got {}",
-            manifest.artifacts.len(),
+            expected.len(),
             checksum_entries.len()
         );
     }
 
-    for artifact in &manifest.artifacts {
+    for (name, expected_sha256, expected_size) in expected {
         let expected_line_checksum = checksum_entries
             .iter()
-            .find(|(_, name)| name == &artifact.name)
+            .find(|(_, checksum_name)| checksum_name == name)
             .map(|(checksum, _)| checksum)
-            .with_context(|| format!("checksum entry missing for {}", artifact.name))?;
-        if expected_line_checksum != &artifact.sha256 {
-            bail!("manifest/checksum mismatch for {}", artifact.name);
+            .with_context(|| format!("checksum entry missing for {name}"))?;
+        if expected_line_checksum != expected_sha256 {
+            bail!("manifest/checksum mismatch for {name}");
         }
 
-        let path = artifacts_dir.join(&artifact.name);
-        let metadata = fs::metadata(&path)
-            .with_context(|| format!("release artifact missing: {}", artifact.name))?;
-        if metadata.len() != artifact.size_bytes {
-            bail!("release artifact size mismatch for {}", artifact.name);
+        let path = artifacts_dir.join(name);
+        let metadata =
+            fs::metadata(&path).with_context(|| format!("release artifact missing: {name}"))?;
+        if metadata.len() != expected_size {
+            bail!("release artifact size mismatch for {name}");
         }
         let actual = sha256_file(&path)?;
-        if actual != artifact.sha256 {
-            bail!("checksum mismatch for {}", artifact.name);
+        if actual != *expected_sha256 {
+            bail!("checksum mismatch for {name}");
         }
     }
     Ok(())
@@ -211,7 +305,27 @@ pub fn write_release_metadata(
         inputs.push(ReleaseArtifactInput::new(target.triple, path));
     }
 
-    let manifest = build_release_manifest(version, source_revision, &inputs)?;
+    let mut manifest = build_release_manifest(version, source_revision, &inputs)?;
+    let candidate_inputs = SUPPORTED_RELEASE_TARGETS
+        .iter()
+        .map(|target| {
+            ReleaseArtifactInput::new(
+                target.triple,
+                artifacts_dir.join(target.update_candidate_name(version)),
+            )
+        })
+        .collect::<Vec<_>>();
+    let candidate_files = candidate_inputs
+        .iter()
+        .filter(|input| input.path.exists())
+        .count();
+    if candidate_files != 0 && candidate_files != SUPPORTED_RELEASE_TARGETS.len() {
+        bail!("partial raw update candidate set is not allowed");
+    }
+    if candidate_files == SUPPORTED_RELEASE_TARGETS.len() {
+        manifest.schema_version = RELEASE_MANIFEST_SCHEMA_V2;
+        manifest.update_candidates = build_update_candidates(version, &candidate_inputs)?;
+    }
     let mut manifest_json = serde_json::to_string_pretty(&manifest)?;
     manifest_json.push('\n');
     fs::write(artifacts_dir.join("release-manifest.json"), manifest_json)
@@ -226,12 +340,29 @@ pub fn write_release_metadata(
 
 pub fn load_and_verify_release_metadata(artifacts_dir: &Path) -> Result<ReleaseManifest> {
     let manifest_path = artifacts_dir.join("release-manifest.json");
-    let manifest: ReleaseManifest = serde_json::from_str(
+    let manifest = parse_release_manifest(
         &fs::read_to_string(&manifest_path)
             .with_context(|| format!("cannot read {}", manifest_path.display()))?,
-    )
-    .context("invalid release-manifest.json")?;
-    if manifest.schema_version != 1 {
+    )?;
+    let checksums_path = artifacts_dir.join("SHA256SUMS");
+    let checksums = fs::read_to_string(&checksums_path)
+        .with_context(|| format!("cannot read {}", checksums_path.display()))?;
+    verify_release_assets(artifacts_dir, &manifest, &checksums)?;
+    Ok(manifest)
+}
+
+pub fn parse_release_manifest(content: &str) -> Result<ReleaseManifest> {
+    let manifest: ReleaseManifest =
+        serde_json::from_str(content).context("invalid release-manifest.json")?;
+    validate_release_manifest(&manifest)?;
+    Ok(manifest)
+}
+
+pub fn validate_release_manifest(manifest: &ReleaseManifest) -> Result<()> {
+    if !matches!(
+        manifest.schema_version,
+        RELEASE_MANIFEST_SCHEMA_V1 | RELEASE_MANIFEST_SCHEMA_V2
+    ) {
         bail!(
             "unsupported release manifest schema: {}",
             manifest.schema_version
@@ -242,12 +373,22 @@ pub fn load_and_verify_release_metadata(artifacts_dir: &Path) -> Result<ReleaseM
     }
     validate_version(&manifest.version)?;
     validate_complete_manifest(&manifest)?;
+    Ok(())
+}
 
-    let checksums_path = artifacts_dir.join("SHA256SUMS");
-    let checksums = fs::read_to_string(&checksums_path)
-        .with_context(|| format!("cannot read {}", checksums_path.display()))?;
-    verify_release_assets(artifacts_dir, &manifest, &checksums)?;
-    Ok(manifest)
+pub fn update_candidate_for_target<'a>(
+    manifest: &'a ReleaseManifest,
+    target: &str,
+) -> Result<&'a ReleaseUpdateArtifact> {
+    if manifest.schema_version != RELEASE_MANIFEST_SCHEMA_V2 {
+        bail!("release manifest does not contain raw self-update candidates")
+    }
+    supported_release_target(target)?;
+    manifest
+        .update_candidates
+        .iter()
+        .find(|candidate| candidate.target == target)
+        .with_context(|| format!("release manifest is missing a raw update candidate for {target}"))
 }
 
 pub fn verify_release_identity(
@@ -301,6 +442,48 @@ fn validate_complete_manifest(manifest: &ReleaseManifest) -> Result<()> {
         .any(|target| !seen_targets.contains(target.triple))
     {
         bail!("release manifest target set is invalid");
+    }
+    match manifest.schema_version {
+        RELEASE_MANIFEST_SCHEMA_V1 if manifest.update_candidates.is_empty() => Ok(()),
+        RELEASE_MANIFEST_SCHEMA_V1 => {
+            bail!("schema 1 release manifest cannot include raw update candidates")
+        }
+        RELEASE_MANIFEST_SCHEMA_V2 => validate_update_candidate_set(manifest),
+        _ => bail!(
+            "unsupported release manifest schema: {}",
+            manifest.schema_version
+        ),
+    }
+}
+
+fn validate_update_candidate_set(manifest: &ReleaseManifest) -> Result<()> {
+    if manifest.update_candidates.len() != SUPPORTED_RELEASE_TARGETS.len() {
+        bail!("release manifest update candidate target set is invalid");
+    }
+    let mut seen_targets = BTreeSet::new();
+    let mut seen_names = BTreeSet::new();
+    for candidate in &manifest.update_candidates {
+        let target = supported_release_target(&candidate.target).map_err(|_| {
+            anyhow::anyhow!("release manifest update candidate target set is invalid")
+        })?;
+        if !seen_targets.insert(candidate.target.as_str())
+            || !seen_names.insert(candidate.name.as_str())
+            || candidate.name != target.update_candidate_name(&manifest.version)
+            || candidate.binary != target.binary_name
+            || candidate.sha256.len() != 64
+            || !candidate
+                .sha256
+                .chars()
+                .all(|character| character.is_ascii_hexdigit())
+        {
+            bail!("release manifest update candidate target set is invalid");
+        }
+    }
+    if SUPPORTED_RELEASE_TARGETS
+        .iter()
+        .any(|target| !seen_targets.contains(target.triple))
+    {
+        bail!("release manifest update candidate target set is invalid");
     }
     Ok(())
 }

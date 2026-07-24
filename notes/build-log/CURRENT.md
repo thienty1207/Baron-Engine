@@ -6,7 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 36 - Verified Release Candidate And Binary Handoff (`planned`).
+Phase 37 - Conflict-Safe Activation And Recovery (`in_progress`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -53,7 +53,7 @@ outside its write set.
 - Phase 35 has removed stale blueprints, proved `assets/core/` is the only
   runtime source, and recorded the managed baseline plus safe read-only
   three-way preview.
-- Phase 36 resolves and verifies the exact native release candidate before project activation.
+- Phase 36 resolved and verified the exact native release candidate before project activation.
 - Phase 37 applies project/runtime changes transactionally, stages conflicts, and recovers interrupted updates.
 - Phase 38 separates human update authority from AI local repair and certifies Baron 3.4.
 - Phases 39-41 produce Baron 3.5 by distilling selected Hallmark and Matt Pocock
@@ -71,8 +71,9 @@ outside its write set.
    `docs/superpowers/specs/2026-07-24-baron-3-4-to-3-6-controlled-extension-design.md`.
 4. Execute
    `docs/superpowers/plans/2026-07-23-phase-35-38-baron-3-4-safe-update.md`.
-5. Begin the Phase 36 release-candidate/resolver RED tests. Do not implement
-   project activation or replace a binary first.
+5. Begin the Phase 37 transaction/recovery RED tests. Do not let a verified
+   candidate modify project files or replace a binary before its recoverable
+   transaction boundary is proved.
 6. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
 7. Do not begin the 3.5 or 3.6 plans before the preceding release is certified.
@@ -83,10 +84,10 @@ outside its write set.
 - Planning baseline commit: `b6e619b`.
 - Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
 - Current source version remains `3.3.0`.
-- Baron 3.4 has Phase 35 implementation evidence only; candidate, activation,
-  and certification work remains.
+- Baron 3.4 has Phases 35 and 36 implementation evidence; transaction
+  activation and certification work remains.
 - Baron 3.5 and 3.6 currently have design/plan evidence only.
-- The program has 10 planned phases remaining: 36 through 45.
+- The program has 9 planned phases remaining: 37 through 45.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD
   semantic smoke, and visual-server behavior tests: passed on 2026-07-24.

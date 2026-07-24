@@ -11,19 +11,19 @@ Last updated: 2026-07-24
 - Baron 3.3 completion: 100%
 - Target source release: `v3.4.0`
 - Program target release: `v3.6.0`
-- Baron 3.4 completion: 25%
+- Baron 3.4 completion: 50%
 - Baron 3.5 completion: 0%
 - Baron 3.6 completion: 0%
-- Remaining planned phases: 10
-- Current phase: Phase 36 - Verified Release Candidate And Binary Handoff
+- Remaining planned phases: 9
+- Current phase: Phase 37 - Conflict-Safe Activation And Recovery
 - Current phase status: in_progress
-- Current next action: write the candidate manifest/resolver RED tests. The
-  managed baseline, read-only three-way preview, and custom-content boundary
-  are now verified.
-- Build confidence: Baron 3.3 remains fully certified. Phase 35 passed its
-  focused adapter and CLI evidence, including a fresh baseline, deterministic
-  three-way decisions, malformed-marker refusal, and a no-write dry run; the
-  3.4 candidate, transaction, and release certification work remains ahead.
+- Current next action: write the Phase 37 transaction and recovery RED tests.
+  The managed baseline and native candidate boundaries are now verified, but
+  no candidate has been allowed to activate a project or runtime yet.
+- Build confidence: Baron 3.3 remains fully certified. Phases 35 and 36 now
+  have focused evidence for conservative managed baselines, immutable native
+  candidate identity, bounded trusted download routing, and installer
+  compatibility. Transaction activation and 3.4 certification remain ahead.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -694,14 +694,14 @@ Phase 34 final verification:
 
 ### Phase 36 - Verified Release Candidate And Binary Handoff
 
-- [ ] Extend immutable release metadata with one raw update candidate per supported target.
-- [ ] Resolve production candidates through bounded HTTPS and deterministic injected test sources.
-- [ ] Verify product, schema, version ordering, target, size, checksum, source revision, and candidate-reported version.
-- [ ] Refuse downgrades, wrong targets, malformed identities, redirects outside trusted hosts, and tampered candidates.
-- [ ] Keep project managed targets and installed runtime unchanged until all candidate proof passes.
-- [ ] Add Unix atomic and Windows delayed-finalizer handoff primitives.
-- [ ] Preserve existing checksum-verified PowerShell/Bash installer behavior.
-- [ ] Pass release, workflow, candidate, and installer lifecycle tests.
+- [x] Extend immutable release metadata with one raw update candidate per supported target.
+- [x] Resolve production candidates through bounded HTTPS and deterministic injected test sources.
+- [x] Verify product, schema, version ordering, target, size, checksum, source revision, and candidate-reported version.
+- [x] Refuse downgrades, wrong targets, malformed identities, redirects outside trusted hosts, and tampered candidates.
+- [x] Keep project managed targets and installed runtime unchanged until all candidate proof passes.
+- [x] Add Unix atomic and Windows delayed-finalizer handoff primitives.
+- [x] Preserve existing checksum-verified PowerShell/Bash installer behavior.
+- [x] Pass release, workflow, candidate, and installer lifecycle tests.
 
 ### Phase 37 - Conflict-Safe Activation And Recovery
 

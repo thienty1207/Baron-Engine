@@ -106,10 +106,43 @@ The implementation is split into four phases:
 - Phase 35: completed; runtime source, hash-verified and reparse-safe managed
   baseline, multi-adapter planner, malformed marker refusal, replacement
   preservation, and read-only dry-run preview are verified
-- Phase 36: in progress; candidate source and release metadata code are being
-  tested before any runtime activation work
-- Phase 37: planned, no implementation evidence
+- Phase 36: completed; immutable schema-2 release metadata now ships one raw
+  candidate per supported target. Bounded HTTPS routing, deterministic local
+  sources, source/schema/version/target/size/checksum/binary-version checks,
+  target rejection, tamper rejection, Unix handoff preparation, Windows delayed
+  handoff metadata, workflow raw-candidate contract, and installer lifecycle
+  compatibility are verified. No candidate was activated.
+- Phase 37: in progress; transaction, continuation, abort, rollback, and
+  recovery tests are the next required gate
 - Phase 38: planned, no implementation evidence
+
+## Phase 36 Verified Release Candidate Evidence
+
+- Release metadata remains backward-readable for schema 1 installers and emits
+  schema 2 only when all four raw native candidates exist. Partial raw candidate
+  sets are refused.
+- Candidate staging validates the manifest before creating `.baron/update/`.
+  Same-version, downgrade, malformed source revision, unsupported target, and
+  tampered-candidate cases are refused before they can touch project content.
+- Production retrieval is HTTPS-only, bounded, timeout-protected, and limits
+  redirects to approved GitHub release hosts. Tests use only injected local
+  fixtures; no test contacts GitHub.
+- The candidate is staged below a reparse-safe project `.baron/update/`
+  workspace. A Windows junction test proves the workspace is refused before
+  candidate files are written.
+- Candidate verification and handoff preparation do not activate the installed
+  runtime. Unix receives an atomic handoff primitive; Windows receives delayed
+  finalizer metadata for the later transaction phase.
+- Fresh focused evidence on 2026-07-24:
+  - `cargo fmt --all -- --check`
+  - `cargo test -p baron-core --test release` (10 passed)
+  - `cargo test -p baron-cli self_update::tests` (12 passed)
+  - `cargo test -p baron-cli --test self_update_cli` (1 passed)
+  - `cargo test -p baron-cli --test workflow_contract` (3 passed)
+  - `cargo test -p baron-cli --test lifecycle_scripts native_installer_supports_install_update_rollback_and_uninstall -- --exact` (1 passed)
+  - `cargo test -p baron-cli --test release_cli` (2 passed)
+  - `npx --yes yaml-lint .github/workflows/release.yml`
+  - `git diff --check`
 
 ## Non-Negotiables
 

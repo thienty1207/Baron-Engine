@@ -1,6 +1,8 @@
 use std::io::Read;
 use std::path::PathBuf;
 
+mod self_update;
+
 use anyhow::{bail, Context, Result};
 use baron_adapters::{
     install_adapter, managed_payloads_for_adapter, plan_managed_update, shadow_preview,
@@ -137,6 +139,10 @@ enum Commands {
         dry_run: bool,
         #[arg(long, hide = true, requires = "dry_run")]
         installed: bool,
+        #[arg(long, hide = true, conflicts_with_all = ["dry_run", "installed"])]
+        verify_candidate: bool,
+        #[arg(long, hide = true, requires = "verify_candidate")]
+        candidate_dir: Option<PathBuf>,
     },
     #[command(hide = true)]
     Authority {
@@ -864,6 +870,8 @@ fn run() -> Result<()> {
             agent,
             dry_run,
             installed,
+            verify_candidate,
+            candidate_dir,
         }) => {
             let start = repo_path.unwrap_or(std::env::current_dir()?);
             let repo_root = find_project_root(&start)?;
@@ -888,7 +896,45 @@ fn run() -> Result<()> {
                 .map(|adapter| adapter_name(*adapter))
                 .collect::<Vec<_>>()
                 .join(", ");
-            if dry_run {
+            if verify_candidate {
+                let target = self_update::current_release_target()?;
+                let inspector = self_update::ProcessBinaryInspector;
+                let candidate = if let Some(directory) = candidate_dir {
+                    let source = self_update::DirectoryCandidateSource::new(directory);
+                    self_update::stage_verified_candidate(
+                        &repo_root,
+                        &source,
+                        &inspector,
+                        env!("CARGO_PKG_VERSION"),
+                        target,
+                    )?
+                } else {
+                    let source = self_update::HttpsCandidateSource::github_release()?;
+                    self_update::stage_verified_candidate(
+                        &repo_root,
+                        &source,
+                        &inspector,
+                        env!("CARGO_PKG_VERSION"),
+                        target,
+                    )?
+                };
+                let handoff = self_update::prepare_runtime_handoff(
+                    &repo_root,
+                    &candidate,
+                    &std::env::current_exe()?,
+                )?;
+                println!("# Baron Verified Update Candidate\n");
+                println!("- Version: `{}`", candidate.version);
+                println!("- Target: `{}`", candidate.target);
+                println!("- Source revision: `{}`", candidate.source_revision);
+                println!("- Staged path: `{}`", candidate.staged_path.display());
+                println!(
+                    "- Handoff prepared: `{}`",
+                    self_update::handoff_label(&handoff)
+                );
+                println!("- Runtime activation: not performed");
+                println!("- Project managed files: unchanged");
+            } else if dry_run {
                 let payloads = adapters
                     .iter()
                     .map(|adapter| managed_payloads_for_adapter(*adapter))

@@ -111,7 +111,68 @@ fn release_metadata_writer_requires_and_verifies_the_complete_platform_set() {
     assert!(temp.path().join("SHA256SUMS").is_file());
     assert!(temp.path().join("release-manifest.json").is_file());
     let manifest = load_and_verify_release_metadata(temp.path()).unwrap();
+    assert_eq!(manifest.schema_version, 1);
     assert_eq!(manifest.artifacts.len(), SUPPORTED_RELEASE_TARGETS.len());
+    assert!(manifest.update_candidates.is_empty());
+}
+
+#[test]
+fn schema_two_metadata_includes_one_raw_candidate_per_supported_target() {
+    let temp = tempdir().unwrap();
+    for target in SUPPORTED_RELEASE_TARGETS {
+        fs::write(
+            temp.path().join(target.archive_name("3.4.0")),
+            format!("archive:{}", target.triple),
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join(target.update_candidate_name("3.4.0")),
+            format!("candidate:{}", target.triple),
+        )
+        .unwrap();
+    }
+
+    write_release_metadata(temp.path(), "3.4.0", SOURCE_REVISION).unwrap();
+
+    let manifest = load_and_verify_release_metadata(temp.path()).unwrap();
+    assert_eq!(manifest.schema_version, 2);
+    assert_eq!(
+        manifest.update_candidates.len(),
+        SUPPORTED_RELEASE_TARGETS.len()
+    );
+    for target in SUPPORTED_RELEASE_TARGETS {
+        assert!(manifest
+            .update_candidates
+            .iter()
+            .any(|candidate| candidate.target == target.triple
+                && candidate.name == target.update_candidate_name("3.4.0")
+                && candidate.binary == target.binary_name));
+    }
+    let checksums = fs::read_to_string(temp.path().join("SHA256SUMS")).unwrap();
+    assert!(checksums.contains("baron-v3.4.0-x86_64-pc-windows-msvc.exe"));
+}
+
+#[test]
+fn metadata_rejects_a_partial_raw_candidate_set() {
+    let temp = tempdir().unwrap();
+    for target in SUPPORTED_RELEASE_TARGETS {
+        fs::write(
+            temp.path().join(target.archive_name("3.4.0")),
+            target.triple.as_bytes(),
+        )
+        .unwrap();
+    }
+    fs::write(
+        temp.path()
+            .join(SUPPORTED_RELEASE_TARGETS[0].update_candidate_name("3.4.0")),
+        b"only one raw candidate",
+    )
+    .unwrap();
+
+    let error = write_release_metadata(temp.path(), "3.4.0", SOURCE_REVISION)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("partial raw update candidate set"));
 }
 
 #[test]

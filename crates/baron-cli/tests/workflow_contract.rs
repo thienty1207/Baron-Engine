@@ -75,3 +75,21 @@ fn release_workflow_proves_an_exact_candidate_before_immutable_promotion() {
     assert!(full_test < create_tag);
     assert!(create_tag < create_release);
 }
+
+#[test]
+fn release_workflow_stages_and_publishes_raw_self_update_candidates() {
+    let workflow =
+        fs::read_to_string(workspace_root().join(".github/workflows/release.yml")).unwrap();
+
+    for required in [
+        "binary_suffix:",
+        "Stage raw self-update candidate",
+        "baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}${{ matrix.binary_suffix }}",
+        "Raw native executable is missing",
+    ] {
+        assert!(
+            workflow.contains(required),
+            "release workflow is missing raw self-update candidate contract: {required}"
+        );
+    }
+}

@@ -79,15 +79,19 @@ jobs:
           - runner: windows-latest
             target: x86_64-pc-windows-msvc
             archive: zip
+            binary_suffix: .exe
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
+            binary_suffix: ""
           - runner: macos-15-intel
             target: x86_64-apple-darwin
             archive: tar.gz
+            binary_suffix: ""
           - runner: macos-15
             target: aarch64-apple-darwin
             archive: tar.gz
+            binary_suffix: ""
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
@@ -122,11 +126,22 @@ jobs:
         run: |
           name="baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}.tar.gz"
           tar -czf "$name" -C target/release baron
+      - name: Stage raw self-update candidate
+        shell: pwsh
+        run: |
+          $name = "baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}${{ matrix.binary_suffix }}"
+          $source = if ('${{ runner.os }}' -eq 'Windows') { 'target/release/baron.exe' } else { 'target/release/baron' }
+          Copy-Item -LiteralPath $source -Destination $name
+          if (-not (Test-Path -LiteralPath $name)) {
+            throw "Raw native executable is missing: $name"
+          }
       - name: Upload native archive
         uses: actions/upload-artifact@v7
         with:
           name: baron-${{ matrix.target }}
-          path: baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+          path: |
+            baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+            baron-v${{ needs.verify-candidate.outputs.version }}-${{ matrix.target }}${{ matrix.binary_suffix }}
           if-no-files-found: error
           retention-days: 7
 

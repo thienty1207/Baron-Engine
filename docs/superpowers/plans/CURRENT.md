@@ -4,13 +4,15 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 36 - Verified Release Candidate And Binary Handoff
-- Status: `planned`
-- Verification: Phase 35 baseline/planner evidence passed: `cargo test -p
-  baron-adapters --all-targets` and `cargo test -p baron-cli --test
-  adapter_cli`; the full Baron 3.4 certification has not run.
-- Next action: write Phase 36 release-candidate/resolver RED tests before any
-  network, archive, or runtime-handoff implementation.
+- Active phase: Phase 37 - Conflict-Safe Activation And Recovery
+- Status: `in_progress`
+- Verification: Phase 35 baseline/planner evidence and Phase 36 release
+  candidate evidence passed: `cargo test -p baron-adapters --all-targets`,
+  `cargo test -p baron-core --test release`, candidate/self-update CLI tests,
+  release workflow tests, and the Windows installer lifecycle test. The full
+  Baron 3.4 certification has not run.
+- Next action: write Phase 37 transaction/recovery RED tests before any
+  candidate is allowed to modify managed project files or the installed runtime.
 
 ## Baron 3.4 Contract
 
@@ -34,7 +36,7 @@ Last updated: 2026-07-24
   Baron owners, with no duplicate workflow.
 - Baron 3.6, Phases 42-45: optional local project code map, source verification,
   strict isolation, and Survey fallback.
-- Total remaining planned phases: 11.
+- Total remaining planned phases: 9.
 
 ## Active Documents
 
@@ -55,7 +57,7 @@ Last updated: 2026-07-24
 ## Rules
 
 - Follow RED/GREEN TDD for every production behavior.
-- Keep Phase 35 baseline evidence intact before beginning release networking.
+- Keep Phase 35 and Phase 36 evidence intact before transaction activation.
 - Update the build log and status Markdown/JSON after every phase checkpoint.
 - Do not mark a phase complete from test intent; record fresh command evidence.
 - Keep the normal user command surface small.
