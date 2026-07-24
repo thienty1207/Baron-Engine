@@ -4,26 +4,27 @@ Last updated: 2026-07-24
 
 ## Overall
 
-- Stable source release: `v3.4.0`
+- Stable source release: `v3.5.0`
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v3.5.0`
+- Target source release: `v3.6.0`
 - Program target release: `v3.6.0`
 - Baron 3.4 completion: 100%
-- Baron 3.5 completion: 65%
+- Baron 3.5 completion: 100%
 - Baron 3.6 completion: 0%
-- Remaining planned phases: 5
-- Current phase: Phase 41 - Routing, Preservation, And Baron 3.5 Certification
+- Remaining planned phases: 4
+- Current phase: Phase 42 - Code-Graph Provider Contract
 - Current phase status: in_progress
-- Current next action: add RED preservation and public-flow contracts, then
-  certify 3.5 without widening the normal user command surface.
-- Build confidence: Baron 3.4 is source-certified. The fresh full suite,
-  Clippy, locked release binary, workflow-YAML, installer lifecycle,
-  candidate/transaction/recovery fixtures, local-only reconcile, and
-  release-binary read-only smoke all passed. A tag/GitHub Release is still an
-  explicit human promotion, not a side effect of source certification.
+- Current next action: add the provider-neutral, project-scoped code-graph
+  contract with identity, cache, confidence, safety limits, and Survey fallback
+  before accepting any local provider.
+- Build confidence: Baron 3.5 is source-certified. The fresh full suite,
+  Clippy, locked release binary, adapter parity, local-only reconcile recovery,
+  custom-asset preservation, bounded context, and public-flow contracts passed.
+  A tag/GitHub Release is still an explicit human promotion, not a side effect
+  of source certification.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -46,9 +47,9 @@ Last updated: 2026-07-24
   project isolation, a fallback, and automated proof before it can ship.
 - Full rationale: `docs/decisions/0002-extension-ownership-and-code-graph.md`.
 
-Phase 35 through Phase 38 are complete. The decisions above still do not add
-Graphify or alter the approved release order. Version `3.4.0` is the current
-source-certified baseline before Baron 3.5 certification completes.
+Phase 35 through Phase 41 are complete. The decisions above still do not add
+Graphify or alter the approved release order. Version `3.5.0` is the current
+source-certified baseline before the optional Baron 3.6 code-map work begins.
 
 ## Baron 3.0 Direction
 
@@ -753,14 +754,18 @@ Phase 34 final verification:
 
 ### Phase 41 - Routing, Preservation, And Baron 3.5 Certification
 
-- [ ] Re-audit every bundled skill trigger, exclusion, owner, and dependency.
-- [ ] Prove Codex, Claude, and generic adapter parity.
-- [ ] Prove custom skills, agents, routing blocks, plans, Harness records, and
+- [x] Re-audit every bundled skill trigger, exclusion, owner, and dependency.
+- [x] Prove Codex, Claude, and generic adapter parity.
+- [x] Prove custom skills, agents, routing blocks, plans, Harness records, and
   Vault memory survive updates.
-- [ ] Run static scans against live links, duplicate workflow ownership, and
+- [x] Run static scans against live links, duplicate workflow ownership, and
   Hallmark/Matt installer instructions.
-- [ ] Run full Baron 3.5 verification before bumping source/lock/docs to
+- [x] Run full Baron 3.5 verification before bumping source/lock/docs to
   `3.5.0`.
+- [x] Reconcile missing managed Domain Language documents without overwriting
+  user-written terms or custom routing assets.
+- [x] Certify source `3.5.0` with fresh workspace tests, Clippy, locked release
+  build, public-flow, adapter, and preservation evidence.
 
 ### Phase 42 - Code-Graph Provider Contract
 
@@ -885,12 +890,12 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.4.0` remains the stable source baseline. Phases 35-45 are planned in
-strict release order: `3.4.0` update safety, `3.5.0` skill intelligence, then
-`3.6.0` optional code-map intelligence. The next implementation must first prove
-the managed baseline after the completed blueprint cleanup; it must not jump
-directly to networking, binary replacement, Hallmark/Matt distillation, or
-Graphify. Each release gets fresh certification and an
+Baron `3.5.0` remains the stable source baseline. Phases 42-45 are planned in
+strict release order: optional local code-map contract, local provider adapter,
+bounded source verification, then isolation/scale certification. The next
+implementation must first prove the provider-neutral cache and fallback
+contract; it must not jump directly to provider invocation, networking, global
+graphs, or semantic backends. Each release gets fresh certification and an
 independent version gate. A binary GitHub Release remains an explicit promotion
 step, not an automatic side effect. The engine deepens project understanding,
 platform expertise, safe architectural growth, frontend design quality,

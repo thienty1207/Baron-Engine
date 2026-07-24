@@ -37,7 +37,7 @@ fn collect_public_text_files(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn readme_is_public_trust_landing_page_not_command_dump() {
     let readme = read("README.md");
-    assert!(readme.contains("Current source version: `3.4.0`"));
+    assert!(readme.contains("Current source version: `3.5.0`"));
     assert!(readme.contains("## Quick Start"));
     assert!(readme.contains("## Demo"));
     assert!(readme.contains("## Public Proof"));
@@ -68,6 +68,25 @@ fn readme_is_public_trust_landing_page_not_command_dump() {
         assert!(
             !readme.contains(automation_command),
             "README should keep automation command `{automation_command}` out of the main user flow"
+        );
+    }
+}
+
+#[test]
+fn readme_keeps_research_attribution_and_automation_out_of_the_user_flow() {
+    let readme = read("README.md").to_ascii_lowercase();
+
+    for hidden in [
+        "hallmark",
+        "mattpocock",
+        "matt pocock",
+        "baron automation",
+        "baron context",
+        "baron control-plane",
+    ] {
+        assert!(
+            !readme.contains(hidden),
+            "README must keep `{hidden}` out of the normal user flow"
         );
     }
 }
@@ -133,18 +152,37 @@ fn baron_3_4_safe_update_certification_states_its_release_boundary() {
 }
 
 #[test]
+fn baron_3_5_certification_records_local_skill_and_preservation_boundaries() {
+    let certification = read("docs/assessment/baron-3.5.0-skill-intelligence-certification.md");
+    for required in [
+        "Baron 3.5 Skill Intelligence Certification",
+        "aeb42fb354ff4efa36ab475773a082315a3af2ce",
+        "ed37663cc5fbef691ddfecd080dff42f7e7e350d",
+        "three adapters",
+        "automation_reconcile_preserves_custom_routing_and_recovers_missing_domain_language",
+        "No external installer, live instruction, or workflow skill was imported.",
+        "Source `3.5.0` is not a Git tag or GitHub Release.",
+    ] {
+        assert!(
+            certification.contains(required),
+            "Baron 3.5 certification is missing {required}"
+        );
+    }
+}
+
+#[test]
 fn status_tracks_current_program() {
     let status_md = read("docs/BARON_STATUS.md");
-    assert!(status_md.contains("Stable source release: `v3.4.0`"));
+    assert!(status_md.contains("Stable source release: `v3.5.0`"));
     assert!(status_md.contains("Phase 24 - Public Trust Release"));
     assert!(status_md.contains("Public Trust 3.1.2 final verification"));
 
     let status_json: serde_json::Value =
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
-    assert_eq!(status_json["stableRelease"], "3.4.0");
-    assert_eq!(status_json["targetRelease"], "3.5.0");
+    assert_eq!(status_json["stableRelease"], "3.5.0");
+    assert_eq!(status_json["targetRelease"], "3.6.0");
     assert_eq!(status_json["programTargetRelease"], "3.6.0");
-    assert_eq!(status_json["remainingPhaseCount"], 7);
+    assert_eq!(status_json["remainingPhaseCount"], 4);
     assert!(status_json["phases"]
         .as_array()
         .is_some_and(|phases| phases.iter().any(|phase| {

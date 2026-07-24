@@ -150,7 +150,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v3.4.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v3.5.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -162,13 +162,13 @@ Download one native archive and `SHA256SUMS` into the same directory.
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 3.4.0 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 3.5.0 -SourceDirectory D:\baron-release
 ```
 
 Linux or macOS:
 
 ```bash
-sh ./install.sh --version 3.4.0 --source-dir /path/to/baron-release
+sh ./install.sh --version 3.5.0 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -183,14 +183,14 @@ Clippy, then builds and smokes every native target. The final promotion job
 assembles all four archives and runs:
 
 ```bash
-baron release metadata release-assets --release-version 3.4.0 --source-revision <40-character-git-sha>
-baron release verify release-assets --expected-version 3.4.0 --expected-source-revision <40-character-git-sha>
+baron release metadata release-assets --release-version 3.5.0 --source-revision <40-character-git-sha>
+baron release verify release-assets --expected-version 3.5.0 --expected-source-revision <40-character-git-sha>
 ```
 
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
 
-Before promoting a `v3.4.0` release, also run:
+Before promoting a `v3.5.0` release, also run:
 
 ```bash
 baron certify run <repo-path> --vault <vault-path> --profile release
@@ -208,7 +208,7 @@ release workflow:
 ```bash
 git push origin main
 git rev-parse HEAD
-gh workflow run release.yml -f release_version=3.4.0 -f source_revision=<40-character-git-sha>
+gh workflow run release.yml -f release_version=3.5.0 -f source_revision=<40-character-git-sha>
 ```
 
 The `Baron Release` workflow refuses an existing tag or Release, builds the
@@ -216,7 +216,7 @@ native archives from that exact SHA, verifies checksums and installer lifecycle,
 and only then creates the annotated tag and immutable GitHub Release. Only the
 final promotion job has repository write permission. When the workflow
 finishes, `https://github.com/thienty1207/Baron-Engine/releases/latest` should
-point at `v3.4.0`.
+point at `v3.5.0`.
 
 Public smoke after the workflow:
 

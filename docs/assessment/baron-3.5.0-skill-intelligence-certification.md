@@ -1,6 +1,6 @@
 # Baron 3.5 Skill Intelligence Certification
 
-Status: in progress
+Status: source-certified on `2026-07-24`; Git tag and GitHub Release not created
 
 This record captures the evidence for the Baron-owned skill-intelligence
 release. It is not a claim that any external skill, installer, or runtime is
@@ -79,7 +79,69 @@ cargo test -p baron-cli --test adapter_cli
 All commands passed on the Phase 40 working tree. Full Baron 3.5 certification
 remains a Phase 41 gate.
 
-## Remaining 3.5 Gates
+## Phase 41 Evidence
 
-- Phase 41 adapter preservation, public-flow, full workspace, static, release,
-  and smoke verification.
+### Ownership And Public Flow
+
+- `control_plane.rs` proves Superpowers is the only workflow owner, exactly
+  `code-reviewer`, `security-auditor`, and `test-engineer` are mandatory gates,
+  and optional domain skills stay lazy and explainable.
+- `adapter_lifecycle.rs` proves all three adapters install the same local
+  frontend and interface references, while no `hallmark`, `matt-skills`,
+  `codebase-design`, `domain-modeling`, `tdd`, `implement`, or `grilling`
+  directory is installed.
+- `public_trust_docs.rs` proves the normal README stays limited to install,
+  Vault setup, agent/platform init, and update. Research-source names and deep
+  automation commands do not enter that user flow.
+
+### Preservation Fixture
+
+`automation_reconcile_preserves_custom_routing_and_recovers_missing_domain_language`
+first failed, then passed after the local reconcile path restored only missing
+Baron-owned support documents. The fixture proves all of the following in one
+real temporary project and Vault:
+
+- user-written repo and Vault Domain Language content survives byte-for-byte;
+- custom skill and agent files survive;
+- custom skill and agent routing entries survive;
+- deleting the two managed Domain Language files causes them to be recreated;
+- reconcile never downloads a release or replaces the runtime.
+
+### Deep-Module And Ambiguous-Term Fixtures
+
+- The deep-module fixture installs
+  `api-and-interface-design/references/deep-module-boundaries.md` under Codex,
+  Claude, and generic adapters and rejects duplicate architecture/workflow
+  directories.
+- The ambiguous-term fixture preserves both divergent copies, labels the
+  mismatch, and withholds their terms from trusted compact context instead of
+  selecting a meaning silently.
+
+## Accepted And Rejected Technique Matrix
+
+| Existing Baron owner | Accepted locally | Explicitly rejected |
+| --- | --- | --- |
+| `frontend-design` | Evidence brief, anti-template checks, responsive and state proof. | A second frontend skill, installer, command, or live instruction. |
+| `api-and-interface-design` | Boundary invariants, explicit dependency direction, public-behavior seams, compatibility evidence. | Workflow, planning, TDD, debugging, review, handoff, setup, personal, or duplicate architecture skills. |
+| Product Harness Domain Language | Evidence-backed canonical terms, ambiguous status, bounded rendering, project isolation. | Invented terms, automatic conflict resolution, cross-project sharing, or generic unbounded memory excerpts. |
+
+No external installer, live instruction, or workflow skill was imported. All
+operational assets are local Baron files; source attribution remains isolated in
+notice/provenance material.
+
+## Verification Gate
+
+| Command | Result before version bump | Final result after bump |
+| --- | --- | --- |
+| `cargo test -p baron-core --test control_plane --test public_trust_docs` | passed | passed |
+| `cargo test -p baron-cli --test adapter_cli --test release_smoke` | passed | passed |
+| `cargo fmt --all -- --check` | passed after formatting the new test | passed |
+| `cargo test --workspace --all-targets --no-fail-fast` | passed | passed |
+| `cargo clippy --workspace --all-targets -- -D warnings` | passed | passed |
+| `cargo build --release --locked -p baron-cli` | passed | passed; `target/release/baron.exe --version` reported `baron 3.5.0` |
+| `git diff --check` | passed | passed |
+
+## Release Boundary
+
+Source `3.5.0` is not a Git tag or GitHub Release. A release promotion remains
+a human-authorized action after the source push.

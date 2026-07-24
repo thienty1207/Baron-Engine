@@ -1,12 +1,12 @@
 # Current Build Note
 
 Date: 2026-07-24
-Target: Baron 3.5.0
+Target: Baron 3.6.0
 Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 41 - Routing, Preservation, And Baron 3.5 Certification (`in_progress`).
+Phase 42 - Code-Graph Provider Contract (`in_progress`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -56,9 +56,10 @@ outside its write set.
 - Phase 36 resolved and verified the exact native release candidate before project activation.
 - Phase 37 applies project/runtime changes transactionally, stages conflicts, and recovers interrupted updates; its focused transaction/recovery suites now pass.
 - Phase 38 separates human update authority from AI local repair and certifies Baron 3.4; the full certification gate has passed and `3.4.0` is the current stable source baseline.
-- Phases 39-41 produce Baron 3.5 by distilling selected Hallmark and Matt Pocock
-  techniques into existing Baron owners, with no second workflow or frontend
-  skill.
+- Phases 39-41 produced certified Baron 3.5 by distilling selected frontend,
+  deep-module, and domain-language techniques into existing Baron owners, with
+  no second workflow or frontend skill. Reconcile now restores missing managed
+  Domain Language documents without overwriting user content.
 - Phases 42-45 produce Baron 3.6 with an optional project-scoped Graphify
   code-only provider, bounded context, source verification, strict isolation,
   and Survey fallback.
@@ -77,21 +78,24 @@ outside its write set.
 6. Phase 40 completed: local deep-module guidance and project-scoped domain
    language now preserve user content, avoid generic memory leakage, and
    withhold divergent repo/Vault terms from trusted context.
-7. Begin Phase 41 with RED preservation/public-flow contracts. Do not add a
-   user command or a second workflow/architecture owner.
-8. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
+7. Phase 41 completed: local assets, narrow routing, adapter parity, user
+   preservation, public flow, and the Baron 3.5 source gate passed.
+8. Begin Phase 42 with RED provider-neutral code-graph cache, identity,
+   confidence, safety-bound, and Survey-fallback contracts. Do not invoke a
+   provider yet.
+9. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
    verified phase checkpoint.
-7. Do not begin the 3.5 or 3.6 plans before the preceding release is certified.
+10. Do not begin a later phase before the preceding phase has fresh evidence.
 
 ## Verified Baseline
 
 - Isolated branch: `codex/baron-3-4-to-3-6`.
 - Planning baseline commit: `b6e619b`.
 - Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
-- Source and stable-source version are now `3.4.0` after Phase 38’s full gate.
-- Baron 3.4 has Phases 35-38 evidence and source certification.
-- Baron 3.5 and 3.6 currently have design/plan evidence only.
-- The program has 7 planned phases remaining: 39 through 45.
+- Source and stable-source version are now `3.5.0` after Phase 41's full gate.
+- Baron 3.4 and 3.5 have source certification; no GitHub Release/tag was made.
+- Baron 3.6 has design/plan evidence only.
+- The program has 4 planned phases remaining: 42 through 45.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD
   semantic smoke, and visual-server behavior tests: passed on 2026-07-24.

@@ -4,15 +4,14 @@ Last updated: 2026-07-24
 
 ## Current Focus
 
-- Active phase: Phase 41 - Routing, Preservation, And Baron 3.5 Certification
+- Active phase: Phase 42 - Code-Graph Provider Contract
 - Status: `in_progress`
-- Verification: Baron 3.4 source certification passed: full workspace tests,
-  Clippy, locked release build, YAML lint, installer lifecycle, candidate and
-  transaction recovery fixtures, local-only reconcile, and release-binary
-  read-only smoke. `v3.4.0` is now the stable source baseline; no tag or GitHub
-  Release was created.
-- Next action: write and run Phase 41 RED preservation/public-flow contracts,
-  then complete the full Baron 3.5 certification gate.
+- Verification: Baron 3.5 source certification passed: full workspace tests,
+  Clippy, locked release build, adapter parity, local-only reconcile recovery,
+  custom-asset preservation, bounded context, and public-flow contracts.
+  `v3.5.0` is the stable source baseline; no tag or GitHub Release was created.
+- Next action: add the provider-neutral, project-scoped code-graph contract and
+  its RED cache/identity/confidence/fallback tests before accepting a provider.
 
 ## Baron 3.4 Contract
 
@@ -32,11 +31,11 @@ Last updated: 2026-07-24
 ## Program Queue
 
 - Baron 3.4, Phases 35-38: one runtime source and safe recoverable update.
-- Baron 3.5, Phases 39-41: Hallmark/Matt techniques distilled into existing
-  Baron owners, with no duplicate workflow.
+- Baron 3.5, Phases 39-41: certified local skill intelligence with no duplicate
+  workflow.
 - Baron 3.6, Phases 42-45: optional local project code map, source verification,
   strict isolation, and Survey fallback.
-- Total remaining planned phases: 5.
+- Total remaining planned phases: 4.
 
 ## Active Documents
 
@@ -57,9 +56,9 @@ Last updated: 2026-07-24
 ## Rules
 
 - Follow RED/GREEN TDD for every production behavior.
-- Keep Phase 35-38 evidence intact before 3.5 certification.
+- Keep Phase 35-41 evidence intact before 3.6 work.
 - Update the build log and status Markdown/JSON after every phase checkpoint.
 - Do not mark a phase complete from test intent; record fresh command evidence.
 - Keep the normal user command surface small.
-- Do not bump the source version before Phases 39-40 are green.
-- Do not start Phase 42 before Baron 3.5 certification.
+- Do not accept a graph provider before Phase 42 contract tests are green.
+- Do not start Phase 43 before Phase 42 contract evidence is recorded.

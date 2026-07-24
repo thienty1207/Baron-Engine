@@ -1,17 +1,17 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-07-24",
-  "stableRelease": "3.4.0",
+  "stableRelease": "3.5.0",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.5.0",
-  "targetReleaseCompletionPercent": 65,
+  "targetRelease": "3.6.0",
+  "targetReleaseCompletionPercent": 0,
   "programTargetRelease": "3.6.0",
-  "programCompletionPercent": 55,
-  "remainingPhaseCount": 5,
-  "currentPhase": "phase-41-routing-preservation-and-baron-3-5-certification",
+  "programCompletionPercent": 60,
+  "remainingPhaseCount": 4,
+  "currentPhase": "phase-42-code-graph-provider-contract",
   "currentPhaseStatus": "in_progress",
-  "nextAction": "Add RED preservation and public-flow contracts, then certify 3.5 without widening the normal user command surface.",
-  "buildConfidence": "Baron 3.4 is source-certified. The fresh full suite, Clippy, locked release binary, workflow-YAML, installer lifecycle, candidate/transaction/recovery fixtures, local-only reconcile, and release-binary read-only smoke all passed. A tag/GitHub Release remains explicit human promotion.",
+  "nextAction": "Add the provider-neutral project-scoped code-graph contract with cache, identity, confidence, safety bounds, and Survey fallback tests before accepting any local provider.",
+  "buildConfidence": "Baron 3.5 is source-certified. The fresh full suite, Clippy, locked release binary, adapter parity, local-only reconcile recovery, custom-asset preservation, bounded context, and public-flow contracts passed. A tag/GitHub Release remains explicit human promotion.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",
@@ -649,15 +649,15 @@
     {
       "id": 41,
       "name": "Routing Preservation And Baron 3.5 Certification",
-      "status": "in_progress",
+      "status": "completed",
       "release": "3.5.0",
       "targetReleaseWeightPercent": 35,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "Superpowers remains the sole workflow core and three quality agents remain unchanged",
         "optional skill routing stays narrow explainable and lazy",
-        "custom skills agents routing plans Harness records and Vault memory survive update",
-        "full workspace Clippy release adapter pressure and static ownership tests pass at 3.5.0"
+        "custom skills agents routing plans Harness records and Vault memory survive update and missing managed domain-language documents recover without overwriting user content",
+        "full workspace Clippy release adapter pressure static ownership and public-flow tests pass at 3.5.0"
       ]
     },
     {

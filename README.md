@@ -6,7 +6,7 @@ It turns an existing software repository into an agent-ready workspace for
 Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
-Current source version: `3.4.0`.
+Current source version: `3.5.0`.
 
 ## What Baron Does
 

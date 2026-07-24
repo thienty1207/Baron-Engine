@@ -241,6 +241,92 @@ fn automation_reconcile_from_nested_path_preserves_ambiguous_local_marker_conten
     assert!(agents.contains("\nstale\n"));
 }
 
+#[test]
+fn automation_reconcile_preserves_custom_routing_and_recovers_missing_domain_language() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "init",
+            repo.to_str().unwrap(),
+            "--codex",
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let context = vault_context_without_create(&vault, &repo).unwrap();
+    let repo_domain = repo.join("docs/baron/harness/DOMAIN_LANGUAGE.md");
+    let vault_domain = context
+        .project_root
+        .join("ProductHarness/DOMAIN_LANGUAGE.md");
+    let user_domain = "# Product Domain Language\n\n## Terms\n\n| Term | Meaning | Status | Evidence |\n| --- | --- | --- | --- |\n| Ledger | The settled payment record | verified | docs/ledger.md |\n";
+    write(&repo_domain, user_domain);
+    write(&vault_domain, user_domain);
+    write(
+        &repo.join(".codex/skills/custom-payments/SKILL.md"),
+        "---\nname: custom-payments\ndescription: Use for local payment rules.\n---\n",
+    );
+    write(
+        &repo.join(".codex/agents/payments-reviewer.toml"),
+        "name = \"payments-reviewer\"\n",
+    );
+    let skills_index = repo.join(".codex/skills/INDEX.md");
+    let agents_index = repo.join(".codex/agents/INDEX.md");
+    let skills = fs::read_to_string(&skills_index).unwrap();
+    fs::write(
+        &skills_index,
+        format!("{skills}\n- `custom-payments`: local payment routing.\n"),
+    )
+    .unwrap();
+    let agents = fs::read_to_string(&agents_index).unwrap();
+    fs::write(
+        &agents_index,
+        format!("{agents}\n- `payments-reviewer`: local payment review.\n"),
+    )
+    .unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["automation", "reconcile", repo.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&repo_domain).unwrap(), user_domain);
+    assert_eq!(fs::read_to_string(&vault_domain).unwrap(), user_domain);
+    assert!(repo
+        .join(".codex/skills/custom-payments/SKILL.md")
+        .is_file());
+    assert!(repo.join(".codex/agents/payments-reviewer.toml").is_file());
+    assert!(fs::read_to_string(&skills_index)
+        .unwrap()
+        .contains("custom-payments"));
+    assert!(fs::read_to_string(&agents_index)
+        .unwrap()
+        .contains("payments-reviewer"));
+
+    fs::remove_file(&repo_domain).unwrap();
+    fs::remove_file(&vault_domain).unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["automation", "reconcile", repo.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert!(repo_domain.is_file());
+    assert!(vault_domain.is_file());
+    assert!(repo
+        .join(".codex/skills/custom-payments/SKILL.md")
+        .is_file());
+    assert!(repo.join(".codex/agents/payments-reviewer.toml").is_file());
+}
+
 fn snapshot_files(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     fn collect(root: &Path, current: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
         let mut entries = fs::read_dir(current)

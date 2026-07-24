@@ -107,11 +107,11 @@ fn three_adapters_expand_fullstack_to_mobile_without_losing_custom_or_legacy_fil
 }
 
 #[test]
-fn release_binary_reports_3_4_0() {
+fn release_binary_reports_current_source_version() {
     Command::cargo_bin("baron")
         .unwrap()
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 3.4.0"));
+        .stdout(predicate::str::contains("baron 3.5.0"));
 }

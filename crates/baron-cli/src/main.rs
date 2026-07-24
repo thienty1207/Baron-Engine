@@ -2158,6 +2158,12 @@ fn run() -> Result<()> {
                 let automation_evidence_recorded = match execution_context(Some(repo_root.clone()))
                 {
                     Ok((_, vault)) => {
+                        // Reconcile is the local managed-refresh path. Restore only
+                        // missing Baron-owned support documents before recording the
+                        // checkpoint; each helper preserves user-written content.
+                        ensure_platform_intelligence(&repo_root, &config)?;
+                        ensure_architecture_governor(&repo_root, &config)?;
+                        ensure_harness_workspace(&repo_root, &vault)?;
                         record_lifecycle_event(
                             &vault,
                             hook_adapter_for_repo(&repo_root),
