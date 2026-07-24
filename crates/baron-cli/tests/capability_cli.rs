@@ -88,7 +88,9 @@ fn register_check_list_and_remove_work_from_nested_paths() {
         .args(["capability", "list"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("No providers registered"));
+        .stdout(predicate::str::contains("code-map"))
+        .stdout(predicate::str::contains("graphify-local"))
+        .stdout(predicate::str::contains("source-control").not());
 }
 
 #[test]
@@ -134,7 +136,11 @@ fn capability_check_and_list_have_machine_readable_json() {
         .unwrap();
     assert!(list.status.success());
     let registry: serde_json::Value = serde_json::from_slice(&list.stdout).unwrap();
-    assert_eq!(registry["providers"][0]["capability"], "security-scan");
+    assert!(registry["providers"]
+        .as_array()
+        .is_some_and(|providers| providers.iter().any(|provider| {
+            provider["capability"] == "security-scan" && provider["name"] == "security-skill"
+        })));
 }
 
 #[test]

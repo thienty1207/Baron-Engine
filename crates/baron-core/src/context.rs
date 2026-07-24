@@ -9,7 +9,7 @@ use crate::capability::{load_registry, render_capability_summary, render_runtime
 use crate::code_graph::render_optional_code_map_context;
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
 use crate::control_plane::validate_control_plane;
-use crate::domain_language::{ensure_domain_language, render_domain_language_context};
+use crate::domain_language::{read_domain_language, render_domain_language_context};
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
 use crate::memory::build_memory_index;
@@ -57,7 +57,7 @@ pub fn compile_context_for_task(
     let repo_path = repo_path.as_ref();
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
-    let domain_language = ensure_domain_language(repo_path, &vault)?;
+    let domain_language = read_domain_language(repo_path, &vault)?;
     if repo_path.join(".baron/project.toml").exists()
         || std::env::var_os("BARON_CODEX_SESSIONS_ROOT").is_some()
         || std::env::var_os("BARON_CLAUDE_SESSIONS_ROOT").is_some()
@@ -260,7 +260,7 @@ pub fn compile_context_why(
     let repo_path = repo_path.as_ref();
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
-    let domain_language = ensure_domain_language(repo_path, &vault)?;
+    let domain_language = read_domain_language(repo_path, &vault)?;
     let report = build_memory_index(&vault)?;
     let session_report = index_session_replay(&vault)?;
 

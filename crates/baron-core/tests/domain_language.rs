@@ -1,6 +1,8 @@
 use std::fs;
 
-use baron_core::domain_language::{ensure_domain_language, render_domain_language_context};
+use baron_core::domain_language::{
+    ensure_domain_language, read_domain_language, render_domain_language_context,
+};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -47,6 +49,25 @@ fn ensure_creates_project_scoped_domain_language_without_inventing_terms() {
     assert!(content.contains("# Product Domain Language"));
     assert!(content.contains("| Term | Meaning | Status | Evidence |"));
     assert!(!content.contains("workspace"));
+}
+
+#[test]
+fn read_only_status_does_not_create_domain_language_files() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("catalog");
+    let vault_root = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let vault = ensure_vault(&vault_root, &repo).unwrap();
+
+    let status = read_domain_language(&repo, &vault).unwrap();
+
+    assert_eq!(status.term_count, 0);
+    assert!(!status.mirror_in_sync);
+    assert!(!repo.join("docs/baron/harness/DOMAIN_LANGUAGE.md").exists());
+    assert!(!vault
+        .project_root
+        .join("ProductHarness/DOMAIN_LANGUAGE.md")
+        .exists());
 }
 
 #[test]

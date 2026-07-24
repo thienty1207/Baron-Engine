@@ -113,5 +113,5 @@ fn release_binary_reports_current_source_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 3.5.0"));
+        .stdout(predicate::str::contains("baron 3.6.0"));
 }

@@ -68,6 +68,42 @@ pub fn ensure_domain_language(
     })
 }
 
+/// Reads the mirrored domain-language state without creating project files.
+/// Context compilation uses this path so simply asking Baron for orientation
+/// cannot mutate an old repository. Creation and repair remain explicit
+/// initialization, Harness, or reconciliation responsibilities.
+pub fn read_domain_language(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+) -> Result<DomainLanguageStatus> {
+    let repo_path = repo_root.as_ref().join(DOMAIN_LANGUAGE_RELATIVE_PATH);
+    let vault_path = vault.project_root.join(VAULT_DOMAIN_LANGUAGE_RELATIVE_PATH);
+    let repo_content = read_optional(&repo_path)?;
+    let vault_content = read_optional(&vault_path)?;
+    let terms = repo_content
+        .as_deref()
+        .or(vault_content.as_deref())
+        .map(parse_terms)
+        .unwrap_or_default();
+    // A repository-owned file can safely inform a read-only context before its
+    // Vault mirror exists. Divergent dual copies remain withheld; a vault-only
+    // file is not copied back during context compilation.
+    let mirror_in_sync = match (&repo_content, &vault_content) {
+        (Some(repo), Some(vault)) => repo == vault,
+        (Some(_), None) => true,
+        _ => false,
+    };
+    Ok(DomainLanguageStatus {
+        path: repo_path,
+        term_count: terms.len(),
+        ambiguous_count: terms
+            .iter()
+            .filter(|term| term.status.eq_ignore_ascii_case("ambiguous"))
+            .count(),
+        mirror_in_sync,
+    })
+}
+
 pub fn render_domain_language_context(
     repo_root: impl AsRef<Path>,
     max_chars: usize,
@@ -146,6 +182,14 @@ fn copy_existing(source: &Path, destination: &Path) -> Result<()> {
     let content = fs::read_to_string(source)
         .with_context(|| format!("Could not read {}", source.display()))?;
     atomic_write(destination, &content)
+}
+
+fn read_optional(path: &Path) -> Result<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(content) => Ok(Some(content)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("Could not read {}", path.display())),
+    }
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<()> {

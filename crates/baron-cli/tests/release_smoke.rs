@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use assert_cmd::Command;
+use baron_core::code_graph::compute_code_source_fingerprint;
 use baron_core::vault::vault_context_without_create;
 use predicates::prelude::*;
 use tempfile::tempdir;
@@ -78,10 +79,15 @@ fn large_repository_survey_and_context_remain_bounded() {
         &repo.join("package.json"),
         "{\"scripts\":{\"build\":\"vite build\",\"test\":\"vitest\"}}\n",
     );
-    for index in 0..2_000 {
+    let extensions = ["ts", "rs", "go", "py"];
+    for index in 0..6_100 {
+        let extension = extensions[index % extensions.len()];
         write(
-            &repo.join(format!("src/modules/module-{index}.ts")),
-            &format!("export const value{index} = {index};\n"),
+            &repo.join(format!(
+                "legacy/{}/module-{index}.{extension}",
+                ["web", "service", "worker", "script"][index % 4]
+            )),
+            &format!("// legacy module {index}\nexport const value{index} = {index};\n"),
         );
     }
     for index in 0..500 {
@@ -90,6 +96,30 @@ fn large_repository_survey_and_context_remain_bounded() {
             "ignored\n",
         );
     }
+    for (directory, extension) in [
+        ("target", "rs"),
+        ("dist", "js"),
+        ("build", "js"),
+        (".next", "js"),
+    ] {
+        for index in 0..100 {
+            write(
+                &repo.join(format!("{directory}/ignored-{index}.{extension}")),
+                "ignored\n",
+            );
+        }
+    }
+
+    let before_fingerprint = compute_code_source_fingerprint(&repo).unwrap();
+    write(
+        &repo.join("legacy/service/module-6099.py"),
+        "# changed final legacy module\nvalue = 'changed with a longer source payload'\n",
+    );
+    let after_fingerprint = compute_code_source_fingerprint(&repo).unwrap();
+    assert_ne!(
+        before_fingerprint, after_fingerprint,
+        "fingerprint must include files after the first 6,000 entries"
+    );
 
     let survey = Command::cargo_bin("baron")
         .unwrap()
@@ -109,7 +139,7 @@ fn large_repository_survey_and_context_remain_bounded() {
             repo.to_str().unwrap(),
             "--codex",
             "--task",
-            "review frontend build",
+            "trace legacy cross-module architecture call flow",
             "--vault",
             vault.to_str().unwrap(),
         ])
@@ -119,6 +149,10 @@ fn large_repository_survey_and_context_remain_bounded() {
         .stdout
         .clone();
     assert!(context.len() < 120_000, "context output was not bounded");
+    let context = String::from_utf8(context).unwrap();
+    assert!(context.contains("## Project Atlas"));
+    assert!(context.contains("## Optional Code Map"));
+    assert!(context.contains("Survey remains active"));
 }
 
 #[test]

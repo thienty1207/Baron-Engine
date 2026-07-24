@@ -1,5 +1,6 @@
 #[cfg(windows)]
 mod windows {
+    use std::ffi::OsString;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
@@ -9,12 +10,51 @@ mod windows {
         code_graph_cache_root, load_code_graph_state, CodeGraphProvider, QueryLimits,
     };
     use baron_core::config::{initialize_project, AdapterKind};
+    use baron_core::context::{compile_context_for_task, ContextTarget};
     use baron_core::graphify::{
         GraphifyLimits, GraphifyProvider, AUDITED_GRAPHIFY_REVISION, SUPPORTED_GRAPHIFY_VERSION,
     };
     use tempfile::tempdir;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct TestEnvironment {
+        values: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl TestEnvironment {
+        fn capture() -> Self {
+            Self {
+                values: [
+                    "FAKE_GRAPHIFY_LOG",
+                    "FAKE_GRAPHIFY_MODE",
+                    "GRAPHIFY_API_KEY",
+                    "HOME",
+                    "USERPROFILE",
+                ]
+                .into_iter()
+                .map(|name| (name, std::env::var_os(name)))
+                .collect(),
+            }
+        }
+
+        fn use_local_home(&self, path: &Path) {
+            fs::create_dir_all(path).unwrap();
+            std::env::set_var("HOME", path);
+            std::env::set_var("USERPROFILE", path);
+        }
+    }
+
+    impl Drop for TestEnvironment {
+        fn drop(&mut self) {
+            for (name, value) in self.values.drain(..) {
+                match value {
+                    Some(value) => std::env::set_var(name, value),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
 
     fn write(path: &Path, content: &str) {
         if let Some(parent) = path.parent() {
@@ -49,9 +89,14 @@ mod windows {
         (temp, repo, vault)
     }
 
+    fn snapshot(path: &Path) -> Vec<u8> {
+        fs::read(path).unwrap()
+    }
+
     #[test]
     fn graphify_accepts_only_the_pinned_version_and_local_code_only_commands() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let _environment = TestEnvironment::capture();
         let (temp, repo, vault) = project();
         let log = temp.path().join("provider.log");
         std::env::set_var("FAKE_GRAPHIFY_LOG", &log);
@@ -114,7 +159,8 @@ mod windows {
     #[test]
     fn graphify_failures_keep_last_known_good_state_and_return_fallback_errors() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
-        let (_temp, repo, _vault) = project();
+        let _environment = TestEnvironment::capture();
+        let (_temp, repo, vault) = project();
         let cache = code_graph_cache_root(&repo).unwrap();
         std::env::remove_var("FAKE_GRAPHIFY_MODE");
         let provider = provider();
@@ -139,13 +185,30 @@ mod windows {
             let current = load_code_graph_state(&repo).unwrap().unwrap();
             assert_eq!(current.graph_sha256, original.graph_sha256, "mode {mode}");
         }
+        write(
+            &repo.join("src/lib.rs"),
+            "pub fn entry() { changed_legacy_implementation(); }\n",
+        );
+        let fallback = compile_context_for_task(
+            &repo,
+            &vault,
+            ContextTarget::Codex,
+            Some("trace entry ownership"),
+        )
+        .unwrap();
+        assert!(fallback.contains("## Project Atlas"));
+        assert!(fallback.contains("Local code map is stale"));
+        assert!(fallback.contains("Survey remains active"));
         std::env::remove_var("FAKE_GRAPHIFY_MODE");
     }
 
     #[test]
     fn missing_provider_is_optional_and_does_not_attempt_extraction() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
-        let (_temp, repo, _vault) = project();
+        let _environment = TestEnvironment::capture();
+        let (_temp, repo, vault) = project();
+        std::env::remove_var("FAKE_GRAPHIFY_MODE");
+        std::env::remove_var("FAKE_GRAPHIFY_LOG");
         let missing = GraphifyProvider::new("baron-definitely-missing-graphify");
         let probe = missing.probe(&repo).unwrap();
         assert!(!probe.present);
@@ -153,6 +216,74 @@ mod windows {
         let cache = code_graph_cache_root(&repo).unwrap();
         assert!(missing.refresh(&repo, &cache).is_err());
         assert!(!cache.exists());
+        let fallback = compile_context_for_task(
+            &repo,
+            &vault,
+            ContextTarget::Codex,
+            Some("trace entry ownership"),
+        )
+        .unwrap();
+        assert!(fallback.contains("## Project Atlas"));
+        assert!(fallback.contains("No local code map is ready"));
+        assert!(fallback.contains("Survey remains active"));
+    }
+
+    #[test]
+    fn graphify_refresh_and_query_only_change_the_project_local_cache() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let environment = TestEnvironment::capture();
+        let (temp, repo, vault) = project();
+        let local_home = temp.path().join("local-home");
+        let log = temp.path().join("provider.log");
+        let preserved = [
+            (".git/hooks/pre-commit", "#!/bin/sh\necho preserved\n"),
+            ("AGENTS.md", "# Local instructions\n\nPreserve this file.\n"),
+            (
+                "CLAUDE.md",
+                "# Local Claude instructions\n\nPreserve this file.\n",
+            ),
+            (".codex/hooks.json", "{\"hooks\":[\"preserve\"]}\n"),
+            (".claude/settings.json", "{\"settings\":\"preserve\"}\n"),
+        ];
+        for (relative, content) in &preserved {
+            write(&repo.join(relative), content);
+        }
+        let before = preserved
+            .iter()
+            .map(|(relative, _)| (relative.to_string(), snapshot(&repo.join(relative))))
+            .collect::<Vec<_>>();
+        assert!(!repo.join("graphify-out").exists());
+        assert!(!local_home.join(".graphify").exists());
+
+        environment.use_local_home(&local_home);
+        std::env::set_var("FAKE_GRAPHIFY_LOG", &log);
+        std::env::remove_var("FAKE_GRAPHIFY_MODE");
+
+        let provider = provider();
+        let cache = code_graph_cache_root(&repo).unwrap();
+        provider.refresh(&repo, &cache).unwrap();
+        provider
+            .query(
+                &repo,
+                &cache,
+                "trace entry ownership",
+                QueryLimits::default(),
+            )
+            .unwrap();
+
+        for (relative, expected) in before {
+            assert_eq!(snapshot(&repo.join(&relative)), expected, "{relative}");
+        }
+        assert!(!repo.join("graphify-out").exists());
+        assert!(!local_home.join(".graphify").exists());
+        assert!(cache.is_dir());
+        assert!(!cache.starts_with(&vault));
+        let log = fs::read_to_string(&log).unwrap();
+        assert!(!log.contains("hook"));
+        assert!(!log.contains("global"));
+        assert!(!log.contains(&vault.display().to_string()));
+
+        std::env::remove_var("FAKE_GRAPHIFY_LOG");
     }
 }
 

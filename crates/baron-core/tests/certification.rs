@@ -77,6 +77,10 @@ fn certification_proves_scale_isolation_and_cache_recovery() {
     assert!(report
         .checks
         .iter()
+        .any(|check| check.id == "optional-code-map-boundary" && check.passed));
+    assert!(report
+        .checks
+        .iter()
         .any(|check| check.id == "release-readiness" && check.passed));
     assert!(report
         .checks
@@ -98,5 +102,5 @@ fn certification_proves_scale_isolation_and_cache_recovery() {
 
     let status = latest_certification_status(&repo).unwrap();
     assert!(status.contains("latest certification passed"));
-    assert!(status.contains("3.3.0"));
+    assert!(status.contains("3.6.0"));
 }

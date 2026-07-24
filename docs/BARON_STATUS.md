@@ -4,7 +4,7 @@ Last updated: 2026-07-24
 
 ## Overall
 
-- Stable source release: `v3.5.0`
+- Stable source release: `v3.6.0`
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
@@ -13,18 +13,16 @@ Last updated: 2026-07-24
 - Program target release: `v3.6.0`
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
-- Baron 3.6 completion: 80%
-- Remaining planned phases: 1
-- Current phase: Phase 45 - Isolation, Scale, And Baron 3.6 Certification
-- Current phase status: in_progress
-- Current next action: certify same-name project isolation, old/large-repo
-  boundedness, adapter/custom-asset preservation, and the full Baron 3.6.0
-  release gate before changing the source version.
-- Build confidence: Baron 3.5 is source-certified. Phases 42-44 now add a
-  provider-neutral cache, deterministic exact-version local Graphify adapter,
-  bounded task routing, and source verification without startup blocking. A
-  tag/GitHub Release is still an explicit human promotion, not a side effect of
-  source certification.
+- Baron 3.6 completion: 100%
+- Remaining planned phases: 0
+- Current phase: Baron 3.6 source certification complete
+- Current phase status: completed
+- Current next action: no active engineering phase; a Git tag or GitHub Release
+  remains an explicit human-authorized promotion.
+- Build confidence: Baron 3.6 is source-certified. The optional local code map
+  is identity-bound and project-local, stays outside Vault memory, preserves
+  agent instructions and hooks, remains bounded on old/large repositories, and
+  falls back to Survey on every absence or failure.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -47,9 +45,9 @@ Last updated: 2026-07-24
   project isolation, a fallback, and automated proof before it can ship.
 - Full rationale: `docs/decisions/0002-extension-ownership-and-code-graph.md`.
 
-Phase 35 through Phase 41 are complete. The decisions above still do not add
-Graphify or alter the approved release order. Version `3.5.0` is the current
-source-certified baseline before the optional Baron 3.6 code-map work begins.
+Phase 35 through Phase 45 are complete. Baron 3.6 certifies the optional
+code-map boundary without altering the public command flow or the release
+promotion order. Version `3.6.0` is the current source-certified baseline.
 
 ## Baron 3.0 Direction
 
@@ -238,7 +236,7 @@ Baron 3.5 planned program:
 | --- | --- | --- | --- | --- |
 | 39 | Hallmark Frontend Distillation | completed | 35% | existing `frontend-design` gains local brief fingerprint, anti-template, responsive, and state proof without a second frontend owner |
 | 40 | Deep Modules And Product Domain Language | completed | 30% | non-overlapping deep-module guidance and project-owned domain language are bounded, source-grounded, and isolated |
-| 41 | Routing, Preservation, And Baron 3.5 Certification | in_progress | 35% | one workflow owner, three-adapter parity, lazy routing, custom preservation, behavior pressure tests, and version/docs synchronization |
+| 41 | Routing, Preservation, And Baron 3.5 Certification | completed | 35% | one workflow owner, three-adapter parity, lazy routing, custom preservation, behavior pressure tests, and version/docs synchronization |
 
 Baron 3.6 planned program:
 
@@ -247,7 +245,7 @@ Baron 3.6 planned program:
 | 42 | Code-Graph Provider Contract | completed | 25% | provider-neutral local graph model, explicit confidence, bounded output, project identity, rebuildable cache, and Survey fallback |
 | 43 | Graphify Local Code-Only Adapter | completed | 30% | exact-version local extraction/query, no installers/hooks/global memory, timeout/size guards, malformed-output fallback |
 | 44 | Automatic Bounded Context And Source Verification | completed | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
-| 45 | Isolation, Scale, And Baron 3.6 Certification | in_progress | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
+| 45 | Isolation, Scale, And Baron 3.6 Certification | completed | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
 
 Phase 16-17 final verification:
 
@@ -805,13 +803,15 @@ Phase 34 final verification:
 
 ### Phase 45 - Isolation, Scale, And Baron 3.6 Certification
 
-- [ ] Prove same-name repositories cannot share graph state.
-- [ ] Prove large and ten-year repository fixtures stay bounded and recover from
-  stale/corrupt caches.
-- [ ] Prove custom assets and all three adapters survive update.
-- [ ] Run full workspace, Clippy, release build, installer, Vault, adapter, and
+- [x] Prove same-name repositories cannot share graph state or graph-derived
+  memory.
+- [x] Prove large and ten-year repository fixtures stay bounded and recover from
+  stale/corrupt caches through Survey fallback.
+- [x] Prove custom assets and all three adapters survive update without any
+  Graphify instruction, hook, or root-output mutation.
+- [x] Run full workspace, Clippy, release build, installer, Vault, adapter, and
   old-repository smoke verification.
-- [ ] Bump source/lock/docs to `3.6.0` only after all Phase 42-44 evidence passes.
+- [x] Bump source/lock/docs to `3.6.0` only after all Phase 42-44 evidence passes.
 
 Phase 28-31 final verification:
 
@@ -895,18 +895,29 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.5.0` remains the stable source baseline. Phases 42-45 are planned in
-strict release order: optional local code-map contract, local provider adapter,
-bounded source verification, then isolation/scale certification. The next
-implementation must first prove the provider-neutral cache and fallback
-contract; it must not jump directly to provider invocation, networking, global
-graphs, or semantic backends. Each release gets fresh certification and an
-independent version gate. A binary GitHub Release remains an explicit promotion
-step, not an automatic side effect. The engine deepens project understanding,
-platform expertise, safe architectural growth, frontend design quality,
-reviewer closure, and recovery while preserving the simple user command flow,
-Vault data safety, Superpowers workflow ownership, the three core quality
-gates, bounded context, and evidence-backed completion.
+Baron `3.6.0` is the stable source baseline. Phases 42-45 completed in strict
+release order: provider-neutral local cache, exact local-only adapter, bounded
+source verification, then isolation/scale certification. Graphify remains
+optional: it cannot install anything, change hooks/instructions, write Vault
+memory, create global state, or block Baron Survey. Each release still needs
+fresh certification and an independent version gate. A binary GitHub Release
+remains an explicit promotion step, not an automatic side effect. The engine
+keeps the simple user command flow, Vault data safety, Superpowers workflow
+ownership, the three core quality gates, bounded context, and evidence-backed
+completion.
+
+## Baron 3.6 Final Verification
+
+- same-name project graph/cache isolation: passed
+- Vault memory exclusion and cache deletion isolation: passed
+- 6,100+ mixed-language legacy repository survey/context bound: passed
+- missing, incompatible, failed, stale, malformed, timed-out, and oversized
+  provider fallback: passed
+- hook/instruction/root-output/home-location preservation: passed
+- full workspace tests, Clippy, locked release build, release-binary version,
+  and diff validation: passed
+- source certification: `docs/assessment/baron-3.6.0-code-graph-certification.md`
+- Git tag/GitHub Release: not created; remains human-authorized
 
 Phase 18-20 final verification:
 

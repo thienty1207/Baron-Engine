@@ -6,6 +6,8 @@ use assert_cmd::cargo::cargo_bin;
 use baron_core::release::{sha256_file, supported_release_target};
 use tempfile::tempdir;
 
+const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -36,7 +38,7 @@ fn current_target() -> &'static str {
 
 fn package_current_binary(source_dir: &Path) -> PathBuf {
     let target = supported_release_target(current_target()).unwrap();
-    let archive = source_dir.join(target.archive_name("3.3.0"));
+    let archive = source_dir.join(target.archive_name(CURRENT_VERSION));
     let binary = cargo_bin("baron");
 
     #[cfg(target_os = "windows")]
@@ -74,7 +76,7 @@ fn package_current_binary(source_dir: &Path) -> PathBuf {
     }
 
     let checksum = sha256_file(&archive).unwrap();
-    let raw_candidate = source_dir.join(target.update_candidate_name("3.3.0"));
+    let raw_candidate = source_dir.join(target.update_candidate_name(CURRENT_VERSION));
     fs::copy(&binary, &raw_candidate).unwrap();
     let raw_candidate_checksum = sha256_file(&raw_candidate).unwrap();
     fs::write(
@@ -156,7 +158,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "-Action",
                 action,
                 "-Version",
-                "3.3.0",
+                CURRENT_VERSION,
                 "-InstallDir",
                 install.to_str().unwrap(),
                 "-SourceDirectory",
@@ -176,7 +178,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "--action",
                 action,
                 "--version",
-                "3.3.0",
+                CURRENT_VERSION,
                 "--install-dir",
                 install.to_str().unwrap(),
                 "--source-dir",
@@ -222,13 +224,13 @@ fn powershell_installer_makes_baron_available_in_the_current_session() {
 $oldUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 try {{
     $env:Path = ($env:Path -split ';' | Where-Object {{ $_ -ne '{install}' }}) -join ';'
-    & '{installer}' -Action install -Version 3.3.0 -InstallDir '{install}' -SourceDirectory '{source}' -StateDirectory '{state}'
+    & '{installer}' -Action install -Version {version} -InstallDir '{install}' -SourceDirectory '{source}' -StateDirectory '{state}'
     $command = Get-Command baron -ErrorAction Stop
     if ($command.Source -ne '{expected}') {{
         throw "baron resolved to '$($command.Source)' instead of '{expected}'"
     }}
     $version = (baron --version | Out-String).Trim()
-    if ($version -ne 'baron 3.3.0') {{
+    if ($version -ne 'baron {version}') {{
         throw "unexpected version: $version"
     }}
 }} finally {{
@@ -248,6 +250,7 @@ try {{
             .display()
             .to_string()
             .replace('\'', "''"),
+        version = CURRENT_VERSION,
     );
 
     let output = ProcessCommand::new("powershell")

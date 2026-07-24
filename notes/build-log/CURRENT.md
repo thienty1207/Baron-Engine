@@ -6,7 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Phase 45 - Isolation, Scale, And Baron 3.6 Certification (`in_progress`).
+Baron 3.6 source certification (`completed`).
 
 ## Verified Checkpoint Before Phase 35
 
@@ -60,9 +60,9 @@ outside its write set.
   deep-module, and domain-language techniques into existing Baron owners, with
   no second workflow or frontend skill. Reconcile now restores missing managed
   Domain Language documents without overwriting user content.
-- Phases 42-45 produce Baron 3.6 with an optional project-scoped Graphify
+- Phases 42-45 produced Baron 3.6 with an optional project-scoped Graphify
   code-only provider, bounded context, source verification, strict isolation,
-  and Survey fallback.
+  and Survey fallback. The source baseline is now `3.6.0`.
 
 ## Resume Point
 
@@ -91,21 +91,24 @@ outside its write set.
    most eight local hints, and routes AI to hidden refresh/query only when
    needed. Every graph result is checked against current repo source; inferred
    results remain advisory.
-11. Begin Phase 45 with isolation/scale/fallback verification and Baron 3.6.0
-   release certification. Do not bump version before all release evidence passes.
-12. Update status Markdown/JSON, `CURRENT.md`, and a dated build log after every
-   verified phase checkpoint.
-13. Do not begin a later phase before the preceding phase has fresh evidence.
+11. Phase 45 completed: same-name graph isolation, Vault exclusion, stale and
+   corrupt fallback, 6,100+ source fingerprint coverage, and hook/instruction
+   preservation passed.
+12. Baron 3.6 source/docs/lock/certification are synchronized. Read
+   `docs/assessment/baron-3.6.0-code-graph-certification.md` before any later
+   code-map change.
+13. No active implementation phase remains. Do not create a tag or GitHub
+   Release without explicit human authorization.
 
 ## Verified Baseline
 
 - Isolated branch: `codex/baron-3-4-to-3-6`.
 - Planning baseline commit: `b6e619b`.
 - Baseline `cargo test --workspace --all-targets`: passed on 2026-07-23.
-- Source and stable-source version are now `3.5.0` after Phase 41's full gate.
+- Source and stable-source version are now `3.6.0` after Phase 45's full gate.
 - Baron 3.4 and 3.5 have source certification; no GitHub Release/tag was made.
-- Baron 3.6 Phases 42-44 have focused source/test evidence; Phase 45 remains.
-- The program has 1 planned phase remaining: 45.
+- Baron 3.6 Phases 42-45 have complete source/test evidence.
+- The program has 0 planned phases remaining.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD
   semantic smoke, and visual-server behavior tests: passed on 2026-07-24.

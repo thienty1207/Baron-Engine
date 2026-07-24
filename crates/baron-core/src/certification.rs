@@ -6,6 +6,7 @@ use chrono::{SecondsFormat, Utc};
 use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 
+use crate::code_graph::{code_graph_cache_root, render_optional_code_map_context};
 use crate::firewall::recall;
 use crate::memory::{build_memory_index, load_memory_records};
 use crate::release::SUPPORTED_RELEASE_TARGETS;
@@ -16,7 +17,7 @@ use crate::{
     capability::{default_adapter, runtime_backend_report},
 };
 
-const TARGET_RELEASE: &str = "3.5.0";
+const TARGET_RELEASE: &str = "3.6.0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -82,6 +83,7 @@ pub fn run_certification(
         check_cache_rebuild(&context)?,
         check_shared_vault_firewall(&context)?,
         check_context_budget(&context)?,
+        check_optional_code_map_boundary(&repo_root, &context)?,
         check_automation_state(&repo_root)?,
         check_autopilot_readiness(&repo_root, &context)?,
         check_runtime_backend_policy(&repo_root)?,
@@ -293,6 +295,33 @@ fn check_context_budget(context: &VaultContext) -> Result<CertificationCheck> {
         passed: brief.len() <= budget,
         summary: format!("Memory firewall brief is {} bytes.", brief.len()),
         details: vec![format!("Budget bytes: {budget}")],
+    })
+}
+
+fn check_optional_code_map_boundary(
+    repo_root: &Path,
+    context: &VaultContext,
+) -> Result<CertificationCheck> {
+    let cache_root = code_graph_cache_root(repo_root)?;
+    let rendered = render_optional_code_map_context(
+        repo_root,
+        Some("trace cross-module architecture ownership"),
+    )?;
+    let cache_is_project_local =
+        cache_root.starts_with(repo_root) && !cache_root.starts_with(&context.vault_root);
+    let survey_fallback_is_visible =
+        rendered.contains("## Optional Code Map") && rendered.contains("Survey remains active");
+    Ok(CertificationCheck {
+        id: "optional-code-map-boundary".to_string(),
+        name: "Optional local code-map boundary".to_string(),
+        passed: cache_is_project_local && survey_fallback_is_visible,
+        summary: "Optional code-map cache stays project-local and missing graph data leaves Survey orientation active.".to_string(),
+        details: vec![
+            format!("Project cache: {}", cache_root.display()),
+            format!("Vault root: {}", context.vault_root.display()),
+            format!("Project-local cache: {}", if cache_is_project_local { "yes" } else { "no" }),
+            format!("Survey fallback visible: {}", if survey_fallback_is_visible { "yes" } else { "no" }),
+        ],
     })
 }
 

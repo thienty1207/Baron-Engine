@@ -9,7 +9,7 @@ use baron_core::release::{
 use predicates::prelude::*;
 use tempfile::tempdir;
 
-const RELEASE_VERSION: &str = "3.4.1";
+const RELEASE_VERSION: &str = "3.6.1";
 const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
 
 fn current_target() -> &'static str {
