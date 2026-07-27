@@ -6,7 +6,7 @@ Program target: Baron 3.6.0
 
 ## Current Phase
 
-Baron 3.6 final public release (`in_progress`).
+Baron 3.6 final public release (`completed`).
 
 ## Final Release Checkpoint
 
@@ -14,9 +14,9 @@ Baron 3.6 final public release (`in_progress`).
   Release after asking for a reinstall-ready README.
 - README now provides a one-block Windows installer, a strict `baron 3.6.0`
   version check, Vault restore guidance, and project refresh guidance.
-- `docs/BARON_STATUS.md` now has a visible final-release checklist. The source
-  candidate is complete; GitHub native builds, immutable tag/assets, and
-  `releases/latest` smoke remain unchecked until GitHub proves them.
+- `docs/BARON_STATUS.md` has a visible final-release checklist. It is checked
+  only after GitHub native builds, immutable tag/assets, and `releases/latest`
+  smoke have completed.
 - Fresh pre-publish verification passed: `cargo fmt --all -- --check`,
   `cargo test --workspace --all-targets --no-fail-fast`,
   `cargo clippy --workspace --all-targets -- -D warnings`,
@@ -74,10 +74,19 @@ Baron 3.6 final public release (`in_progress`).
 - Repaired source commit `36413199d39c547664d1a2500e8a4444219d858e` is now
   pushed to `origin/main`. The next immutable promotion derives its exact source
   SHA from the current remote branch instead of using copied text.
-- Next action: dispatch `release.yml` from that derived SHA, wait for all native
-  jobs, then run
-  a Windows latest-installer smoke before marking final release checkboxes
-  complete.
+- Final public proof: GitHub Actions run `30246729740` passed exact-source
+  verification, Windows, Linux, macOS Intel, macOS Apple Silicon, and immutable
+  promotion. Tag `v3.6.0` resolves to
+  `c89486694d9a4431e04106274d0c9f997db42683`; the release contains native
+  archives, `SHA256SUMS`, `release-manifest.json`, `install.ps1`, and
+  `install.sh`.
+- Public Windows smoke: downloaded `install.ps1` from `releases/latest` into a
+  new temporary directory, installed with `-Version 3.6.0 -NoPathUpdate`, then
+  verified `baron 3.6.0`, `setup --vault`, `init --codex --fullstack`, and
+  `context` in a fresh project.
+- No release action remains. For a Windows reinstall, follow the short README
+  flow: restore the Vault and project folders, install from `releases/latest`,
+  run `baron setup --vault`, then run `baron update` in each project.
 
 ## Verified Checkpoint Before Phase 35
 
@@ -168,8 +177,8 @@ outside its write set.
 12. Baron 3.6 source/docs/lock/certification are synchronized. Read
    `docs/assessment/baron-3.6.0-code-graph-certification.md` before any later
    code-map change.
-13. No active implementation phase remains. Do not create a tag or GitHub
-   Release without explicit human authorization.
+13. `v3.6.0` is publicly released after immutable GitHub proof. No active
+   implementation or release action remains.
 
 ## Verified Baseline
 
@@ -179,6 +188,8 @@ outside its write set.
 - Source and stable-source version are now `3.6.0` after Phase 45's full gate.
 - Baron 3.4 and 3.5 have source certification; no GitHub Release/tag was made.
 - Baron 3.6 Phases 42-45 have complete source/test evidence.
+- Baron `v3.6.0` is the latest downloadable release, built and promoted by
+  GitHub Actions run `30246729740`.
 - The program has 0 planned phases remaining.
 - Superpowers `v6.2.0` adapter contract: passed on 2026-07-24.
 - Full post-refresh workspace tests, Clippy, release build, adapter smoke, SDD

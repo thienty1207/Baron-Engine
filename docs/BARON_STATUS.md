@@ -5,7 +5,7 @@ Last updated: 2026-07-27
 ## Overall
 
 - Stable source release: `v3.6.0`
-- Latest downloadable release: pending immutable promotion of `v3.6.0`
+- Latest downloadable release: [`v3.6.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.6.0)
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
@@ -17,14 +17,16 @@ Last updated: 2026-07-27
 - Baron 3.6 completion: 100%
 - Remaining planned phases: 0
 - Current phase: Baron 3.6 final public release
-- Current phase status: in_progress
-- Current next action: rerun immutable GitHub Release promotion from the exact
-  pushed source revision, then verify `releases/latest` on Windows.
-- Build confidence: Baron 3.6 is source-certified. The final local gate passed
-  format, full tests, Clippy, locked release build, workflow YAML, status JSON,
-  and a release-binary Vault/Codex/fullstack certification smoke. GitHub native
-  builds remain the required cross-platform release proof. The optional local
-  code map is identity-bound and project-local, stays outside Vault memory,
+- Current phase status: completed
+- Current next action: no release action is pending; normal users can install
+  `v3.6.0` from the README and run `baron update` in initialized projects.
+- Build confidence: Baron 3.6 is public-release certified. GitHub Actions run
+  [`30246729740`](https://github.com/thienty1207/Baron-Engine/actions/runs/30246729740)
+  passed exact-source verification plus Windows, Linux, macOS Intel, and macOS
+  Apple Silicon native builds before immutable promotion. A fresh Windows smoke
+  installed directly from `releases/latest`, returned `baron 3.6.0`, then
+  passed `setup`, `init --codex --fullstack`, and `context`. The optional local
+  code map remains identity-bound and project-local, stays outside Vault memory,
   preserves agent instructions and hooks, remains bounded on old/large
   repositories, and falls back to Survey on every absence or failure.
 
@@ -51,11 +53,12 @@ Last updated: 2026-07-27
 - [x] The repaired source candidate has passed local checks and is pushed to
   `origin/main`; immutable promotion will derive its exact SHA from the current
   remote branch rather than copied text.
-- [ ] GitHub Actions has built all four native targets from that exact source.
-- [ ] GitHub has created immutable tag `v3.6.0` and Release assets with
-  checksums and installers.
-- [ ] `releases/latest` downloads `3.6.0` and the Windows install/setup/init
-  smoke has passed.
+- [x] GitHub Actions run `30246729740` built all four native targets from exact
+  source `c89486694d9a4431e04106274d0c9f997db42683`.
+- [x] GitHub created immutable tag `v3.6.0` and Release assets with checksums,
+  Windows and Unix installers, plus native archives.
+- [x] `releases/latest` downloaded `3.6.0`; a fresh Windows install/setup/init
+  and context smoke passed from the public installer.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 

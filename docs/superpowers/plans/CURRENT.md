@@ -5,14 +5,15 @@ Last updated: 2026-07-27
 ## Current Focus
 
 - Active phase: Baron 3.6 final public release
-- Status: `in_progress`
+- Status: `completed`
 - Verification: same-name project isolation, Vault memory exclusion, 6,100+
   mixed-language legacy repository bounds, failure fallback, hook/instruction
-  preservation, full workspace tests, Clippy, locked release build, and release
-  binary version passed locally. The first immutable promotion correctly stopped
-  before creating a tag because Ubuntu found an uncompiled Unix-only branch.
-- Next action: derive the exact current `origin/main` SHA, rerun immutable
-  promotion from it, and verify the installer from `releases/latest`.
+  preservation, full workspace tests, Clippy, locked release build, release
+  binary smoke, and public installer smoke passed. GitHub Actions run
+  `30246729740` passed exact-source verification and all four native targets
+  before immutable promotion to `v3.6.0`.
+- Next action: no active release work. Follow the README install/reinstall flow
+  for new or restored Windows machines.
 
 ## Release Repair Checkpoint
 
@@ -42,6 +43,11 @@ Last updated: 2026-07-27
   certification smoke also passed. A Windows-to-Linux cross-check cannot
   complete on this machine because `x86_64-linux-gnu-gcc` is not installed; the
   required GitHub Ubuntu build remains the authoritative cross-platform proof.
+- Final release evidence: GitHub run `30246729740` passed Ubuntu verification,
+  Windows, Linux, macOS Intel, macOS Apple Silicon, and immutable promotion.
+  Tag `v3.6.0` resolves to `c89486694d9a4431e04106274d0c9f997db42683`; a fresh
+  Windows install from `releases/latest` returned `baron 3.6.0` and passed
+  `setup`, `init --codex --fullstack`, and `context`.
 
 ## Baron 3.4 Contract
 

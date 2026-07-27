@@ -6,9 +6,9 @@ It turns an existing software repository into an agent-ready workspace for
 Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
-Current source version: `3.6.0`.
+Current public release: [`v3.6.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.6.0).
 
-> **Download check:** the official final download for this source is
+> **Download check:** the official final download is
 > `v3.6.0`. After installation, `baron --version` must print
 > `baron 3.6.0`. If it prints a different version, stop there and refresh the
 > [Releases page](https://github.com/thienty1207/Baron-Engine/releases) before

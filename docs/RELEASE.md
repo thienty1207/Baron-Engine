@@ -176,11 +176,12 @@ release mirror.
 
 ## Maintainer Release Contract
 
-A release starts from an exact 40-character commit SHA already pushed as the
-current `origin/main`. No release tag exists yet. The workflow checks that the
-requested version matches Cargo, runs formatting, the full workspace tests and
-Clippy, then builds and smokes every native target. The final promotion job
-assembles all four archives and runs:
+A new release starts from an exact 40-character commit SHA already pushed as
+the current `origin/main`. Before dispatch, the target tag and GitHub Release
+must not already exist. The workflow checks that the requested version matches
+Cargo, runs formatting, the full workspace tests and Clippy, then builds and
+smokes every native target. The final promotion job assembles all four archives
+and runs:
 
 ```bash
 baron release metadata release-assets --release-version 3.6.0 --source-revision <40-character-git-sha>
