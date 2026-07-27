@@ -12,8 +12,8 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-3-6-final-public-release",
   "currentPhaseStatus": "in_progress",
-  "nextAction": "Push the repaired cross-platform 3.6.0 candidate, rerun immutable promotion from its exact source revision, then verify releases/latest on Windows.",
-  "buildConfidence": "Baron 3.6 is source-certified. The repaired Unix runtime activation and update-fixture checks passed the local regression, full test, Clippy, locked release-build, and release-profile Vault/project smoke gates; GitHub native builds remain the required cross-platform release proof. Its optional local code map is project-local, identity-bound, Vault-excluded, bounded on old/large repositories, and Survey-backed on every failure.",
+  "nextAction": "Push the locally verified cross-platform 3.6.0 candidate, rerun immutable promotion from its exact source revision, then verify releases/latest on Windows.",
+  "buildConfidence": "Baron 3.6 is source-certified. The fourth immutable promotion passed the Ubuntu test suite but stopped at three Unix Clippy owners: an empty Unix test and two Windows-only runtime owners. The empty test is removed and the runtime owners are now platform-scoped. The final local gate passed format, full tests, Clippy, locked release build, workflow YAML, status JSON, and a release-binary Vault/Codex/fullstack certification smoke; GitHub native builds remain the required cross-platform release proof. Its optional local code map is project-local, identity-bound, Vault-excluded, bounded on old/large repositories, and Survey-backed on every failure.",
   "completionDefinition": [
     "survey and shadow mode support old repositories",
     "Vault Markdown is the source of truth",

@@ -18,13 +18,16 @@ Last updated: 2026-07-27
 - Remaining planned phases: 0
 - Current phase: Baron 3.6 final public release
 - Current phase status: in_progress
-- Current next action: push the repaired cross-platform candidate, rerun the
-  immutable GitHub Release promotion from its exact source revision, then
+- Current next action: push the locally verified cross-platform candidate,
+  rerun immutable GitHub Release promotion from its exact source revision, then
   verify `releases/latest` on Windows.
-- Build confidence: Baron 3.6 is source-certified. The optional local code map
-  is identity-bound and project-local, stays outside Vault memory, preserves
-  agent instructions and hooks, remains bounded on old/large repositories, and
-  falls back to Survey on every absence or failure.
+- Build confidence: Baron 3.6 is source-certified. The final local gate passed
+  format, full tests, Clippy, locked release build, workflow YAML, status JSON,
+  and a release-binary Vault/Codex/fullstack certification smoke. GitHub native
+  builds remain the required cross-platform release proof. The optional local
+  code map is identity-bound and project-local, stays outside Vault memory,
+  preserves agent instructions and hooks, remains bounded on old/large
+  repositories, and falls back to Survey on every absence or failure.
 
 ## Baron 3.6 Final Public Release Checklist
 
@@ -40,6 +43,10 @@ Last updated: 2026-07-27
 - [x] The third attempt also stopped before tagging when the Unix update
   transaction fixture copied an oversized patched debug binary; it now stages a
   bounded wrapper around the patched backing binary.
+- [x] The fourth attempt passed the Ubuntu test suite, then stopped before
+  tagging when Clippy found three Windows-only lint owners in Unix compilation;
+  the empty Unix test was removed and the two Windows-only runtime owners are
+  now explicitly platform-scoped.
 - [x] All repair passes have passed the local full test, Clippy, locked
   release-build, YAML, and release-profile Vault/project smoke gates.
 - [ ] The repaired exact source candidate has passed local checks and is pushed

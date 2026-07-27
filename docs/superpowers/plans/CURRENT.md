@@ -11,8 +11,7 @@ Last updated: 2026-07-27
   preservation, full workspace tests, Clippy, locked release build, and release
   binary version passed locally. The first immutable promotion correctly stopped
   before creating a tag because Ubuntu found an uncompiled Unix-only branch.
-- Next action: run the exact-version activation regression test and broad local
-  release checks, push the repaired source candidate, then rerun the immutable
+- Next action: push the locally verified source candidate, then rerun immutable
   promotion and verify the installer from `releases/latest`.
 
 ## Release Repair Checkpoint
@@ -32,8 +31,14 @@ Last updated: 2026-07-27
   with a patched debug binary. It now stages a bounded wrapper which delegates
   to the patched backing binary, preserving the verified-candidate protocol
   without weakening the production size boundary.
+- Fourth promotion result: GitHub Ubuntu passed the complete test suite, then
+  Clippy stopped before tag creation because an empty Unix-only test and two
+  Windows-only runtime owners were compiled on Linux. The placeholder test is
+  removed and the runtime-only state path/helper are now explicitly scoped to
+  Windows; no production release safety boundary was relaxed.
 - Local evidence: the targeted regression, full workspace suite, Clippy, and
-  locked release build passed. A release-binary Vault/Codex/fullstack
+  locked release build passed again after the fourth repair. Workflow YAML and
+  status JSON validation also passed. A release-binary Vault/Codex/fullstack
   certification smoke also passed. A Windows-to-Linux cross-check cannot
   complete on this machine because `x86_64-linux-gnu-gcc` is not installed; the
   required GitHub Ubuntu build remains the authoritative cross-platform proof.

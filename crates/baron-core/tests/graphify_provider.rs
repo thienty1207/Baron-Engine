@@ -286,9 +286,3 @@ mod windows {
         std::env::remove_var("FAKE_GRAPHIFY_LOG");
     }
 }
-
-#[cfg(not(windows))]
-#[test]
-fn graphify_provider_fixture_is_windows_specific_but_core_remains_portable() {
-    assert!(true);
-}

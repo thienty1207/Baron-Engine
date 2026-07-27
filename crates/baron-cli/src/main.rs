@@ -975,6 +975,7 @@ fn run() -> Result<()> {
                 }
             }
             if finalize_update {
+                #[cfg(target_os = "windows")]
                 let state_path = transaction
                     .context("Baron delayed finalizer requires --transaction <state-path>.")?;
                 #[cfg(target_os = "windows")]
@@ -1035,7 +1036,7 @@ fn run() -> Result<()> {
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
-                    let _ = parent_pid;
+                    let _ = (parent_pid, transaction);
                     bail!("The delayed Baron finalizer is supported only on Windows");
                 }
             } else if candidate_plan {

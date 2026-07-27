@@ -58,7 +58,20 @@ Baron 3.6 final public release (`in_progress`).
   candidate protocol and the real production size ceiling. The complete local
   test suite, Clippy, locked release build, and workflow YAML gate passed after
   the complete fixture audit.
-- Next action: run the full local release gate, push the repaired candidate,
+- The fourth immutable promotion run `30245849879` passed its complete Ubuntu
+  test suite, then stopped before tag creation during Clippy. The error set was
+  limited to an empty Unix-only placeholder test plus two Windows-only runtime
+  owners compiled on Linux. The placeholder test is removed and the runtime
+  state path/helper are now explicitly Windows-scoped; the release workflow and
+  every production safety ceiling remain unchanged.
+- Fresh fourth-repair local evidence passed: `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --no-fail-fast --quiet`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo build --release --locked -p baron-cli`, workflow YAML lint, status JSON
+  parsing, and a release binary `setup --vault`, `init --codex --fullstack`,
+  `certify run --profile release`, and `--version` smoke. The smoke returned
+  `baron 3.6.0` and passed every release certification check.
+- Next action: push the repaired candidate,
   dispatch `release.yml` with its exact SHA, wait for all native jobs, then run
   a Windows latest-installer smoke before marking final release checkboxes
   complete.

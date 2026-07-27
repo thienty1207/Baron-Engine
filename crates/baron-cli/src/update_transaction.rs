@@ -458,6 +458,7 @@ pub fn candidate_for_transaction(
     })
 }
 
+#[cfg(target_os = "windows")]
 pub fn runtime_binary_for_transaction(
     repo_root: &Path,
     state_path: &Path,
