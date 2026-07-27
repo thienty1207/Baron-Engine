@@ -11,8 +11,8 @@ Last updated: 2026-07-27
   preservation, full workspace tests, Clippy, locked release build, and release
   binary version passed locally. The first immutable promotion correctly stopped
   before creating a tag because Ubuntu found an uncompiled Unix-only branch.
-- Next action: push the locally verified source candidate, then rerun immutable
-  promotion and verify the installer from `releases/latest`.
+- Next action: derive the exact current `origin/main` SHA, rerun immutable
+  promotion from it, and verify the installer from `releases/latest`.
 
 ## Release Repair Checkpoint
 

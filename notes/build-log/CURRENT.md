@@ -71,8 +71,11 @@ Baron 3.6 final public release (`in_progress`).
   parsing, and a release binary `setup --vault`, `init --codex --fullstack`,
   `certify run --profile release`, and `--version` smoke. The smoke returned
   `baron 3.6.0` and passed every release certification check.
-- Next action: push the repaired candidate,
-  dispatch `release.yml` with its exact SHA, wait for all native jobs, then run
+- Repaired source commit `36413199d39c547664d1a2500e8a4444219d858e` is now
+  pushed to `origin/main`. The next immutable promotion derives its exact source
+  SHA from the current remote branch instead of using copied text.
+- Next action: dispatch `release.yml` from that derived SHA, wait for all native
+  jobs, then run
   a Windows latest-installer smoke before marking final release checkboxes
   complete.
 
