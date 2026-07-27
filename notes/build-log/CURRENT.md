@@ -48,6 +48,16 @@ Baron 3.6 final public release (`in_progress`).
   a tiny executable Unix wrapper that delegates to the running test binary;
   production candidate limits remain enforced. The fresh full suite, Clippy,
   locked release build, and workflow YAML check passed after this fixture fix.
+- An incorrect-SHA dispatch `30245161318` was cancelled before any build or
+  promotion after its mismatch was detected. The next dispatch always derives
+  `source_revision` directly from `origin/main`, not from copied text.
+- The third immutable promotion run `30245233369` also stopped before any tag,
+  native artifact, or GitHub Release. The remaining Unix update-transaction
+  fixture staged an oversized patched debug binary. It now stages a bounded
+  wrapper that delegates to the patched backing binary, preserving the expected
+  candidate protocol and the real production size ceiling. The complete local
+  test suite, Clippy, locked release build, and workflow YAML gate passed after
+  the complete fixture audit.
 - Next action: run the full local release gate, push the repaired candidate,
   dispatch `release.yml` with its exact SHA, wait for all native jobs, then run
   a Windows latest-installer smoke before marking final release checkboxes

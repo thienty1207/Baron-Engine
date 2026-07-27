@@ -37,8 +37,11 @@ Last updated: 2026-07-27
 - [x] The second attempt also stopped before tagging when the Unix self-update
   test fixture copied an oversized debug binary; the fixture now uses a bounded
   wrapper while the production download limit remains unchanged.
-- [x] Both repairs have passed the local full test, Clippy, locked release-build,
-  YAML, and release-profile Vault/project smoke gates.
+- [x] The third attempt also stopped before tagging when the Unix update
+  transaction fixture copied an oversized patched debug binary; it now stages a
+  bounded wrapper around the patched backing binary.
+- [x] All repair passes have passed the local full test, Clippy, locked
+  release-build, YAML, and release-profile Vault/project smoke gates.
 - [ ] The repaired exact source candidate has passed local checks and is pushed
   to `origin/main`.
 - [ ] GitHub Actions has built all four native targets from that exact source.

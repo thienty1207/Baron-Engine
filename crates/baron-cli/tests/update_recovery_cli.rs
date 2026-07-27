@@ -84,6 +84,11 @@ fn patched_upgrade_binary(source: &Path, destination: &Path, from: &str, to: &st
     fs::set_permissions(destination, fs::metadata(source).unwrap().permissions()).unwrap();
 }
 
+fn unix_candidate_delegate_script(backing_binary: &Path) -> String {
+    let binary = backing_binary.to_string_lossy().replace('\'', "'\"'\"'");
+    format!("#!/bin/sh\nexec '{binary}' \"$@\"\n")
+}
+
 fn write_upgrade_fixture(
     release: &Path,
     running_binary: &Path,
@@ -98,7 +103,16 @@ fn write_upgrade_fixture(
         .unwrap();
         let candidate = release.join(target.update_candidate_name(version));
         if target.triple == current_target() {
+            #[cfg(target_os = "windows")]
             patched_upgrade_binary(running_binary, &candidate, running_version, version);
+            #[cfg(not(target_os = "windows"))]
+            {
+                // The staged candidate obeys the production size limit while the
+                // patched backing binary preserves the candidate protocol behavior.
+                let backing = release.join(format!("candidate-runtime-{}", target.triple));
+                patched_upgrade_binary(running_binary, &backing, running_version, version);
+                fs::write(candidate, unix_candidate_delegate_script(&backing)).unwrap();
+            }
         } else {
             fs::write(candidate, format!("other-target:{}", target.triple)).unwrap();
         }
@@ -321,5 +335,13 @@ fn public_update_keeps_a_pending_conflict_staged_without_project_or_vault_writes
         serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&state_path).unwrap())
             .unwrap()["status"],
         "conflict"
+    );
+}
+
+#[test]
+fn unix_candidate_delegate_script_escapes_paths_and_forwards_arguments() {
+    assert_eq!(
+        unix_candidate_delegate_script(Path::new("/tmp/Baron's candidate")),
+        "#!/bin/sh\nexec '/tmp/Baron'\"'\"'s candidate' \"$@\"\n"
     );
 }

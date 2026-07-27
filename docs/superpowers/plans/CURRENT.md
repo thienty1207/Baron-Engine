@@ -28,6 +28,10 @@ Last updated: 2026-07-27
   before the intended version-mismatch assertion could run. The test now uses
   a bounded executable wrapper on Unix; production candidate-size limits are
   unchanged.
+- Final fixture audit: the Unix update-transaction fixture had the same issue
+  with a patched debug binary. It now stages a bounded wrapper which delegates
+  to the patched backing binary, preserving the verified-candidate protocol
+  without weakening the production size boundary.
 - Local evidence: the targeted regression, full workspace suite, Clippy, and
   locked release build passed. A release-binary Vault/Codex/fullstack
   certification smoke also passed. A Windows-to-Linux cross-check cannot
