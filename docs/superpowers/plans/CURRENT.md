@@ -9,10 +9,25 @@ Last updated: 2026-07-27
 - Verification: same-name project isolation, Vault memory exclusion, 6,100+
   mixed-language legacy repository bounds, failure fallback, hook/instruction
   preservation, full workspace tests, Clippy, locked release build, and release
-  binary version all passed. `v3.6.0` is the stable source baseline.
-- Next action: the user explicitly authorized the immutable GitHub Release for
-  `v3.6.0`. Publish only the exact source revision after the documentation
-  candidate is pushed, then verify the installer from `releases/latest`.
+  binary version passed locally. The first immutable promotion correctly stopped
+  before creating a tag because Ubuntu found an uncompiled Unix-only branch.
+- Next action: run the exact-version activation regression test and broad local
+  release checks, push the repaired source candidate, then rerun the immutable
+  promotion and verify the installer from `releases/latest`.
+
+## Release Repair Checkpoint
+
+- Root cause: the Unix-only runtime activation call used
+  `CandidateBinaryInspector::reported_version` without putting the trait in
+  scope. GitHub Ubuntu caught this before promotion; Windows did not compile
+  the Unix-only branch.
+- Repair: one shared exact-version helper is now called by the Unix activation
+  branch, with a RED/GREEN test for accepted and rejected runtime versions.
+- Local evidence: the targeted regression, full workspace suite, Clippy, and
+  locked release build passed. A release-binary Vault/Codex/fullstack
+  certification smoke also passed. A Windows-to-Linux cross-check cannot
+  complete on this machine because `x86_64-linux-gnu-gcc` is not installed; the
+  required GitHub Ubuntu build remains the authoritative cross-platform proof.
 
 ## Baron 3.4 Contract
 

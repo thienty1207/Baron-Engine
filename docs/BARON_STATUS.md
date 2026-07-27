@@ -18,8 +18,9 @@ Last updated: 2026-07-27
 - Remaining planned phases: 0
 - Current phase: Baron 3.6 final public release
 - Current phase status: in_progress
-- Current next action: run the immutable GitHub Release promotion for the
-  exact `v3.6.0` source revision, then verify `releases/latest` on Windows.
+- Current next action: push the repaired cross-platform candidate, rerun the
+  immutable GitHub Release promotion from its exact source revision, then
+  verify `releases/latest` on Windows.
 - Build confidence: Baron 3.6 is source-certified. The optional local code map
   is identity-bound and project-local, stays outside Vault memory, preserves
   agent instructions and hooks, remains bounded on old/large repositories, and
@@ -31,7 +32,13 @@ Last updated: 2026-07-27
   certification agree on `3.6.0`.
 - [x] README includes the Windows reinstall, Vault restore, project refresh,
   and exact-version check a normal user needs.
-- [x] The exact source candidate is pushed to `origin/main`.
+- [x] The initial source candidate was pushed and GitHub Actions stopped before
+  tagging when Ubuntu found a cross-platform compile error.
+- [x] The repair has a RED/GREEN exact-runtime-version regression test and has
+  passed the local full test, Clippy, locked release-build, and release-profile
+  Vault/project smoke gates.
+- [ ] The repaired exact source candidate has passed local checks and is pushed
+  to `origin/main`.
 - [ ] GitHub Actions has built all four native targets from that exact source.
 - [ ] GitHub has created immutable tag `v3.6.0` and Release assets with
   checksums and installers.

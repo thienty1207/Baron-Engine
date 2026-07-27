@@ -1,10 +1,11 @@
 use std::ffi::OsString;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod self_update;
 mod update_transaction;
 
+use crate::self_update::CandidateBinaryInspector;
 use anyhow::{bail, Context, Result};
 use baron_adapters::{
     install_adapter, managed_payloads_for_adapter, plan_managed_update,
@@ -1126,16 +1127,11 @@ fn run() -> Result<()> {
                             "Baron runtime activation failed; project activation was rolled back",
                         ));
                     }
-                    let verification = self_update::ProcessBinaryInspector
-                        .reported_version(&installed_binary)
-                        .and_then(|reported| {
-                            let expected = format!("baron {}", candidate.version);
-                            if reported == expected {
-                                Ok(())
-                            } else {
-                                bail!("Activated Baron runtime reported `{reported}`; expected `{expected}`")
-                            }
-                        });
+                    let verification = verify_activated_runtime_version(
+                        &self_update::ProcessBinaryInspector,
+                        &installed_binary,
+                        &candidate.version,
+                    );
                     if let Err(error) = verification {
                         let _ = self_update::rollback_unix_handoff(&handoff);
                         let _ = update_transaction::recover_transaction(
@@ -2478,6 +2474,21 @@ fn render_safe_update_preview(
     output
 }
 
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+fn verify_activated_runtime_version(
+    inspector: &dyn CandidateBinaryInspector,
+    installed_binary: &Path,
+    candidate_version: &str,
+) -> Result<()> {
+    let reported = inspector.reported_version(installed_binary)?;
+    let expected = format!("baron {candidate_version}");
+    if reported == expected {
+        Ok(())
+    } else {
+        bail!("Activated Baron runtime reported `{reported}`; expected `{expected}`")
+    }
+}
+
 fn update_disposition_label(disposition: UpdateDisposition) -> &'static str {
     match disposition {
         UpdateDisposition::TakeUpstream => "take_upstream",
@@ -3153,4 +3164,35 @@ fn render_memory_index(
         report.global_verified_records,
         report.global_candidate_records
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use anyhow::Result;
+
+    use super::self_update::CandidateBinaryInspector;
+    use super::verify_activated_runtime_version;
+
+    struct StaticInspector(&'static str);
+
+    impl CandidateBinaryInspector for StaticInspector {
+        fn reported_version(&self, _candidate_path: &Path) -> Result<String> {
+            Ok(self.0.to_string())
+        }
+    }
+
+    #[test]
+    fn activated_runtime_requires_the_exact_release_version() {
+        let accepted = StaticInspector("baron 3.6.0");
+        assert!(verify_activated_runtime_version(&accepted, Path::new("baron"), "3.6.0").is_ok());
+
+        let rejected = StaticInspector("baron 3.5.0");
+        let error = verify_activated_runtime_version(&rejected, Path::new("baron"), "3.6.0")
+            .expect_err("a mismatched activated runtime must be rejected");
+        assert!(error
+            .to_string()
+            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 3.6.0`"));
+    }
 }

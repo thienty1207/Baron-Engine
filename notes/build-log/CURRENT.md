@@ -23,9 +23,28 @@ Baron 3.6 final public release (`in_progress`).
   `cargo build --release --locked -p baron-cli`, YAML lint for
   `.github/workflows/release.yml`, and a release-profile Vault/project
   certification smoke using `baron 3.6.0`.
-- Next action: push the documentation candidate, dispatch `release.yml` with
-  the exact pushed SHA, wait for all native jobs, then run a Windows latest
-  installer smoke before marking final release checkboxes complete.
+- The initial immutable promotion run `30243740873` stopped in its Ubuntu
+  verification job before any native build, tag, or GitHub Release was made.
+  The error was a missing `CandidateBinaryInspector` trait import in an
+  Unix-only runtime-activation branch. Windows local verification did not
+  compile that branch, which is why the failure first appeared in GitHub.
+- A RED/GREEN regression test now covers exact activated-runtime version
+  matching. The repair moves that check into one shared helper so both the
+  trait contract and the mismatch rejection are compiled on every platform.
+- Fresh repair evidence: the exact-version regression, full workspace suite,
+  Clippy, and `cargo build --release --locked -p baron-cli` passed. A local
+  `x86_64-unknown-linux-gnu` cross-check is blocked only because this Windows
+  machine lacks `x86_64-linux-gnu-gcc` for `ring` and bundled SQLite; it is not
+  accepted as Linux proof. GitHub Ubuntu must compile the repaired exact source
+  before Baron can create a tag or release.
+- The repaired release binary completed a fresh `setup --vault`,
+  `init --codex --fullstack`, and `certify run --profile release` smoke. It
+  produced the expected Vault, Codex adapter, project configuration, and all
+  release certification checks passed.
+- Next action: run the full local release gate, push the repaired candidate,
+  dispatch `release.yml` with its exact SHA, wait for all native jobs, then run
+  a Windows latest-installer smoke before marking final release checkboxes
+  complete.
 
 ## Verified Checkpoint Before Phase 35
 
