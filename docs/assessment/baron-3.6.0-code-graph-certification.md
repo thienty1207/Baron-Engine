@@ -76,5 +76,6 @@ project-local Baron cache changes.
 
 ## Release Boundary
 
-Source `3.6.0` is not a Git tag or GitHub Release. A release promotion remains
-a human-authorized action after the verified source commit is pushed.
+This source certification does not itself create a Git tag or GitHub Release.
+The immutable promotion happens only after the verified source commit is
+pushed and the four native builds, checksums, and installer lifecycle pass.

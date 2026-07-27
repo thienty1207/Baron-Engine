@@ -8,6 +8,12 @@ learn a long command list.
 
 Current source version: `3.6.0`.
 
+> **Download check:** the official final download for this source is
+> `v3.6.0`. After installation, `baron --version` must print
+> `baron 3.6.0`. If it prints a different version, stop there and refresh the
+> [Releases page](https://github.com/thienty1207/Baron-Engine/releases) before
+> initializing a project.
+
 ## What Baron Does
 
 Baron helps an AI answer the questions that matter before it edits code:
@@ -97,6 +103,34 @@ binary after the current process exits; the command reports that plainly.
 If Baron 3.3 or an older version is already installed, use the installer once
 to cross the 3.4 update boundary. The short recovery instructions are in
 [docs/RELEASE.md](docs/RELEASE.md).
+
+## Reinstall Windows Safely
+
+Before reinstalling Windows, copy these two things somewhere safe:
+
+- your Vault folder, for example `D:\work\AgentMemory`
+- every project folder that uses Baron, including its hidden `.baron` folder
+
+After Windows is installed again, restore those folders, then follow this
+short sequence:
+
+1. Run the Windows install block above and confirm `baron --version` prints
+   `baron 3.6.0`.
+2. Reconnect the restored Vault:
+
+   ```powershell
+   baron setup --vault "D:\work\AgentMemory"
+   ```
+
+3. In each restored Baron project, run:
+
+   ```powershell
+   baron update
+   ```
+
+That restores Baron itself, reconnects its long-term memory, and refreshes
+only Baron-managed project files. It does not erase the project code or Vault
+memory.
 
 ## What The AI Runs Automatically
 

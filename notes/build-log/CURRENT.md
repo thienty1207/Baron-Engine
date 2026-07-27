@@ -1,12 +1,31 @@
 # Current Build Note
 
-Date: 2026-07-24
+Date: 2026-07-27
 Target: Baron 3.6.0
 Program target: Baron 3.6.0
 
 ## Current Phase
 
-Baron 3.6 source certification (`completed`).
+Baron 3.6 final public release (`in_progress`).
+
+## Final Release Checkpoint
+
+- The user explicitly authorized publishing the immutable `v3.6.0` GitHub
+  Release after asking for a reinstall-ready README.
+- README now provides a one-block Windows installer, a strict `baron 3.6.0`
+  version check, Vault restore guidance, and project refresh guidance.
+- `docs/BARON_STATUS.md` now has a visible final-release checklist. The source
+  candidate is complete; GitHub native builds, immutable tag/assets, and
+  `releases/latest` smoke remain unchecked until GitHub proves them.
+- Fresh pre-publish verification passed: `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --no-fail-fast`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo build --release --locked -p baron-cli`, YAML lint for
+  `.github/workflows/release.yml`, and a release-profile Vault/project
+  certification smoke using `baron 3.6.0`.
+- Next action: push the documentation candidate, dispatch `release.yml` with
+  the exact pushed SHA, wait for all native jobs, then run a Windows latest
+  installer smoke before marking final release checkboxes complete.
 
 ## Verified Checkpoint Before Phase 35
 

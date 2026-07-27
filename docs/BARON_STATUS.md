@@ -1,10 +1,11 @@
 # Baron Build Status
 
-Last updated: 2026-07-24
+Last updated: 2026-07-27
 
 ## Overall
 
 - Stable source release: `v3.6.0`
+- Latest downloadable release: pending immutable promotion of `v3.6.0`
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
@@ -15,14 +16,27 @@ Last updated: 2026-07-24
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
 - Remaining planned phases: 0
-- Current phase: Baron 3.6 source certification complete
-- Current phase status: completed
-- Current next action: no active engineering phase; a Git tag or GitHub Release
-  remains an explicit human-authorized promotion.
+- Current phase: Baron 3.6 final public release
+- Current phase status: in_progress
+- Current next action: run the immutable GitHub Release promotion for the
+  exact `v3.6.0` source revision, then verify `releases/latest` on Windows.
 - Build confidence: Baron 3.6 is source-certified. The optional local code map
   is identity-bound and project-local, stays outside Vault memory, preserves
   agent instructions and hooks, remains bounded on old/large repositories, and
   falls back to Survey on every absence or failure.
+
+## Baron 3.6 Final Public Release Checklist
+
+- [x] Source, lockfile, tests, README, release guide, status files, and
+  certification agree on `3.6.0`.
+- [x] README includes the Windows reinstall, Vault restore, project refresh,
+  and exact-version check a normal user needs.
+- [x] The exact source candidate is pushed to `origin/main`.
+- [ ] GitHub Actions has built all four native targets from that exact source.
+- [ ] GitHub has created immutable tag `v3.6.0` and Release assets with
+  checksums and installers.
+- [ ] `releases/latest` downloads `3.6.0` and the Windows install/setup/init
+  smoke has passed.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 

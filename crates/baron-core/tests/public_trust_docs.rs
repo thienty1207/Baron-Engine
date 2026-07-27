@@ -181,7 +181,7 @@ fn baron_3_6_certification_records_optional_code_map_boundaries() {
         "code-only extraction",
         "same_name_projects_keep_graphs_local_and_out_of_vault_memory",
         "large_repository_survey_and_context_remain_bounded",
-        "Source `3.6.0` is not a Git tag or GitHub Release.",
+        "This source certification does not itself create a Git tag or GitHub Release.",
     ] {
         assert!(
             certification.contains(required),

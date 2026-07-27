@@ -1,17 +1,18 @@
 # Current Baron Build Plan
 
-Last updated: 2026-07-24
+Last updated: 2026-07-27
 
 ## Current Focus
 
-- Active phase: Baron 3.6 source certification
-- Status: `completed`
+- Active phase: Baron 3.6 final public release
+- Status: `in_progress`
 - Verification: same-name project isolation, Vault memory exclusion, 6,100+
   mixed-language legacy repository bounds, failure fallback, hook/instruction
   preservation, full workspace tests, Clippy, locked release build, and release
   binary version all passed. `v3.6.0` is the stable source baseline.
-- Next action: no active engineering phase. Do not create a tag or GitHub
-  Release unless a human explicitly authorizes release promotion.
+- Next action: the user explicitly authorized the immutable GitHub Release for
+  `v3.6.0`. Publish only the exact source revision after the documentation
+  candidate is pushed, then verify the installer from `releases/latest`.
 
 ## Baron 3.4 Contract
 
