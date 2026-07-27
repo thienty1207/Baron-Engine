@@ -41,6 +41,13 @@ Baron 3.6 final public release (`in_progress`).
   `init --codex --fullstack`, and `certify run --profile release` smoke. It
   produced the expected Vault, Codex adapter, project configuration, and all
   release certification checks passed.
+- The second immutable promotion run `30244634765` also stopped before any
+  tag, native artifact, or GitHub Release. Its Linux-only self-update fixture
+  copied a debug binary larger than the real 128 MB candidate ceiling, so the
+  fixture failed before its intended version-mismatch assertion. The fix uses
+  a tiny executable Unix wrapper that delegates to the running test binary;
+  production candidate limits remain enforced. The fresh full suite, Clippy,
+  locked release build, and workflow YAML check passed after this fixture fix.
 - Next action: run the full local release gate, push the repaired candidate,
   dispatch `release.yml` with its exact SHA, wait for all native jobs, then run
   a Windows latest-installer smoke before marking final release checkboxes

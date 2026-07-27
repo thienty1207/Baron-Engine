@@ -61,7 +61,13 @@ fn write_release_fixture(release: &Path, running_binary: &Path) {
         .unwrap();
         let candidate = release.join(target.update_candidate_name(RELEASE_VERSION));
         if target.triple == current_target() {
+            #[cfg(target_os = "windows")]
             fs::copy(running_binary, candidate).unwrap();
+            #[cfg(not(target_os = "windows"))]
+            {
+                let binary = running_binary.to_string_lossy().replace('\'', "'\"'\"'");
+                fs::write(candidate, format!("#!/bin/sh\nexec '{binary}' \"$@\"\n")).unwrap();
+            }
         } else {
             fs::write(candidate, format!("other-target:{}", target.triple)).unwrap();
         }

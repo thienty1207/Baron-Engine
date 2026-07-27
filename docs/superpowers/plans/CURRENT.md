@@ -23,6 +23,11 @@ Last updated: 2026-07-27
   the Unix-only branch.
 - Repair: one shared exact-version helper is now called by the Unix activation
   branch, with a RED/GREEN test for accepted and rejected runtime versions.
+- Follow-up root cause: the Linux self-update integration test copied its debug
+  binary as a fake candidate. That binary exceeded the real 128 MB safety cap
+  before the intended version-mismatch assertion could run. The test now uses
+  a bounded executable wrapper on Unix; production candidate-size limits are
+  unchanged.
 - Local evidence: the targeted regression, full workspace suite, Clippy, and
   locked release build passed. A release-binary Vault/Codex/fullstack
   certification smoke also passed. A Windows-to-Linux cross-check cannot

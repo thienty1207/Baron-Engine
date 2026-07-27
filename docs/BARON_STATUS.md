@@ -34,9 +34,11 @@ Last updated: 2026-07-27
   and exact-version check a normal user needs.
 - [x] The initial source candidate was pushed and GitHub Actions stopped before
   tagging when Ubuntu found a cross-platform compile error.
-- [x] The repair has a RED/GREEN exact-runtime-version regression test and has
-  passed the local full test, Clippy, locked release-build, and release-profile
-  Vault/project smoke gates.
+- [x] The second attempt also stopped before tagging when the Unix self-update
+  test fixture copied an oversized debug binary; the fixture now uses a bounded
+  wrapper while the production download limit remains unchanged.
+- [x] Both repairs have passed the local full test, Clippy, locked release-build,
+  YAML, and release-profile Vault/project smoke gates.
 - [ ] The repaired exact source candidate has passed local checks and is pushed
   to `origin/main`.
 - [ ] GitHub Actions has built all four native targets from that exact source.
