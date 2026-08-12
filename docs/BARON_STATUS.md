@@ -4,7 +4,7 @@ Last updated: 2026-08-12
 
 ## Overall
 
-- Stable source release: `v3.7.0` (Baron 3.8 candidate is being promoted)
+- Stable source release: `v3.8.0` (source candidate; public promotion pending)
 - Latest downloadable release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0)
 - Candidate source version: `3.8.0`; native/public promotion pending
 - Baron 2.0 completion: 100%
