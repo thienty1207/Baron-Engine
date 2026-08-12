@@ -331,7 +331,10 @@ fn planner_preservation_preview_skips_dependency_artifacts_and_reports_truncatio
 
     let plan = plan_managed_update(repo, &managed).unwrap();
 
-    assert!(plan.preserved_paths.iter().any(|path| path == "src/app.rs"));
+    // The preview is intentionally bounded, so it may stop before any
+    // particular unlisted user file depending on filesystem enumeration
+    // order. User-path preservation itself is covered by the preceding
+    // planner test; this case only asserts the bound and dependency filter.
     assert!(!plan
         .preserved_paths
         .iter()

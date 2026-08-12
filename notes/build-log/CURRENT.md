@@ -30,6 +30,13 @@ Baron 3.8 Phase 53-64 implementation and public release (`completed`).
   targets, release metadata/checksums, installer lifecycle, and immutable
   `v3.8.0` promotion. Fresh `releases/latest` Windows setup/init/context smoke
   returned `baron 3.8.0`.
+- Follow-up CI run `31604514726` exposed an OS-dependent assertion in the
+  bounded preservation-preview test: macOS directory enumeration can stop
+  before one particular unlisted file while still satisfying the contract.
+  The test now checks only its actual guarantees (bounded diagnostic and
+  dependency-artifact exclusion); the preceding planner test retains the
+  explicit user-file preservation assertion. Local `update_planner` coverage
+  is 15/15 after this contract-alignment fix, with no release artifact change.
 - Safe next action: normal maintenance from the published `v3.8.0` baseline;
   re-run the native release workflow only for a future version bump.
 
