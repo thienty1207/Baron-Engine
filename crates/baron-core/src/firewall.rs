@@ -46,7 +46,13 @@ pub fn recall(context: &VaultContext, query: &str, limit: usize) -> Result<Recal
         let path_score = lexical_overlap(&query_tokens, &tokenize(&path_text));
         let record_concepts = concepts(&format!("{excerpt_text} {title_text} {path_text}"));
         let concept_score = query_concepts.intersection(&record_concepts).count();
-        if lexical_score == 0 && title_score == 0 && path_score == 0 && concept_score == 0 {
+        let hybrid_score = semantic_overlap(&query_text, &format!("{excerpt_text} {title_text}"));
+        if lexical_score == 0
+            && title_score == 0
+            && path_score == 0
+            && concept_score == 0
+            && hybrid_score == 0
+        {
             continue;
         }
 
@@ -65,14 +71,20 @@ pub fn recall(context: &VaultContext, query: &str, limit: usize) -> Result<Recal
             continue;
         }
 
-        let mut score =
-            (lexical_score * 12 + title_score * 6 + path_score * 3 + concept_score * 30) as i64;
+        let mut score = (lexical_score * 12
+            + title_score * 6
+            + path_score * 3
+            + concept_score * 30
+            + hybrid_score * 4) as i64;
         let mut notes = Vec::new();
         if lexical_score > 0 {
             notes.push(format!("lexical:{lexical_score}"));
         }
         if concept_score > 0 {
             notes.push(format!("concept:{concept_score}"));
+        }
+        if hybrid_score > 0 {
+            notes.push(format!("hybrid:{hybrid_score}"));
         }
         if is_current_project {
             score += 1000;
@@ -303,6 +315,31 @@ fn explicit_cross_project_match(
 
 fn lexical_overlap(query_tokens: &BTreeSet<String>, record_tokens: &BTreeSet<String>) -> usize {
     query_tokens.intersection(record_tokens).count()
+}
+
+/// Deterministic offline semantic approximation used by Baron 3.8 hybrid
+/// recall. Character trigrams improve matching for inflected Vietnamese words
+/// and identifier-heavy coding queries without requiring an embedding service.
+fn semantic_overlap(query: &str, text: &str) -> usize {
+    let query_grams = ngrams(query, 3);
+    let text_grams = ngrams(text, 3);
+    query_grams.intersection(&text_grams).count().min(32)
+}
+
+fn ngrams(value: &str, width: usize) -> BTreeSet<String> {
+    let compact = value
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    if compact.chars().count() < width {
+        return BTreeSet::new();
+    }
+    compact
+        .chars()
+        .collect::<Vec<_>>()
+        .windows(width)
+        .map(|window| window.iter().collect::<String>())
+        .collect()
 }
 
 fn tokenize(value: &str) -> BTreeSet<String> {

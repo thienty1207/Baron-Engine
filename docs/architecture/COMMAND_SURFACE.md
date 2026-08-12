@@ -387,3 +387,27 @@ Baron 2.0 release hardening keeps the hidden maintainer release metadata
 commands from Phase 8 and adds the public certification gate above. A release
 claim is not trusted unless `baron certify run`, full tests, Clippy, release
 metadata verification, and installer lifecycle tests pass.
+
+## Baron 3.8 Knowledge
+
+```bash
+baron memory resume [repo-path] --vault <vault-path> [--task "<task>"] [--json]
+baron wiki index [repo-path]
+baron wiki search "<query>" [repo-path] [--limit <n>]
+baron wiki status [repo-path]
+baron knowledge resume [repo-path] --vault <vault-path> [--task "<task>"] [--json]
+baron knowledge benchmark [repo-path] --vault <vault-path> [--task "<task>"] [--json]
+baron knowledge codegraph-index [repo-path]
+baron knowledge codegraph-query "<query>" [repo-path] [--limit <n>] [--json]
+```
+
+These are hidden AI-facing commands. Resume output is bounded and project-ID
+isolated. Wiki and local CodeGraph write only disposable `.baron/cache/` JSON;
+they never replace Vault Markdown or current repository source. Missing,
+stale, corrupt, unsupported, or oversized derived data degrades to lexical
+recall or Survey instead of blocking normal coding or satisfying proof.
+
+The optional reverse skills are routed by `baron control-plane route` only for
+binary, APK/mobile, malware, or firmware analysis. They are static/read-only by
+default and do not add a router, case lifecycle, global bootstrap, or quality
+gate.

@@ -6,11 +6,11 @@ It turns an existing software repository into an agent-ready workspace for
 Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
-Current source version: `3.7.0`.
-Current public release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0).
+Current source version: `3.8.0`.
+Current public release: [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0).
 
 > **Download check:** install only when [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-> resolves to `v3.7.0` and `baron --version` prints `baron 3.7.0`. If it prints a
+> resolves to `v3.8.0` and `baron --version` prints `baron 3.8.0`. If it prints a
 > different version, stop there and refresh the
 > [Releases page](https://github.com/thienty1207/Baron-Engine/releases) before
 > initializing a project.
@@ -34,6 +34,23 @@ actionable recovery point so a failed or interrupted session can resume
 without guessing. Baron 3.3 also separates inspection from authorized changes,
 refuses incoherent project/Vault identity, and rechecks completion against real
 proof instead of trusting edited status text. The normal user flow stays small.
+
+Baron 3.8 adds a durable coding-memory layer for long-running work:
+
+- a bounded Resume Brief that tells a fresh agent the current objective,
+  checkpoint, decisions, blocker, proof state, affected files, unknowns, and
+  next safe action;
+- deterministic hybrid recall that works locally without a paid embedding API;
+- incremental project Wiki citations and a disposable local CodeGraph for
+  architecture/impact questions;
+- project-ID isolation, secret redaction, stale/inferred labels, cache rebuild,
+  and recovery rules across those knowledge surfaces;
+- repaired `vibe-security-scan` guidance plus three narrow optional defensive
+  reverse packs for binary, APK/mobile, and malware triage. They are static,
+  read-only, lazy-loaded, and never auto-install tools or execute samples.
+
+The normal user still needs only install, Vault setup, adapter/platform init, and
+`baron update`. AI adapters use the advanced knowledge commands automatically.
 
 ## Quick Start
 
@@ -116,7 +133,7 @@ After Windows is installed again, restore those folders, then follow this
 short sequence:
 
 1. Run the Windows install block above and confirm `baron --version` prints
-   the public version shown at the top of this README (`baron 3.7.0`).
+   the public version shown at the top of this README (`baron 3.8.0`).
 2. Reconnect the restored Vault:
 
    ```powershell
@@ -132,6 +149,20 @@ short sequence:
 That restores Baron itself, reconnects its long-term memory, and refreshes
 only Baron-managed project files. It does not erase the project code or Vault
 memory.
+
+## Baron 3.8 Continuity And Knowledge
+
+Baron 3.8 automatically gives a newly opened AI agent a small, project-bound
+Resume Brief with the current work, decisions, evidence, blocker, affected
+files, and next safe action. It also provides cited Wiki lookup and a disposable
+local CodeGraph for impact hints. These views stay bounded, redact common
+secrets, and rebuild from repository/Vault source; they never become a second
+source of truth. If an optional provider or cache is missing, Baron degrades to
+the local Survey and lexical path without blocking normal coding.
+
+The complete advanced command surface is kept in
+[docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md),
+so the main README remains a short install and recovery guide for users.
 
 ## What The AI Runs Automatically
 

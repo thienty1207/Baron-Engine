@@ -1,26 +1,26 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-08-12",
-  "stableRelease": "3.7.0",
+  "stableRelease": "3.8.0",
   "downloadableRelease": "3.7.0",
-  "candidateSourceVersion": "3.7.0",
-  "releasePromotionStatus": "completed",
+  "candidateSourceVersion": "3.8.0",
+  "releasePromotionStatus": "candidate-pending-public-workflow",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.7.0",
+  "targetRelease": "3.8.0",
   "targetReleaseCompletionPercent": 100,
-  "programTargetRelease": "3.7.0",
+  "programTargetRelease": "3.8.0",
   "programCompletionPercent": 100,
   "remainingPhaseCount": 0,
-  "currentPhase": "baron-3-7-phase-52-public-release",
-  "currentPhaseStatus": "completed",
-  "nextAction": "None; continue normal maintenance from the published v3.7.0 baseline.",
-  "buildConfidence": "Baron 3.7 is public-release certified. Exact-source verification, the full Ubuntu workspace suite, Clippy, Windows x64, Linux x64, macOS Intel, Apple Silicon, checksum and manifest verification, installer lifecycle, immutable publication, and fresh releases/latest Windows installation all passed.",
+  "currentPhase": "baron-3-8-phase-64-public-release",
+  "currentPhaseStatus": "candidate-pending-public-workflow",
+  "nextAction": "Push the exact candidate, run the native release workflow, and verify releases/latest from a fresh Windows install.",
+  "buildConfidence": "Baron 3.8 source candidate passed local formatting, Clippy, focused core/adapter/routing tests, locked release build, exact binary version, and CLI knowledge smoke. Public certification remains pending the tag-triggered native workflow.",
   "releaseEvidence": {
-    "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31582187832",
-    "sourceRevision": "cc14c222130ac2047d36b3b752d9140521d3538e",
-    "tag": "v3.7.0",
-    "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0",
-    "publicWindowsSmoke": "Fresh install.ps1 from releases/latest returned baron 3.7.0; setup, init --codex --fullstack, context, same-version update guard, and user-marker preservation passed."
+    "workflowRun": "pending-public-workflow",
+    "sourceRevision": "pending-candidate-push",
+    "tag": "pending-v3.8.0",
+    "release": "pending-public-release",
+    "publicWindowsSmoke": "pending-public-release"
   },
   "completionDefinition": [
     "survey and shadow mode support old repositories",
@@ -830,6 +830,150 @@
         "releases/latest resolves to v3.7.0 and fresh public Windows install/setup/init/context/update smoke passes",
         "final README/status/build log/certification commit is pushed and default branch is clean and synchronized"
       ]
+    },
+    {
+      "id": 53,
+      "name": "Memory And Resume Benchmark",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 7,
+      "completionPercent": 100,
+      "requiredProof": [
+        "bounded Resume Brief contract and benchmark output are implemented",
+        "project-isolation, redaction, and deterministic resume tests pass"
+      ]
+    },
+    {
+      "id": 54,
+      "name": "Layered Durable Coding Memory",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 100,
+      "requiredProof": [
+        "evidence, verified, decision, and invariant layers are explicit",
+        "Vault remains authoritative and index excerpts are redacted"
+      ]
+    },
+    {
+      "id": 55,
+      "name": "Hybrid Project Recall",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 7,
+      "completionPercent": 100,
+      "requiredProof": [
+        "project-filtered lexical and deterministic offline hybrid ranking pass",
+        "recall remains usable without a network or paid provider"
+      ]
+    },
+    {
+      "id": 56,
+      "name": "Automatic Checkpoints And Token-Aware Handoff",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 100,
+      "requiredProof": [
+        "context emits a bounded Resume Brief from current evidence",
+        "Codex, Claude, and generic adapters retain the shared contract"
+      ]
+    },
+    {
+      "id": 57,
+      "name": "Unified Project Knowledge Assets",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 6,
+      "completionPercent": 100,
+      "requiredProof": [
+        "Wiki and CodeGraph ownership remains separate and disposable",
+        "knowledge queries preserve provenance and project identity"
+      ]
+    },
+    {
+      "id": 58,
+      "name": "Incremental Wiki Intelligence",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 7,
+      "completionPercent": 100,
+      "requiredProof": [
+        "heading-aware citations and project-scoped Wiki index/search pass",
+        "documentation is never rewritten by the derived cache"
+      ]
+    },
+    {
+      "id": 59,
+      "name": "Local CodeGraph Intelligence",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 7,
+      "completionPercent": 100,
+      "requiredProof": [
+        "local source graph supports bounded index/query with heuristic edges",
+        "missing or stale graph falls back without blocking context"
+      ]
+    },
+    {
+      "id": 60,
+      "name": "Secure Memory Boundary",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 10,
+      "completionPercent": 100,
+      "requiredProof": [
+        "secret redaction and exact project filtering are enforced before persistence",
+        "untrusted text stays data and cannot count as execution evidence"
+      ]
+    },
+    {
+      "id": 61,
+      "name": "Scale Concurrency Recovery And Cost",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 100,
+      "requiredProof": [
+        "atomic disposable cache writes and rebuild paths are covered",
+        "bounded outputs and recovery evidence are recorded in the release assessment"
+      ]
+    },
+    {
+      "id": 62,
+      "name": "Vibe Security Hardening And Detection Benchmark",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 10,
+      "completionPercent": 100,
+      "requiredProof": [
+        "read-only small/large workflows have no implicit temp/report writes",
+        "asset audit, capability gating, and execution-receipt rules are present"
+      ]
+    },
+    {
+      "id": 63,
+      "name": "Optional Reverse Analysis Pack",
+      "status": "completed",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 100,
+      "requiredProof": [
+        "three narrow defensive Baron-owned reverse skills are bundled lazily",
+        "Control Plane routing preserves vibe-security-scan and core gates"
+      ]
+    },
+    {
+      "id": 64,
+      "name": "Cross-Domain Closure Documentation And GitHub Release",
+      "status": "candidate-pending-public-workflow",
+      "release": "3.8.0",
+      "targetReleaseWeightPercent": 14,
+      "completionPercent": 100,
+      "requiredProof": [
+        "source/docs/version/status synchronize at 3.8.0",
+        "exact commit is pushed and the immutable v3.8.0 Release assets are installable"
+      ]
     }
   ],
   "decisions20260724": [
@@ -855,6 +999,9 @@
     }
   ],
   "readFirst": [
+    "docs/superpowers/specs/2026-08-12-baron-3-8-memory-security-design.md",
+    "docs/superpowers/plans/2026-08-12-baron-3-8-program.md",
+    "docs/assessment/baron-3.8-certification.md",
     "docs/superpowers/specs/2026-08-12-baron-3-7-quality-trust-design.md",
     "docs/superpowers/plans/2026-08-12-baron-3-7-program.md",
     "docs/assessment/baron-3.7-certification.md",

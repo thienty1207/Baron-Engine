@@ -19,6 +19,7 @@ pub mod harness_experiment;
 pub mod harness_improvement;
 pub mod identity;
 pub mod intent;
+pub mod knowledge;
 pub mod memory;
 pub mod migration;
 pub mod operations;
@@ -41,7 +42,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "baron-3.3-release"
+    "baron-3.8-release"
 }
 
 #[cfg(test)]
@@ -51,6 +52,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "baron-3.3-release");
+        assert_eq!(phase(), "baron-3.8-release");
     }
 }

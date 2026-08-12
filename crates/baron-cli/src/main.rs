@@ -64,6 +64,10 @@ use baron_core::harness_improvement::{
     verify_open_stories,
 };
 use baron_core::intent::{intent_status, record_intent, IntentBriefInput};
+use baron_core::knowledge::{
+    benchmark_resume, build_local_code_graph, build_resume_brief, index_wiki, load_wiki_index,
+    render_resume_brief, search_local_code_graph, search_wiki,
+};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
@@ -193,6 +197,16 @@ enum Commands {
     Memory {
         #[command(subcommand)]
         command: MemoryCommands,
+    },
+    #[command(hide = true)]
+    Wiki {
+        #[command(subcommand)]
+        command: WikiCommands,
+    },
+    #[command(hide = true)]
+    Knowledge {
+        #[command(subcommand)]
+        command: KnowledgeCommands,
     },
     #[command(hide = true)]
     Recall {
@@ -329,6 +343,64 @@ enum MemoryCommands {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         vault: Option<PathBuf>,
+    },
+    Resume {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum WikiCommands {
+    Index {
+        repo_path: Option<PathBuf>,
+    },
+    Search {
+        query: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long, default_value_t = 8)]
+        limit: usize,
+    },
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum KnowledgeCommands {
+    Resume {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    Benchmark {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    CodegraphIndex {
+        repo_path: Option<PathBuf>,
+    },
+    CodegraphQuery {
+        query: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long, default_value_t = 8)]
+        limit: usize,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -837,9 +909,22 @@ enum AutomationEventArg {
 }
 
 fn main() {
-    if let Err(error) = run() {
-        eprintln!("error: {error}");
-        std::process::exit(1);
+    // The command dispatcher intentionally owns a broad, strongly typed
+    // surface. Run it on a larger stack so Windows debug binaries do not
+    // overflow before Clap can print `--help` or `--version`.
+    let result = std::thread::Builder::new()
+        .name("baron-cli-main".to_string())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(run)
+        .expect("Baron CLI could not create its command stack")
+        .join();
+    match result {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            eprintln!("error: {error}");
+            std::process::exit(1);
+        }
+        Err(panic) => std::panic::resume_unwind(panic),
     }
 }
 
@@ -1473,6 +1558,194 @@ fn run() -> Result<()> {
                 println!("- Skipped unmatched: {}", report.skipped_unmatched);
                 println!("- Skipped noise: {}", report.skipped_noise);
                 println!("- State: `{}`", report.state_path.display());
+            }
+            MemoryCommands::Resume {
+                repo_path,
+                vault,
+                task,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                build_memory_index(&context)?;
+                let brief = build_resume_brief(&context, task.as_deref(), 8_000)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&brief)?);
+                } else {
+                    print!("{}", render_resume_brief(&brief, 8_000));
+                }
+            }
+        },
+        Some(Commands::Wiki { command }) => match command {
+            WikiCommands::Index { repo_path } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let report = index_wiki(&repo_path)?;
+                println!("# Baron Wiki Index\n");
+                println!("- Project ID: `{}`", report.project_id);
+                println!("- Source revision: `{}`", report.source_revision);
+                println!("- Documents: {}", report.documents);
+                println!("- Sections: {}", report.sections);
+                println!("- Changed documents: {}", report.changed_documents);
+                println!("- Cache: `{}`", report.cache_path);
+            }
+            WikiCommands::Search {
+                query,
+                repo_path,
+                limit,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let hits = search_wiki(&repo_path, &query, limit)?;
+                println!("# Baron Wiki Search\n");
+                println!("- Query: `{}`", query);
+                if hits.is_empty() {
+                    println!("- No cited Wiki section matched the current project.");
+                } else {
+                    for hit in hits {
+                        println!(
+                            "- [{}] {} — {}{}\n  {}",
+                            hit.score,
+                            hit.document,
+                            hit.heading,
+                            if hit.stale { " (stale; reindex)" } else { "" },
+                            hit.excerpt.replace('\n', " ")
+                        );
+                        println!("  Citation: `{}`", hit.citation);
+                    }
+                }
+            }
+            WikiCommands::Status { repo_path } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                match load_wiki_index(&repo_path) {
+                    Ok(index) => {
+                        println!("# Baron Wiki Status\n");
+                        println!("- Project ID: `{}`", index.project_id);
+                        println!("- Source revision: `{}`", index.source_revision);
+                        println!("- Documents: {}", index.documents.len());
+                        println!(
+                            "- Sections: {}",
+                            index
+                                .documents
+                                .iter()
+                                .map(|doc| doc.sections.len())
+                                .sum::<usize>()
+                        );
+                        println!(
+                            "- Cache: `{}`",
+                            baron_core::knowledge::wiki_cache_path(&repo_path).display()
+                        );
+                    }
+                    Err(error) => {
+                        println!("# Baron Wiki Status\n\n- Status: `missing_or_stale`\n- Detail: {error}");
+                    }
+                }
+            }
+        },
+        Some(Commands::Knowledge { command }) => match command {
+            KnowledgeCommands::Resume {
+                repo_path,
+                vault,
+                task,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                build_memory_index(&context)?;
+                let brief = build_resume_brief(&context, task.as_deref(), 8_000)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&brief)?);
+                } else {
+                    print!("{}", render_resume_brief(&brief, 8_000));
+                }
+            }
+            KnowledgeCommands::Benchmark {
+                repo_path,
+                vault,
+                task,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                build_memory_index(&context)?;
+                let benchmark = benchmark_resume(&context, task.as_deref())?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&benchmark)?);
+                } else {
+                    println!("# Baron Resume Benchmark\n");
+                    println!("- Project ID: `{}`", benchmark.project_id);
+                    println!("- Source revision: `{}`", benchmark.source_revision);
+                    println!("- Memory records: {}", benchmark.memory_records);
+                    println!("- Resume chars: {}", benchmark.brief_chars);
+                    println!("- Estimated tokens: {}", benchmark.estimated_tokens);
+                    println!(
+                        "- Bounded: {}",
+                        if benchmark.bounded { "yes" } else { "no" }
+                    );
+                    println!(
+                        "- Project isolated: {}",
+                        if benchmark.project_isolated {
+                            "yes"
+                        } else {
+                            "no"
+                        }
+                    );
+                    println!(
+                        "- Missing fields: {}",
+                        if benchmark.missing_fields.is_empty() {
+                            "none".to_string()
+                        } else {
+                            benchmark.missing_fields.join(", ")
+                        }
+                    );
+                }
+            }
+            KnowledgeCommands::CodegraphIndex { repo_path } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let graph = build_local_code_graph(&repo_path)?;
+                println!("# Baron Local CodeGraph\n");
+                println!("- Project ID: `{}`", graph.project_id);
+                println!("- Source revision: `{}`", graph.source_revision);
+                println!("- Files: {}", graph.files.len());
+                println!("- Symbols: {}", graph.symbols.len());
+                println!("- Edges: {}", graph.edges.len());
+                println!(
+                    "- Cache: `{}`",
+                    baron_core::knowledge::local_graph_cache_path(&repo_path).display()
+                );
+            }
+            KnowledgeCommands::CodegraphQuery {
+                query,
+                repo_path,
+                limit,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let hits = search_local_code_graph(&repo_path, &query, limit)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&hits)?);
+                } else {
+                    println!("# Baron Local CodeGraph Query\n");
+                    println!("- Query: `{}`", query);
+                    if hits.is_empty() {
+                        println!("- No current project symbols matched; Survey fallback remains available.");
+                    }
+                    for hit in hits {
+                        println!(
+                            "- `{}` {} at `{}:{}` [{}]",
+                            hit.symbol.name,
+                            hit.symbol.kind,
+                            hit.symbol.file,
+                            hit.symbol.line,
+                            hit.symbol.confidence
+                        );
+                        println!("  Why: {}", hit.why);
+                        if !hit.relations.is_empty() {
+                            println!("  Relations: {}", hit.relations.join(", "));
+                        }
+                    }
+                }
             }
         },
         Some(Commands::Recall {
@@ -3369,7 +3642,7 @@ mod tests {
     #[test]
     fn activated_runtime_requires_the_exact_release_version() {
         let expected_version = env!("CARGO_PKG_VERSION");
-        let accepted = StaticInspector("baron 3.7.0");
+        let accepted = StaticInspector("baron 3.8.0");
         assert!(
             verify_activated_runtime_version(&accepted, Path::new("baron"), expected_version)
                 .is_ok()
@@ -3381,6 +3654,6 @@ mod tests {
                 .expect_err("a mismatched activated runtime must be rejected");
         assert!(error
             .to_string()
-            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 3.7.0`"));
+            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 3.8.0`"));
     }
 }

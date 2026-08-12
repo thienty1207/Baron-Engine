@@ -15,7 +15,14 @@ const LEGACY_BLOCK_START: &str = "<!-- agent-bootstrap:start -->";
 const LEGACY_BLOCK_END: &str = "<!-- agent-bootstrap:end -->";
 const BARON_STATE: &str = ".baron/migration-state.json";
 
-const BUNDLED_SKILLS: &[&str] = &["superpowers", "frontend-design", "vibe-security-scan"];
+const BUNDLED_SKILLS: &[&str] = &[
+    "superpowers",
+    "frontend-design",
+    "vibe-security-scan",
+    "binary-reverse-analysis",
+    "apk-mobile-analysis",
+    "malware-triage",
+];
 const CORE_AGENTS: &[&str] = &[
     "code-reviewer.toml",
     "security-auditor.toml",

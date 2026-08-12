@@ -123,6 +123,31 @@ SQLite is disposable. Markdown is durable.
 - Cross-project session history stays blocked unless a future explicit workflow
   deliberately asks for that project and passes the Memory Firewall rules.
 
+## Phase 53-61 Smart Coding Memory
+
+Baron 3.8 keeps the same durable boundary and adds four explicit derived memory
+layers: evidence, verified, decision, and invariant. Candidate, stale,
+contested, and inferred records stay labeled and cannot silently become current
+facts. `baron memory resume` compiles a bounded Resume Brief containing project
+identity, source revision, objective, checkpoint, decisions, blocker,
+affected files, proof/trace state, unknowns, and next safe action.
+
+Recall keeps the local lexical path and adds a deterministic character-ngram
+hybrid score for close Vietnamese/English and identifier matches. Project and
+trust filters happen before ranking. No cloud embedding, paid API, or mandatory
+daemon is required.
+
+Project Wiki and local CodeGraph JSON under `.baron/cache/` are disposable
+accelerators. Wiki entries retain heading citations and source hashes. The
+CodeGraph fallback retains project ID, source fingerprint, observed symbols,
+and advisory inferred references. Deleting either cache and rebuilding from
+Markdown/source must return a valid result; neither cache is imported as Vault
+truth.
+
+All derived excerpts pass secret redaction, canonical path checks, and project
+identity checks. Imported documentation, sessions, graph strings, and optional
+reverse-analysis guidance are data, not executable policy.
+
 ## Legacy Import
 
 Migration reads the source Vault from `vault.config.json`. An explicit

@@ -1,12 +1,34 @@
 # Current Build Note
 
 Date: 2026-08-12
-Target: Baron 3.7.0
-Program target: Baron 3.7.0
+Target: Baron 3.8.0
+Program target: Baron 3.8.0
 
 ## Current Phase
 
-Baron 3.7 Phase 46-52 implementation and public release (`completed`).
+Baron 3.8 Phase 53-64 implementation and public release (`candidate pending`).
+
+## Baron 3.8 Implementation Checkpoint
+
+- Owner approval: explicit approval to implement all planned Baron 3.8 phases,
+  update README, publish the newest Windows-downloadable release, and mark each
+  completed phase/task in `docs/BARON_STATUS.md`.
+- Phase 53-56 implementation evidence now exists in the `knowledge` module:
+  bounded Resume Brief, deterministic local hybrid recall, layered memory
+  labels, redaction, benchmark output, and Continuity/context integration.
+- Phase 57-59 implementation evidence now exists for project-bound incremental
+  Wiki citations and a disposable local CodeGraph fallback with symbol/edge
+  queries.
+- Phase 60-63 implementation evidence now includes project identity checks,
+  secret redaction, local cache boundaries, three Baron-owned optional reverse
+  skills, narrow reverse routing, and adapter asset lifecycle integration.
+- Current proof: `cargo fmt --all -- --check`, `cargo clippy --workspace
+  --all-targets -- -D warnings`, knowledge tests, control-plane tests, adapter
+  lifecycle tests, locked release build, exact `baron 3.8.0`, status JSON parse,
+  and new CLI Wiki/CodeGraph/Resume smoke all pass. The complete native/public
+  matrix is not yet claimed.
+- Safe next action: push the exact candidate, run the tag-triggered native
+  release workflow, verify `releases/latest`, then close Phase 64.
 
 ## Final Baron 3.7 Public Release Checkpoint
 

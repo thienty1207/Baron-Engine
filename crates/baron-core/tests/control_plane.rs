@@ -234,6 +234,33 @@ fn routes_security_tasks_to_security_skill_and_all_core_gates() {
 }
 
 #[test]
+fn routes_reverse_tasks_to_one_narrow_optional_pack_and_keeps_core_gates() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let route = route_task(
+        repo,
+        "static APK manifest and Android binary review",
+        RiskLane::High,
+    )
+    .unwrap();
+
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "apk-mobile-analysis"));
+    assert!(!route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "binary-reverse-analysis"));
+    assert_eq!(
+        route.mandatory_agents,
+        ["code-reviewer", "security-auditor", "test-engineer"]
+    );
+}
+
+#[test]
 fn routes_optional_domain_skills_without_making_them_core() {
     let temp = tempdir().unwrap();
     let repo = temp.path();

@@ -232,6 +232,20 @@ pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Re
                 "api",
             ],
         );
+    let reverse_analysis = contains_any(
+        &task_lower,
+        &[
+            "binary reverse",
+            "reverse engineering",
+            "disassembly",
+            "decompile",
+            "apk",
+            "android binary",
+            "malware triage",
+            "malware sample",
+            "firmware analysis",
+        ],
+    );
 
     let mut selected_skills = vec![RoutingDecision {
         name: "superpowers".to_string(),
@@ -257,6 +271,21 @@ pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Re
             "vibe-security-scan skipped: task does not match security-sensitive trigger"
                 .to_string(),
         );
+    }
+    if reverse_analysis {
+        let reverse_skill = if contains_any(&task_lower, &["apk", "android binary"]) {
+            "apk-mobile-analysis"
+        } else if contains_any(&task_lower, &["malware", "sample", "firmware"]) {
+            "malware-triage"
+        } else {
+            "binary-reverse-analysis"
+        };
+        selected_skills.push(RoutingDecision {
+            name: reverse_skill.to_string(),
+            reason: "narrow defensive reverse-analysis task; static/read-only guidance is optional and Baron-owned".to_string(),
+        });
+    } else {
+        skipped.push("reverse-analysis pack skipped: task does not match binary, APK, mobile, malware, or firmware analysis".to_string());
     }
     if api {
         selected_skills.push(RoutingDecision {
@@ -305,7 +334,7 @@ pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Re
         );
     }
 
-    let mandatory_agents = if security || risk == RiskLane::High {
+    let mandatory_agents = if security || reverse_analysis || risk == RiskLane::High {
         CORE_AGENTS.iter().map(|value| value.to_string()).collect()
     } else if risk == RiskLane::Medium || frontend {
         ["code-reviewer", "test-engineer"]

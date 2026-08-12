@@ -5,6 +5,7 @@ use std::time::UNIX_EPOCH;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, SecondsFormat, Utc};
+use regex::Regex;
 use rusqlite::{params, Connection, OpenFlags, Transaction};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -507,7 +508,8 @@ fn parse_source(
         {
             continue;
         }
-        let confidence = classify_confidence(source.scope, source.kind, excerpt);
+        let excerpt = redact_index_excerpt(excerpt);
+        let confidence = classify_confidence(source.scope, source.kind, &excerpt);
         let status = match confidence {
             MemoryConfidence::Candidate => MemoryStatus::Candidate,
             MemoryConfidence::Stale => MemoryStatus::Warning,
@@ -529,7 +531,7 @@ fn parse_source(
             kind: source.kind,
             path: source.relative_path.clone(),
             title: title.clone(),
-            excerpt: excerpt.to_string(),
+            excerpt,
             tags: tags_for(source.kind, confidence),
             confidence,
             status,
@@ -538,6 +540,23 @@ fn parse_source(
         });
     }
     records
+}
+
+fn redact_index_excerpt(value: &str) -> String {
+    let patterns = [
+        (
+            r"(?i)(api[_-]?key|token|secret|password|private[_-]?key)\s*[:=]\s*[^\s,;]+",
+            "$1=[REDACTED]",
+        ),
+        (r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]"),
+    ];
+    patterns
+        .iter()
+        .fold(value.to_string(), |current, (pattern, replacement)| {
+            Regex::new(pattern)
+                .map(|regex| regex.replace_all(&current, *replacement).to_string())
+                .unwrap_or(current)
+        })
 }
 
 fn replace_source(

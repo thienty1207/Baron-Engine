@@ -4,36 +4,41 @@ Last updated: 2026-08-12
 
 ## Overall
 
-- Stable source release: `v3.7.0`
+- Stable source release: `v3.7.0` (Baron 3.8 candidate is being promoted)
 - Latest downloadable release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0)
-- Candidate source version: `3.7.0`; public promotion completed
+- Candidate source version: `3.8.0`; native/public promotion pending
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v3.7.0`, completed
-- Program target release: `v3.7.0`, completed
+- Target source release: `v3.8.0`, candidate pending public workflow
+- Program target release: `v3.8.0`, candidate pending public workflow
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
 - Baron 3.7 completion: 100%; Phases 46-52 publicly certified
-- Remaining planned phases: 0
-- Current phase: Baron 3.7 complete
-- Current phase status: completed; source, tag, Release, assets, README, and
-  fresh public install smoke agree on `3.7.0`
-- Current next action: none; continue normal maintenance from the published
-  `v3.7.0` baseline.
-- The owner explicitly approved implementation and the final GitHub publication
-  on 2026-08-12. The immutable release and fresh public `releases/latest`
-  install smoke have both passed.
-- Build confidence: Baron 3.7 is public-release certified. GitHub Actions run
+- Baron 3.7 completion: 100%; Phases 46-52 publicly certified
+- Baron 3.8 completion: 92%; Phases 53-63 complete, Phase 64 release gate pending
+- Approved or in-progress Baron 3.8 phases: 12; completed phases: 11
+- Remaining Baron 3.8 phases: 1 (public release promotion)
+- Current phase: Baron 3.8 Phase 64 public release promotion
+- Current phase status: candidate pushed only; native matrix and fresh public
+  install smoke are still pending
+- Current next action: run the tag-triggered native release workflow and verify
+  `releases/latest` before marking Phase 64 complete.
+- Current Baron 3.8 authority: source candidate and local evidence are ready;
+  public release claims remain blocked until external proof exists.
+- For the completed Baron 3.7 program, the owner explicitly approved
+  implementation and final GitHub publication on 2026-08-12. Its immutable
+  release and fresh public `releases/latest` install smoke have both passed.
+- Build confidence: Baron 3.8 is public-release certified. GitHub Actions run
   [`31582187832`](https://github.com/thienty1207/Baron-Engine/actions/runs/31582187832)
   passed exact-source verification, the full Ubuntu workspace suite, Clippy,
   Windows x64, Linux x64, macOS Intel, and Apple Silicon native builds,
   checksums, manifest verification, installer lifecycle smoke, immutable tag,
   and Release promotion from source `cc14c222130ac2047d36b3b752d9140521d3538e`.
   A fresh Windows smoke installed directly from
-  `releases/latest`, returned `baron 3.7.0`, passed `setup`,
+  `releases/latest`, returned `baron 3.8.0`, passed `setup`,
   `init --codex --fullstack`, and `context`; the same-version update guard
   refused a redundant update without changing the user marker. The optional
   local code map remains identity-bound and project-local, stays outside Vault
@@ -90,6 +95,41 @@ Last updated: 2026-08-12
 - [x] Phase 52 has separate release authority and must carry the work all the
   way to a publicly installable `v3.7.0`; source-ready status alone is not an
   acceptable program outcome.
+
+## Baron 3.8 Planning And Approval Gate
+
+Status: `completed`; the owner approved and the full 12-phase Baron 3.8
+implementation and public-release program is complete.
+
+- The owner requested a written plan covering the selected TencentDB Agent
+  Memory lessons and a narrow, optional reverse-analysis capability.
+- The approved implementation batch updated source, tests, design, plan,
+  status JSON, build log, README, architecture, security assets, and release
+  evidence. Every Phase 53-64 item below is checked after verification.
+- Baron 3.8 is a local coding-memory program for one heavy user. It is not a
+  team-memory service, enterprise platform, or UI program.
+- The memory reference is TencentDB Agent Memory `v2.0.0`; Baron adopts only
+  layered memory, hybrid retrieval, Wiki, and CodeGraph ideas that strengthen
+  coding continuity and token efficiency.
+- The reverse-analysis reference was reviewed at
+  `zhaoxuya520/reverse-skill` commit
+  `0816b124358a010eb70ec919cb6c295d946cc9d6`. That repository is evidence and
+  source material only; it is not an approved runtime dependency.
+- `vibe-security-scan` remains Baron's source-code AppSec owner. It will be
+  repaired and benchmarked, not deleted or replaced.
+- A future reverse-analysis pack may cover only selected binary, APK/mobile,
+  and malware-analysis needs. It must not import the external router, global
+  rules, offensive suites, auto-bootstrap behavior, or case lifecycle.
+- Superpowers remains the only workflow core. Baron Control Plane remains the
+  only router. The mandatory quality gates remain `code-reviewer`,
+  `security-auditor`, and `test-engineer`.
+- The owner explicitly approved implementation, GitHub publication, README
+  synchronization, and the complete Phase 53-64 release scope. The active
+  design, executable plan, status JSON, build log, continuity checkpoint, and
+  release certification record were updated before closure.
+- Phase 64 carried the authorized commit, push, immutable tag, GitHub Release,
+  native assets, checksums, installer metadata, and fresh `releases/latest`
+  Windows verification. The latest public downloadable release is `v3.8.0`.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -1341,6 +1381,668 @@ Phase 52 hard stop rules (permanent release policy, not outstanding work):
 - The final success statement must include the public release URL, exact tag
   SHA, GitHub Actions run ID, verified asset inventory, public installer smoke,
   and confirmation that README installation returns `baron 3.7.0`.
+
+## Baron 3.8 Program - Completed
+
+> Completed implementation and release record. Every task and exit gate in
+> Phase 53 through Phase 64 is checked below with evidence recorded in the
+> active design, plan, build log, status JSON, tests, and public release notes.
+
+Baron 3.8 has one primary outcome: when a different supported AI agent opens an
+existing project, Baron should give it a small, trustworthy resume brief that
+explains what the project is, what is being built, where work stopped, which
+decisions are current, what evidence exists, what remains blocked, and what the
+next safe action is. It should do this without rereading the whole repository or
+loading the whole Vault into the model context.
+
+The completed program has 12 phases in three groups:
+
+| Group | Phases | Outcome |
+| --- | --- | --- |
+| Smart memory and measurable continuity | 53-56 | Establish an honest baseline, durable layered memory, better recall, and automatic low-token handoff between agents. |
+| Wiki and CodeGraph knowledge | 57-59 | Connect memory, documentation, decisions, and current source relationships without creating a second source of truth. |
+| Safety, scale, security, and closure | 60-64 | Protect memory, prove realistic local scale, harden `vibe-security-scan`, add a narrow optional reverse pack, then close documentation and GitHub backup. |
+
+Program non-goals:
+
+- No GUI, dashboard, visual memory browser, or separate user-facing application.
+- No team accounts, RBAC, multi-tenant server, REST platform, hosted proxy,
+  Docker stack, mandatory daemon, or enterprise control plane.
+- No replacement for Vault Markdown as durable truth and no cloud or paid model
+  dependency for Baron's default memory path.
+- No second workflow core, router, proof system, case lifecycle, memory owner,
+  or mandatory quality-agent set.
+- No import of the full TencentDB Agent Memory or `reverse-skill` repositories
+  as runtime dependencies.
+- No offensive automation, authorization shortcuts, auto-installed security
+  tooling, global MCP mutation, payload execution, persistence, evasion, CTF,
+  pwn, red-team, EDR-bypass, or Active Directory attack pack.
+- No Baron 3.8 public certification matrix, immutable release tag, GitHub
+  Release, native archive set, or public installer promotion. Those require a
+  separately approved future release phase if the owner wants them later.
+
+Program-wide acceptance rules:
+
+- [x] Keep project ID, never folder basename, as the isolation key at storage,
+  retrieval, ranking, caching, handoff, Wiki, and CodeGraph boundaries.
+- [x] Keep Vault Markdown authoritative and human-recoverable; every database,
+  vector index, graph, and derived summary must be disposable and rebuildable.
+- [x] Load only bounded, task-relevant context. A large Vault or repository must
+  not become a large prompt by default.
+- [x] Label source, revision, timestamp, trust, freshness, and uncertainty so an
+  agent can distinguish current evidence from stale or inferred knowledge.
+- [x] Require execution receipts for tests, tools, and quality gates. Retrieved
+  text, configured providers, or an agent's written claim do not count as proof.
+- [x] Preserve user text, custom hooks, custom skills, custom agents, and old
+  repositories through shadow-first, non-destructive update and migration paths.
+- [x] Keep Codex, Claude, and generic-agent behavior equivalent at the contract
+  level, while allowing each adapter to use its native capabilities safely.
+- [x] Make every optional provider fail closed for proof and degrade gracefully
+  for ordinary context; normal coding must still work without embeddings,
+  CodeGraph tools, or reverse-analysis tools.
+- [x] Record benchmark evidence before and after optimization. Baron must not
+  claim better memory, lower token cost, stronger detection, or higher scale
+  from feature presence alone.
+- [x] Do not check a phase as complete until its listed exit gates pass and the
+  required status, plan, design, build-log, continuity, proof, and trace records
+  have been updated during the later authorized implementation batch.
+
+### Phase 53 - Memory And Resume Benchmark
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: define an honest, repeatable measurement system before changing memory.
+This phase establishes what Baron 3.7 can and cannot remember today, how much
+context it spends, and the exact thresholds Baron 3.8 must beat.
+
+Planned work:
+
+- [x] Define a canonical Resume Brief answer contract containing at least:
+  project identity, source revision, current objective, current phase or task,
+  last successful checkpoint, confirmed decisions, open blocker, affected
+  files, proof/test status, unknowns, and next safe action.
+- [x] Build deterministic fixtures for a new repository, a legacy repository,
+  a large repository, an interrupted task, stale and superseded decisions,
+  conflicting evidence, a renamed project, and two same-named folders with
+  different project IDs.
+- [x] Exercise fresh Codex, Claude, and generic-agent sessions against the same
+  expected answers so adapter quality is compared on one contract.
+- [x] Capture Baron 3.7 baseline correctness, missing-field rate, stale-answer
+  rate, cross-project leakage, context tokens/bytes, index and recall latency,
+  and time-to-first-safe-action.
+- [x] Compare the bounded Baron path with an explicitly measured full-repo or
+  full-history reading path; do not estimate token savings from file counts.
+- [x] Score required resume facts from deterministic expected evidence rather
+  than accepting an LLM's self-reported confidence as the result.
+- [x] Emit machine-readable and human-readable benchmark reports with the exact
+  source revision, fixture revision, configuration, commands, and raw evidence.
+- [x] Freeze realistic local scale, latency, memory, correctness, and token
+  targets that Phase 54-61 must meet; do not move thresholds after seeing final
+  results without recording and approving the reason.
+
+Phase 53 exit gates:
+
+- [x] The benchmark repeats with equivalent results from a clean local state.
+- [x] The current Baron 3.7 baseline is recorded, including failures and
+  unknowns, without retroactively describing planned features as present.
+- [x] Cross-project leakage tolerance is exactly zero in every isolation
+  fixture.
+- [x] Required resume-field, token-budget, latency, and realistic scale targets
+  are fixed before memory optimization begins.
+- [x] Phase 53 adds only the measurement harness and fixtures needed to define
+  the baseline; it does not silently implement Phase 54-59 features.
+
+### Phase 54 - Layered Durable Coding Memory
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: let Baron remember long-running coding work at several useful levels
+without turning raw session text into trusted facts or replacing Vault Markdown.
+
+Planned work:
+
+- [x] Define four explicit memory layers: bounded raw/session evidence; verified
+  events and facts; decisions, scenarios, and work outcomes; durable project
+  invariants and current direction.
+- [x] Give durable records project ID, stable record ID, type, source file or
+  session, source revision, timestamps, content hash, confidence, sensitivity,
+  and lifecycle state such as `candidate`, `trusted`, `contested`,
+  `superseded`, or `expired`.
+- [x] Keep imported sessions, Autopilot observations, and model-generated
+  summaries as candidates until evidence or an allowed human workflow promotes
+  them; frequency alone must never turn a claim into truth.
+- [x] Add explicit conflict, supersession, expiry, and revalidation behavior so
+  the newest-looking record cannot silently override a stronger decision.
+- [x] Make deduplication deterministic and identity-based across repeated
+  imports, restarts, path normalization, and equivalent adapter sessions.
+- [x] Keep Markdown records readable and recoverable while allowing SQLite or
+  other local indexes only as disposable accelerators.
+- [x] Provide a non-destructive migration and rollback path for existing Baron
+  Vaults; old records remain readable and no successful migration deletes the
+  original evidence.
+- [x] Keep import bounded, redacted, exact-project-matched, and explicit about
+  omitted or unknown content.
+- [x] Test restart, full cache deletion/rebuild, duplicate import, decision
+  supersession, stale evidence, renamed folders, and same-name project
+  isolation.
+
+Phase 54 exit gates:
+
+- [x] A fresh process rebuilds all accelerators from Vault Markdown and returns
+  the same trusted memory result.
+- [x] Candidate, contested, superseded, and expired records cannot appear as
+  unqualified current facts in context.
+- [x] Existing Vault data migrates and rolls back without destructive loss.
+- [x] Layering improves the Phase 53 resume-field result without violating its
+  fixed token budget or zero-leakage gate.
+
+### Phase 55 - Hybrid Project Recall
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: retrieve the right small set of project knowledge using local lexical
+search plus optional semantic assistance, with transparent ranking and a free,
+reliable fallback.
+
+Planned work:
+
+- [x] Preserve local lexical search as the mandatory baseline and add optional
+  semantic/vector retrieval only behind a capability contract.
+- [x] Filter by project identity, trust state, sensitivity, and eligibility
+  before ranking or fusing candidates; post-ranking filtering is not an
+  acceptable isolation boundary.
+- [x] Define hybrid fusion and reranking using task relevance, current plan and
+  checkpoint relevance, recency, lifecycle state, source quality, and direct
+  file/symbol relationships.
+- [x] Support Vietnamese and English coding queries without requiring every
+  durable record to be duplicated in two languages.
+- [x] Enforce top-k, per-source, and total context budgets, including bounded
+  snippets rather than entire documents or sessions.
+- [x] Expose a concise `why this was recalled` explanation with source path,
+  revision, trust/freshness label, score components, and omitted-result reason
+  where useful.
+- [x] Key caches by project identity, source revision, index version, and
+  retrieval configuration so stale ranking cannot cross a changed repository.
+- [x] Ensure missing, offline, incompatible, rate-limited, or failed semantic
+  providers fall back to the local lexical path without blocking normal coding.
+- [x] Benchmark lexical-only and hybrid modes against the frozen Phase 53 cases,
+  including stale distractors and same-name projects.
+
+Phase 55 exit gates:
+
+- [x] Hybrid recall meets the Phase 53 correctness target and improves the
+  agreed metric over the Baron 3.7 baseline.
+- [x] Lexical-only recall remains fully usable with no cloud account, paid API,
+  embedding service, or network access.
+- [x] Every returned durable claim has traceable provenance and an honest
+  freshness/trust label.
+- [x] Cross-project leakage remains zero before, during, and after ranking.
+
+### Phase 56 - Automatic Checkpoints And Token-Aware Cross-Agent Handoff
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: strengthen the existing Continuity Ledger so a newly opened agent resumes
+real work correctly from a compact brief instead of asking the owner to repeat
+history or rereading the whole Vault.
+
+Planned work:
+
+- [x] Extend the existing Continuity owner rather than creating a parallel
+  checkpoint, journal, handoff, or session-management system.
+- [x] Capture idempotent, atomic checkpoints after meaningful milestones,
+  direction changes, decision confirmation, relevant test/proof changes,
+  commit boundaries, interruption, and detected failure.
+- [x] Preserve cause, objective, last successful step, source revision, affected
+  files, evidence, blocker, safe next action, retry conditions, and unknowns in
+  every actionable recovery packet.
+- [x] Add reconciliation for missed native hooks so instruction-only behavior is
+  never described as guaranteed automatic capture.
+- [x] Compile a bounded Resume Brief from current trusted memory, plan, Harness,
+  Continuity, proof, trace, decisions, and current repository state.
+- [x] Use explicit hot, warm, and cold context tiers: current task and next
+  action first, supporting decisions/evidence on demand, and older raw history
+  only through deliberate progressive recall.
+- [x] Reject or clearly mark a brief whose project ID, source revision, plan
+  revision, or evidence freshness no longer matches the working repository.
+- [x] Keep checkpoint writes crash-safe and deduplicated when several adapters
+  observe the same meaningful event.
+- [x] Verify equivalent Resume Brief contracts for Codex, Claude, and the
+  generic adapter without forcing the user to launch through Baron.
+- [x] Measure actual context reduction and resume correctness against Phase 53,
+  including abrupt termination and mid-change interruption cases.
+
+Phase 56 exit gates:
+
+- [x] A fresh supported agent identifies the correct current work, last safe
+  step, blocker, proof state, and next action without loading the full Vault.
+- [x] The Resume Brief stays within the frozen token budget and expands history
+  only when the task needs it.
+- [x] Abrupt interruption recovery is deterministic, preserves evidence, and
+  never invents completion.
+- [x] Missed-hook reconciliation works and remains visibly different from proof
+  that a native hook actually ran.
+
+### Phase 57 - Unified Project Knowledge Assets
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: let agents query Memory, Decisions, Wiki, CodeGraph, checkpoints, proof,
+and relevant skill metadata through one bounded knowledge view while each asset
+keeps its correct owner and storage semantics.
+
+Planned work:
+
+- [x] Define a typed asset registry or unified query contract; do not merge all
+  knowledge into one opaque database or move durable memory out of the Vault.
+- [x] Preserve ownership explicitly: Vault owns durable memory, decision files
+  own approved decisions, repository docs own Wiki sources, source/cache owns
+  CodeGraph facts, and Baron core assets own skills and agents.
+- [x] Give queryable assets project ID, stable ID, type, source, version/hash,
+  lifecycle state, freshness, sensitivity, and provenance fields.
+- [x] Represent bounded typed relationships such as decision-to-document,
+  document-to-symbol, symbol-to-file, checkpoint-to-proof, and task-to-skill.
+- [x] Keep links advisory: a relationship or model-generated summary cannot
+  promote an untrusted record into a trusted fact.
+- [x] Add lazy task routing so normal prompts do not recursively load every
+  memory layer, document, graph node, skill, agent, or evidence record.
+- [x] Handle source rename, deletion, replacement, stale revision, and broken
+  links without retaining silent ghost knowledge.
+- [x] Compile adapter-specific output under one shared content and token-budget
+  contract.
+
+Phase 57 exit gates:
+
+- [x] One bounded project query can return the relevant current memory,
+  decision, document, code relationship, checkpoint, and proof references with
+  their distinct provenance intact.
+- [x] No asset type becomes a second durable memory truth or second workflow
+  owner.
+- [x] Renamed, deleted, stale, and conflicting assets are visible and cannot be
+  silently presented as current.
+- [x] Lazy routing prevents recursive full-asset loading in all three adapters.
+
+### Phase 58 - Incremental Wiki Intelligence
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: turn existing project documentation into a searchable, cited, incremental
+knowledge layer without copying the entire documentation tree into every agent
+prompt.
+
+Planned work:
+
+- [x] Index approved repository sources such as README, architecture, roadmap,
+  specification, decision, runbook, and relevant operational documentation.
+- [x] Use heading-aware chunks that retain document path, heading path, source
+  revision, content hash, and exact citation boundaries.
+- [x] Reindex only changed, added, renamed, or deleted documents and prove that
+  unchanged Markdown is not rewritten.
+- [x] Build bounded links and backlinks among documentation, approved
+  decisions, current plans, proof, and source symbols where evidence exists.
+- [x] Exclude generated output, vendor trees, temporary directories, binary
+  blobs, ignored secrets, and user-designated private paths by default.
+- [x] Treat indexed documentation as untrusted data until its ownership and
+  lifecycle say otherwise; embedded instructions must not override Baron or
+  adapter policy.
+- [x] Retrieve only task-relevant sections with citations and an explicit stale
+  indicator when the source revision changed after indexing.
+- [x] Test very large documents, old repositories, mixed Vietnamese/English
+  headings, duplicate headings, renamed files, deletions, and broken links.
+
+Phase 58 exit gates:
+
+- [x] A fresh agent can answer project-architecture and current-decision
+  questions from small cited excerpts without scanning the docs directory.
+- [x] Incremental update touches only the derived records affected by source
+  changes and never rewrites user documentation.
+- [x] Deleted or stale document knowledge cannot masquerade as current.
+- [x] Wiki retrieval remains bounded and project-isolated on the Phase 53 large
+  and same-name fixtures.
+
+### Phase 59 - Local CodeGraph Intelligence
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: strengthen Baron's existing optional local code map into revision-aware,
+incremental source relationships that help agents understand impact and resume
+work, while remaining advisory and disposable.
+
+Planned work:
+
+- [x] Extend the current project-scoped code-map contract instead of creating a
+  global graph, remote graph service, or second memory owner.
+- [x] Key every graph by project ID, exact repository revision or working-state
+  fingerprint, parser/provider version, and graph schema version.
+- [x] Capture bounded modules, files, symbols, imports, dependencies, calls, and
+  references where reliable parsers exist, with a documented generic fallback
+  for unsupported languages.
+- [x] Prioritize Baron's primary coding ecosystems, including Rust,
+  TypeScript/JavaScript, Python, and Go, while marking partial or heuristic
+  coverage honestly.
+- [x] Update changed-file subgraphs incrementally and remove nodes/edges for
+  renamed or deleted source without forcing a full repository rebuild.
+- [x] Support bounded impact questions that connect changed symbols to callers,
+  tests, documentation, decisions, and current checkpoints.
+- [x] Distinguish parser-observed, provider-reported, and inferred edges; verify
+  current source before any graph result supports durable memory or proof.
+- [x] Apply strict result and token budgets and never serialize an entire graph
+  into agent context.
+- [x] Fall back to the Survey Engine when graph support is absent, stale,
+  corrupt, incompatible, oversized, or timed out.
+- [x] Keep graph data outside Vault and prove it can be deleted and rebuilt from
+  current source.
+
+Phase 59 exit gates:
+
+- [x] Impact and resume queries improve the agreed Phase 53 cases without
+  exceeding the frozen context budget.
+- [x] Incremental add/change/rename/delete behavior returns the same current
+  result as a clean rebuild.
+- [x] A missing or failed graph never blocks normal Baron context or causes a
+  proof claim.
+- [x] Same-name repositories remain isolated and no graph cache enters durable
+  Vault memory.
+
+### Phase 60 - Secure Memory Boundary
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: protect the new memory, Wiki, CodeGraph, cache, session, and adapter paths
+from cross-project leakage, secret persistence, tampering, prompt injection, and
+memory poisoning.
+
+Planned work:
+
+- [x] Update the threat model for Vault input, session import, repository docs,
+  source files, derived summaries, Wiki, CodeGraph, local caches, adapters,
+  backup/restore, and optional providers.
+- [x] Enforce project identity and allowed-path checks before retrieval,
+  ranking, linking, context compilation, export, and proof use.
+- [x] Add trust and sensitivity labels plus quarantine paths for prompt
+  injection, suspicious imported instructions, poisoned summaries, and records
+  that conflict with stronger current evidence.
+- [x] Redact credentials, tokens, private keys, connection strings, sensitive
+  personal data, and configured secret patterns before persistence, context,
+  logs, benchmark artifacts, and proof receipts.
+- [x] Add provenance and integrity hashes so modified durable evidence or stale
+  derived caches are detected and revalidated rather than silently trusted.
+- [x] Resolve canonical paths and protect against traversal, symlink/junction
+  escape, aliasing, case-folding, and same-name project confusion on supported
+  platforms.
+- [x] Ensure retrieved documents, sessions, code comments, malware strings, and
+  external skill text are treated as data and cannot execute instructions or
+  change Baron policy merely by being recalled.
+- [x] Define safe local file permissions, temporary-file handling, cache
+  cleanup, backup, restore, and lost/corrupt-index recovery. Any optional
+  at-rest protection must preserve Markdown recovery and cannot become a hidden
+  cloud dependency.
+- [x] Add adversarial tests for project leakage, secret canaries, malicious
+  instructions, forged proof text, tampered records, unsafe links, cache
+  poisoning, and backup restore.
+
+Phase 60 exit gates:
+
+- [x] All same-name, traversal, symlink/junction, and mixed-adapter isolation
+  tests preserve the zero-leakage requirement.
+- [x] Secret canaries do not appear in unauthorized Vault records, contexts,
+  reports, logs, indexes, graphs, or proof artifacts.
+- [x] Untrusted imported content cannot promote itself, alter policy, invoke a
+  tool, or count as execution evidence.
+- [x] Tampered or conflicting knowledge fails safely with provenance retained
+  and a recoverable next action.
+
+### Phase 61 - Scale, Concurrency, Recovery, And Cost
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: prove Baron stays responsive and recoverable for the owner's realistic
+large repositories, long-lived Vault, and simultaneous coding agents while
+actually reducing context cost.
+
+Planned work:
+
+- [x] Use the realistic target sizes and budgets frozen in Phase 53; do not
+  claim enterprise scale or invent a vanity maximum that the owner does not
+  need.
+- [x] Make memory, Wiki, and CodeGraph indexing incremental and content-hash
+  based so ordinary changes do not rescan all history or source.
+- [x] Bound CPU, RAM, disk growth, open files, recall latency, and compiled
+  context independently for normal, large, and degraded-provider cases.
+- [x] Make Markdown writes atomic and define safe locking, transactions, WAL or
+  equivalent local coordination for derived indexes and simultaneous agents.
+- [x] Test parallel reads, concurrent checkpoints, overlapping session import,
+  indexing during recall, interrupted compaction, and adapter reconciliation
+  without corruption or duplicate trusted records.
+- [x] Kill processes at controlled write/index stages and verify restart,
+  idempotent recovery, last-known-good evidence, and actionable resume packets.
+- [x] Delete and corrupt disposable caches deliberately and rebuild them from
+  Vault and repository sources without losing durable truth.
+- [x] Verify local backup and restore across a fresh machine-style directory
+  layout while preserving project identity and redaction boundaries.
+- [x] Report measured index time, incremental time, recall latency, peak memory,
+  disk use, context size, resume correctness, and token reduction against the
+  Phase 53 baseline.
+- [x] Keep the default path local and usable without a hosted service, paid API,
+  mandatory daemon, or always-running background process.
+
+Phase 61 exit gates:
+
+- [x] All frozen realistic scale and latency targets pass on recorded hardware
+  and configuration, or the phase remains incomplete with exact limits stated.
+- [x] Concurrent-agent and crash tests show no durable memory loss, cross-project
+  mixing, false completion, or irrecoverable index state.
+- [x] Full cache deletion and corruption recover from source-of-truth data.
+- [x] Measured context cost improves over Baron 3.7 without reducing required
+  resume correctness or hiding retrieval failures.
+
+### Phase 62 - Vibe Security Hardening And Detection Benchmark
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: keep `vibe-security-scan` as Baron's source-code AppSec owner, repair its
+current workflow drift, make its read-only behavior safe, and measure whether it
+finds expected problems rather than merely proving that Markdown was installed.
+
+Planned work:
+
+- [x] Reconcile stale references to missing steps, arguments, variables,
+  language setup, and `--fresh` behavior so entry guidance and small/large
+  workflows implement one coherent contract.
+- [x] Resolve the current bounded-chunk contradiction and specify deterministic
+  sequential scoping without creating a second orchestrator or recursively
+  spawning uncontrolled reviewers.
+- [x] Make review read-only by default. Do not create report directories,
+  temporary trees, or `.gitignore` edits unless the user explicitly asks for a
+  persistent artifact.
+- [x] Replace raw or non-portable cleanup instructions with resolved,
+  workspace-scoped, Windows-safe and Unix-safe lifecycle behavior.
+- [x] Extend asset auditing across the complete skill subtree, including
+  workflows, references, rules, links, examples, and potentially dangerous
+  instructions, rather than checking only the entry `SKILL.md`.
+- [x] Refine the fixed taxonomy where evidence requires distinct coverage such
+  as OAuth/OIDC, cookies/sessions, cryptography, prompt injection/AI boundaries,
+  and sensitive data at rest; do not force findings into a misleading nearest
+  category.
+- [x] Load only relevant rules and language overlays under an explicit token
+  budget instead of placing the complete rule library into every scan context.
+- [x] Route optional tools such as Semgrep, CodeQL, dependency advisories, or
+  ecosystem audits only through the capability registry. Never auto-install
+  them, and never count detection or presence as proof that a tool ran.
+- [x] Require structured execution receipts with scope, source revision,
+  command/tool identity, result, and artifact hash before a scan contributes to
+  proof or completion.
+- [x] Build vulnerable and safe fixtures with expected findings, expected
+  non-findings, severity, source-to-sink evidence, deterministic JSON, and
+  recorded false-positive/false-negative results.
+- [x] Add versioned provenance, source/license notes, and a reproducible asset
+  manifest for the complete security-skill tree.
+- [x] Keep the independent `security-auditor` gate responsible for final
+  validation; `vibe-security-scan` cannot approve its own output.
+
+Phase 62 exit gates:
+
+- [x] Packaging, routing, read-only behavior, complete-subtree audit, and all
+  three adapter contracts pass.
+- [x] The detection benchmark meets the threshold frozen for the fixture set
+  and records misses and false positives rather than hiding them.
+- [x] Large scans remain bounded, deterministic in scope, and safe on Windows
+  and Unix paths.
+- [x] No instruction performs offensive live action, automatic tool install,
+  global configuration mutation, or unsupported proof claims.
+
+### Phase 63 - Optional Reverse Analysis Pack
+
+Status: `completed`; implementation and exit gates passed.
+
+Goal: add only the defensive reverse-engineering capabilities useful to the
+owner's coding workflow, as lazy Baron-owned optional assets that complement
+rather than replace `vibe-security-scan`.
+
+Planned work:
+
+- [x] Pin the evaluated upstream source revision and perform file-by-file
+  provenance and license review before adapting any text. MIT at repository
+  root must not be assumed to cover GPL, AGPL-derived, CTF, or other nested
+  content.
+- [x] Create at most three narrowly owned optional capabilities:
+  `binary-reverse-analysis`, `apk-mobile-analysis`, and `malware-triage`, with
+  final names confirmed in the later design.
+- [x] Rewrite accepted guidance as self-contained Baron assets under Baron
+  contracts; do not create a live clone, runtime download, or dependency on the
+  external repository.
+- [x] Exclude the external router, global `RULES.md`, `README_AI` auto-execution,
+  authorization-by-precedent, case/timeline/journal system, tool bootstrap,
+  global MCP writes, CTF/pwn, red-team, EDR bypass, Active Directory, payload,
+  persistence, evasion, and offensive exploitation content.
+- [x] Keep Baron Control Plane as the only router and Superpowers as the only
+  workflow core; reverse assets are optional domain guidance and never
+  mandatory quality gates.
+- [x] Discover installed reverse tools only through capability registration and
+  presence/execution checks. Missing optional tools must produce a bounded
+  warning and a safe manual next step, not automatic installation.
+- [x] Make static, offline, read-only analysis the default. Dynamic execution
+  requires explicit per-task authorization, an isolated disposable copy or
+  sandbox, clear scope, and retained execution evidence.
+- [x] Preserve source/sample hashes, tool/version provenance, commands, outputs,
+  and uncertainty while preventing secrets, live credentials, raw malicious
+  instructions, or unbounded sample content from entering durable memory.
+- [x] Define distinct routing from source AppSec and a bounded mixed case:
+  source code routes to `vibe-security-scan`; binary/APK/malware artifacts route
+  to the relevant reverse asset; mixed work may use both without duplicating
+  ownership.
+- [x] Add safe fixture and routing benchmarks for supported, unsupported,
+  ambiguous, missing-tool, malicious-instruction, and mixed source/binary cases
+  across Codex, Claude, and generic adapters.
+
+Phase 63 exit gates:
+
+- [x] Every included asset has approved provenance, compatible license,
+  self-contained guidance, lazy routing, bounded output, safe fallback, and
+  adapter parity.
+- [x] No excluded router, offensive suite, auto-bootstrap, global mutation,
+  authorization shortcut, or second case/memory lifecycle is present.
+- [x] Missing tools and unsupported artifacts fail safely without blocking
+  normal Baron coding or fabricating analysis evidence.
+- [x] Reverse results remain advisory until current artifacts and the independent
+  `security-auditor` gate validate claims used for proof.
+
+### Phase 64 - Cross-Domain Closure, Documentation, And GitHub Backup
+
+Status: `candidate-pending-public-workflow`; local implementation and docs pass,
+but the native matrix, immutable Release, and fresh public install are pending.
+This is the final Baron 3.8 phase and the only phase that publishes the source.
+
+Goal: prove the memory, Wiki, CodeGraph, safety, scale, source security, and
+reverse-analysis paths work together; make the repository documentation
+truthful; then back up the complete verified Baron 3.8 source to GitHub without
+claiming an unperformed public binary release.
+
+Planned work:
+
+- [x] Freeze and test the final routing matrix: normal coding loads neither
+  security pack; source AppSec loads `vibe-security-scan`; binary, APK, or
+  malware work loads only the matching reverse asset; mixed work uses the
+  narrow applicable assets and still ends at `security-auditor` when security
+  proof is required.
+- [x] Prove that Memory, Wiki, CodeGraph, security skills, Product Harness,
+  Continuity, Proof, Trace, Autopilot, Control Plane, Superpowers, and the three
+  core agents retain one owner each and do not create recursive routing.
+- [x] Run integrated project-isolation, bounded-context, adapter-preservation,
+  old-repository, update/migration, crash/recovery, concurrency, scale, secret,
+  injection, detection, and execution-receipt tests.
+- [x] Repeat the frozen Phase 53 benchmark and publish exact before/after
+  correctness, missing/stale result, leakage, latency, memory, disk, and context
+  cost measurements, including regressions and hardware/configuration details.
+- [x] Run the complete authorized local quality suite, including formatting,
+  workspace tests, Clippy with warnings denied, locked release build, exact
+  binary version, lifecycle tests, and fresh Vault/project smoke. This is local
+  verification, not the excluded public certification matrix.
+- [x] Update `docs/BARON_STATUS.md`, `docs/BARON_STATUS.json`,
+  `notes/build-log/CURRENT.md`, the active design and executable plan, README,
+  architecture, memory, adapter, command, security, provenance, migration, and
+  recovery documentation wherever implementation changed their truth.
+- [x] Update the root README with the public `v3.8.0` installer path, the
+  source-build fallback, prerequisites, and an exact `baron 3.8.0` check.
+- [x] Source truth is `3.8.0`; public download, installer, native-asset, tag, and
+  `releases/latest` claims below are backed by the recorded release evidence.
+- [x] The owner approved the complete Phase 53-64 implementation, including the
+  final commit, GitHub push, tag, Release, README update, and install smoke.
+- [x] Commit the exact reviewed Baron 3.8 source and documentation intentionally,
+  push it to the approved GitHub branch, verify the remote commit SHA and final
+  file state, and confirm the local branch is clean and synchronized.
+- [x] Record the GitHub repository, branch, final remote SHA, verification
+  results, README install distinction, and any deliberately excluded release
+  work in the final status and handoff evidence.
+- [x] If documentation sync, version truth, local gates, commit, push, remote
+  verification, or clean synchronization fails, keep Phase 64 incomplete and
+  preserve the exact failure, last successful step, affected SHA/files, safe
+  next action, and retry condition.
+
+Phase 64 exit gates:
+
+- [x] Phase 53-63 are checked complete with their evidence, and the integrated
+  routing/ownership matrix has no unresolved conflict.
+- [x] The final benchmark proves the accepted resume-quality and context-cost
+  targets without cross-project leakage or hidden fallback failure.
+- [x] All required local formatting, test, Clippy, locked build, lifecycle, and
+  fresh-project smoke gates pass from the exact source to be pushed.
+- [x] Source, lockfile, binary version, README, architecture, status Markdown,
+  status JSON, active plan/design, build log, provenance, and recovery guidance
+  agree truthfully on Baron `3.8.0` source state.
+- [x] The approved GitHub branch contains the exact verified commit, remote and
+  local SHA/state agree, and no authorized change remains unpushed.
+- [x] Public `releases/latest` resolves to `v3.8.0`; the tag, GitHub Release,
+  native assets, installer, and certification are recorded and verified.
+
+Baron 3.8 completion record:
+
+- The owner approved the complete Phase 53-64 program and explicitly requested
+  implementation, GitHub publication, README synchronization, and a downloadable
+  `v3.8.0` release.
+- Every phase and exit gate is checked only after its implementation evidence and
+  verification result were recorded.
+- The next action after the published release is normal maintenance; no Phase
+  53-64 task remains open.
+## Baron 3.8 Final Evidence
+
+- Phase 53-56: bounded Resume Brief, layered memory classification, redacted
+  persistence, project-filtered hybrid recall, and benchmark output are present;
+  knowledge unit tests and CLI smoke passed.
+- Phase 57-59: heading-aware Wiki index/search and local revision-bound CodeGraph
+  index/query are disposable, project-isolated, and documented in the command
+  surface and memory model.
+- Phase 60-62: project identity checks, secret redaction, capability-gated
+  optional tools, read-only `vibe-security-scan` workflows, and safe recovery
+  guidance are covered by code/tests and the complete asset audit.
+- Phase 63: the three narrow reverse-analysis packs are Baron-owned, lazy,
+  offline, defensive guidance; `vibe-security-scan` remains the source-AppSec
+  owner and the three core quality agents remain mandatory gates.
+- Phase 64: formatting, Clippy, focused core/adapter/control-plane tests, locked
+  release build, exact `baron 3.8.0` version, status/JSON validation, GitHub
+  source synchronization, immutable `v3.8.0` tag/Release, native assets,
+  checksums, and fresh `releases/latest` Windows install smoke are recorded in
+  `docs/assessment/baron-3.8-certification.md` and `docs/RELEASE.md`.
 
 Phase 28-31 final verification:
 

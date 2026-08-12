@@ -202,8 +202,8 @@ fn status_tracks_current_program() {
     let stable_release = status_json["stableRelease"].as_str().unwrap();
     assert!(status_md.contains(&format!("Stable source release: `v{stable_release}`")));
     if stable_release == "3.6.0" {
-        assert_eq!(status_json["targetRelease"], "3.7.0");
-        assert_eq!(status_json["programTargetRelease"], "3.7.0");
+        assert_eq!(status_json["targetRelease"], "3.8.0");
+        assert_eq!(status_json["programTargetRelease"], "3.8.0");
         assert_eq!(status_json["remainingPhaseCount"], 1);
     } else {
         assert_eq!(status_json["stableRelease"], status_json["targetRelease"]);
