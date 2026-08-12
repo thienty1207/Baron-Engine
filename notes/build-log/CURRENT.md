@@ -34,6 +34,18 @@ Baron 3.7 Phase 46-52 implementation and public release (`completed`).
 - Proof status is complete; `origin/main` equals `1fb0417` and the local
   working tree is clean and synchronized.
 
+## Status Checklist Repair
+
+- GitHub review caught that the Phase 46-51 detailed checklists in
+  `docs/BARON_STATUS.md` still displayed `[ ]` even though the phase summary,
+  status JSON, tests, and release evidence were complete.
+- Every actual completion item and exit-gate item under Phases 46-51 is now
+  checked `[x]`. Phase 52's remaining unchecked bullets are explicitly labeled
+  permanent hard-stop policy rules, not unfinished work.
+- The Phase 51 status text now describes the certified 3.7 release source;
+  historical 3.6 baseline references remain only where they document the
+  pre-bump certification boundary.
+
 ## Checkpoint After Phase 46-50 And Phase 48 Hardening
 
 - Phase 46 now has a write-free work-shape decision and hidden CLI surface;

@@ -945,41 +945,41 @@ Goal: keep Baron's full safety systems while making their activation
 proportional to the actual work instead of treating every meaningful code edit
 as the same lifecycle shape.
 
-- [ ] Model mutation authority, durable-memory need, human-judgment need, risk,
+- [x] Model mutation authority, durable-memory need, human-judgment need, risk,
   proof type, and lifecycle depth as separate decisions.
-- [ ] Keep answers, explanations, reviews, diagnoses, plans, and status reports
+- [x] Keep answers, explanations, reviews, diagnoses, plans, and status reports
   read-only with no Plan, Harness, Proof, Trace, friction, or learning writes.
-- [ ] Let a bounded, single-session, reversible change with clear expected
+- [x] Let a bounded, single-session, reversible change with clear expected
   behavior use an ephemeral execution path and focused proof without creating
   unnecessary durable Plan or Harness story state.
-- [ ] Require durable Plan and Continuity state when work spans sessions,
+- [x] Require durable Plan and Continuity state when work spans sessions,
   coordinates contributors or agents, has meaningful dependencies, needs a
   recovery procedure, or cannot safely resume from its diff.
-- [ ] Keep high-risk proof and mandatory gates strong even when the code change
+- [x] Keep high-risk proof and mandatory gates strong even when the code change
   itself is short or mechanically small.
-- [ ] Stop before mutation when materially different externally observable
+- [x] Stop before mutation when materially different externally observable
   choices remain open; a configurable default is not product authority.
-- [ ] Extend intent evidence so the current authority source, unresolved
+- [x] Extend intent evidence so the current authority source, unresolved
   choices, policy owner, and required user decision are explicit.
-- [ ] Preserve the rule that the agent reads repository, Vault, plan, Harness,
+- [x] Preserve the rule that the agent reads repository, Vault, plan, Harness,
   continuity, and prior decisions before asking one missing high-value question.
-- [ ] Make routing output explain why lifecycle state was skipped or required so
+- [x] Make routing output explain why lifecycle state was skipped or required so
   a lighter workflow never becomes silent proof weakening.
-- [ ] Add English and Vietnamese fixtures for read-only work, bounded changes,
+- [x] Add English and Vietnamese fixtures for read-only work, bounded changes,
   multi-session work, short high-risk changes, unclear product policy, and
   difficult recovery.
-- [ ] Prove Codex, Claude, and generic adapters make the same work-shape decision
+- [x] Prove Codex, Claude, and generic adapters make the same work-shape decision
   without loading every profile, skill, or agent.
 
 Phase 46 exit gate:
 
-- [ ] A routine bounded change completes with focused evidence and no unrelated
+- [x] A routine bounded change completes with focused evidence and no unrelated
   durable lifecycle files.
-- [ ] A bounded authentication or permission change still receives confirmed
+- [x] A bounded authentication or permission change still receives confirmed
   authority, security review, test proof, and completion protection.
-- [ ] A long documentation migration receives durable planning and recovery
+- [x] A long documentation migration receives durable planning and recovery
   without being misclassified as a security task.
-- [ ] Ambiguous product policy produces no source or Baron-state mutation.
+- [x] Ambiguous product policy produces no source or Baron-state mutation.
 
 ### Phase 47 - Structured Execution Proof Receipts
 
@@ -992,46 +992,46 @@ Goal: make tool-backed proof describe an execution Baron can validate instead
 of accepting an agent-written sentence containing words such as `passed`,
 `verified`, `test`, `build`, or `smoke`.
 
-- [ ] Define a versioned execution-receipt schema containing project ID, task or
+- [x] Define a versioned execution-receipt schema containing project ID, task or
   plan identity when present, source revision or worktree fingerprint, provider,
   capability, executable, argument vector, working directory, start/end time,
   exit code, result, bounded output digests, and produced artifact digests.
-- [ ] Accept proof only from a Baron-owned execution runner or a registered,
+- [x] Accept proof only from a Baron-owned execution runner or a registered,
   verified backend that creates the receipt atomically from the execution it
   actually observed. Handwritten, imported, agent-authored, or schema-shaped
   receipt data remains reported evidence and cannot satisfy an execution gate.
-- [ ] Give each trusted receipt an integrity chain that binds the registered
+- [x] Give each trusted receipt an integrity chain that binds the registered
   backend, invocation, source state, result, bounded output, and artifacts;
   reject a receipt when any bound field cannot be independently checked.
-- [ ] Run supported local proof commands as executable plus arguments; do not
+- [x] Run supported local proof commands as executable plus arguments; do not
   interpolate caller-controlled values into shell source.
-- [ ] Record `passed`, `failed`, `skipped`, and `degraded` as distinct outcomes.
+- [x] Record `passed`, `failed`, `skipped`, and `degraded` as distinct outcomes.
   A missing optional provider may degrade but must never appear as passed.
-- [ ] Bind receipts to Baron project identity so two repositories with the same
+- [x] Bind receipts to Baron project identity so two repositories with the same
   name cannot reuse each other's execution evidence.
-- [ ] Detect source changes after a receipt and mark that receipt stale for
+- [x] Detect source changes after a receipt and mark that receipt stale for
   claims affected by the change.
-- [ ] Reject malformed, oversized, path-escaping, symlink/junction-traversing,
+- [x] Reject malformed, oversized, path-escaping, symlink/junction-traversing,
   wrong-project, wrong-revision, tampered, or replayed receipt data.
-- [ ] Bound stdout, stderr, metadata, and artifact inventories. Store digests or
+- [x] Bound stdout, stderr, metadata, and artifact inventories. Store digests or
   redacted excerpts where full output would leak secrets or flood Vault memory.
-- [ ] Keep durable human-readable proof in Vault Markdown while treating any
+- [x] Keep durable human-readable proof in Vault Markdown while treating any
   machine receipt/cache as rebuildable or independently verifiable metadata.
-- [ ] Keep historical free-form proofs readable and clearly label them as
+- [x] Keep historical free-form proofs readable and clearly label them as
   legacy reported evidence; do not silently upgrade them to executed proof.
-- [ ] Add a safe migration path for initialized Baron 3.6 projects without
+- [x] Add a safe migration path for initialized Baron 3.6 projects without
   deleting their existing Proof, Trace, Harness, or Vault records.
 
 Phase 47 exit gate:
 
-- [ ] The sentence `tests passed` without a matching receipt cannot satisfy an
+- [x] The sentence `tests passed` without a matching receipt cannot satisfy an
   execution-required proof gate.
-- [ ] A command with a non-zero exit cannot be recorded as passed.
-- [ ] Output from an old or different source revision cannot prove the current
+- [x] A command with a non-zero exit cannot be recorded as passed.
+- [x] Output from an old or different source revision cannot prove the current
   source.
-- [ ] A missing freshly produced artifact cannot be hidden by a stale artifact
+- [x] A missing freshly produced artifact cannot be hidden by a stale artifact
   left from an earlier build.
-- [ ] Receipt tampering, cross-project reuse, and secret-bearing output fixtures
+- [x] Receipt tampering, cross-project reuse, and secret-bearing output fixtures
   fail safely without corrupting durable memory.
 
 ### Phase 48 - Gate, Trace, And Completion Integrity
@@ -1043,35 +1043,35 @@ work.
 Goal: connect quality-agent gates, Proof, Trace, reviewer closure, capability
 execution, and Stop reconciliation to the structured receipts from Phase 47.
 
-- [ ] Give each mandatory quality-gate run a stable run ID, project/source
+- [x] Give each mandatory quality-gate run a stable run ID, project/source
   identity, agent name, findings or no-finding result, evidence digest, and the
   verification receipts it relied on.
-- [ ] Count `code-reviewer`, `security-auditor`, or `test-engineer` only when a
+- [x] Count `code-reviewer`, `security-auditor`, or `test-engineer` only when a
   matching gate run actually occurred for the relevant current task and source.
-- [ ] Invalidate stale gate evidence after relevant source changes instead of
+- [x] Invalidate stale gate evidence after relevant source changes instead of
   finding only an old occurrence of the agent name in a Markdown file.
-- [ ] Require reviewer closure to reference both fix evidence and a fresh
+- [x] Require reviewer closure to reference both fix evidence and a fresh
   verification receipt; preserve every failed or superseded attempt.
-- [ ] Replace keyword-based proof satisfaction with receipt-backed rules matched
+- [x] Replace keyword-based proof satisfaction with receipt-backed rules matched
   to focused, integration, end-to-end, recovery, security/data-impact, or
   measurement claims.
-- [ ] Make Trace scoring distinguish verified facts, reported summaries,
+- [x] Make Trace scoring distinguish verified facts, reported summaries,
   degraded optional checks, missing proof, and unattempted work.
-- [ ] Keep a failed Trace score as a hard completion stop.
-- [ ] Make Stop reconciliation reject reported-only, failed, stale, mismatched,
+- [x] Keep a failed Trace score as a hard completion stop.
+- [x] Make Stop reconciliation reject reported-only, failed, stale, mismatched,
   or incomplete evidence without entering a hook loop.
-- [ ] Explain the exact missing or stale receipt and safe next action so a user
+- [x] Explain the exact missing or stale receipt and safe next action so a user
   is not left with a generic `proof insufficient` message.
-- [ ] Preserve custom quality agents as optional assets without letting them
+- [x] Preserve custom quality agents as optional assets without letting them
   replace the three mandatory Baron gates.
 
 Phase 48 exit gate:
 
-- [ ] A hand-edited gate Markdown entry cannot close a required gate.
-- [ ] A gate run against an older source revision cannot complete changed code.
-- [ ] Failed, skipped, or degraded checks remain visible and cannot become a
+- [x] A hand-edited gate Markdown entry cannot close a required gate.
+- [x] A gate run against an older source revision cannot complete changed code.
+- [x] Failed, skipped, or degraded checks remain visible and cannot become a
   false green through summary wording.
-- [ ] High-risk completion passes only with current required gates, relevant
+- [x] High-risk completion passes only with current required gates, relevant
   execution receipts, and a detailed passing Trace.
 
 ### Phase 49 - Measured Harness Improvement Experiments
@@ -1082,41 +1082,41 @@ keep/revise/remove/pending lifecycle pass focused and CLI tests.
 Goal: retain a Harness intervention only after a comparable fresh-agent rerun
 shows that the intervention was available, used, relevant, and beneficial.
 
-- [ ] Keep ordinary post-task Autopilot review candidate-only. It may report
+- [x] Keep ordinary post-task Autopilot review candidate-only. It may report
   repeated friction but must not start or apply an experiment by itself.
-- [ ] Require explicit user authority before an experiment changes guidance,
+- [x] Require explicit user authority before an experiment changes guidance,
   tools, runbooks, validation, skills, agents, core policy, or architecture.
-- [ ] Record a representative task, accepted outcome, baseline repository
+- [x] Record a representative task, accepted outcome, baseline repository
   revision, adapter/worker, tools, authority, external conditions, proof,
   retries, human steering, and known limitations.
-- [ ] Classify the earliest useful gap as context, capability, domain ownership,
+- [x] Classify the earliest useful gap as context, capability, domain ownership,
   authority, proof, environment, or another explicitly justified owner.
-- [ ] Assign the correction to Baron, the consumer repository, the external
+- [x] Assign the correction to Baron, the consumer repository, the external
   environment, or a human decision; do not copy consumer-specific policy into
   generic Baron assets.
-- [ ] State one falsifiable intervention hypothesis, evidence that would weaken
+- [x] State one falsifiable intervention hypothesis, evidence that would weaken
   it, its maintenance owner, expected cost, and removal condition before edits.
-- [ ] Apply only the approved bounded intervention and run native validation for
+- [x] Apply only the approved bounded intervention and run native validation for
   the changed owner.
-- [ ] Require a fresh agent/session with materially equivalent task class,
+- [x] Require a fresh agent/session with materially equivalent task class,
   authority, tools, starting state, and relevant external conditions.
-- [ ] Record separately whether the intervention was available, retrieved or
+- [x] Record separately whether the intervention was available, retrieved or
   invoked, relevant, and causally connected to the observed outcome.
-- [ ] Compare outcome, proof strength, human steering, retries, authority
+- [x] Compare outcome, proof strength, human steering, retries, authority
   behavior, context cost, and maintenance cost.
-- [ ] Finish as `keep`, `revise`, `remove`, or `pending fresh rerun`. Never call
+- [x] Finish as `keep`, `revise`, `remove`, or `pending fresh rerun`. Never call
   the Harness improved while the rerun is pending or did not exercise the
   intervention.
-- [ ] Bind experiments to project identity and preserve their history in Vault
+- [x] Bind experiments to project identity and preserve their history in Vault
   without promoting unapproved results to verified facts.
 
 Phase 49 exit gate:
 
-- [ ] A free-form `outcome improved` message cannot close an experiment.
-- [ ] A rerun that did not retrieve or invoke the intervention stays pending.
-- [ ] An intervention that adds noise without improving the representative task
+- [x] A free-form `outcome improved` message cannot close an experiment.
+- [x] A rerun that did not retrieve or invoke the intervention stays pending.
+- [x] An intervention that adds noise without improving the representative task
   can be removed while its evidence remains preserved.
-- [ ] Same-name repositories cannot share experiment baselines or results.
+- [x] Same-name repositories cannot share experiment baselines or results.
 
 ### Phase 50 - Application Runbook And Real-System Proof
 
@@ -1127,38 +1127,38 @@ live interface execution and resource ownership to the project repository.
 Goal: make application operation legible when a task needs it, while leaving
 application truth and resource ownership with the project.
 
-- [ ] Define a project-owned application runbook contract under
+- [x] Define a project-owned application runbook contract under
   `docs/baron/operations/` for scope, prerequisites, exact start command,
   process/project identity, ports and writable state, readiness, deterministic
   scenario state, real interface, runtime evidence, ownership/cleanup,
   validation, and unknowns.
-- [ ] Populate or refresh only facts supported by repository, user, runtime, or
+- [x] Populate or refresh only facts supported by repository, user, runtime, or
   verified proof evidence. A heading or template field is not operational truth.
-- [ ] Distinguish fixed, configured, defaulted, observed, likely, stale, and
+- [x] Distinguish fixed, configured, defaulted, observed, likely, stale, and
   unknown values; do not turn a detected command into a verified run command
   until its relevant execution succeeds.
-- [ ] Never invent credentials, ports, fixtures, product policy, readiness
+- [x] Never invent credentials, ports, fixtures, product policy, readiness
   signals, log fields, cleanup commands, or resource ownership.
-- [ ] Route the runbook only for operate, reproduce, runtime-debug, end-to-end,
+- [x] Route the runbook only for operate, reproduce, runtime-debug, end-to-end,
   deployment-smoke, or comparable tasks; unrelated work must not pay its context
   cost.
-- [ ] Start only an isolated instance or explicitly approved shared target,
+- [x] Start only an isolated instance or explicitly approved shared target,
   prove readiness, create known state without touching unowned state, exercise
   the real interface, inspect correlated runtime evidence, and validate through
   the same interface.
-- [ ] Track resources created by the current run and clean up only those
+- [x] Track resources created by the current run and clean up only those
   resources. Missing cleanup authority remains an explicit unknown.
-- [ ] Keep secrets and private runtime data out of reports, receipts, traces,
+- [x] Keep secrets and private runtime data out of reports, receipts, traces,
   session replay, and Vault memory.
-- [ ] Integrate with platform profiles and the existing observability skill
+- [x] Integrate with platform profiles and the existing observability skill
   instead of adding a competing operations workflow owner.
 
 Phase 50 exit gate:
 
-- [ ] Missing readiness evidence cannot be reported as ready.
-- [ ] A likely but unexecuted command cannot satisfy application proof.
-- [ ] The runtime flow cannot stop or delete resources it does not own.
-- [ ] Frontend, backend/API, CLI/tool, desktop, data, and old irregular
+- [x] Missing readiness evidence cannot be reported as ready.
+- [x] A likely but unexecuted command cannot satisfy application proof.
+- [x] The runtime flow cannot stop or delete resources it does not own.
+- [x] Frontend, backend/API, CLI/tool, desktop, data, and old irregular
   repository fixtures preserve unknowns and use bounded task context.
 
 ### Phase 51 - Ownership-Safe Guidance And Integrated Certification
@@ -1166,41 +1166,41 @@ Phase 50 exit gate:
 Status: `completed`; existing owners expose work-shape, trusted receipt,
 experiment, and runbook contracts. Core/CLI suites, Clippy, locked release build,
 release-profile certification smoke, adapter/preservation/scale/regression gates,
-and public documentation checks pass on the certified 3.6 source.
+and public documentation checks pass on the certified 3.7 release source.
 
 Goal: strengthen existing Baron owners with selected evidence-first boundary
 checks, then prove Phases 46-50 work together without damaging Baron 3.6
 capabilities or creating a second workflow.
 
-- [ ] Record provenance and license information for the audited
+- [x] Record provenance and license information for the audited
   reviewed upstream harness release source outside operational skill
   guidance.
-- [ ] Distill composition-root and shipped-artifact verification into
+- [x] Distill composition-root and shipped-artifact verification into
   `test-engineer`, not a new general engineering skill.
-- [ ] Distill honest automation-failure handling into Proof/Test ownership so
+- [x] Distill honest automation-failure handling into Proof/Test ownership so
   a wrapper cannot hide a failed build or reuse a stale artifact.
-- [ ] Distill decode/validate/recover boundary rules and pass-external-values-as-
+- [x] Distill decode/validate/recover boundary rules and pass-external-values-as-
   data rules into Baron's existing security owners.
-- [ ] Distill adapter semantic-parity checks into adapter certification and the
+- [x] Distill adapter semantic-parity checks into adapter certification and the
   existing code-review owner.
-- [ ] Distill bounded cumulative-state checks into the existing performance
+- [x] Distill bounded cumulative-state checks into the existing performance
   owner.
-- [ ] Preserve the counter-pressure rule: a heuristic is advice supported by
+- [x] Preserve the counter-pressure rule: a heuristic is advice supported by
   repository evidence, not universal project policy or authority to rewrite an
   architecture.
-- [ ] Prove no `engineering-wisdom`, duplicate upstream workflow, fourth core
+- [x] Prove no `engineering-wisdom`, duplicate upstream workflow, fourth core
   agent, duplicate planning system, or live upstream dependency enters the
   runtime.
-- [ ] Prove Codex, Claude, and generic adapter parity for work shape, receipts,
+- [x] Prove Codex, Claude, and generic adapter parity for work shape, receipts,
   gates, experiments, and application-operation context.
-- [ ] Prove custom skills, agents, routing blocks, user text, hooks, source,
+- [x] Prove custom skills, agents, routing blocks, user text, hooks, source,
   plans, Harness records, Proof, Trace, Continuity, Vault memory, and code-map
   state survive init, local reconcile, and update planning.
-- [ ] Prove Baron 3.6 projects update without destructive migration and retain
+- [x] Prove Baron 3.6 projects update without destructive migration and retain
   readable historical evidence.
-- [ ] Run focused scale, corruption, interruption, same-name project,
+- [x] Run focused scale, corruption, interruption, same-name project,
   shared-Vault, stale-receipt, redaction, context-budget, and recovery tests.
-- [ ] Run the complete local workspace, Clippy, locked release build, installer,
+- [x] Run the complete local workspace, Clippy, locked release build, installer,
   adapter, old-repository, and release-workflow contract gates.
 - [x] Keep package/source/public version at `3.6.0` through Phase 51; the
   certified source is ready for the separately authorized Phase 52 bump.
@@ -1322,7 +1322,7 @@ Final public evidence:
   to `origin/main`, then verify the remote default branch contains the final
   README/status state and the local branch is clean and synchronized with it.
 
-Phase 52 hard stop rules:
+Phase 52 hard stop rules (permanent release policy, not outstanding work):
 
 - [ ] If any native job, checksum, installer, tag, Release asset,
   `releases/latest`, public README command, or fresh public install fails, keep
