@@ -68,6 +68,22 @@ Baron 3.7 Phase 46-52 implementation (`in_progress`).
   `origin/main`, dispatch the immutable release workflow, and wait for all
   native/public checks before changing the README public-release block.
 
+## Phase 52 Workflow Repair Checkpoint
+
+- Release workflow `31581443056` verified the exact candidate SHA, formatting,
+  and the beginning of the full workspace suite, then failed only in the
+  Linux self-update fixture because its hard-coded `3.6.1` candidate is older
+  than the now-running `3.7.0` binary.
+- The fixture now derives its candidate from `CARGO_PKG_VERSION` and increments
+  the patch number, preserving the intended staged-candidate assertion without
+  weakening the production older-version rejection.
+- Local proof passed after the repair: formatting check, the Linux-sensitive
+  self-update integration test, and Baron CLI Clippy with `-D warnings`.
+- Current proof status: release workflow must be re-dispatched from the repair
+  commit; no tag or public 3.7 Release is claimed until that run passes.
+- Safe next action: commit this focused test repair, push `origin/main`,
+  dispatch with the exact new SHA, and inspect all native/public release jobs.
+
 ## Continuity Checkpoint Before Source Edits
 
 - User approval: explicit approval to implement and publish the full Baron 3.7

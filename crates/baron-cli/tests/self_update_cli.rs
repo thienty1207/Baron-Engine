@@ -9,8 +9,14 @@ use baron_core::release::{
 use predicates::prelude::*;
 use tempfile::tempdir;
 
-const RELEASE_VERSION: &str = "3.6.1";
 const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+
+fn release_version() -> String {
+    let mut version = semver::Version::parse(env!("CARGO_PKG_VERSION"))
+        .expect("test package version must be valid semver");
+    version.patch += 1;
+    version.to_string()
+}
 
 fn current_target() -> &'static str {
     if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
@@ -52,14 +58,14 @@ fn snapshot_outside_update_workspace(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> 
     files
 }
 
-fn write_release_fixture(release: &Path, running_binary: &Path) {
+fn write_release_fixture(release: &Path, running_binary: &Path, release_version: &str) {
     for target in SUPPORTED_RELEASE_TARGETS {
         fs::write(
-            release.join(target.archive_name(RELEASE_VERSION)),
+            release.join(target.archive_name(release_version)),
             format!("archive:{}", target.triple),
         )
         .unwrap();
-        let candidate = release.join(target.update_candidate_name(RELEASE_VERSION));
+        let candidate = release.join(target.update_candidate_name(release_version));
         if target.triple == current_target() {
             #[cfg(target_os = "windows")]
             fs::copy(running_binary, candidate).unwrap();
@@ -72,7 +78,7 @@ fn write_release_fixture(release: &Path, running_binary: &Path) {
             fs::write(candidate, format!("other-target:{}", target.triple)).unwrap();
         }
     }
-    write_release_metadata(release, RELEASE_VERSION, SOURCE_REVISION).unwrap();
+    write_release_metadata(release, release_version, SOURCE_REVISION).unwrap();
 }
 
 #[test]
@@ -81,6 +87,7 @@ fn candidate_verification_stages_only_under_update_workspace_when_binary_identit
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     let release = temp.path().join("release");
+    let release_version = release_version();
     fs::create_dir_all(&repo).unwrap();
     fs::create_dir_all(&release).unwrap();
 
@@ -99,7 +106,7 @@ fn candidate_verification_stages_only_under_update_workspace_when_binary_identit
         .unwrap()
         .get_program()
         .to_owned();
-    write_release_fixture(&release, Path::new(&running_binary));
+    write_release_fixture(&release, Path::new(&running_binary), &release_version);
     let before = snapshot_outside_update_workspace(&repo);
 
     Command::cargo_bin("baron")
@@ -125,6 +132,6 @@ fn candidate_verification_stages_only_under_update_workspace_when_binary_identit
         .filter_map(Result::ok)
         .any(|entry| entry
             .path()
-            .join(target.update_candidate_name(RELEASE_VERSION))
+            .join(target.update_candidate_name(&release_version))
             .is_file()));
 }
