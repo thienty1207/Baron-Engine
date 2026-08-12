@@ -326,6 +326,34 @@ diagnostics. Runtime checks distinguish provider availability from real
 execution evidence, flag unsafe backends, warn on degraded optional tools, and
 block required unsafe or unverified tool-backed proof claims.
 
+## Baron 3.7 Quality And Trust
+
+The following AI-facing commands are hidden from the normal top-level help.
+They make work shape, execution evidence, Harness experiments, and application
+runbooks explicit without adding another workflow core:
+
+```bash
+baron work-shape "<task>" [repo-path] --json
+baron proof execute --capability <capability> --provider <provider> [repo-path] -- <command> [args...]
+baron proof record [verification] [repo-path] --receipt <receipt-id>
+baron control-plane record-gate <agent> "<summary>" [repo-path] --receipt <receipt-id>
+baron control-plane evidence [repo-path] --required <agent>
+baron harness experiment-start [repo-path] --baseline "<baseline>" --hypothesis "<hypothesis>" --intervention "<intervention>" --approved
+baron harness experiment-rerun <experiment-id> [repo-path] --available --retrieved --invoked --relevant --outcome "<outcome>"
+baron harness experiment-outcome <experiment-id> <keep|revise|remove|pending> "<decision>" [repo-path]
+```
+
+`baron proof execute` is the only trusted receipt producer. Receipts bind the
+project, current source fingerprint, command, provider, result, bounded output
+digests, and integrity hash. Medium/high-risk plan completion requires a fresh
+receipt and all three core quality gates to reference current receipt IDs;
+legacy Markdown remains readable but cannot satisfy that completion gate.
+
+An optional project-owned `docs/baron/operations/RUNBOOK.md` is routed only to
+runtime, reproduce, end-to-end, and deployment-smoke tasks. Its start command,
+readiness, interface, runtime evidence, and cleanup ownership are reported as
+bounded project facts; unknown values stay unknown until observed.
+
 ## Phase 23
 
 Baron 3.0 certification uses the existing release and certification commands:

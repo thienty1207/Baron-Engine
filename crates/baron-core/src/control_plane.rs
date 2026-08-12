@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 use serde::Deserialize;
 
+use crate::execution_receipt::{load_receipts, receipt_is_current};
 use crate::risk::RiskLane;
 use crate::vault::VaultContext;
 
@@ -375,6 +376,79 @@ pub fn record_gate_evidence(
         agent: agent.trim().to_string(),
         repo_path,
         vault_path,
+    })
+}
+
+pub fn record_gate_evidence_with_receipt(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    agent: &str,
+    summary: &str,
+    receipt_id: &str,
+) -> Result<GateEvidence> {
+    let repo_root = repo_root.as_ref();
+    let receipt = load_receipts(repo_root)?
+        .into_iter()
+        .find(|receipt| receipt.receipt_id == receipt_id.trim())
+        .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
+    if !receipt_is_current(repo_root, &receipt)? {
+        anyhow::bail!(
+            "Gate receipt `{}` is stale, failed, mismatched, or tampered",
+            receipt.receipt_id
+        );
+    }
+    let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
+    let vault_path = vault.project_root.join("ControlPlane/GATES.md");
+    let item = format!(
+        "- {} - `{}` - {} - trusted_receipt=`{}`",
+        now(),
+        agent.trim(),
+        summary.trim(),
+        receipt.receipt_id
+    );
+    append(&repo_path, "# Baron Quality Gate Evidence\n\n", &item)?;
+    append(&vault_path, "# Baron Quality Gate Evidence\n\n", &item)?;
+    Ok(GateEvidence {
+        agent: agent.trim().to_string(),
+        repo_path,
+        vault_path,
+    })
+}
+
+pub fn gate_evidence_status_strict(
+    repo_root: impl AsRef<Path>,
+    required_agents: &[String],
+) -> Result<GateEvidenceStatus> {
+    let repo_root = repo_root.as_ref();
+    let content =
+        fs::read_to_string(repo_root.join("docs/baron/control-plane/GATES.md")).unwrap_or_default();
+    let receipts = load_receipts(repo_root)?;
+    let mut missing_agents = Vec::new();
+    for agent in required_agents {
+        let needle = format!("`{}`", agent.trim());
+        let satisfied = content.lines().any(|line| {
+            if !line.contains(&needle) {
+                return false;
+            }
+            let Some((_, value)) = line.split_once("trusted_receipt=`") else {
+                return false;
+            };
+            let Some((receipt_id, _)) = value.split_once('`') else {
+                return false;
+            };
+            receipts
+                .iter()
+                .find(|receipt| receipt.receipt_id == receipt_id.trim())
+                .map(|receipt| receipt_is_current(repo_root, receipt).unwrap_or(false))
+                .unwrap_or(false)
+        });
+        if !satisfied {
+            missing_agents.push(agent.clone());
+        }
+    }
+    Ok(GateEvidenceStatus {
+        passed: missing_agents.is_empty(),
+        missing_agents,
     })
 }
 

@@ -13,6 +13,7 @@ use crate::domain_language::{read_domain_language, render_domain_language_contex
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
 use crate::memory::build_memory_index;
+use crate::operations::{load_runbook, relevant_to_task, render_bounded_context};
 use crate::platform::render_platform_context;
 use crate::review_gate::review_status;
 use crate::session::import_sessions;
@@ -100,6 +101,14 @@ pub fn compile_context_for_task(
     output.push_str(&render_actionable_recovery(repo_path));
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_optional_code_map_context(repo_path, task)?);
+    if task.map(relevant_to_task).unwrap_or(false) {
+        if let Some(runbook) = load_runbook(repo_path)? {
+            output.push_str(&render_bounded_context(&runbook));
+            output.push('\n');
+        } else {
+            output.push_str("## Application Runbook\n\n- No project-owned runbook is available; runtime facts remain unknown.\n\n");
+        }
+    }
     output.push_str(&render_execution_state(repo_path));
     output.push_str(&render_execution_evidence(repo_path));
     if domain_language.term_count > 0 && domain_language.mirror_in_sync {
@@ -326,6 +335,9 @@ pub fn compile_context_why(
         output.push_str(
             "- Loaded: runtime backend policy so unsafe or unverified providers cannot satisfy proof silently.\n",
         );
+    }
+    if repo_path.join("docs/baron/operations/RUNBOOK.md").is_file() {
+        output.push_str("- Application runbook is loaded only for matching runtime/operate tasks; its full text stays skipped.\n");
     }
     if repo_path
         .join("docs/baron/autopilot/CANDIDATES.md")

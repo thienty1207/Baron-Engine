@@ -108,10 +108,11 @@ fn three_adapters_expand_fullstack_to_mobile_without_losing_custom_or_legacy_fil
 
 #[test]
 fn release_binary_reports_current_source_version() {
+    let expected = format!("baron {}", env!("CARGO_PKG_VERSION"));
     Command::cargo_bin("baron")
         .unwrap()
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("baron 3.6.0"));
+        .stdout(predicate::str::contains(expected));
 }

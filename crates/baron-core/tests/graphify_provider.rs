@@ -69,9 +69,9 @@ mod windows {
 
     fn provider() -> GraphifyProvider {
         GraphifyProvider::powershell_script(fixture()).with_limits(GraphifyLimits {
-            probe_timeout: Duration::from_secs(1),
-            refresh_timeout: Duration::from_secs(1),
-            query_timeout: Duration::from_secs(1),
+            probe_timeout: Duration::from_secs(3),
+            refresh_timeout: Duration::from_secs(3),
+            query_timeout: Duration::from_secs(3),
             max_graph_bytes: 1_024,
             max_stdout_bytes: 1_024,
             max_stderr_bytes: 512,

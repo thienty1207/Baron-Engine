@@ -515,6 +515,7 @@ fn startup_contract(agent: &str, adapter: &str) -> String {
         "# Baron Automatic Agent Contract\n\n\
     You are using Baron through the {agent} adapter.\n\n\
     - Before any durable Baron or repository write, silently run `baron authority classify \"<requested outcome>\"`; classify by the outcome, so `review and apply fixes` is a change request even though it contains `review`.\n\
+    - Silently run `baron work-shape \"<task>\" --json` before meaningful work. Read-only tasks create no lifecycle state; focused reversible changes use focused proof; risky, coordinated, ambiguous, or multi-session work keeps the full plan, intent, recovery, gate, proof, and trace path.\n\
     - When authority is `read_only` or `ambiguous`, inspect only what is needed to answer and do not create or update plan, Harness, proof, trace, review, friction, or learning state. Ambiguous authority stays read-only until the user explicitly requests a change.\n\
     - If Baron reports project, Vault, capsule, schema, or identity mismatch, stop durable work and run `baron automation reconcile`; never repair Baron metadata by hand or continue with guessed state. If local reconciliation cannot restore coherent state, tell the user that a human must run public `baron update`. Never run public `baron update`: only a human may authorize a release download or runtime replacement.\n\
     - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
@@ -540,7 +541,8 @@ fn startup_contract(agent: &str, adapter: &str) -> String {
     - Before final response after meaningful work, run `baron autopilot review \"<task summary, proof state, remaining risks>\"`; it may propose learning, but it must not rewrite trusted facts or runtime assets without approval.\n\
     - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
     - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\
-    - After each mandatory quality gate actually runs, record it with `baron control-plane record-gate <agent> \"<evidence summary>\"`.\n\
+    - For execution-required proof, use Baron-owned `baron proof execute --capability <capability> --provider <provider> -- <executable> <args...>`; record the returned receipt with `baron proof record \"<summary>\" --receipt <receipt-id>`. A sentence or hand-written receipt is not execution proof.\n\
+    - After each mandatory quality gate actually runs, record it with `baron control-plane record-gate <agent> \"<evidence summary>\" --receipt <receipt-id>`; the legacy form remains reported evidence only.\n\
     - For concrete reviewer findings, silently run `baron review finding \"<summary>\" --severity <level> --evidence \"<evidence>\"`; keep findings open until the fix exists.\n\
     - Close a finding only with `baron review close <id> --fix-evidence \"<what changed>\" --verification \"<command/result>\"`; fix evidence and verification are both mandatory.\n\
     - After actually running a registered provider, attach structured capability evidence with `baron proof record`; then record and run `baron trace score` before claiming completion.\n\

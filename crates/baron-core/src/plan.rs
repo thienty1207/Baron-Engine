@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
-use crate::proof::{latest_proof, proof_satisfies_risk};
+use crate::control_plane::gate_evidence_status_strict;
+use crate::proof::{latest_proof, proof_has_current_receipt, proof_satisfies_risk};
 use crate::risk::{classify_risk, RiskLane};
 use crate::trace::{latest_trace_score, TraceTier};
 use crate::vault::VaultContext;
@@ -177,6 +178,25 @@ pub fn complete_plan(
             active.risk.as_str()
         );
     }
+    if active.risk != RiskLane::Low && !proof_has_current_receipt(repo_root, &proof)? {
+        bail!(
+            "Plan completion blocked: medium/high-risk proof must reference a current trusted execution receipt."
+        );
+    }
+    if active.risk != RiskLane::Low {
+        let required_agents = [
+            "code-reviewer".to_string(),
+            "security-auditor".to_string(),
+            "test-engineer".to_string(),
+        ];
+        let gate_status = gate_evidence_status_strict(repo_root, &required_agents)?;
+        if !gate_status.passed {
+            bail!(
+                "Plan completion blocked: trusted quality-gate receipts are missing for {}.",
+                gate_status.missing_agents.join(", ")
+            );
+        }
+    }
     let trace = latest_trace_score(repo_root)?.context(
         "Plan completion blocked: scored trace is missing. Run `baron trace record` and `baron trace score`.",
     )?;
@@ -266,9 +286,24 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
                 issues.push("plan verification evidence is missing".to_string());
             }
             match latest_proof(repo_root)? {
-                Some(proof) if proof_satisfies_risk(&proof.summary, plan.risk) => {}
-                Some(_) => issues.push("proof does not satisfy the plan risk".to_string()),
+                Some(proof) => {
+                    let trusted =
+                        plan.risk == RiskLane::Low || proof_has_current_receipt(repo_root, &proof)?;
+                    if !proof_satisfies_risk(&proof.summary, plan.risk) || !trusted {
+                        issues.push("proof does not satisfy the plan risk".to_string());
+                    }
+                }
                 None => issues.push("proof is missing".to_string()),
+            }
+            if plan.risk != RiskLane::Low {
+                let required_agents = [
+                    "code-reviewer".to_string(),
+                    "security-auditor".to_string(),
+                    "test-engineer".to_string(),
+                ];
+                if !gate_evidence_status_strict(repo_root, &required_agents)?.passed {
+                    issues.push("trusted quality-gate evidence is missing".to_string());
+                }
             }
             let required = required_tier(plan.risk);
             match latest_trace_score(repo_root)? {

@@ -11,14 +11,17 @@ pub mod context;
 pub mod continuity;
 pub mod control_plane;
 pub mod domain_language;
+pub mod execution_receipt;
 pub mod firewall;
 pub mod graphify;
 pub mod harness;
+pub mod harness_experiment;
 pub mod harness_improvement;
 pub mod identity;
 pub mod intent;
 pub mod memory;
 pub mod migration;
+pub mod operations;
 pub mod plan;
 pub mod platform;
 pub mod proof;
@@ -31,6 +34,7 @@ pub mod state_guard;
 pub mod survey;
 pub mod trace;
 pub mod vault;
+pub mod work_shape;
 
 pub fn product_name() -> &'static str {
     "Baron Engine"

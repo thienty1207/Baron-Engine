@@ -1,12 +1,15 @@
 use std::fs;
 use std::process::Command;
+use std::time::Duration;
 
+use baron_core::control_plane::record_gate_evidence_with_receipt;
+use baron_core::execution_receipt::{execute_command, ExecutionRequest};
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
-use baron_core::proof::record_proof;
+use baron_core::proof::record_proof_from_receipt;
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -43,6 +46,22 @@ fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContex
         },
     )
     .unwrap();
+}
+
+fn passing_execution(repo: &std::path::Path) -> baron_core::execution_receipt::ExecutionReceipt {
+    #[cfg(windows)]
+    let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
+    #[cfg(not(windows))]
+    let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
+    execute_command(ExecutionRequest {
+        capability: "security-authorization".to_string(),
+        provider: "test-runner".to_string(),
+        executable: executable.to_string(),
+        arguments,
+        working_directory: repo.to_path_buf(),
+        timeout: Duration::from_secs(5),
+    })
+    .unwrap()
 }
 
 #[test]
@@ -192,12 +211,18 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
     let plan = start_or_resume_plan(&repo, &context, "backend login security").unwrap();
     confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
-    record_proof(
-        &repo,
-        &context,
-        "cargo test auth passed; security authorization and tenant impact verified",
-    )
-    .unwrap();
+    let receipt = passing_execution(&repo);
+    record_proof_from_receipt(&repo, &context, &receipt.receipt_id).unwrap();
+    for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
+        record_gate_evidence_with_receipt(
+            &repo,
+            &context,
+            agent,
+            &format!("{agent} reviewed auth security with evidence"),
+            &receipt.receipt_id,
+        )
+        .unwrap();
+    }
     let trace = record_trace(
         &repo,
         &context,

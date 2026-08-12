@@ -14,6 +14,10 @@ baron-cli
        -> trace engine
        -> control-plane engine
        -> harness improvement engine
+       -> work-shape decision engine
+       -> trusted execution receipt ledger
+       -> measured Harness experiment ledger
+       -> bounded application runbook reader
        -> certification engine
        -> release metadata and checksum verifier
   -> baron-adapters
@@ -33,7 +37,9 @@ repo + vault + user task
   -> survey/context compiler
   -> memory firewall
   -> active plan and harness state
-  -> control-plane route and quality-gate evidence
+  -> work-shape decision (read-only, focused, durable, or confirmation)
+  -> control-plane route and trusted quality-gate receipt evidence
+  -> bounded application runbook when the task needs runtime operations
   -> harness audit and improvement loop
   -> certification gate when release confidence matters
   -> adapter-specific context output
@@ -58,6 +64,14 @@ repo + vault + user task
 - Baron must never mark completion without verification evidence.
 - Baron must never count a mandatory skill/agent gate without recorded gate
   evidence.
+- A hand-written or stale proof sentence is reported evidence only. Trusted
+  proof and gate completion require a Baron-owned receipt bound to the current
+  project source.
+- Harness interventions remain candidates until explicitly approved, then
+  require a comparable fresh-agent rerun before keep/revise/remove.
+- Project operation facts belong to the repository-owned runbook; missing
+  readiness, interface, credentials, ports, fixtures, and cleanup ownership
+  remain unknown rather than being invented.
 - Baron may propose harness improvements, but must not rewrite core policy or
   architecture without human approval.
 - Baron must never promote cross-project memory as truth without confidence.

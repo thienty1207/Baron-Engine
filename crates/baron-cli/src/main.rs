@@ -48,14 +48,17 @@ use baron_core::continuity::{
     RecoveryOutcome,
 };
 use baron_core::control_plane::{
-    gate_evidence_status, record_gate_evidence, route_task, validate_control_plane,
+    gate_evidence_status_strict, record_gate_evidence, record_gate_evidence_with_receipt,
+    route_task, validate_control_plane,
 };
+use baron_core::execution_receipt::{execute_command, ExecutionRequest, ExecutionResult};
 use baron_core::firewall::{compact_memory_brief, recall, render_recall};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
 use baron_core::harness::{
     ensure_harness_workspace, harness_status, record_decision, record_friction,
     start_or_resume_intake,
 };
+use baron_core::harness_experiment::{finalize_experiment, record_fresh_rerun, start_experiment};
 use baron_core::harness_improvement::{
     audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
     verify_open_stories,
@@ -70,7 +73,9 @@ use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
-use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
+use baron_core::proof::{
+    proof_status, record_proof, record_proof_from_receipt, record_proof_with_capabilities,
+};
 use baron_core::release::{
     load_and_verify_release_metadata, verify_release_identity, write_release_metadata,
 };
@@ -83,6 +88,7 @@ use baron_core::state_guard::require_coherent_execution_state;
 use baron_core::survey::{render_project_atlas, survey_repository};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
+use baron_core::work_shape::decide_work_shape;
 use baron_core::{phase, product_name};
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -98,6 +104,13 @@ enum Commands {
     Setup {
         #[arg(long, num_args = 0..=1, default_missing_value = ".")]
         vault: Option<PathBuf>,
+    },
+    #[command(hide = true, name = "work-shape")]
+    WorkShape {
+        task: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
     },
     #[command(hide = true)]
     Survey {
@@ -404,6 +417,36 @@ enum HarnessCommands {
         outcome: String,
         repo_path: Option<PathBuf>,
     },
+    ExperimentStart {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        baseline: String,
+        #[arg(long)]
+        hypothesis: String,
+        #[arg(long)]
+        intervention: String,
+        #[arg(long)]
+        approved: bool,
+    },
+    ExperimentRerun {
+        id: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        available: bool,
+        #[arg(long)]
+        retrieved: bool,
+        #[arg(long)]
+        invoked: bool,
+        #[arg(long)]
+        relevant: bool,
+        #[arg(long)]
+        outcome: String,
+    },
+    ExperimentOutcome {
+        id: String,
+        decision: String,
+        repo_path: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -416,6 +459,20 @@ enum ProofCommands {
         repo_path: Option<PathBuf>,
         #[arg(long = "capability-evidence")]
         capability_evidence: Vec<String>,
+        #[arg(long)]
+        receipt: Option<String>,
+    },
+    Execute {
+        #[arg(long)]
+        capability: String,
+        #[arg(long)]
+        provider: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long, default_value_t = 120)]
+        timeout_seconds: u64,
+        command: String,
+        #[arg(last = true)]
+        arguments: Vec<String>,
     },
 }
 
@@ -538,6 +595,8 @@ enum ControlPlaneCommands {
         agent: String,
         summary: String,
         repo_path: Option<PathBuf>,
+        #[arg(long)]
+        receipt: Option<String>,
     },
     Evidence {
         repo_path: Option<PathBuf>,
@@ -815,6 +874,31 @@ fn run() -> Result<()> {
             println!("- Default Vault: `{}`", configured.display());
             println!("- Machine config: `~/.baron/config.toml`");
             println!("- Next: run `baron init --codex --fullstack` inside a project folder.");
+        }
+        Some(Commands::WorkShape {
+            task,
+            repo_path,
+            json,
+        }) => {
+            let repo_root = repo_path.unwrap_or(std::env::current_dir()?);
+            let decision = decide_work_shape(&repo_root, &task)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&decision)?);
+            } else {
+                println!("# Baron Work Shape\n");
+                println!("- Work shape: `{}`", decision.work_shape.as_str());
+                println!("- Authority: `{}`", decision.authority.as_str());
+                println!("- Risk: `{}`", decision.risk.as_str());
+                println!("- Durability: `{:?}`", decision.durability);
+                println!("- Judgment: `{:?}`", decision.judgment);
+                println!("- Lifecycle: `{:?}`", decision.lifecycle);
+                println!(
+                    "- Proof required: `{}`",
+                    if decision.proof_required { "yes" } else { "no" }
+                );
+                println!("- Reasons: {}", decision.reasons.join("; "));
+                println!("- Next action: {}", decision.next_action);
+            }
         }
         Some(Commands::Survey { repo_path, json }) => {
             let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
@@ -1602,6 +1686,50 @@ fn run() -> Result<()> {
                 println!("- Outcome recorded");
                 println!("- Proposal: `{proposal_id}`");
             }
+            HarnessCommands::ExperimentStart {
+                repo_path,
+                baseline,
+                hypothesis,
+                intervention,
+                approved,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let record = start_experiment(
+                    &repo_root,
+                    &vault,
+                    &baseline,
+                    &hypothesis,
+                    &intervention,
+                    approved,
+                )?;
+                println!("# Baron Harness Experiment\n");
+                println!("- Experiment: `{}`", record.id);
+                println!("- Status: `awaiting_fresh_rerun`");
+            }
+            HarnessCommands::ExperimentRerun {
+                id,
+                repo_path,
+                available,
+                retrieved,
+                invoked,
+                relevant,
+                outcome,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                record_fresh_rerun(
+                    &repo_root, &vault, &id, available, retrieved, invoked, relevant, &outcome,
+                )?;
+                println!("# Baron Harness Experiment Rerun\n\n- Experiment: `{id}`\n- Status: `rerun_recorded`");
+            }
+            HarnessCommands::ExperimentOutcome {
+                id,
+                decision,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                finalize_experiment(&repo_root, &vault, &id, &decision)?;
+                println!("# Baron Harness Experiment Outcome\n\n- Experiment: `{id}`\n- Decision: `{decision}`");
+            }
         },
         Some(Commands::Proof { command }) => match command {
             ProofCommands::Status { repo_path } => {
@@ -1612,21 +1740,29 @@ fn run() -> Result<()> {
                 summary,
                 repo_path,
                 capability_evidence,
+                receipt,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let capability_evidence = capability_evidence
-                    .iter()
-                    .map(|value| parse_capability_evidence(value))
-                    .collect::<Result<Vec<_>>>()?;
-                let proof = if capability_evidence.is_empty() {
-                    record_proof(&repo_root, &vault, &summary)?
+                let proof = if let Some(receipt_id) = receipt {
+                    if !capability_evidence.is_empty() {
+                        bail!("Use either --receipt or --capability-evidence, not both");
+                    }
+                    record_proof_from_receipt(&repo_root, &vault, &receipt_id)?
                 } else {
-                    record_proof_with_capabilities(
-                        &repo_root,
-                        &vault,
-                        &summary,
-                        &capability_evidence,
-                    )?
+                    let capability_evidence = capability_evidence
+                        .iter()
+                        .map(|value| parse_capability_evidence(value))
+                        .collect::<Result<Vec<_>>>()?;
+                    if capability_evidence.is_empty() {
+                        record_proof(&repo_root, &vault, &summary)?
+                    } else {
+                        record_proof_with_capabilities(
+                            &repo_root,
+                            &vault,
+                            &summary,
+                            &capability_evidence,
+                        )?
+                    }
                 };
                 record_lifecycle_event(
                     &vault,
@@ -1646,6 +1782,41 @@ fn run() -> Result<()> {
                 );
                 if !proof.capability_gaps.is_empty() {
                     println!("- Capability gaps: {}", proof.capability_gaps.join(", "));
+                }
+            }
+            ProofCommands::Execute {
+                capability,
+                provider,
+                repo_path,
+                timeout_seconds,
+                command,
+                arguments,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let receipt = execute_command(ExecutionRequest {
+                    capability,
+                    provider,
+                    executable: command,
+                    arguments,
+                    working_directory: repo_root,
+                    timeout: std::time::Duration::from_secs(timeout_seconds),
+                })?;
+                println!("# Baron Trusted Execution\n");
+                println!("- Receipt: `{}`", receipt.receipt_id);
+                println!("- Result: `{}`", receipt.result.as_str());
+                println!(
+                    "- Exit code: `{}`",
+                    receipt
+                        .exit_code
+                        .map_or("none".to_string(), |code| code.to_string())
+                );
+                println!("- Source fingerprint: `{}`", receipt.source_fingerprint);
+                println!("- Receipt path: `.baron/cache/execution-receipts.jsonl`");
+                if receipt.result != ExecutionResult::Passed {
+                    bail!(
+                        "Trusted execution did not pass: `{}`",
+                        receipt.result.as_str()
+                    );
                 }
             }
         },
@@ -1950,9 +2121,20 @@ fn run() -> Result<()> {
                 agent,
                 summary,
                 repo_path,
+                receipt,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let evidence = record_gate_evidence(&repo_root, &vault, &agent, &summary)?;
+                let evidence = if let Some(receipt_id) = receipt {
+                    record_gate_evidence_with_receipt(
+                        &repo_root,
+                        &vault,
+                        &agent,
+                        &summary,
+                        &receipt_id,
+                    )?
+                } else {
+                    record_gate_evidence(&repo_root, &vault, &agent, &summary)?
+                };
                 println!("# Baron Control Plane Gate Evidence\n");
                 println!("- Gate evidence recorded");
                 println!("- Agent: `{}`", evidence.agent);
@@ -1973,7 +2155,7 @@ fn run() -> Result<()> {
                 } else {
                     required
                 };
-                let status = gate_evidence_status(&repo_root, &required)?;
+                let status = gate_evidence_status_strict(&repo_root, &required)?;
                 println!("# Baron Control Plane Evidence\n");
                 println!("- Passed: `{}`", if status.passed { "yes" } else { "no" });
                 println!("- Required: {}", required.join(", "));
@@ -3186,14 +3368,19 @@ mod tests {
 
     #[test]
     fn activated_runtime_requires_the_exact_release_version() {
-        let accepted = StaticInspector("baron 3.6.0");
-        assert!(verify_activated_runtime_version(&accepted, Path::new("baron"), "3.6.0").is_ok());
+        let expected_version = env!("CARGO_PKG_VERSION");
+        let accepted = StaticInspector("baron 3.7.0");
+        assert!(
+            verify_activated_runtime_version(&accepted, Path::new("baron"), expected_version)
+                .is_ok()
+        );
 
         let rejected = StaticInspector("baron 3.5.0");
-        let error = verify_activated_runtime_version(&rejected, Path::new("baron"), "3.6.0")
-            .expect_err("a mismatched activated runtime must be rejected");
+        let error =
+            verify_activated_runtime_version(&rejected, Path::new("baron"), expected_version)
+                .expect_err("a mismatched activated runtime must be rejected");
         assert!(error
             .to_string()
-            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 3.6.0`"));
+            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 3.7.0`"));
     }
 }

@@ -1,12 +1,89 @@
 # Current Build Note
 
-Date: 2026-07-27
-Target: Baron 3.6.0
-Program target: Baron 3.6.0
+Date: 2026-08-12
+Target: Baron 3.7.0
+Program target: Baron 3.7.0
 
 ## Current Phase
 
-Baron 3.6 final public release (`completed`).
+Baron 3.7 Phase 46-52 implementation (`in_progress`).
+
+## Checkpoint After Phase 46-50 And Phase 48 Hardening
+
+- Phase 46 now has a write-free work-shape decision and hidden CLI surface;
+  Phase 47 has source/project-bound receipts from the Baron-owned runner;
+  Phase 48 now requires current receipts for medium/high plan proof and all
+  three quality gates; Phase 49 has approval plus comparable-rerun experiment
+  records; Phase 50 routes a bounded project runbook only to runtime tasks.
+- Focused proof passed: core receipt (including large-output/no-deadlock,
+  source-change, and tamper invalidation), trusted proof, high-risk plan with
+  receipt-backed gates, proof/trace, control plane, operations, harness
+  experiments, and CLI command suites.
+- A first large-output test exposed that the bounded reader stopped draining a
+  pipe; the runner now drains concurrently and retains only bounded excerpts.
+  A second issue exposed Baron-managed Markdown changing source fingerprints;
+  `docs/baron`, `.baron`, and adapter-managed runtime trees are excluded from
+  the product source fingerprint while project source contents are hashed.
+- Proof status: focused implementation evidence is passing; integrated Phase
+  51 certification is not yet complete. Source/version remains `3.6.0`.
+- Trace status: this implementation batch has no public release trace yet;
+  release trace must include exact source SHA, native matrix, assets, and
+  fresh public installer smoke.
+- Safe next action: run the full workspace suite and Clippy, then close any
+  certification gaps before changing release metadata.
+
+## Phase 51 Certification Checkpoint Before Version Bump
+
+- Phase 51 local certification is complete on the source version `3.6.0`.
+- Passing evidence: `cargo fmt --all -- --check`; all `baron-core` and
+  `baron-cli` targets with single-threaded integration execution; Graphify
+  local fixture with a bounded 3-second Windows startup budget; Clippy with
+  `-D warnings`; locked release build; release binary `baron 3.6.0`; release
+  profile certification; adapter/preservation/scale/migration/interruption/
+  redaction/public-doc regression gates.
+- The combined workspace command was attempted and timed out on this Windows
+  host after emitting passing results; the independent package all-target
+  suites completed without assertion failures. The timeout is recorded as a
+  test-runner scheduling limitation, not a release pass.
+- Proof status: Phases 46-51 are certified locally; public 3.7 proof does not
+  exist yet. Trace status: release trace is pending exact candidate SHA.
+- Safe next action: bump workspace/package/lock/docs metadata to `3.7.0`, keep
+  README claims aligned with the public release only after promotion, then run
+  the release manifest and native GitHub workflow gates.
+
+## Phase 52 Candidate Checkpoint After Version Bump
+
+- Workspace/package/lockfile, certification target, dynamic version assertions,
+  release guide, and source-version README line now agree on `3.7.0`.
+- The README deliberately still identifies public `releases/latest` as
+  `v3.6.0` until the immutable 3.7 Release exists; it contains the candidate
+  version and the exact post-promotion check without making a false download
+  claim.
+- Candidate proof passed: formatting check, Clippy, focused core/CLI release
+  tests, locked optimized build, and release binary `baron 3.7.0`.
+- Public proof status: no 3.7 GitHub tag, Release, native matrix, assets, or
+  latest-install smoke exists yet. Trace status is pending the exact pushed
+  candidate SHA and workflow run.
+- Safe next action: inspect and commit this candidate, push the exact source to
+  `origin/main`, dispatch the immutable release workflow, and wait for all
+  native/public checks before changing the README public-release block.
+
+## Continuity Checkpoint Before Source Edits
+
+- User approval: explicit approval to implement and publish the full Baron 3.7
+  program, including README, GitHub push, tag, Release, and public installer
+  smoke.
+- Last successful step: baseline audit confirmed `v3.6.0` is the current public
+  release; only the pre-existing Baron 3.7 plan edit was dirty.
+- Proof status: no Baron 3.7 implementation proof yet; source remains `3.6.0`.
+- Trace status: no active 3.7 execution trace yet.
+- Affected files so far: new 3.7 design/plan and this build note, plus the
+  approved 3.7 status plan in `docs/BARON_STATUS.md`.
+- Safe next action: implement Phase 46 work-shape and Phase 47 trusted receipt
+  primitives, keeping all release metadata at `3.6.0` until certification.
+- Retry condition: if any batch fails, preserve the failing test/output and
+  record the exact source files and next safe repair in this file before
+  continuing.
 
 ## Final Release Checkpoint
 

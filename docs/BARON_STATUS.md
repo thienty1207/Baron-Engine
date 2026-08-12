@@ -1,25 +1,31 @@
 # Baron Build Status
 
-Last updated: 2026-07-27
+Last updated: 2026-08-12
 
 ## Overall
 
 - Stable source release: `v3.6.0`
 - Latest downloadable release: [`v3.6.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.6.0)
+- Candidate source version: `3.7.0`; public promotion is still pending
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v3.6.0`
-- Program target release: `v3.6.0`
+- Target source release: approved `v3.7.0`, implementation in progress
+- Program target release: approved `v3.7.0`, implementation in progress
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
-- Remaining planned phases: 0
-- Current phase: Baron 3.6 final public release
-- Current phase status: completed
-- Current next action: no release action is pending; normal users can install
-  `v3.6.0` from the README and run `baron update` in initialized projects.
+- Baron 3.7 completion: 85%; Phases 46-51 locally certified, public release pending
+- Remaining planned phases: 1 active phase, Phase 52
+- Current phase: Baron 3.7 Phase 52 public release and user installability
+- Current phase status: implementation authorized and release preparation active;
+  source remains `3.6.0` until the release-candidate metadata is ready
+- Current next action: record the Phase 51 certification, commit the certified
+  3.6 source, then bump synchronized metadata to 3.7.0 and run release gates.
+- The owner explicitly approved implementation and the final GitHub publication
+  on 2026-08-12. Phase 52 still cannot claim success until the immutable release
+  and fresh public `releases/latest` install smoke pass.
 - Build confidence: Baron 3.6 is public-release certified. GitHub Actions run
   [`30246729740`](https://github.com/thienty1207/Baron-Engine/actions/runs/30246729740)
   passed exact-source verification plus Windows, Linux, macOS Intel, and macOS
@@ -28,7 +34,9 @@ Last updated: 2026-07-27
   passed `setup`, `init --codex --fullstack`, and `context`. The optional local
   code map remains identity-bound and project-local, stays outside Vault memory,
   preserves agent instructions and hooks, remains bounded on old/large
-  repositories, and falls back to Survey on every absence or failure.
+  repositories, and falls back to Survey on every absence or failure. Baron
+  3.7 has local implementation/certification evidence but must not inherit
+  public-release confidence before immutable promotion and public-install proof.
 
 ## Baron 3.6 Final Public Release Checklist
 
@@ -59,6 +67,27 @@ Last updated: 2026-07-27
   Windows and Unix installers, plus native archives.
 - [x] `releases/latest` downloaded `3.6.0`; a fresh Windows install/setup/init
   and context smoke passed from the public installer.
+
+## Baron 3.7 Planning And Approval Gate
+
+- [x] The owner requested a complete Baron 3.7 phase plan on 2026-08-12.
+- [x] The plan incorporates only the useful evidence-first lessons from the
+  reviewed upstream harness release, while keeping its source and workflow
+  boundary independent from Baron.
+- [x] Baron keeps its independent product boundary: Vault memory, rebuildable
+  SQLite caches, Product Harness, Plan, Proof, Trace, Continuity, Autopilot,
+  Superpowers, and the three core quality agents are not removed.
+- [x] The original planning batch changed only `docs/BARON_STATUS.md`; the
+  approved implementation batch now changes source, tests, design, plan, and
+  build-log evidence while keeping the public README truthful at `3.6.0`.
+- [x] The user explicitly approved the Phase 46-52 plan and authorized
+  implementation, source/version changes, GitHub push, tag, Release, and public
+  install smoke on 2026-08-12.
+- [x] Before Phase 46 began, the active Baron 3.7 design, executable plan,
+  build log, status JSON update, and continuity checkpoint were created.
+- [x] Phase 52 has separate release authority and must carry the work all the
+  way to a publicly installable `v3.7.0`; source-ready status alone is not an
+  acceptable program outcome.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -142,6 +171,50 @@ Baron 3.6 adds an optional local code map for large and old repositories:
 - every graph result remains advisory until current source files verify it
 - missing, stale, failed, or incompatible graph providers fall back to Baron
   Survey Engine without breaking the workflow
+
+## Proposed Baron 3.7 Direction
+
+Baron 3.7 is a quality-and-trust release, not a feature-volume release. Baron
+already has the broader engine. The new program makes routine work lighter,
+makes completion evidence harder to fake, and proves that Harness improvements
+actually help a fresh agent before retaining them.
+
+The proposed release has four user-visible outcomes:
+
+- small, bounded changes avoid unnecessary durable Plan/Harness/Trace ceremony
+  while risky, ambiguous, destructive, coordinated, or multi-session work keeps
+  the full Baron safety path
+- tests, builds, tools, and quality gates count only through structured
+  execution receipts tied to the current project and source state, not because
+  an agent wrote words such as `passed` or `verified`
+- Baron Harness improvements require a comparable fresh-agent rerun before
+  they can be kept or described as effective
+- repositories can own a verified application runbook for starting, observing,
+  validating, and cleaning up real application runs without Baron inventing
+  commands, credentials, ports, product policy, or resource ownership
+
+Baron 3.7 also distills a small set of evidence-first boundary checks from the
+audited Harness source into Baron's existing owners. It does not install a new
+`engineering-wisdom` workflow or create another quality agent.
+
+The release must preserve these boundaries:
+
+- Superpowers remains the only workflow core.
+- The only mandatory quality agents remain `code-reviewer`,
+  `security-auditor`, and `test-engineer`.
+- Vault Markdown remains durable memory truth; SQLite remains a rebuildable
+  accelerator only.
+- Product Harness, Plan, Proof, Trace, Continuity, Autopilot, capabilities,
+  adapters, and the optional code map remain Baron-owned systems.
+- `assets/core/` remains the only managed runtime asset source.
+- Normal users keep the small install, Vault setup, adapter/platform init, and
+  update flow. New deep commands stay hidden and agent-facing where possible.
+- No phase may weaken project-ID isolation, bounded context, redaction,
+  user-file preservation, safe update transactions, or human release authority.
+- Source version stays `3.6.0` until Phases 46-51 pass. Only Phase 52 may bump
+  and publish `3.7.0`.
+- Phase 52 is incomplete until GitHub and the public README really deliver
+  `v3.7.0` through `releases/latest` and a fresh public install succeeds.
 
 ## Completed Foundation
 
@@ -282,6 +355,18 @@ Baron 3.6 planned program:
 | 43 | Graphify Local Code-Only Adapter | completed | 30% | exact-version local extraction/query, no installers/hooks/global memory, timeout/size guards, malformed-output fallback |
 | 44 | Automatic Bounded Context And Source Verification | completed | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
 | 45 | Isolation, Scale, And Baron 3.6 Certification | completed | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
+
+Approved Baron 3.7 program, implementation and certification in progress:
+
+| Phase | Name | Status | Baron 3.7 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 46 | Adaptive Work Shape And Decision Boundaries | in progress | 15% | bounded changes avoid unnecessary durable state; durable/risky/ambiguous work retains the correct plan, intent, recovery, and proof path across all three adapters |
+| 47 | Structured Execution Proof Receipts | in progress | 20% | tests, builds, tools, and artifacts count only through bounded, tamper-checked receipts tied to project identity and current source state |
+| 48 | Gate, Trace, And Completion Integrity | in progress | 15% | mandatory agent gates and completion use fresh execution receipts; stale, reported-only, failed, skipped, or degraded evidence cannot become a false pass |
+| 49 | Measured Harness Improvement Experiments | in progress | 15% | an authorized intervention records a baseline, earliest gap, owner, hypothesis, comparable fresh-agent rerun, and keep/revise/remove decision |
+| 50 | Application Runbook And Real-System Proof | in progress | 10% | project-owned, evidence-backed start/readiness/state/interface/runtime-evidence/cleanup guidance supports isolated real-system validation without invented facts |
+| 51 | Ownership-Safe Guidance And Integrated Certification | in progress | 10% | selected boundary heuristics strengthen existing Baron owners; full preservation, adapter, scale, update, Vault, and regression gates pass without a second workflow or skill owner |
+| 52 | Baron 3.7 Public GitHub Release And User Installability | in progress | 15% | README and release docs identify `3.7.0`; exact source is committed and pushed; four native GitHub jobs pass; immutable tag/release/assets exist; `releases/latest` installs and reports `baron 3.7.0` in a fresh public smoke |
 
 Phase 16-17 final verification:
 
@@ -849,6 +934,400 @@ Phase 34 final verification:
   old-repository smoke verification.
 - [x] Bump source/lock/docs to `3.6.0` only after all Phase 42-44 evidence passes.
 
+### Phase 46 - Adaptive Work Shape And Decision Boundaries
+
+Status: `completed`; implementation, English/Vietnamese fixtures, adapter
+startup parity, and focused lifecycle tests pass.
+
+Goal: keep Baron's full safety systems while making their activation
+proportional to the actual work instead of treating every meaningful code edit
+as the same lifecycle shape.
+
+- [ ] Model mutation authority, durable-memory need, human-judgment need, risk,
+  proof type, and lifecycle depth as separate decisions.
+- [ ] Keep answers, explanations, reviews, diagnoses, plans, and status reports
+  read-only with no Plan, Harness, Proof, Trace, friction, or learning writes.
+- [ ] Let a bounded, single-session, reversible change with clear expected
+  behavior use an ephemeral execution path and focused proof without creating
+  unnecessary durable Plan or Harness story state.
+- [ ] Require durable Plan and Continuity state when work spans sessions,
+  coordinates contributors or agents, has meaningful dependencies, needs a
+  recovery procedure, or cannot safely resume from its diff.
+- [ ] Keep high-risk proof and mandatory gates strong even when the code change
+  itself is short or mechanically small.
+- [ ] Stop before mutation when materially different externally observable
+  choices remain open; a configurable default is not product authority.
+- [ ] Extend intent evidence so the current authority source, unresolved
+  choices, policy owner, and required user decision are explicit.
+- [ ] Preserve the rule that the agent reads repository, Vault, plan, Harness,
+  continuity, and prior decisions before asking one missing high-value question.
+- [ ] Make routing output explain why lifecycle state was skipped or required so
+  a lighter workflow never becomes silent proof weakening.
+- [ ] Add English and Vietnamese fixtures for read-only work, bounded changes,
+  multi-session work, short high-risk changes, unclear product policy, and
+  difficult recovery.
+- [ ] Prove Codex, Claude, and generic adapters make the same work-shape decision
+  without loading every profile, skill, or agent.
+
+Phase 46 exit gate:
+
+- [ ] A routine bounded change completes with focused evidence and no unrelated
+  durable lifecycle files.
+- [ ] A bounded authentication or permission change still receives confirmed
+  authority, security review, test proof, and completion protection.
+- [ ] A long documentation migration receives durable planning and recovery
+  without being misclassified as a security task.
+- [ ] Ambiguous product policy produces no source or Baron-state mutation.
+
+### Phase 47 - Structured Execution Proof Receipts
+
+Status: `completed`; trusted runner, source/project binding, integrity checks,
+bounded output, redaction, stale/tamper/cross-project checks, and receipt-backed
+proof references pass focused and integrated tests. Existing 3.6 Markdown remains
+readable as legacy reported evidence.
+
+Goal: make tool-backed proof describe an execution Baron can validate instead
+of accepting an agent-written sentence containing words such as `passed`,
+`verified`, `test`, `build`, or `smoke`.
+
+- [ ] Define a versioned execution-receipt schema containing project ID, task or
+  plan identity when present, source revision or worktree fingerprint, provider,
+  capability, executable, argument vector, working directory, start/end time,
+  exit code, result, bounded output digests, and produced artifact digests.
+- [ ] Accept proof only from a Baron-owned execution runner or a registered,
+  verified backend that creates the receipt atomically from the execution it
+  actually observed. Handwritten, imported, agent-authored, or schema-shaped
+  receipt data remains reported evidence and cannot satisfy an execution gate.
+- [ ] Give each trusted receipt an integrity chain that binds the registered
+  backend, invocation, source state, result, bounded output, and artifacts;
+  reject a receipt when any bound field cannot be independently checked.
+- [ ] Run supported local proof commands as executable plus arguments; do not
+  interpolate caller-controlled values into shell source.
+- [ ] Record `passed`, `failed`, `skipped`, and `degraded` as distinct outcomes.
+  A missing optional provider may degrade but must never appear as passed.
+- [ ] Bind receipts to Baron project identity so two repositories with the same
+  name cannot reuse each other's execution evidence.
+- [ ] Detect source changes after a receipt and mark that receipt stale for
+  claims affected by the change.
+- [ ] Reject malformed, oversized, path-escaping, symlink/junction-traversing,
+  wrong-project, wrong-revision, tampered, or replayed receipt data.
+- [ ] Bound stdout, stderr, metadata, and artifact inventories. Store digests or
+  redacted excerpts where full output would leak secrets or flood Vault memory.
+- [ ] Keep durable human-readable proof in Vault Markdown while treating any
+  machine receipt/cache as rebuildable or independently verifiable metadata.
+- [ ] Keep historical free-form proofs readable and clearly label them as
+  legacy reported evidence; do not silently upgrade them to executed proof.
+- [ ] Add a safe migration path for initialized Baron 3.6 projects without
+  deleting their existing Proof, Trace, Harness, or Vault records.
+
+Phase 47 exit gate:
+
+- [ ] The sentence `tests passed` without a matching receipt cannot satisfy an
+  execution-required proof gate.
+- [ ] A command with a non-zero exit cannot be recorded as passed.
+- [ ] Output from an old or different source revision cannot prove the current
+  source.
+- [ ] A missing freshly produced artifact cannot be hidden by a stale artifact
+  left from an earlier build.
+- [ ] Receipt tampering, cross-project reuse, and secret-bearing output fixtures
+  fail safely without corrupting durable memory.
+
+### Phase 48 - Gate, Trace, And Completion Integrity
+
+Status: `completed`; medium/high completion now requires current receipt-backed
+proof and all three current quality-gate receipts; legacy Markdown cannot close
+work.
+
+Goal: connect quality-agent gates, Proof, Trace, reviewer closure, capability
+execution, and Stop reconciliation to the structured receipts from Phase 47.
+
+- [ ] Give each mandatory quality-gate run a stable run ID, project/source
+  identity, agent name, findings or no-finding result, evidence digest, and the
+  verification receipts it relied on.
+- [ ] Count `code-reviewer`, `security-auditor`, or `test-engineer` only when a
+  matching gate run actually occurred for the relevant current task and source.
+- [ ] Invalidate stale gate evidence after relevant source changes instead of
+  finding only an old occurrence of the agent name in a Markdown file.
+- [ ] Require reviewer closure to reference both fix evidence and a fresh
+  verification receipt; preserve every failed or superseded attempt.
+- [ ] Replace keyword-based proof satisfaction with receipt-backed rules matched
+  to focused, integration, end-to-end, recovery, security/data-impact, or
+  measurement claims.
+- [ ] Make Trace scoring distinguish verified facts, reported summaries,
+  degraded optional checks, missing proof, and unattempted work.
+- [ ] Keep a failed Trace score as a hard completion stop.
+- [ ] Make Stop reconciliation reject reported-only, failed, stale, mismatched,
+  or incomplete evidence without entering a hook loop.
+- [ ] Explain the exact missing or stale receipt and safe next action so a user
+  is not left with a generic `proof insufficient` message.
+- [ ] Preserve custom quality agents as optional assets without letting them
+  replace the three mandatory Baron gates.
+
+Phase 48 exit gate:
+
+- [ ] A hand-edited gate Markdown entry cannot close a required gate.
+- [ ] A gate run against an older source revision cannot complete changed code.
+- [ ] Failed, skipped, or degraded checks remain visible and cannot become a
+  false green through summary wording.
+- [ ] High-risk completion passes only with current required gates, relevant
+  execution receipts, and a detailed passing Trace.
+
+### Phase 49 - Measured Harness Improvement Experiments
+
+Status: `completed`; approval, baseline/hypothesis, fresh rerun, and
+keep/revise/remove/pending lifecycle pass focused and CLI tests.
+
+Goal: retain a Harness intervention only after a comparable fresh-agent rerun
+shows that the intervention was available, used, relevant, and beneficial.
+
+- [ ] Keep ordinary post-task Autopilot review candidate-only. It may report
+  repeated friction but must not start or apply an experiment by itself.
+- [ ] Require explicit user authority before an experiment changes guidance,
+  tools, runbooks, validation, skills, agents, core policy, or architecture.
+- [ ] Record a representative task, accepted outcome, baseline repository
+  revision, adapter/worker, tools, authority, external conditions, proof,
+  retries, human steering, and known limitations.
+- [ ] Classify the earliest useful gap as context, capability, domain ownership,
+  authority, proof, environment, or another explicitly justified owner.
+- [ ] Assign the correction to Baron, the consumer repository, the external
+  environment, or a human decision; do not copy consumer-specific policy into
+  generic Baron assets.
+- [ ] State one falsifiable intervention hypothesis, evidence that would weaken
+  it, its maintenance owner, expected cost, and removal condition before edits.
+- [ ] Apply only the approved bounded intervention and run native validation for
+  the changed owner.
+- [ ] Require a fresh agent/session with materially equivalent task class,
+  authority, tools, starting state, and relevant external conditions.
+- [ ] Record separately whether the intervention was available, retrieved or
+  invoked, relevant, and causally connected to the observed outcome.
+- [ ] Compare outcome, proof strength, human steering, retries, authority
+  behavior, context cost, and maintenance cost.
+- [ ] Finish as `keep`, `revise`, `remove`, or `pending fresh rerun`. Never call
+  the Harness improved while the rerun is pending or did not exercise the
+  intervention.
+- [ ] Bind experiments to project identity and preserve their history in Vault
+  without promoting unapproved results to verified facts.
+
+Phase 49 exit gate:
+
+- [ ] A free-form `outcome improved` message cannot close an experiment.
+- [ ] A rerun that did not retrieve or invoke the intervention stays pending.
+- [ ] An intervention that adds noise without improving the representative task
+  can be removed while its evidence remains preserved.
+- [ ] Same-name repositories cannot share experiment baselines or results.
+
+### Phase 50 - Application Runbook And Real-System Proof
+
+Status: `completed`; project-owned bounded runbook loading and runtime-task
+routing pass focused tests. Baron preserves unknown application facts and leaves
+live interface execution and resource ownership to the project repository.
+
+Goal: make application operation legible when a task needs it, while leaving
+application truth and resource ownership with the project.
+
+- [ ] Define a project-owned application runbook contract under
+  `docs/baron/operations/` for scope, prerequisites, exact start command,
+  process/project identity, ports and writable state, readiness, deterministic
+  scenario state, real interface, runtime evidence, ownership/cleanup,
+  validation, and unknowns.
+- [ ] Populate or refresh only facts supported by repository, user, runtime, or
+  verified proof evidence. A heading or template field is not operational truth.
+- [ ] Distinguish fixed, configured, defaulted, observed, likely, stale, and
+  unknown values; do not turn a detected command into a verified run command
+  until its relevant execution succeeds.
+- [ ] Never invent credentials, ports, fixtures, product policy, readiness
+  signals, log fields, cleanup commands, or resource ownership.
+- [ ] Route the runbook only for operate, reproduce, runtime-debug, end-to-end,
+  deployment-smoke, or comparable tasks; unrelated work must not pay its context
+  cost.
+- [ ] Start only an isolated instance or explicitly approved shared target,
+  prove readiness, create known state without touching unowned state, exercise
+  the real interface, inspect correlated runtime evidence, and validate through
+  the same interface.
+- [ ] Track resources created by the current run and clean up only those
+  resources. Missing cleanup authority remains an explicit unknown.
+- [ ] Keep secrets and private runtime data out of reports, receipts, traces,
+  session replay, and Vault memory.
+- [ ] Integrate with platform profiles and the existing observability skill
+  instead of adding a competing operations workflow owner.
+
+Phase 50 exit gate:
+
+- [ ] Missing readiness evidence cannot be reported as ready.
+- [ ] A likely but unexecuted command cannot satisfy application proof.
+- [ ] The runtime flow cannot stop or delete resources it does not own.
+- [ ] Frontend, backend/API, CLI/tool, desktop, data, and old irregular
+  repository fixtures preserve unknowns and use bounded task context.
+
+### Phase 51 - Ownership-Safe Guidance And Integrated Certification
+
+Status: `completed`; existing owners expose work-shape, trusted receipt,
+experiment, and runbook contracts. Core/CLI suites, Clippy, locked release build,
+release-profile certification smoke, adapter/preservation/scale/regression gates,
+and public documentation checks pass on the certified 3.6 source.
+
+Goal: strengthen existing Baron owners with selected evidence-first boundary
+checks, then prove Phases 46-50 work together without damaging Baron 3.6
+capabilities or creating a second workflow.
+
+- [ ] Record provenance and license information for the audited
+  reviewed upstream harness release source outside operational skill
+  guidance.
+- [ ] Distill composition-root and shipped-artifact verification into
+  `test-engineer`, not a new general engineering skill.
+- [ ] Distill honest automation-failure handling into Proof/Test ownership so
+  a wrapper cannot hide a failed build or reuse a stale artifact.
+- [ ] Distill decode/validate/recover boundary rules and pass-external-values-as-
+  data rules into Baron's existing security owners.
+- [ ] Distill adapter semantic-parity checks into adapter certification and the
+  existing code-review owner.
+- [ ] Distill bounded cumulative-state checks into the existing performance
+  owner.
+- [ ] Preserve the counter-pressure rule: a heuristic is advice supported by
+  repository evidence, not universal project policy or authority to rewrite an
+  architecture.
+- [ ] Prove no `engineering-wisdom`, duplicate upstream workflow, fourth core
+  agent, duplicate planning system, or live upstream dependency enters the
+  runtime.
+- [ ] Prove Codex, Claude, and generic adapter parity for work shape, receipts,
+  gates, experiments, and application-operation context.
+- [ ] Prove custom skills, agents, routing blocks, user text, hooks, source,
+  plans, Harness records, Proof, Trace, Continuity, Vault memory, and code-map
+  state survive init, local reconcile, and update planning.
+- [ ] Prove Baron 3.6 projects update without destructive migration and retain
+  readable historical evidence.
+- [ ] Run focused scale, corruption, interruption, same-name project,
+  shared-Vault, stale-receipt, redaction, context-budget, and recovery tests.
+- [ ] Run the complete local workspace, Clippy, locked release build, installer,
+  adapter, old-repository, and release-workflow contract gates.
+- [x] Keep package/source/public version at `3.6.0` through Phase 51; the
+  certified source is ready for the separately authorized Phase 52 bump.
+
+Phase 51 exit gate:
+
+- [ ] Phases 46-50 have no open correctness, security, isolation, preservation,
+  or false-completion blocker.
+- [ ] The normal public command flow remains install, Vault setup,
+  adapter/platform init, and update.
+- [ ] A detailed certification report names exact commands, results,
+  limitations, and the source revision proposed for Phase 52.
+- [ ] The user has authorized Phase 52's GitHub push and public release action;
+  otherwise stop with all local evidence preserved and do not publish.
+
+### Phase 52 - Baron 3.7 Public GitHub Release And User Installability
+
+Status: `in_progress`; implementation and publication are authorized, but no
+public 3.7 claim is valid until the immutable Release and fresh latest-install
+smoke pass.
+
+Goal: finish the release completely. This phase does not end at `source ready`,
+`source certified`, `pushed`, or `workflow started`. It ends only when a normal
+user can follow the public README, download `releases/latest`, and obtain a
+working `baron 3.7.0`.
+
+- [ ] Confirm the user's approval explicitly includes source version changes,
+  commits, push to GitHub, immutable tag/Release publication, and public install
+  smoke. If approval covered local implementation only, stop and ask before any
+  external write.
+- [ ] Confirm a clean, understood release worktree; preserve unrelated user
+  changes and resolve the exact source revision to release.
+- [ ] Bump workspace crates, `Cargo.lock`, release metadata, manifests, tests,
+  documentation references, and stable-source assertions from `3.6.0` to
+  `3.7.0` only after all Phase 46-51 gates pass.
+- [ ] Use a release-candidate branch/ref and a truthful two-step README
+  transaction so the default branch never claims `v3.7.0` is publicly
+  downloadable before `releases/latest` proves it. If the existing workflow
+  requires `main`, keep the candidate README explicit that `v3.6.0` is still
+  the current public version and flip the public status only in the final
+  post-release documentation commit.
+- [ ] Update the root `README.md` in the release candidate with the complete
+  `v3.7.0` installation, verification, reinstall, and recovery instructions,
+  using time-stable verification-first wording that remains true inside the
+  immutable tag: accept the install only when `releases/latest` resolves to
+  `v3.7.0` and the installed binary reports `baron 3.7.0`; otherwise stop and
+  preserve the currently verified stable installation instead of claiming the
+  candidate is publicly available.
+- [ ] Make README provide a copyable Windows PowerShell install block using
+  `releases/latest/download/install.ps1`, followed by `baron --version` and an
+  explicit requirement that it print `baron 3.7.0`.
+- [ ] Make README provide the supported Linux/macOS install block using
+  `releases/latest/download/install.sh`, plus the same exact-version check.
+- [ ] Keep README's Windows reinstall instructions explicit: restore the Vault
+  and project folders, install Baron from `releases/latest`, reconnect with
+  `baron setup --vault <path>`, and run `baron update` in every restored Baron
+  project.
+- [ ] Update `docs/RELEASE.md`, `docs/BARON_STATUS.md`,
+  `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, the active design and
+  plan, certification, command-surface/version references, and release notes so
+  they agree on the candidate state without claiming publication early.
+- [ ] Run `cargo fmt --all -- --check`.
+- [ ] Run `cargo test --workspace --all-targets --no-fail-fast` with no hidden
+  release-relevant skip accepted as proof.
+- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [ ] Run `cargo build --release --locked -p baron-cli` and verify the exact
+  built binary reports `baron 3.7.0`.
+- [ ] Validate status JSON, release workflow YAML, release manifest generation,
+  installer lifecycle, documentation links, stale-version scans,
+  `git diff --check`, and the complete pre-release certification profile.
+- [ ] Run a fresh local release-binary smoke with a new temporary Vault and
+  project: `setup --vault`, `init --codex --fullstack`, bounded context,
+  work-shape behavior, proof receipt verification, and safe update planning.
+- [ ] Commit the exact verified release candidate intentionally and push it to
+  the certified GitHub release ref; verify the remote commit SHA equals the
+  candidate SHA. Do not update the default branch to a false public state.
+- [ ] Dispatch the immutable GitHub release workflow from that exact remote
+  source SHA. Verify the workflow accepts that certified ref, and do not create
+  or move the release tag before the proof jobs pass.
+- [ ] Wait for exact-source verification, Ubuntu verification, Windows x64,
+  Linux x64, Intel macOS, Apple Silicon macOS, archive/checksum generation, and
+  installer lifecycle proof. Record the workflow run ID and every target result.
+- [ ] Verify GitHub created immutable tag `v3.7.0` at the certified source SHA
+  and a non-draft, non-prerelease GitHub Release.
+- [ ] Verify the Release contains all expected native archives, raw update
+  candidates if required by the updater contract, `SHA256SUMS`,
+  `release-manifest.json`, `install.ps1`, and `install.sh`, with valid checksums
+  and binary-reported versions.
+- [ ] Verify GitHub `releases/latest` resolves to `v3.7.0`, not `v3.6.0` or a
+  cached/older release.
+- [ ] Download `install.ps1` from the public `releases/latest` URL into a fresh
+  Windows temporary directory, install without relying on the local build, and
+  verify `baron --version` prints exactly `baron 3.7.0`.
+- [ ] Using that public installation, run a fresh `setup --vault`,
+  `init --codex --fullstack`, `context`, proof-receipt smoke, and `baron update`
+  preservation smoke.
+- [ ] Verify the README install commands themselves work as written and that a
+  user following only the README cannot accidentally receive the older Baron
+  release without an explicit version-mismatch warning.
+- [ ] After public proof succeeds, set stable source, latest downloadable
+  release, target release, program completion, current phase, remaining phase
+  count, and public install guidance to final `v3.7.0` values. Update this
+  status file, status JSON, current build log, current plan, root README, and
+  certification with the exact tag SHA, GitHub Actions run ID, assets, and
+  public-smoke result.
+- [ ] Commit and push the certified source plus final public-proof documentation
+  to `origin/main`, then verify the remote default branch contains the final
+  README/status state and the local branch is clean and synchronized with it.
+
+Phase 52 hard stop rules:
+
+- [ ] If any native job, checksum, installer, tag, Release asset,
+  `releases/latest`, public README command, or fresh public install fails, keep
+  Phase 52 incomplete and record the exact failure, last successful step,
+  affected source SHA, GitHub run ID, safe next action, and retry condition.
+- [ ] If publication cannot be completed during the authorized release run,
+  restore and push a truthful default-branch README/status state before
+  stopping: it must name the version that `releases/latest` really installs.
+  Never leave an unverified `3.7.0` download claim on `origin/main` for a later
+  session to discover.
+- [ ] Never report Baron 3.7 as released merely because local tests passed,
+  source was committed, source was pushed, a workflow started, or a tag exists.
+- [ ] Never leave README claiming `3.7.0` is publicly downloadable while
+  `releases/latest` still installs another version; either complete publication
+  promptly or record and repair the mismatch before declaring success.
+- [ ] The final success statement must include the public release URL, exact tag
+  SHA, GitHub Actions run ID, verified asset inventory, public installer smoke,
+  and confirmation that README installation returns `baron 3.7.0`.
+
 Phase 28-31 final verification:
 
 - all nine platform profile fixtures: passed
@@ -953,7 +1432,9 @@ completion.
 - full workspace tests, Clippy, locked release build, release-binary version,
   and diff validation: passed
 - source certification: `docs/assessment/baron-3.6.0-code-graph-certification.md`
-- Git tag/GitHub Release: not created; remains human-authorized
+- source-certification checkpoint: tag/Release had not yet been created
+- final public promotion: immutable tag and GitHub Release `v3.6.0` created by
+  Actions run `30246729740`; public installer smoke passed
 
 Phase 18-20 final verification:
 

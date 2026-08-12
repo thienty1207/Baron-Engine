@@ -1,13 +1,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::capability::{
     default_adapter, evaluate_execution_evidence, record_runtime_execution,
     CapabilityExecutionEvidence,
 };
+use crate::execution_receipt::{load_receipts, receipt_is_current};
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
 use crate::risk::RiskLane;
 use crate::vault::VaultContext;
@@ -29,6 +30,35 @@ pub fn record_proof(
     summary: &str,
 ) -> Result<ProofRecord> {
     record_proof_with_capabilities(repo_root, vault, summary, &[])
+}
+
+pub fn record_proof_from_receipt(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    receipt_id: &str,
+) -> Result<ProofRecord> {
+    let repo_root = repo_root.as_ref();
+    let receipt = load_receipts(repo_root)?
+        .into_iter()
+        .find(|receipt| receipt.receipt_id == receipt_id.trim())
+        .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
+    if !receipt_is_current(repo_root, &receipt)? {
+        bail!(
+            "Trusted execution receipt `{}` is stale, failed, mismatched, or tampered",
+            receipt.receipt_id
+        );
+    }
+    let proof = record_proof(
+        repo_root,
+        vault,
+        &format!(
+            "trusted execution receipt {} passed for {} via {}",
+            receipt.receipt_id, receipt.capability, receipt.provider
+        ),
+    )?;
+    append_receipt_reference(&proof.repo_path, &receipt.receipt_id)?;
+    append_receipt_reference(&proof.vault_path, &receipt.receipt_id)?;
+    Ok(proof)
 }
 
 pub fn record_proof_with_capabilities(
@@ -265,6 +295,36 @@ fn write(path: &Path, content: &str) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
     fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+}
+
+/// Returns whether a proof points at a Baron-owned receipt that is still
+/// valid for the current project source. Free-form proof remains readable for
+/// migration and low-risk reporting, but it is not completion evidence for a
+/// medium/high-risk plan.
+pub fn proof_has_current_receipt(repo_root: &Path, proof: &ProofRecord) -> Result<bool> {
+    let content = fs::read_to_string(&proof.repo_path)?;
+    let receipt_id = content
+        .lines()
+        .find_map(|line| line.strip_prefix("- Receipt ID: `"))
+        .and_then(|value| value.strip_suffix('`'));
+    let Some(receipt_id) = receipt_id else {
+        return Ok(false);
+    };
+    let Some(receipt) = load_receipts(repo_root)?
+        .into_iter()
+        .find(|receipt| receipt.receipt_id == receipt_id)
+    else {
+        return Ok(false);
+    };
+    receipt_is_current(repo_root, &receipt)
+}
+
+fn append_receipt_reference(path: &Path, receipt_id: &str) -> Result<()> {
+    let mut content = fs::read_to_string(path)?;
+    content.push_str(&format!(
+        "\n## Trusted Execution Receipt\n\n- Receipt ID: `{receipt_id}`\n- Source: Baron-owned execution runner\n"
+    ));
+    write(path, &content)
 }
 
 fn now() -> String {
