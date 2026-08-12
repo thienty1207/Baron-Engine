@@ -26,9 +26,13 @@ Baron 3.7 Phase 46-52 implementation and public release (`completed`).
   `init --codex --fullstack`, and `context`; the same-version update guard
   rejected a redundant update without changing the user-owned marker.
 - README, `docs/BARON_STATUS.md`, `docs/BARON_STATUS.json`, the certification
-  report, and the executable 3.7 plan are being synchronized in the final
-  documentation commit. Proof status is complete; next action is verify the
-  final documentation commit is pushed and the default branch is clean.
+  report, the executable 3.7 plan, and the design completion record were
+  synchronized in final documentation commit `2e637495d3d8c639e5920633ab21e9e4c3b7e9ee`.
+- A follow-up README-only commit `1fb041768c7a8937dbe6632f2d66df85e9f947b5`
+  makes the Windows installer command work under the host's default execution
+  policy by invoking the downloaded script with `-ExecutionPolicy Bypass`.
+- Proof status is complete; `origin/main` equals `1fb0417` and the local
+  working tree is clean and synchronized.
 
 ## Checkpoint After Phase 46-50 And Phase 48 Hardening
 
