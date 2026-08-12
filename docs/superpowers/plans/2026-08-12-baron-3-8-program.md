@@ -2,7 +2,7 @@
 
 Date: 2026-08-12  
 Owner approval: granted for implementation, README update, GitHub push, and
-public `v3.8.0` install verification. Status: candidate pending public workflow.
+public `v3.8.0` install verification. Status: completed.
 
 ## Execution Order
 

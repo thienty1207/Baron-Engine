@@ -6,7 +6,7 @@ Program target: Baron 3.8.0
 
 ## Current Phase
 
-Baron 3.8 Phase 53-64 implementation and public release (`candidate pending`).
+Baron 3.8 Phase 53-64 implementation and public release (`completed`).
 
 ## Baron 3.8 Implementation Checkpoint
 
@@ -25,10 +25,13 @@ Baron 3.8 Phase 53-64 implementation and public release (`candidate pending`).
 - Current proof: `cargo fmt --all -- --check`, `cargo clippy --workspace
   --all-targets -- -D warnings`, knowledge tests, control-plane tests, adapter
   lifecycle tests, locked release build, exact `baron 3.8.0`, status JSON parse,
-  and new CLI Wiki/CodeGraph/Resume smoke all pass. The complete native/public
-  matrix is not yet claimed.
-- Safe next action: push the exact candidate, run the tag-triggered native
-  release workflow, verify `releases/latest`, then close Phase 64.
+  and new CLI Wiki/CodeGraph/Resume smoke all pass. GitHub Actions run
+  `31603251123` also passed the full workspace suite, Clippy, all four native
+  targets, release metadata/checksums, installer lifecycle, and immutable
+  `v3.8.0` promotion. Fresh `releases/latest` Windows setup/init/context smoke
+  returned `baron 3.8.0`.
+- Safe next action: normal maintenance from the published `v3.8.0` baseline;
+  re-run the native release workflow only for a future version bump.
 
 ## Final Baron 3.7 Public Release Checkpoint
 

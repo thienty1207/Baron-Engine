@@ -2,7 +2,7 @@
 
 Date: 2026-08-12  
 Target: `3.8.0`  
-Status: release verification in progress
+Status: publicly released and verified
 
 ## Scope
 
@@ -17,6 +17,7 @@ The following checks passed on the Windows workspace before publication:
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo test --workspace --all-targets` (GitHub Actions run #20)
 - `cargo test -p baron-core --test control_plane -- --nocapture`
 - `cargo test -p baron-core knowledge --lib -- --nocapture`
 - `cargo test -p baron-adapters --test adapter_lifecycle -- --nocapture`
@@ -27,10 +28,9 @@ The following checks passed on the Windows workspace before publication:
 - `docs/BARON_STATUS.json` parses with 65 phase records and Phase 53-64 are
   completed; the Baron 3.8 Markdown section has zero unchecked task/exit boxes.
 
-The full Windows `cargo test -p baron-core --all-targets --no-fail-fast`
-invocation exceeded the local 120-second command window without emitting a
-failure. It is not counted as a local pass; the hosted release workflow is the
-authoritative full-suite and native-matrix gate.
+The full workspace suite and native matrix passed in the hosted release
+workflow; the local Windows all-target invocation exceeded the local command
+window without emitting a failure and is not used as the authoritative result.
 
 ## Security and asset evidence
 
@@ -46,19 +46,21 @@ authoritative full-suite and native-matrix gate.
 
 ## Public release evidence
 
-The following fields are filled only after the exact source is pushed and the
-tag-triggered workflow completes successfully:
+The exact source was pushed and the tag-triggered workflow completed
+successfully:
 
 - Repository: `https://github.com/thienty1207/Baron-Engine`
-- Branch/source SHA: `pending publication`
-- GitHub Actions run: `pending publication`
-- Immutable tag: `v3.8.0` (pending publication)
-- Release URL: `pending publication`
-- Asset inventory/checksums: `pending publication`
-- Fresh Windows `releases/latest` install: `pending publication`
+- Branch/source SHA: `main` / `57c5d94a5459e4597bd8a63bb1a6e65f7c197c23`
+- GitHub Actions run: [#20](https://github.com/thienty1207/Baron-Engine/actions/runs/31603251123)
+- Immutable tag: [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0)
+- Release URL: [`Baron 3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0)
+- Assets/checksums: four native archives, four raw update candidates,
+  `SHA256SUMS`, `release-manifest.json`, `install.ps1`, and `install.sh`.
+- Fresh Windows `releases/latest` install: `baron 3.8.0`; `setup`,
+  `init --codex --fullstack`, and `context` passed in a fresh project/Vault.
 
 ## Closure rule
 
-Phase 64 is not complete until the pending fields above contain the exact
-remote evidence, README and `releases/latest` agree on `3.8.0`, the local and
-remote SHA match, and the final commit is pushed without an unrecorded change.
+Phase 64 is complete: the exact remote evidence is recorded above, README and
+`releases/latest` agree on `3.8.0`, the tag and main resolve to the certified
+source SHA, and the documentation closure commit is pushed.

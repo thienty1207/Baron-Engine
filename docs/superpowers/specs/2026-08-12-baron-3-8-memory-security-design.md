@@ -1,7 +1,7 @@
 # Baron 3.8 Memory, Knowledge, And Security Design
 
 Date: 2026-08-12  
-Status: implemented in the `3.8.0` source candidate; public release proof pending
+Status: implemented and publicly released as `v3.8.0`; maintenance baseline
 
 ## Decision
 

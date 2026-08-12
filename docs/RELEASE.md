@@ -177,11 +177,12 @@ release mirror.
 ## Maintainer Release Contract
 
 A new release starts from an exact 40-character commit SHA already pushed as
-the current `origin/main`. Before dispatch, the target tag and GitHub Release
-must not already exist. The workflow checks that the requested version matches
-Cargo, runs formatting, the full workspace tests and Clippy, then builds and
-smokes every native target. The final promotion job assembles all four archives
-and runs:
+the current `origin/main`. The tag-triggered path is the normal public path;
+manual `workflow_dispatch` remains available for an explicit source/version
+pair. Before promotion, the target tag and GitHub Release must not already
+exist. The workflow checks that the version matches Cargo, runs formatting, the
+full workspace tests and Clippy, then builds and smokes every native target.
+The final promotion job assembles all four archives and runs:
 
 ```bash
 baron release metadata release-assets --release-version 3.8.0 --source-revision <40-character-git-sha>
@@ -203,21 +204,22 @@ healthy at scale.
 ## Publishing `releases/latest`
 
 `releases/latest` is controlled by GitHub Releases, not by `Cargo.toml` alone.
-Push the verified source commit to `main`, copy its full SHA, and dispatch the
-release workflow:
+Push the verified source commit to `main`, copy its full SHA, and push the
+version tag; GitHub Actions then starts the release workflow automatically:
 
 ```bash
 git push origin main
 git rev-parse HEAD
-gh workflow run release.yml -f release_version=3.8.0 -f source_revision=<40-character-git-sha>
+git tag -a v3.8.0 <40-character-git-sha> -m "Baron 3.8.0"
+git push origin refs/tags/v3.8.0
 ```
 
 The `Baron Release` workflow refuses an existing tag or Release, builds the
 native archives from that exact SHA, verifies checksums and installer lifecycle,
-and only then creates the annotated tag and immutable GitHub Release. Only the
-final promotion job has repository write permission. When the workflow
-finishes, `https://github.com/thienty1207/Baron-Engine/releases/latest` should
-point at `v3.8.0`.
+and then creates the immutable GitHub Release. Only the final promotion job has
+repository write permission. When the workflow finishes,
+`https://github.com/thienty1207/Baron-Engine/releases/latest` should point at
+`v3.8.0`.
 
 Public smoke after the workflow:
 

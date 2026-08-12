@@ -4,39 +4,38 @@ Last updated: 2026-08-12
 
 ## Overall
 
-- Stable source release: `v3.8.0` (source candidate; public promotion pending)
-- Latest downloadable release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0)
-- Candidate source version: `3.8.0`; native/public promotion pending
+- Stable source release: `v3.8.0`
+- Latest downloadable release: [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0)
+- Candidate source version: `3.8.0`; public promotion completed
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v3.8.0`, candidate pending public workflow
-- Program target release: `v3.8.0`, candidate pending public workflow
+- Target source release: `v3.8.0`, completed
+- Program target release: `v3.8.0`, completed
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
 - Baron 3.7 completion: 100%; Phases 46-52 publicly certified
-- Baron 3.7 completion: 100%; Phases 46-52 publicly certified
-- Baron 3.8 completion: 92%; Phases 53-63 complete, Phase 64 release gate pending
-- Approved or in-progress Baron 3.8 phases: 12; completed phases: 11
-- Remaining Baron 3.8 phases: 1 (public release promotion)
-- Current phase: Baron 3.8 Phase 64 public release promotion
-- Current phase status: candidate pushed only; native matrix and fresh public
-  install smoke are still pending
-- Current next action: run the tag-triggered native release workflow and verify
-  `releases/latest` before marking Phase 64 complete.
-- Current Baron 3.8 authority: source candidate and local evidence are ready;
-  public release claims remain blocked until external proof exists.
+- Baron 3.8 completion: 100%; Phases 53-64 publicly certified
+- Approved or in-progress Baron 3.8 phases: 12; completed phases: 12
+- Remaining Baron 3.8 phases: 0
+- Current phase: Baron 3.8 public release complete
+- Current phase status: completed; source, tag, Release, assets, README, and
+  fresh public install smoke agree on `3.8.0`
+- Current next action: normal maintenance from the published Baron 3.8 baseline.
+- Current Baron 3.8 authority: committed source, status records, release
+  evidence, and public `v3.8.0` artifacts are synchronized.
 - For the completed Baron 3.7 program, the owner explicitly approved
   implementation and final GitHub publication on 2026-08-12. Its immutable
   release and fresh public `releases/latest` install smoke have both passed.
 - Build confidence: Baron 3.8 is public-release certified. GitHub Actions run
-  [`31582187832`](https://github.com/thienty1207/Baron-Engine/actions/runs/31582187832)
+  [`31603251123`](https://github.com/thienty1207/Baron-Engine/actions/runs/31603251123)
   passed exact-source verification, the full Ubuntu workspace suite, Clippy,
   Windows x64, Linux x64, macOS Intel, and Apple Silicon native builds,
   checksums, manifest verification, installer lifecycle smoke, immutable tag,
-  and Release promotion from source `cc14c222130ac2047d36b3b752d9140521d3538e`.
+  and Release promotion from source
+  `57c5d94a5459e4597bd8a63bb1a6e65f7c197c23`.
   A fresh Windows smoke installed directly from
   `releases/latest`, returned `baron 3.8.0`, passed `setup`,
   `init --codex --fullstack`, and `context`; the same-version update guard
@@ -1949,14 +1948,14 @@ Phase 63 exit gates:
 
 ### Phase 64 - Cross-Domain Closure, Documentation, And GitHub Backup
 
-Status: `candidate-pending-public-workflow`; local implementation and docs pass,
-but the native matrix, immutable Release, and fresh public install are pending.
-This is the final Baron 3.8 phase and the only phase that publishes the source.
+Status: `completed`; local implementation, native matrix, immutable Release, and
+fresh public install all pass. This is the final Baron 3.8 phase and the only
+phase that publishes the source.
 
 Goal: prove the memory, Wiki, CodeGraph, safety, scale, source security, and
 reverse-analysis paths work together; make the repository documentation
-truthful; then back up the complete verified Baron 3.8 source to GitHub without
-claiming an unperformed public binary release.
+truthful; then back up and publicly publish the complete verified Baron 3.8
+source with native installers and a fresh Windows recovery path.
 
 Planned work:
 
