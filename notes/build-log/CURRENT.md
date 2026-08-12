@@ -37,6 +37,9 @@ Baron 3.8 Phase 53-64 implementation and public release (`completed`).
   dependency-artifact exclusion); the preceding planner test retains the
   explicit user-file preservation assertion. Local `update_planner` coverage
   is 15/15 after this contract-alignment fix, with no release artifact change.
+- GitHub Actions CI run `31605317869` (`#48`) then passed format/clippy and
+  all four native targets, including the formerly failing Apple Silicon job;
+  `main` is green at commit `01c1051991ea772da59bae4a622d98cdeff90dad`.
 - Safe next action: normal maintenance from the published `v3.8.0` baseline;
   re-run the native release workflow only for a future version bump.
 
