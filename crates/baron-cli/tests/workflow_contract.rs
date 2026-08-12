@@ -61,7 +61,10 @@ fn release_workflow_proves_an_exact_candidate_before_immutable_promotion() {
             "release workflow is missing {required}"
         );
     }
-    assert!(!workflow.contains("tags:\n"));
+    assert!(workflow.contains("push:"));
+    assert!(workflow.contains("tags:\n      - \"v*\""));
+    assert!(workflow.contains("workflow_dispatch:"));
+    assert!(!workflow.contains("on:\n  tags:"));
     assert!(!workflow.contains("--clobber"));
     assert!(workflow.contains("contents: read"));
     assert_eq!(workflow.matches("contents: write").count(), 1);
