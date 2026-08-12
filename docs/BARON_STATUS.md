@@ -885,7 +885,7 @@ Phase 34 final verification:
 - [x] Document the one-time installer bootstrap from pre-3.4 Baron.
 - [x] Bump source and lockfile to `3.4.0` only after Phases 35-37 pass.
 - [x] Pass full format, workspace tests, Clippy, release build, YAML, installer, candidate, conflict, recovery, and real project/Vault smoke.
-- [ ] Push verified source only after the complete 3.4-3.6 program; keep tag/GitHub Release promotion explicit.
+- [x] Push verified source only after the complete 3.4-3.6 program; keep tag/GitHub Release promotion explicit.
 
 ### Phase 39 - Hallmark Frontend Distillation
 
