@@ -44,7 +44,7 @@ Windows PowerShell:
 ```powershell
 $installer = Join-Path $env:TEMP "baron-install.ps1"
 Invoke-WebRequest https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.ps1 -OutFile $installer
-& $installer
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
 baron --version
 ```
 
