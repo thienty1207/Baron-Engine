@@ -84,6 +84,20 @@ Baron 3.7 Phase 46-52 implementation (`in_progress`).
 - Safe next action: commit this focused test repair, push `origin/main`,
   dispatch with the exact new SHA, and inspect all native/public release jobs.
 
+## Phase 52 Clippy Repair Checkpoint
+
+- Release workflow `31581885211` passed exact-source verification, formatting,
+  and the full Ubuntu workspace test, then exposed four Unix-only unused imports
+  in Windows-gated receipt tests during workspace Clippy.
+- Those imports are now gated with `cfg(windows)`, preserving the Windows test
+  coverage while making the all-target lint clean on Ubuntu.
+- Local proof passed after the repair: `cargo fmt --all -- --check` and
+  `cargo clippy --workspace --all-targets -- -D warnings`.
+- Current proof status: no 3.7 tag or public Release exists; the workflow must
+  be re-dispatched from this lint-clean commit.
+- Safe next action: commit, push, dispatch the exact SHA, and monitor the full
+  native matrix plus immutable publication.
+
 ## Continuity Checkpoint Before Source Edits
 
 - User approval: explicit approval to implement and publish the full Baron 3.7

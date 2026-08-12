@@ -1,7 +1,11 @@
+#[cfg(windows)]
 use std::time::Duration;
 
+#[cfg(windows)]
 use baron_core::execution_receipt::ExecutionRequest;
+#[cfg(windows)]
 use baron_core::proof::record_proof_from_receipt;
+#[cfg(windows)]
 use baron_core::vault::ensure_vault;
 
 #[cfg(windows)]

@@ -1,5 +1,7 @@
+#[cfg(windows)]
 use std::time::Duration;
 
+#[cfg(windows)]
 use baron_core::execution_receipt::{
     execute_command, load_receipts, receipt_is_current, ExecutionRequest, ExecutionResult,
 };
