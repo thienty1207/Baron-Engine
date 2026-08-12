@@ -1324,21 +1324,21 @@ Final public evidence:
 
 Phase 52 hard stop rules (permanent release policy, not outstanding work):
 
-- [ ] If any native job, checksum, installer, tag, Release asset,
+- If any native job, checksum, installer, tag, Release asset,
   `releases/latest`, public README command, or fresh public install fails, keep
   Phase 52 incomplete and record the exact failure, last successful step,
   affected source SHA, GitHub run ID, safe next action, and retry condition.
-- [ ] If publication cannot be completed during the authorized release run,
+- If publication cannot be completed during the authorized release run,
   restore and push a truthful default-branch README/status state before
   stopping: it must name the version that `releases/latest` really installs.
   Never leave an unverified `3.7.0` download claim on `origin/main` for a later
   session to discover.
-- [ ] Never report Baron 3.7 as released merely because local tests passed,
+- Never report Baron 3.7 as released merely because local tests passed,
   source was committed, source was pushed, a workflow started, or a tag exists.
-- [ ] Never leave README claiming `3.7.0` is publicly downloadable while
+- Never leave README claiming `3.7.0` is publicly downloadable while
   `releases/latest` still installs another version; either complete publication
   promptly or record and repair the mismatch before declaring success.
-- [ ] The final success statement must include the public release URL, exact tag
+- The final success statement must include the public release URL, exact tag
   SHA, GitHub Actions run ID, verified asset inventory, public installer smoke,
   and confirmation that README installation returns `baron 3.7.0`.
 
