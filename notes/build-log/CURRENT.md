@@ -40,6 +40,11 @@ Baron 3.8 Phase 53-64 implementation and public release (`completed`).
 - GitHub Actions CI run `31605317869` (`#48`) then passed format/clippy and
   all four native targets, including the formerly failing Apple Silicon job;
   `main` is green at commit `01c1051991ea772da59bae4a622d98cdeff90dad`.
+- Final status-audit commit `97015aef29f60bb2a7a5c170130ece82913944cf`
+  leaves every checklist item in `BARON_STATUS.md` checked (658 checked,
+  0 unchecked). GitHub Actions CI run `31607104564` (`#50`) passed format,
+  Clippy, Windows, Linux, macOS Intel, and Apple Silicon for that exact
+  revision.
 - Safe next action: normal maintenance from the published `v3.8.0` baseline;
   re-run the native release workflow only for a future version bump.
 
