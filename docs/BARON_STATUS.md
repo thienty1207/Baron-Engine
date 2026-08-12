@@ -4,39 +4,41 @@ Last updated: 2026-08-12
 
 ## Overall
 
-- Stable source release: `v3.6.0`
-- Latest downloadable release: [`v3.6.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.6.0)
-- Candidate source version: `3.7.0`; public promotion is still pending
+- Stable source release: `v3.7.0`
+- Latest downloadable release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0)
+- Candidate source version: `3.7.0`; public promotion completed
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: approved `v3.7.0`, implementation in progress
-- Program target release: approved `v3.7.0`, implementation in progress
+- Target source release: `v3.7.0`, completed
+- Program target release: `v3.7.0`, completed
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
-- Baron 3.7 completion: 85%; Phases 46-51 locally certified, public release pending
-- Remaining planned phases: 1 active phase, Phase 52
-- Current phase: Baron 3.7 Phase 52 public release and user installability
-- Current phase status: implementation authorized and release preparation active;
-  source remains `3.6.0` until the release-candidate metadata is ready
-- Current next action: record the Phase 51 certification, commit the certified
-  3.6 source, then bump synchronized metadata to 3.7.0 and run release gates.
+- Baron 3.7 completion: 100%; Phases 46-52 publicly certified
+- Remaining planned phases: 0
+- Current phase: Baron 3.7 complete
+- Current phase status: completed; source, tag, Release, assets, README, and
+  fresh public install smoke agree on `3.7.0`
+- Current next action: none; continue normal maintenance from the published
+  `v3.7.0` baseline.
 - The owner explicitly approved implementation and the final GitHub publication
-  on 2026-08-12. Phase 52 still cannot claim success until the immutable release
-  and fresh public `releases/latest` install smoke pass.
-- Build confidence: Baron 3.6 is public-release certified. GitHub Actions run
-  [`30246729740`](https://github.com/thienty1207/Baron-Engine/actions/runs/30246729740)
-  passed exact-source verification plus Windows, Linux, macOS Intel, and macOS
-  Apple Silicon native builds before immutable promotion. A fresh Windows smoke
-  installed directly from `releases/latest`, returned `baron 3.6.0`, then
-  passed `setup`, `init --codex --fullstack`, and `context`. The optional local
-  code map remains identity-bound and project-local, stays outside Vault memory,
-  preserves agent instructions and hooks, remains bounded on old/large
-  repositories, and falls back to Survey on every absence or failure. Baron
-  3.7 has local implementation/certification evidence but must not inherit
-  public-release confidence before immutable promotion and public-install proof.
+  on 2026-08-12. The immutable release and fresh public `releases/latest`
+  install smoke have both passed.
+- Build confidence: Baron 3.7 is public-release certified. GitHub Actions run
+  [`31582187832`](https://github.com/thienty1207/Baron-Engine/actions/runs/31582187832)
+  passed exact-source verification, the full Ubuntu workspace suite, Clippy,
+  Windows x64, Linux x64, macOS Intel, and Apple Silicon native builds,
+  checksums, manifest verification, installer lifecycle smoke, immutable tag,
+  and Release promotion from source `cc14c222130ac2047d36b3b752d9140521d3538e`.
+  A fresh Windows smoke installed directly from
+  `releases/latest`, returned `baron 3.7.0`, passed `setup`,
+  `init --codex --fullstack`, and `context`; the same-version update guard
+  refused a redundant update without changing the user marker. The optional
+  local code map remains identity-bound and project-local, stays outside Vault
+  memory, preserves agent instructions and hooks, remains bounded on old/large
+  repositories, and falls back to Survey on every absence or failure.
 
 ## Baron 3.6 Final Public Release Checklist
 
@@ -211,10 +213,10 @@ The release must preserve these boundaries:
   update flow. New deep commands stay hidden and agent-facing where possible.
 - No phase may weaken project-ID isolation, bounded context, redaction,
   user-file preservation, safe update transactions, or human release authority.
-- Source version stays `3.6.0` until Phases 46-51 pass. Only Phase 52 may bump
-  and publish `3.7.0`.
-- Phase 52 is incomplete until GitHub and the public README really deliver
-  `v3.7.0` through `releases/latest` and a fresh public install succeeds.
+- During implementation, source version stayed `3.6.0` until Phases 46-51
+  passed; Phase 52 then bumped and published `3.7.0`.
+- Phase 52 is now complete: GitHub and the public README deliver `v3.7.0`
+  through `releases/latest`, and a fresh public install succeeds.
 
 ## Completed Foundation
 
@@ -356,17 +358,17 @@ Baron 3.6 planned program:
 | 44 | Automatic Bounded Context And Source Verification | completed | 25% | AI automation loads only task-relevant graph hits, labels inference, verifies source, and never crowds the public command flow |
 | 45 | Isolation, Scale, And Baron 3.6 Certification | completed | 20% | same-name project isolation, old/large repository tests, adapter preservation, full certification, and version/docs synchronization |
 
-Approved Baron 3.7 program, implementation and certification in progress:
+Baron 3.7 program, implementation, certification, and publication completed:
 
 | Phase | Name | Status | Baron 3.7 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
-| 46 | Adaptive Work Shape And Decision Boundaries | in progress | 15% | bounded changes avoid unnecessary durable state; durable/risky/ambiguous work retains the correct plan, intent, recovery, and proof path across all three adapters |
-| 47 | Structured Execution Proof Receipts | in progress | 20% | tests, builds, tools, and artifacts count only through bounded, tamper-checked receipts tied to project identity and current source state |
-| 48 | Gate, Trace, And Completion Integrity | in progress | 15% | mandatory agent gates and completion use fresh execution receipts; stale, reported-only, failed, skipped, or degraded evidence cannot become a false pass |
-| 49 | Measured Harness Improvement Experiments | in progress | 15% | an authorized intervention records a baseline, earliest gap, owner, hypothesis, comparable fresh-agent rerun, and keep/revise/remove decision |
-| 50 | Application Runbook And Real-System Proof | in progress | 10% | project-owned, evidence-backed start/readiness/state/interface/runtime-evidence/cleanup guidance supports isolated real-system validation without invented facts |
-| 51 | Ownership-Safe Guidance And Integrated Certification | in progress | 10% | selected boundary heuristics strengthen existing Baron owners; full preservation, adapter, scale, update, Vault, and regression gates pass without a second workflow or skill owner |
-| 52 | Baron 3.7 Public GitHub Release And User Installability | in progress | 15% | README and release docs identify `3.7.0`; exact source is committed and pushed; four native GitHub jobs pass; immutable tag/release/assets exist; `releases/latest` installs and reports `baron 3.7.0` in a fresh public smoke |
+| 46 | Adaptive Work Shape And Decision Boundaries | completed | 15% | bounded changes avoid unnecessary durable state; durable/risky/ambiguous work retains the correct plan, intent, recovery, and proof path across all three adapters |
+| 47 | Structured Execution Proof Receipts | completed | 20% | tests, builds, tools, and artifacts count only through bounded, tamper-checked receipts tied to project identity and current source state |
+| 48 | Gate, Trace, And Completion Integrity | completed | 15% | mandatory agent gates and completion use fresh execution receipts; stale, reported-only, failed, skipped, or degraded evidence cannot become a false pass |
+| 49 | Measured Harness Improvement Experiments | completed | 15% | an authorized intervention records a baseline, earliest gap, owner, hypothesis, comparable fresh-agent rerun, and keep/revise/remove decision |
+| 50 | Application Runbook And Real-System Proof | completed | 10% | project-owned, evidence-backed start/readiness/state/interface/runtime-evidence/cleanup guidance supports isolated real-system validation without invented facts |
+| 51 | Ownership-Safe Guidance And Integrated Certification | completed | 10% | selected boundary heuristics strengthen existing Baron owners; full preservation, adapter, scale, update, Vault, and regression gates pass without a second workflow or skill owner |
+| 52 | Baron 3.7 Public GitHub Release And User Installability | completed | 15% | README and release docs identify `3.7.0`; exact source is committed and pushed; four native GitHub jobs pass; immutable tag/release/assets exist; `releases/latest` installs and reports `baron 3.7.0` in a fresh public smoke |
 
 Phase 16-17 final verification:
 
@@ -1205,106 +1207,118 @@ capabilities or creating a second workflow.
 
 Phase 51 exit gate:
 
-- [ ] Phases 46-50 have no open correctness, security, isolation, preservation,
+- [x] Phases 46-50 have no open correctness, security, isolation, preservation,
   or false-completion blocker.
-- [ ] The normal public command flow remains install, Vault setup,
+- [x] The normal public command flow remains install, Vault setup,
   adapter/platform init, and update.
-- [ ] A detailed certification report names exact commands, results,
+- [x] A detailed certification report names exact commands, results,
   limitations, and the source revision proposed for Phase 52.
-- [ ] The user has authorized Phase 52's GitHub push and public release action;
+- [x] The user has authorized Phase 52's GitHub push and public release action;
   otherwise stop with all local evidence preserved and do not publish.
 
 ### Phase 52 - Baron 3.7 Public GitHub Release And User Installability
 
-Status: `in_progress`; implementation and publication are authorized, but no
-public 3.7 claim is valid until the immutable Release and fresh latest-install
-smoke pass.
+Status: `completed`; Baron 3.7 is publicly released and verified from
+`releases/latest`.
 
 Goal: finish the release completely. This phase does not end at `source ready`,
 `source certified`, `pushed`, or `workflow started`. It ends only when a normal
 user can follow the public README, download `releases/latest`, and obtain a
 working `baron 3.7.0`.
 
-- [ ] Confirm the user's approval explicitly includes source version changes,
+Final public evidence:
+
+- Source commit: `cc14c222130ac2047d36b3b752d9140521d3538e`
+- GitHub Actions: [`31582187832`](https://github.com/thienty1207/Baron-Engine/actions/runs/31582187832)
+- Immutable tag/Release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0)
+- Native assets: Windows x64, Linux x64, macOS Intel, macOS Apple Silicon;
+  raw candidates, `SHA256SUMS`, `release-manifest.json`, `install.ps1`, and
+  `install.sh` are present.
+- Public Windows smoke: fresh install from
+  `releases/latest/download/install.ps1` returned `baron 3.7.0`; setup,
+  fullstack Codex init, context, same-version update guard, and user-marker
+  preservation passed in `C:\Users\tytyb\AppData\Local\Temp\baron-3-7-public-smoke-ec0b95dd0c56419cbb93f87292510cd0`.
+
+- [x] Confirm the user's approval explicitly includes source version changes,
   commits, push to GitHub, immutable tag/Release publication, and public install
   smoke. If approval covered local implementation only, stop and ask before any
   external write.
-- [ ] Confirm a clean, understood release worktree; preserve unrelated user
+- [x] Confirm a clean, understood release worktree; preserve unrelated user
   changes and resolve the exact source revision to release.
-- [ ] Bump workspace crates, `Cargo.lock`, release metadata, manifests, tests,
+- [x] Bump workspace crates, `Cargo.lock`, release metadata, manifests, tests,
   documentation references, and stable-source assertions from `3.6.0` to
   `3.7.0` only after all Phase 46-51 gates pass.
-- [ ] Use a release-candidate branch/ref and a truthful two-step README
+- [x] Use a release-candidate branch/ref and a truthful two-step README
   transaction so the default branch never claims `v3.7.0` is publicly
   downloadable before `releases/latest` proves it. If the existing workflow
   requires `main`, keep the candidate README explicit that `v3.6.0` is still
   the current public version and flip the public status only in the final
   post-release documentation commit.
-- [ ] Update the root `README.md` in the release candidate with the complete
+- [x] Update the root `README.md` in the release candidate with the complete
   `v3.7.0` installation, verification, reinstall, and recovery instructions,
   using time-stable verification-first wording that remains true inside the
   immutable tag: accept the install only when `releases/latest` resolves to
   `v3.7.0` and the installed binary reports `baron 3.7.0`; otherwise stop and
   preserve the currently verified stable installation instead of claiming the
   candidate is publicly available.
-- [ ] Make README provide a copyable Windows PowerShell install block using
+- [x] Make README provide a copyable Windows PowerShell install block using
   `releases/latest/download/install.ps1`, followed by `baron --version` and an
   explicit requirement that it print `baron 3.7.0`.
-- [ ] Make README provide the supported Linux/macOS install block using
+- [x] Make README provide the supported Linux/macOS install block using
   `releases/latest/download/install.sh`, plus the same exact-version check.
-- [ ] Keep README's Windows reinstall instructions explicit: restore the Vault
+- [x] Keep README's Windows reinstall instructions explicit: restore the Vault
   and project folders, install Baron from `releases/latest`, reconnect with
   `baron setup --vault <path>`, and run `baron update` in every restored Baron
   project.
-- [ ] Update `docs/RELEASE.md`, `docs/BARON_STATUS.md`,
+- [x] Update `docs/RELEASE.md`, `docs/BARON_STATUS.md`,
   `docs/BARON_STATUS.json`, `notes/build-log/CURRENT.md`, the active design and
   plan, certification, command-surface/version references, and release notes so
   they agree on the candidate state without claiming publication early.
-- [ ] Run `cargo fmt --all -- --check`.
-- [ ] Run `cargo test --workspace --all-targets --no-fail-fast` with no hidden
+- [x] Run `cargo fmt --all -- --check`.
+- [x] Run `cargo test --workspace --all-targets --no-fail-fast` with no hidden
   release-relevant skip accepted as proof.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] Run `cargo build --release --locked -p baron-cli` and verify the exact
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] Run `cargo build --release --locked -p baron-cli` and verify the exact
   built binary reports `baron 3.7.0`.
-- [ ] Validate status JSON, release workflow YAML, release manifest generation,
+- [x] Validate status JSON, release workflow YAML, release manifest generation,
   installer lifecycle, documentation links, stale-version scans,
   `git diff --check`, and the complete pre-release certification profile.
-- [ ] Run a fresh local release-binary smoke with a new temporary Vault and
+- [x] Run a fresh local release-binary smoke with a new temporary Vault and
   project: `setup --vault`, `init --codex --fullstack`, bounded context,
   work-shape behavior, proof receipt verification, and safe update planning.
-- [ ] Commit the exact verified release candidate intentionally and push it to
+- [x] Commit the exact verified release candidate intentionally and push it to
   the certified GitHub release ref; verify the remote commit SHA equals the
   candidate SHA. Do not update the default branch to a false public state.
-- [ ] Dispatch the immutable GitHub release workflow from that exact remote
+- [x] Dispatch the immutable GitHub release workflow from that exact remote
   source SHA. Verify the workflow accepts that certified ref, and do not create
   or move the release tag before the proof jobs pass.
-- [ ] Wait for exact-source verification, Ubuntu verification, Windows x64,
+- [x] Wait for exact-source verification, Ubuntu verification, Windows x64,
   Linux x64, Intel macOS, Apple Silicon macOS, archive/checksum generation, and
   installer lifecycle proof. Record the workflow run ID and every target result.
-- [ ] Verify GitHub created immutable tag `v3.7.0` at the certified source SHA
+- [x] Verify GitHub created immutable tag `v3.7.0` at the certified source SHA
   and a non-draft, non-prerelease GitHub Release.
-- [ ] Verify the Release contains all expected native archives, raw update
+- [x] Verify the Release contains all expected native archives, raw update
   candidates if required by the updater contract, `SHA256SUMS`,
   `release-manifest.json`, `install.ps1`, and `install.sh`, with valid checksums
   and binary-reported versions.
-- [ ] Verify GitHub `releases/latest` resolves to `v3.7.0`, not `v3.6.0` or a
+- [x] Verify GitHub `releases/latest` resolves to `v3.7.0`, not `v3.6.0` or a
   cached/older release.
-- [ ] Download `install.ps1` from the public `releases/latest` URL into a fresh
+- [x] Download `install.ps1` from the public `releases/latest` URL into a fresh
   Windows temporary directory, install without relying on the local build, and
   verify `baron --version` prints exactly `baron 3.7.0`.
-- [ ] Using that public installation, run a fresh `setup --vault`,
+- [x] Using that public installation, run a fresh `setup --vault`,
   `init --codex --fullstack`, `context`, proof-receipt smoke, and `baron update`
   preservation smoke.
-- [ ] Verify the README install commands themselves work as written and that a
+- [x] Verify the README install commands themselves work as written and that a
   user following only the README cannot accidentally receive the older Baron
   release without an explicit version-mismatch warning.
-- [ ] After public proof succeeds, set stable source, latest downloadable
+- [x] After public proof succeeds, set stable source, latest downloadable
   release, target release, program completion, current phase, remaining phase
   count, and public install guidance to final `v3.7.0` values. Update this
   status file, status JSON, current build log, current plan, root README, and
   certification with the exact tag SHA, GitHub Actions run ID, assets, and
   public-smoke result.
-- [ ] Commit and push the certified source plus final public-proof documentation
+- [x] Commit and push the certified source plus final public-proof documentation
   to `origin/main`, then verify the remote default branch contains the final
   README/status state and the local branch is clean and synchronized with it.
 

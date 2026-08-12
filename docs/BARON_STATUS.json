@@ -1,26 +1,26 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-08-12",
-  "stableRelease": "3.6.0",
-  "downloadableRelease": "3.6.0",
+  "stableRelease": "3.7.0",
+  "downloadableRelease": "3.7.0",
   "candidateSourceVersion": "3.7.0",
   "releasePromotionStatus": "completed",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "3.7.0",
-  "targetReleaseCompletionPercent": 85,
+  "targetReleaseCompletionPercent": 100,
   "programTargetRelease": "3.7.0",
-  "programCompletionPercent": 85,
-  "remainingPhaseCount": 1,
+  "programCompletionPercent": 100,
+  "remainingPhaseCount": 0,
   "currentPhase": "baron-3-7-phase-52-public-release",
-  "currentPhaseStatus": "authorized_release_in_progress",
-  "nextAction": "Commit the certified 3.6 source, bump synchronized metadata to 3.7.0, and run immutable release plus public-install gates.",
-  "buildConfidence": "Baron 3.6 remains the public certified baseline. Baron 3.7 Phases 46-51 pass local implementation, core/CLI, Clippy, locked release-build, certification, preservation, adapter, scale, and public-doc gates. Public 3.7 confidence remains blocked until exact-source native promotion and fresh releases/latest install smoke pass.",
+  "currentPhaseStatus": "completed",
+  "nextAction": "None; continue normal maintenance from the published v3.7.0 baseline.",
+  "buildConfidence": "Baron 3.7 is public-release certified. Exact-source verification, the full Ubuntu workspace suite, Clippy, Windows x64, Linux x64, macOS Intel, Apple Silicon, checksum and manifest verification, installer lifecycle, immutable publication, and fresh releases/latest Windows installation all passed.",
   "releaseEvidence": {
-    "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/30246729740",
-    "sourceRevision": "c89486694d9a4431e04106274d0c9f997db42683",
-    "tag": "v3.6.0",
-    "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v3.6.0",
-    "publicWindowsSmoke": "Installed directly from releases/latest; baron --version, setup, init --codex --fullstack, and context passed."
+    "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31582187832",
+    "sourceRevision": "cc14c222130ac2047d36b3b752d9140521d3538e",
+    "tag": "v3.7.0",
+    "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0",
+    "publicWindowsSmoke": "Fresh install.ps1 from releases/latest returned baron 3.7.0; setup, init --codex --fullstack, context, same-version update guard, and user-marker preservation passed."
   },
   "completionDefinition": [
     "survey and shadow mode support old repositories",
@@ -732,7 +732,7 @@
       "status": "completed",
       "release": "3.7.0",
       "targetReleaseWeightPercent": 15,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "read only requests produce no durable lifecycle writes",
         "bounded reversible work can use focused ephemeral state",
@@ -747,7 +747,7 @@
       "status": "completed",
       "release": "3.7.0",
       "targetReleaseWeightPercent": 20,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "trusted Baron runner emits versioned source bound receipts",
         "handwritten or agent authored receipt data cannot satisfy execution proof",
@@ -762,7 +762,7 @@
       "status": "completed",
       "release": "3.7.0",
       "targetReleaseWeightPercent": 15,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "quality gates and reviewer closure use current trusted receipts",
         "keyword only proof and stale Markdown cannot close work",
@@ -777,7 +777,7 @@
       "status": "completed",
       "release": "3.7.0",
       "targetReleaseWeightPercent": 15,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "approved interventions record baseline hypothesis owner and validation",
         "fresh equivalent agent rerun records availability retrieval invocation relevance and outcome",
@@ -792,7 +792,7 @@
       "status": "completed",
       "release": "3.7.0",
       "targetReleaseWeightPercent": 10,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "project owned operations runbook preserves fixed configured observed likely stale and unknown values",
         "runtime tasks route bounded runbook context only when relevant",
@@ -807,22 +807,22 @@
       "status": "completed",
       "release": "3.7.0",
       "targetReleaseWeightPercent": 10,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "selected repository harness lessons strengthen existing owners only",
         "no duplicate workflow fourth core agent live dependency or universal engineering wisdom runtime enters Baron",
         "three adapter preservation isolation migration scale corruption interruption and redaction gates pass",
-        "source remains 3.6.0 until this certification completes",
+        "source and public release are synchronized at 3.7.0 after certification",
         "core and CLI all-target suites, Clippy, release build, certification smoke, and public-doc checks pass"
       ]
     },
     {
       "id": 52,
       "name": "Baron 3.7 Public GitHub Release And User Installability",
-      "status": "in_progress",
+      "status": "completed",
       "release": "3.7.0",
       "targetReleaseWeightPercent": 15,
-      "completionPercent": 0,
+      "completionPercent": 100,
       "requiredProof": [
         "all source and public docs agree on 3.7.0",
         "exact source is pushed and native GitHub matrix passes before immutable tag promotion",

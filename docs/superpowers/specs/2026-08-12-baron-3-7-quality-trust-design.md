@@ -1,9 +1,9 @@
 # Baron 3.7 Quality And Trust Design
 
 Date: 2026-08-12
-Status: approved by the owner; implementation in progress
-Current source baseline: `3.6.0`
-Target public release: `3.7.0`
+Status: approved by the owner; implementation and public release completed
+Source baseline at design start: `3.6.0`
+Published release: `3.7.0`
 
 ## Goal
 
@@ -14,6 +14,16 @@ and source-bound, makes Harness improvements measurable, and adds a
 project-owned application runbook contract. The release is not complete until
 the README, GitHub Release, `releases/latest`, and a fresh public install all
 agree on `3.7.0`.
+
+## Completion Record
+
+The design is implemented in Baron `3.7.0`. The exact source revision
+`cc14c222130ac2047d36b3b752d9140521d3538e` passed the native GitHub release
+workflow `31582187832`, which published the immutable `v3.7.0` Release with
+archives, raw update candidates, checksums, manifest, and both installers.
+The public `releases/latest` Windows smoke installed `baron 3.7.0`, then
+passed setup, fullstack Codex initialization, bounded context, same-version
+update protection, and user-file preservation.
 
 ## Ownership Boundaries
 

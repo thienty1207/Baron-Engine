@@ -7,12 +7,11 @@ Codex, Claude, Cursor-style agents, and other tools without making the user
 learn a long command list.
 
 Current source version: `3.7.0`.
-Current public release: [`v3.6.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.6.0).
+Current public release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0).
 
-> **Download check:** the public download remains
-> `v3.6.0` until the Baron 3.7 immutable Release and public smoke are complete.
-> After the 3.7 promotion, `baron --version` must print `baron 3.7.0`. If it
-> prints a different version, stop there and refresh the
+> **Download check:** install only when [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
+> resolves to `v3.7.0` and `baron --version` prints `baron 3.7.0`. If it prints a
+> different version, stop there and refresh the
 > [Releases page](https://github.com/thienty1207/Baron-Engine/releases) before
 > initializing a project.
 
@@ -117,8 +116,7 @@ After Windows is installed again, restore those folders, then follow this
 short sequence:
 
 1. Run the Windows install block above and confirm `baron --version` prints
-   the public version shown at the top of this README (`baron 3.6.0` until
-   the 3.7 Release is promoted).
+   the public version shown at the top of this README (`baron 3.7.0`).
 2. Reconnect the restored Vault:
 
    ```powershell

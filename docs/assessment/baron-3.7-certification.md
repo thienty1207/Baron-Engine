@@ -1,14 +1,12 @@
 # Baron 3.7 Integrated Certification
 
-Status: Phase 51 locally certified on the Baron `3.6.0` source baseline;
-Phase 52 public promotion is in progress.
+Status: Baron `3.7.0` publicly certified and released.
 
 ## Scope
 
-This report records the local evidence for Phases 46-51. It does not claim a
-public Baron 3.7 release until the immutable GitHub promotion, native runner
-matrix, release assets, and a fresh `releases/latest` install smoke agree on
-`3.7.0`.
+This report records the local and public evidence for Phases 46-52. The
+immutable GitHub promotion, native runner matrix, release assets, and fresh
+`releases/latest` install smoke all agree on `3.7.0`.
 
 ## Passing evidence
 
@@ -26,9 +24,9 @@ matrix, release assets, and a fresh `releases/latest` install smoke agree on
 - Application runbook: project-owned bounded runbook fields route only to
   runtime-relevant tasks; unknown application facts stay unknown and Baron does
   not invent credentials, readiness, ports, interfaces, or cleanup ownership.
-- Regression: core and CLI all-target suites pass independently, Clippy passes
-  with `-D warnings`, the locked release build passes, and the release binary
-  reports `baron 3.6.0` before the Phase 52 bump.
+- Regression: the full Ubuntu workspace all-target suite and Clippy pass with
+  `-D warnings`; local core/CLI suites, the locked release build, and the
+  release binary report `baron 3.7.0`.
 - Release profile: `baron certify run --profile release` passes on a fresh
   project/Vault; setup, adapter init, cache recovery, firewall, bounded context,
   optional code-map fallback, automation, autopilot, runtime policy, and the
@@ -41,14 +39,23 @@ matrix, release assets, and a fresh `releases/latest` install smoke agree on
 The combined `cargo test --workspace --all-targets --no-fail-fast` invocation
 was attempted on Windows but timed out after emitting passing results from the
 individual targets. The independent `baron-core` and `baron-cli` all-target
-commands completed; the combined timeout is retained as runner evidence and is
-not presented as a test pass.
+commands completed, and the authoritative Ubuntu release workflow then passed
+the full workspace suite and Clippy. The Windows timeout is retained as runner
+evidence and is not presented as a Windows full-suite pass.
 
-## Phase 52 handoff
+## Public release evidence
 
-The next safe action is to bump synchronized metadata from `3.6.0` to `3.7.0`,
-run the release manifest/checksum/installer gates, push the exact certified
-source, verify the native GitHub matrix and immutable Release, then install
-from public `releases/latest` in a fresh Windows directory. Exact SHA, workflow
-run, asset list, and public smoke output must be appended here before Phase 52
-is marked complete.
+- Source revision: `cc14c222130ac2047d36b3b752d9140521d3538e`
+- GitHub Actions release run: [`31582187832`](https://github.com/thienty1207/Baron-Engine/actions/runs/31582187832)
+- Immutable tag and Release: [`v3.7.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0)
+- Release assets: Windows x64, Linux x64, macOS Intel, macOS Apple Silicon
+  archives and raw candidates, `SHA256SUMS`, `release-manifest.json`,
+  `install.ps1`, and `install.sh`.
+- Native proof: exact-source verification, Ubuntu full workspace tests,
+  Clippy, all four native builds, exact binary version smoke, checksums,
+  manifest verification, installer lifecycle, and immutable promotion passed.
+- Fresh Windows public smoke directory:
+  `C:\Users\tytyb\AppData\Local\Temp\baron-3-7-public-smoke-ec0b95dd0c56419cbb93f87292510cd0`.
+  `releases/latest/download/install.ps1` installed `baron 3.7.0`; `setup`,
+  `init --codex --fullstack`, `context`, same-version update protection, and
+  user-owned marker preservation passed.

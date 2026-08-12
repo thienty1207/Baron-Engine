@@ -6,7 +6,29 @@ Program target: Baron 3.7.0
 
 ## Current Phase
 
-Baron 3.7 Phase 46-52 implementation (`in_progress`).
+Baron 3.7 Phase 46-52 implementation and public release (`completed`).
+
+## Final Baron 3.7 Public Release Checkpoint
+
+- Baron 3.7 is complete and public. Source revision
+  `cc14c222130ac2047d36b3b752d9140521d3538e` is pushed to `origin/main` and
+  was accepted by GitHub Actions release run `31582187832`.
+- Exact-source verification, Ubuntu full workspace tests, Clippy, Windows
+  x64, Linux x64, macOS Intel, Apple Silicon, checksum/manifest generation,
+  installer lifecycle smoke, annotated tag, and immutable Release promotion
+  all passed.
+- Public Release: `v3.7.0` at
+  `https://github.com/thienty1207/Baron-Engine/releases/tag/v3.7.0`. Assets
+  include all four native targets, raw update candidates, `SHA256SUMS`,
+  `release-manifest.json`, `install.ps1`, and `install.sh`.
+- Fresh Windows public smoke downloaded `install.ps1` from
+  `releases/latest`, installed `baron 3.7.0`, passed `setup`,
+  `init --codex --fullstack`, and `context`; the same-version update guard
+  rejected a redundant update without changing the user-owned marker.
+- README, `docs/BARON_STATUS.md`, `docs/BARON_STATUS.json`, the certification
+  report, and the executable 3.7 plan are being synchronized in the final
+  documentation commit. Proof status is complete; next action is verify the
+  final documentation commit is pushed and the default branch is clean.
 
 ## Checkpoint After Phase 46-50 And Phase 48 Hardening
 
