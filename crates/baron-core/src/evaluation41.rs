@@ -652,11 +652,11 @@ fn measure_peak_memory_bytes() -> Option<u64> {
         }
         #[cfg(target_os = "macos")]
         {
-            return u64::try_from(max_rss).ok();
+            u64::try_from(max_rss).ok()
         }
         #[cfg(not(target_os = "macos"))]
         {
-            return u64::try_from(max_rss.saturating_mul(1024)).ok();
+            u64::try_from(max_rss.saturating_mul(1024)).ok()
         }
     }
 
