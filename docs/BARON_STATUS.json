@@ -121,7 +121,7 @@
   "releaseEvidence": {
     "ciWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579",
     "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31723297751",
-    "finalDocsRevision": "6bea181044fa0d6f4a74195b8c7455eaa09fdf62",
+    "finalDocsRevision": "e16dcfa3346c5cf1f7aa9a380da4486645a36264",
     "finalDocsCiWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579",
     "sourceRevision": "6bea181044fa0d6f4a74195b8c7455eaa09fdf62",
     "tag": "v4.1.0",
