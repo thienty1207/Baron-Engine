@@ -12,7 +12,8 @@ use crate::control_plane::validate_control_plane;
 use crate::domain_language::{read_domain_language, render_domain_language_context};
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
-use crate::intelligence::select_resume_brief;
+use crate::intelligence::select_resume_brief_v41;
+use crate::intelligence41::{build_grounded_handoff, render_grounded_handoff};
 use crate::knowledge::render_resume_brief;
 use crate::memory::{analyze_memory_consolidation, build_memory_index};
 use crate::operations::{load_runbook, relevant_to_task, render_bounded_context};
@@ -70,7 +71,15 @@ pub fn compile_context_for_task(
     build_memory_index(&vault)?;
     index_session_replay(&vault)?;
     let memory_brief = compact_memory_brief_for_task(&vault, task)?;
-    let (intelligence_generation, resume_brief) = select_resume_brief(&vault, task, 4_800)?;
+    let (intelligence_generation, resume_brief) = select_resume_brief_v41(&vault, task, 4_800)?;
+    let grounded_handoff = if matches!(
+        intelligence_generation,
+        crate::intelligence::EngineGeneration::Candidate41
+    ) {
+        build_grounded_handoff(&vault, task, 4_800).ok()
+    } else {
+        None
+    };
     let consolidation = analyze_memory_consolidation(&vault)?;
     let risk = classify_risk(task, &survey);
 
@@ -83,7 +92,7 @@ pub fn compile_context_for_task(
         "- Memory firewall: current project first; weak cross-project memory blocked\n\n",
     );
     output.push_str(&format!(
-        "- Intelligence generation: `{}` (Baron 3.8 fallback retained)\n\n",
+        "- Intelligence generation: `{}` (Baron 4.0 fallback retained)\n\n",
         intelligence_generation.as_str()
     ));
 
@@ -109,6 +118,10 @@ pub fn compile_context_for_task(
     output.push_str(&render_actionable_recovery(repo_path));
     output.push_str(&render_resume_brief(&resume_brief, 4_800));
     output.push('\n');
+    if let Some(handoff) = grounded_handoff {
+        output.push_str(&render_grounded_handoff(&handoff, 4_800));
+        output.push('\n');
+    }
     output.push_str("## Memory Maintenance Candidates\n\n");
     output.push_str(&format!(
         "- Duplicate groups: `{}`; conflict groups: `{}`; stale/supersession candidates: `{}`\n",

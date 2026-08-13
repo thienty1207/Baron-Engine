@@ -154,6 +154,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "ignore",
+ "libc",
  "regex",
  "rusqlite",
  "serde",

@@ -22,6 +22,8 @@ pub struct SessionImportReport {
     pub deduplicated: usize,
     pub skipped_unmatched: usize,
     pub skipped_noise: usize,
+    pub learning_candidates: usize,
+    pub learning_error: Option<String>,
     pub state_path: PathBuf,
 }
 
@@ -73,6 +75,8 @@ pub fn import_sessions(
         deduplicated: 0,
         skipped_unmatched: 0,
         skipped_noise: 0,
+        learning_candidates: 0,
+        learning_error: None,
         state_path: state_path.clone(),
     };
 
@@ -144,6 +148,10 @@ pub fn import_sessions(
         &state_path,
         &format!("{}\n", serde_json::to_string_pretty(&state)?),
     )?;
+    match crate::intelligence41::learn_session_candidates(vault) {
+        Ok(learning) => report.learning_candidates = learning.candidates.len(),
+        Err(error) => report.learning_error = Some(error.to_string()),
+    }
     Ok(report)
 }
 

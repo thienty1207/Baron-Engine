@@ -51,8 +51,9 @@ use baron_core::control_plane::{
     gate_evidence_status_strict, record_gate_evidence, record_gate_evidence_with_receipt,
     route_task, validate_control_plane,
 };
+use baron_core::evaluation41::run_benchmark as run_benchmark41;
 use baron_core::execution_receipt::{execute_command, ExecutionRequest, ExecutionResult};
-use baron_core::firewall::{compact_memory_brief, recall, recall_v4, render_recall};
+use baron_core::firewall::{compact_memory_brief, recall_v4, recall_v5, render_recall};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
 use baron_core::harness::{
     ensure_harness_workspace, harness_status, record_decision, record_friction,
@@ -64,15 +65,18 @@ use baron_core::harness_improvement::{
     verify_open_stories,
 };
 use baron_core::intelligence::{
-    candidate_generation_enabled, route_security_task, run_integrated_acceptance,
-    run_local_benchmark, run_security_regression, run_static_security_scan, select_resume_brief,
+    next_generation_enabled, route_security_task, run_integrated_acceptance, run_local_benchmark,
+    run_security_regression, run_static_security_scan, select_resume_brief_v41,
     write_acceptance_report, write_benchmark_report, write_security_regression_report,
     write_static_security_report,
+};
+use baron_core::intelligence41::{
+    analyze_graph_impact, refresh_temporal_ledger, rollback_temporal_ledger,
 };
 use baron_core::intent::{intent_status, record_intent, IntentBriefInput};
 use baron_core::knowledge::{
     benchmark_resume, build_local_code_graph, index_wiki, load_wiki_index, render_resume_brief,
-    search_local_code_graph, search_wiki, search_wiki_v4,
+    search_local_code_graph, search_local_code_graph_v5, search_wiki_v4, search_wiki_v5,
 };
 use baron_core::memory::{analyze_memory_consolidation, stage_memory_consolidation};
 use baron_core::memory::{build_memory_index, load_memory_records};
@@ -368,6 +372,16 @@ enum MemoryCommands {
         )]
         stage: bool,
     },
+    #[command(hide = true)]
+    Temporal {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        rollback: bool,
+        #[arg(long)]
+        json: bool,
+    },
     Resume {
         repo_path: Option<PathBuf>,
         #[arg(long)]
@@ -431,6 +445,14 @@ enum KnowledgeCommands {
 #[derive(Debug, Subcommand)]
 enum IntelligenceCommands {
     Benchmark {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    #[command(name = "benchmark41", hide = true)]
+    Benchmark41 {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -1597,7 +1619,12 @@ fn run() -> Result<()> {
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
                 let context = ensure_vault(vault_path, repo_path)?;
                 let report = build_memory_index(&context)?;
+                let (_, temporal) = refresh_temporal_ledger(&context)?;
                 print!("{}", render_memory_index(&context, &report));
+                println!(
+                    "- Temporal ledger: {} active, {} superseded, {} expired",
+                    temporal.active, temporal.superseded, temporal.expired
+                );
             }
             MemoryCommands::Compact { repo_path, vault } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
@@ -1619,6 +1646,11 @@ fn run() -> Result<()> {
                 println!("- Deduplicated: {}", report.deduplicated);
                 println!("- Skipped unmatched: {}", report.skipped_unmatched);
                 println!("- Skipped noise: {}", report.skipped_noise);
+                println!("- Learning candidates: {}", report.learning_candidates);
+                println!(
+                    "- Learning error: {}",
+                    report.learning_error.as_deref().unwrap_or("none")
+                );
                 println!("- State: `{}`", report.state_path.display());
             }
             MemoryCommands::Consolidate {
@@ -1631,6 +1663,7 @@ fn run() -> Result<()> {
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
+                let (_, temporal) = refresh_temporal_ledger(&context)?;
                 let mut report = analyze_memory_consolidation(&context)?;
                 if stage {
                     let path = stage_memory_consolidation(&context, &report)?;
@@ -1644,6 +1677,10 @@ fn run() -> Result<()> {
                     println!("- Duplicate groups: {}", report.duplicate_groups);
                     println!("- Conflict groups: {}", report.conflict_groups);
                     println!("- Superseded candidates: {}", report.superseded_records);
+                    println!(
+                        "- Temporal ledger: {} active, {} superseded, {} expired",
+                        temporal.active, temporal.superseded, temporal.expired
+                    );
                     println!("- Candidate records: {}", report.candidate_records);
                     println!("- Writes performed: `{}`", report.writes_performed);
                     println!(
@@ -1651,6 +1688,39 @@ fn run() -> Result<()> {
                         report.staged_path.as_deref().unwrap_or("not requested")
                     );
                     println!("- Next: review staged items; no record was promoted automatically.");
+                }
+            }
+            MemoryCommands::Temporal {
+                repo_path,
+                vault,
+                rollback,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                let ledger = if rollback {
+                    rollback_temporal_ledger(&context)?
+                } else {
+                    build_memory_index(&context)?;
+                    refresh_temporal_ledger(&context)?.0
+                };
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&ledger)?);
+                } else {
+                    let report =
+                        baron_core::intelligence41::temporal_report(&context, &ledger, !rollback);
+                    println!("# Baron Temporal Memory\n");
+                    println!("- Project ID: `{}`", report.project_id);
+                    println!("- Ledger: `{}`", report.ledger_path);
+                    println!("- Active: {}", report.active);
+                    println!("- Superseded: {}", report.superseded);
+                    println!("- Expired: {}", report.expired);
+                    println!("- Contested: {}", report.contested);
+                    println!(
+                        "- Action: `{}`",
+                        if rollback { "rollback" } else { "refresh" }
+                    );
                 }
             }
             MemoryCommands::Resume {
@@ -1663,12 +1733,13 @@ fn run() -> Result<()> {
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
-                let (generation, brief) = select_resume_brief(&context, task.as_deref(), 8_000)?;
+                let (generation, brief) =
+                    select_resume_brief_v41(&context, task.as_deref(), 8_000)?;
                 if json {
                     println!("{}", serde_json::to_string_pretty(&brief)?);
                 } else {
                     println!(
-                        "- Intelligence generation: `{}` (3.8 fallback retained)\n",
+                        "- Intelligence generation: `{}` (4.0 fallback retained)\n",
                         generation.as_str()
                     );
                     print!("{}", render_resume_brief(&brief, 8_000));
@@ -1693,19 +1764,19 @@ fn run() -> Result<()> {
                 limit,
             } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
-                let candidate = candidate_generation_enabled();
+                let candidate = next_generation_enabled();
                 let (generation, hits) = if candidate {
-                    match search_wiki_v4(&repo_path, &query, limit) {
-                        Ok(hits) => ("4.0", hits),
-                        Err(_) => ("3.8", search_wiki(&repo_path, &query, limit)?),
+                    match search_wiki_v5(&repo_path, &query, limit) {
+                        Ok(hits) => ("4.1", hits),
+                        Err(_) => ("4.0", search_wiki_v4(&repo_path, &query, limit)?),
                     }
                 } else {
-                    ("3.8", search_wiki(&repo_path, &query, limit)?)
+                    ("4.0", search_wiki_v4(&repo_path, &query, limit)?)
                 };
                 println!("# Baron Wiki Search\n");
                 println!("- Query: `{}`", query);
                 println!(
-                    "- Intelligence generation: `{}` (3.8 fallback retained)",
+                    "- Intelligence generation: `{}` (4.0 fallback retained)",
                     generation
                 );
                 if hits.is_empty() {
@@ -1726,6 +1797,9 @@ fn run() -> Result<()> {
                         }
                         if !hit.link_path.is_empty() {
                             println!("  Link path: {}", hit.link_path.join(" | "));
+                        }
+                        if !hit.entities.is_empty() {
+                            println!("  Entities: {}", hit.entities.join(", "));
                         }
                     }
                 }
@@ -1768,12 +1842,13 @@ fn run() -> Result<()> {
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
-                let (generation, brief) = select_resume_brief(&context, task.as_deref(), 8_000)?;
+                let (generation, brief) =
+                    select_resume_brief_v41(&context, task.as_deref(), 8_000)?;
                 if json {
                     println!("{}", serde_json::to_string_pretty(&brief)?);
                 } else {
                     println!(
-                        "- Intelligence generation: `{}` (3.8 fallback retained)\n",
+                        "- Intelligence generation: `{}` (4.0 fallback retained)\n",
                         generation.as_str()
                     );
                     print!("{}", render_resume_brief(&brief, 8_000));
@@ -1842,23 +1917,40 @@ fn run() -> Result<()> {
                 json,
             } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
-                let candidate = candidate_generation_enabled();
+                let candidate = next_generation_enabled();
                 let (generation, hits) = if candidate {
-                    match baron_core::knowledge::search_local_code_graph_v4(
-                        &repo_path, &query, limit,
-                    ) {
-                        Ok(hits) => ("4.0", hits),
-                        Err(_) => ("3.8", search_local_code_graph(&repo_path, &query, limit)?),
+                    match search_local_code_graph_v5(&repo_path, &query, limit) {
+                        Ok(hits) => ("4.1", hits),
+                        Err(_) => ("4.0", search_local_code_graph(&repo_path, &query, limit)?),
                     }
                 } else {
-                    ("3.8", search_local_code_graph(&repo_path, &query, limit)?)
+                    ("4.0", search_local_code_graph(&repo_path, &query, limit)?)
+                };
+                let impact = if generation == "4.1" {
+                    baron_core::knowledge::load_or_refresh_local_code_graph(&repo_path)
+                        .ok()
+                        .map(|graph| analyze_graph_impact(&graph, &query, limit))
+                } else {
+                    None
                 };
                 if json {
                     println!("{}", serde_json::to_string_pretty(&hits)?);
                 } else {
                     println!("# Baron Local CodeGraph Query\n");
                     println!("- Query: `{}`", query);
-                    println!("- Intelligence generation: `{generation}` (3.8 fallback retained)");
+                    println!("- Intelligence generation: `{generation}` (4.0 fallback retained)");
+                    if let Some(impact) = &impact {
+                        println!(
+                            "- Impact paths: {}; relation types: {}",
+                            impact.paths.len(),
+                            impact
+                                .relation_counts
+                                .keys()
+                                .cloned()
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
+                    }
                     if hits.is_empty() {
                         println!("- No current project symbols matched; Survey fallback remains available.");
                     }
@@ -1878,6 +1970,16 @@ fn run() -> Result<()> {
                         }
                         if !hit.relations.is_empty() {
                             println!("  Relations: {}", hit.relations.join(", "));
+                        }
+                    }
+                    if let Some(impact) = impact {
+                        for path in impact.paths.iter().take(limit) {
+                            println!(
+                                "  Impact: {} -> {} ({})",
+                                path.root_symbol,
+                                path.symbols.join(" -> "),
+                                path.relations.join(" -> ")
+                            );
                         }
                     }
                 }
@@ -1921,6 +2023,50 @@ fn run() -> Result<()> {
                     );
                     println!("- JSON log: `{json_path}`");
                     println!("- Markdown log: `{markdown_path}`");
+                }
+            }
+            IntelligenceCommands::Benchmark41 {
+                repo_path,
+                vault,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                let report = run_benchmark41(&context)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    println!("# Baron 4.1 Intelligence Benchmark\n");
+                    println!("- Report: `{}`", report.report_id);
+                    println!("- Contract: `{}`", report.contract.contract_id);
+                    println!("- Source revision: `{}`", report.source_revision);
+                    for score in &report.baron_scores {
+                        println!("- {}: {}/100", score.surface, score.score);
+                    }
+                    println!("- Tencent baseline: `{}`", report.tencent.status);
+                    println!("- Same-corpus win: `{}`", report.same_corpus_win);
+                    println!(
+                        "- Statistical confidence 95%: `{}` ({} repetitions)",
+                        report.statistical_confidence_95, report.repetitions
+                    );
+                    println!(
+                        "- Metrics: profile `{}`, total {} ms, index {} ms, query {} ms, {} estimated tokens, {} cache bytes, peak memory {:?}, cost `{}`",
+                        report.metrics.execution_profile,
+                        report.metrics.elapsed_ms,
+                        report.metrics.index_elapsed_ms,
+                        report.metrics.query_elapsed_ms,
+                        report.metrics.estimated_tokens,
+                        report.metrics.cache_bytes,
+                        report.metrics.peak_memory_bytes,
+                        report.metrics.cost_status
+                    );
+                    println!("- Target achieved: `{}`", report.target_achieved);
+                    println!("- JSON log: `{}`", report.json_path);
+                    println!("- Markdown log: `{}`", report.markdown_path);
+                    if !report.hard_failures.is_empty() {
+                        println!("- Hard failures: {}", report.hard_failures.join("; "));
+                    }
                 }
             }
             IntelligenceCommands::SecurityRoute {
@@ -2022,12 +2168,16 @@ fn run() -> Result<()> {
             let vault_path = resolve_command_vault(vault, &repo_path)?;
             let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             build_memory_index(&context)?;
-            let candidate = candidate_generation_enabled();
+            let candidate = next_generation_enabled();
             let result = if candidate {
-                recall_v4(&context, &query, 8).or_else(|_| recall(&context, &query, 8))?
+                recall_v5(&context, &query, 8).or_else(|_| recall_v4(&context, &query, 8))?
             } else {
-                recall(&context, &query, 8)?
+                recall_v4(&context, &query, 8)?
             };
+            println!(
+                "- Intelligence generation: `{}` (4.0 fallback retained)\n",
+                if candidate { "4.1" } else { "4.0" }
+            );
             print!("{}", render_recall(&result));
         }
         Some(Commands::Context {

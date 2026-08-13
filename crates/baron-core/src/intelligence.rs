@@ -18,6 +18,7 @@ use sha2::{Digest, Sha256};
 
 use crate::code_graph::compute_code_source_fingerprint;
 use crate::firewall::{recall, recall_v4};
+use crate::intelligence41::{build_grounded_handoff, refresh_temporal_ledger};
 use crate::knowledge::ResumeBrief;
 use crate::knowledge::{
     build_local_code_graph, build_resume_brief, build_resume_brief_v4, index_wiki,
@@ -29,6 +30,7 @@ use crate::vault::VaultContext;
 pub const INTELLIGENCE_SCHEMA_VERSION: u32 = 1;
 pub const BARON_BASELINE_GENERATION: &str = "3.8";
 pub const BARON_CANDIDATE_GENERATION: &str = "4.0";
+pub const BARON_NEXT_GENERATION: &str = "4.1";
 pub const MIN_PROMOTION_SCORE: u8 = 90;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,6 +58,7 @@ impl IntelligenceSurface {
 pub enum EngineGeneration {
     Baseline38,
     Candidate40,
+    Candidate41,
 }
 
 impl EngineGeneration {
@@ -63,6 +66,7 @@ impl EngineGeneration {
         match self {
             Self::Baseline38 => BARON_BASELINE_GENERATION,
             Self::Candidate40 => BARON_CANDIDATE_GENERATION,
+            Self::Candidate41 => BARON_NEXT_GENERATION,
         }
     }
 }
@@ -432,7 +436,56 @@ pub fn candidate_generation_enabled() -> bool {
         }
         Ok(value) if value.trim() == BARON_CANDIDATE_GENERATION => true,
         Ok(_) => false,
-        Err(_) => true,
+        Err(_) => false,
+    }
+}
+
+/// Returns whether the Baron 4.1 candidate may run. Baron 4.0 remains the
+/// immediate fallback; an explicit 3.8/baseline value still forces the old
+/// recovery path and unknown values fail closed.
+pub fn next_generation_enabled() -> bool {
+    match std::env::var("BARON_ENGINE_GENERATION") {
+        Ok(value) if value.trim() == BARON_BASELINE_GENERATION || value.trim() == "baseline" => {
+            false
+        }
+        Ok(value) if value.trim() == BARON_CANDIDATE_GENERATION => false,
+        Ok(value) if value.trim() == BARON_NEXT_GENERATION => true,
+        Ok(_) => false,
+        Err(_) => false,
+    }
+}
+
+/// Select the 4.1 candidate only after its temporal and grounded handoff
+/// contracts succeed. A 4.0 Resume Brief remains the result when the candidate
+/// cannot prove identity, bounds, or evidence.
+pub fn select_resume_brief_v41(
+    context: &VaultContext,
+    task: Option<&str>,
+    max_chars: usize,
+) -> Result<(EngineGeneration, ResumeBrief)> {
+    let baseline = build_resume_brief_v4(context, task, max_chars)?;
+    if !next_generation_enabled() {
+        return Ok((EngineGeneration::Candidate40, baseline));
+    }
+    let _ = refresh_temporal_ledger(context);
+    let handoff = match build_grounded_handoff(context, task, max_chars) {
+        Ok(handoff) => handoff,
+        Err(_) => return Ok((EngineGeneration::Candidate40, baseline)),
+    };
+    let rendered = render_resume_brief(&baseline, max_chars);
+    let structurally_safe = baseline.project_id == context.project_id
+        && baseline.bounded_chars <= max_chars.clamp(1_200, MAX_RUNTIME_BRIEF_CHARS)
+        && handoff.bounded_chars <= max_chars.clamp(1_200, MAX_RUNTIME_BRIEF_CHARS)
+        && handoff.estimated_tokens <= handoff.budget_tokens
+        && rendered.contains(&context.project_id)
+        && handoff
+            .claims
+            .iter()
+            .all(|claim| !claim.claim.contains("[REDACTED]") || claim.citation.contains("/"));
+    if structurally_safe {
+        Ok((EngineGeneration::Candidate41, baseline))
+    } else {
+        Ok((EngineGeneration::Candidate40, baseline))
     }
 }
 

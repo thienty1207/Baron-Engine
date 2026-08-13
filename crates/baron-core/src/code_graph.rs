@@ -923,13 +923,19 @@ fn is_skipped_source_path(path: &Path) -> bool {
                 | "build"
                 | ".next"
                 | ".cache"
+                | ".tmp"
                 | "vendor"
                 | "graphify-out"
                 | "__pycache__"
         )
+    }) || names.last().is_some_and(|name| {
+        matches!(
+            name.as_str(),
+            "readme.md" | "release.md" | ".tmp-profile.txt"
+        )
     }) || names
-        .last()
-        .is_some_and(|name| matches!(name.as_str(), "readme.md" | "release.md"))
+        .windows(2)
+        .any(|pair| pair[0] == "docs" && pair[1] == "assessment")
         || names.windows(2).any(|pair| {
             (pair[0] == "docs"
                 && matches!(

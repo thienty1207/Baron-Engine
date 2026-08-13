@@ -4,8 +4,10 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 
 use crate::memory::{
-    load_memory_records, MemoryConfidence, MemoryKind, MemoryRecord, MemoryScope, MemoryStatus,
+    load_memory_records, MemoryAbstraction, MemoryConfidence, MemoryKind, MemoryRecord,
+    MemoryScope, MemoryStatus,
 };
+use crate::semantic::{expand_query, rank_documents, SemanticDocument};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -385,6 +387,126 @@ pub fn recall_v4(context: &VaultContext, query: &str, limit: usize) -> Result<Re
             .then_with(|| left.record.path.cmp(&right.record.path))
     });
     result.results.truncate(limit.max(1));
+    Ok(result)
+}
+
+/// Baron 4.1 retrieval. Eligibility still comes from the 4.0 firewall, then
+/// a deterministic BM25/vector/RRF ranker reorders only eligible records. A
+/// query expansion pass lets Vietnamese/English concepts meet without allowing
+/// semantic similarity to bypass project identity or trust rules.
+pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<RecallResult> {
+    let limit = limit.max(1);
+    let mut result = recall_v4(context, query, limit.saturating_mul(6).max(12))?;
+    let expanded = expand_query(query);
+    if expanded != query && !expanded.is_empty() {
+        let expanded_result = recall_v4(context, &expanded, limit.saturating_mul(6).max(12))?;
+        let mut by_id = result
+            .results
+            .into_iter()
+            .map(|hit| (hit.record.id.clone(), hit))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        for hit in expanded_result.results {
+            by_id
+                .entry(hit.record.id.clone())
+                .and_modify(|current| {
+                    if hit.score > current.score {
+                        current.score = hit.score;
+                    }
+                    current.notes.extend(hit.notes.clone());
+                })
+                .or_insert(hit);
+        }
+        result.results = by_id.into_values().collect();
+    }
+    // v4 is the trust/identity gate, but it is intentionally lexical. Add all
+    // current-project and approved-global records to the v5 candidate pool so
+    // a true paraphrase can be found even when no v4 token overlaps. Weak
+    // cross-project records and global candidates never enter this pool.
+    let mut eligible = result
+        .results
+        .drain(..)
+        .map(|hit| (hit.record.id.clone(), hit))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for record in load_memory_records(context)? {
+        let current_project = record.project_id.as_deref() == Some(context.project_id.as_str());
+        let approved_global = record.scope == MemoryScope::GlobalVerified;
+        if record.scope == MemoryScope::GlobalCandidate
+            || (record.scope == MemoryScope::Project && !current_project)
+            || (!current_project && !approved_global)
+        {
+            continue;
+        }
+        eligible
+            .entry(record.id.clone())
+            .or_insert_with(|| MemoryHit {
+                record,
+                score: 0,
+                notes: vec!["v5-semantic-eligible-after-firewall".to_string()],
+            });
+    }
+    result.results = eligible.into_values().collect();
+    if let Ok(ledger) = crate::intelligence41::load_temporal_ledger(context) {
+        let now = Utc::now();
+        result.results.retain(|hit| {
+            ledger
+                .entries
+                .iter()
+                .find(|entry| entry.record_id == hit.record.id)
+                .map(|entry| crate::intelligence41::temporal_entry_is_current(entry, now))
+                .unwrap_or(true)
+        });
+    }
+    let documents = result
+        .results
+        .iter()
+        .map(|hit| SemanticDocument {
+            id: hit.record.id.clone(),
+            title: hit.record.title.clone(),
+            body: hit.record.excerpt.clone(),
+            path: hit.record.path.clone(),
+            project_id: hit.record.project_id.clone(),
+            tags: hit.record.tags.clone(),
+        })
+        .collect::<Vec<_>>();
+    let semantic_hits = rank_documents(query, &documents, documents.len());
+    let semantic_by_id = semantic_hits
+        .iter()
+        .map(|hit| (hit.id.as_str(), hit))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for hit in &mut result.results {
+        if let Some(semantic) = semantic_by_id.get(hit.record.id.as_str()) {
+            hit.score = hit.score.saturating_add((semantic.score * 100.0) as i64);
+            hit.notes
+                .push(format!("v5-bm25:{:.3}", semantic.lexical_score));
+            hit.notes
+                .push(format!("v5-vector:{:.3}", semantic.vector_score));
+            hit.notes.push(format!("v5-rrf:{:.5}", semantic.rrf_score));
+        }
+        let abstraction_bonus = match hit.record.abstraction_level() {
+            MemoryAbstraction::L0Evidence => 0,
+            MemoryAbstraction::L1Fact => 8,
+            MemoryAbstraction::L2Decision => 14,
+            MemoryAbstraction::L3Invariant => 20,
+        };
+        hit.score += abstraction_bonus;
+        hit.notes.push(format!(
+            "v5-layer:{}:+{}",
+            hit.record.abstraction_level().as_str(),
+            abstraction_bonus
+        ));
+    }
+    result.results.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then_with(|| left.record.path.cmp(&right.record.path))
+    });
+    result.results.truncate(limit);
+    if result.results.is_empty() {
+        result.unknowns = vec![format!("No trusted semantic memory matched `{query}`")];
+    } else {
+        result.unknowns.clear();
+    }
     Ok(result)
 }
 

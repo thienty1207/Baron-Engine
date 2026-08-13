@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "contract_id": "9a79b2dd385c814127453dabda5edfcf36af16b9ad563a26785fa76518fc3f5f",
+  "generated_at": "2026-08-13T15:28:14Z",
+  "source_revision": "6c490703ad22d4d1b1bee6cb02e78ae34133e6d47e019bb54172e2ca07ff2be2",
+  "fixture_revision": "ebb642025a2867dc264395b8b217c94d6d8c41f933c1a31d1cde431408bf7883",
+  "holdout_hash": "8930a49663ca8f3ad52c87d2445e1eecefee26017c9a6288f196883f7035e73c",
+  "surfaces": [
+    "long_term_memory_l0_l3",
+    "semantic_retrieval_grounded_synthesis",
+    "automatic_session_learning",
+    "wiki",
+    "codegraph"
+  ],
+  "allowed_context_tokens": 8000,
+  "time_budget_ms": 10000,
+  "peak_memory_budget_bytes": 536870912,
+  "cost_normalized": true,
+  "tencent_target": "TencentDB-Agent-Memory",
+  "tencent_revision": "v2.0.0@0aff21a2d9f2b8a0354aaa80a2e586aab4054562 (surface baseline still required)",
+  "fixture_cases": [
+    {
+      "id": "memory-l0-l3-resume",
+      "surface": "long_term_memory_l0_l3",
+      "query": "current work proof next safe action",
+      "expected_signals": [
+        "project_identity",
+        "layer_l0_l3",
+        "trust_and_freshness"
+      ]
+    },
+    {
+      "id": "semantic-vietnamese-english",
+      "surface": "semantic_retrieval_grounded_synthesis",
+      "query": "tìm kiếm ngữ nghĩa memory retrieval",
+      "expected_signals": [
+        "bm25",
+        "vector",
+        "rrf",
+        "citation"
+      ]
+    },
+    {
+      "id": "session-evidence-candidates",
+      "surface": "automatic_session_learning",
+      "query": "session decision proof blocker next action",
+      "expected_signals": [
+        "source_hash",
+        "evidence_span",
+        "candidate_only"
+      ]
+    },
+    {
+      "id": "wiki-entities-links",
+      "surface": "wiki",
+      "query": "memory architecture",
+      "expected_signals": [
+        "entities",
+        "typed_links",
+        "citation"
+      ]
+    },
+    {
+      "id": "codegraph-impact",
+      "surface": "codegraph",
+      "query": "context memory",
+      "expected_signals": [
+        "symbols",
+        "calls",
+        "references",
+        "impact_paths"
+      ]
+    }
+  ],
+  "holdout_case_count": 5
+}

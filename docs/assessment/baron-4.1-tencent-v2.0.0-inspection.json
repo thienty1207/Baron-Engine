@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+  "release": "v2.0.0",
+  "resolved_commit": "0aff21a2d9f2b8a0354aaa80a2e586aab4054562",
+  "inspection": "local_read_only_source_checkout",
+  "runtime_check": {
+    "bundled_node_available": true,
+    "checkout_node_modules": false,
+    "checkout_lockfile": false,
+    "documented_deployment_requires_docker_and_llm_parameters": true,
+    "services_or_credentials_invoked": false
+  },
+  "public_benchmark": {
+    "name": "PersonaMem",
+    "without_tencent_percent": 48,
+    "with_tencent_percent": 76,
+    "per_surface_barons_contract_scores": false
+  },
+  "same_corpus_five_surface_baseline": "unavailable",
+  "release_claim_allowed": false,
+  "reason": "The public v2.0.0 release does not publish the five surface scores required by the Baron 4.1 contract."
+}

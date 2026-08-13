@@ -22,6 +22,102 @@
     "full cross-adapter parity and lifecycle stress",
     "dynamic authorized lab execution (disabled by design)"
   ],
+  "activeProgram": {
+    "targetRelease": "4.1.0",
+    "status": "implementation-in-progress",
+    "completionPercent": 0,
+    "phaseRange": "77-87",
+    "currentPhase": "Phase 86 runner complete; hard acceptance blocked",
+    "nextPhase": "Provide same-corpus Tencent evidence and raise all Baron surfaces to 95",
+    "stableFallback": "4.0.0",
+    "automaticSkillCreation": false,
+    "releasePromotionAllowed": false,
+    "hardAcceptanceContract": {
+      "surfaces": [
+        "long_term_memory_l0_l3",
+        "semantic_retrieval_grounded_synthesis",
+        "automatic_session_learning",
+        "wiki",
+        "codegraph"
+      ],
+      "minimumBaronScore": 95,
+      "minimumTencentMargin": 2,
+      "requiresSameCorpus": true,
+      "requiresConfidenceInterval": true,
+      "tencentBaseline": "explicit same-corpus v2.0.0 baseline only",
+      "tencentRevision": "v2.0.0@0aff21a2d9f2b8a0354aaa80a2e586aab4054562"
+    },
+    "benchmarkContract": "docs/assessment/baron-4.1-contract.json",
+    "benchmarkReport": "docs/assessment/baron-4.1-benchmark.json",
+    "phase86Runner": "docs/assessment/baron-4.1-phase86-runner.json",
+    "phase86RunnerStatus": "blocked_external_evidence",
+    "phase86RunnerRuns": 3,
+    "tencentInspection": "docs/assessment/baron-4.1-tencent-v2.0.0-inspection.json",
+    "confidenceEvidenceInput": "BARON_41_CONFIDENCE_EVIDENCE_JSON (exact contract/source, >=3 repetitions)",
+    "targetAchieved": false,
+    "lastBenchmark": {
+      "reportId": "c26d78b29ee45251528b4b527956b4282879397b20de6acc950feed555eec559",
+      "contractId": "9a79b2dd385c814127453dabda5edfcf36af16b9ad563a26785fa76518fc3f5f",
+      "sourceRevision": "6c490703ad22d4d1b1bee6cb02e78ae34133e6d47e019bb54172e2ca07ff2be2",
+      "baronScores": {
+                        "long_term_memory_l0_l3": 100,
+                        "semantic_retrieval_grounded_synthesis": 100,
+                        "automatic_session_learning": 100,
+        "wiki": 100,
+        "codegraph": 100
+      },
+      "tencentStatus": "unavailable",
+      "sameCorpusWin": false,
+      "statisticalConfidence95": false,
+      "targetAchieved": false,
+      "executionProfile": "release",
+      "elapsedMs": 4735,
+      "indexElapsedMs": 2367,
+      "queryElapsedMs": 2367,
+      "estimatedTokens": 367,
+      "cacheBytes": 44155262,
+      "peakMemoryBytes": 168239104,
+      "queryBudgetMs": 10000
+    },
+    "seededFixtureEvidence": {
+      "isolated": true,
+      "runCount": 3,
+      "runnerStatus": "blocked_external_evidence",
+      "runnerReport": "docs/assessment/baron-4.1-phase86-runner.json",
+      "surfaces": {
+        "long_term_memory_l0_l3": 100,
+        "semantic_retrieval_grounded_synthesis": 100,
+        "automatic_session_learning": 100,
+        "wiki": 100,
+        "codegraph": 100
+      },
+      "tencentBaseline": "unavailable",
+      "releasePromotion": false
+    },
+    "phases": [
+      { "id": 77, "name": "Benchmark contract", "status": "in_progress" },
+      { "id": 78, "name": "Semantic retrieval fusion", "status": "in_progress" },
+      { "id": 79, "name": "Automatic session learning", "status": "in_progress" },
+      { "id": 80, "name": "Temporal truth and consolidation", "status": "in_progress" },
+      { "id": 81, "name": "Grounded memory synthesis and handoff", "status": "in_progress" },
+      { "id": 82, "name": "Wiki intelligence", "status": "in_progress" },
+      { "id": 83, "name": "CodeGraph depth and impact", "status": "in_progress" },
+      { "id": 84, "name": "Scale, sync, and recovery", "status": "in_progress" },
+      { "id": 85, "name": "Safety, cost, and 4.0 fallback", "status": "in_progress" },
+      { "id": 86, "name": "Independent acceptance and Tencent win", "status": "in_progress" },
+      { "id": 87, "name": "Version, README, GitHub, and reinstall", "status": "pending" }
+    ],
+    "implementedCandidateEvidence": [
+      "hash-sealed contract and honest target_not_achieved benchmark report",
+      "project-first deterministic bilingual semantic BM25/vector/RRF retrieval",
+      "redacted evidence-linked session candidates with quarantine and zero Skill creation",
+      "project-bound temporal ledger with supersession, conflict, backup, and rollback",
+      "grounded cited handoff with token/cost budget and 4.0 fallback",
+      "semantic Wiki/CodeGraph, typed links/entities, impact paths, edge budget, and stale-cache rebuild",
+      "workspace check, warnings-denied Clippy, 28 core unit tests, focused CLI suites, and an isolated seeded fixture pass",
+      "frozen-contract Phase 86 runner with three repeated release runs and exact blocked-gate evidence"
+    ]
+  },
   "releaseEvidence": {
     "ciWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31679762576",
     "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831",
@@ -1151,6 +1247,11 @@
     }
   ],
   "readFirst": [
+    "docs/superpowers/specs/2026-08-13-baron-4-1-intelligence-evaluation-design.md",
+    "docs/superpowers/plans/2026-08-13-baron-4-1-program.md",
+    "docs/assessment/baron-4.1-contract.json",
+    "docs/assessment/baron-4.1-benchmark.json",
+    "docs/assessment/baron-4.1-tencent-v2.0.0-inspection.json",
     "docs/superpowers/specs/2026-08-12-baron-3-8-memory-security-design.md",
     "docs/superpowers/plans/2026-08-12-baron-3-8-program.md",
     "docs/assessment/baron-3.8-certification.md",

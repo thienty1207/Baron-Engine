@@ -1,8 +1,76 @@
 # Current Build Note
 
+## Baron 4.1 Implementation Checkpoint (2026-08-13)
+
+- Owner approved implementation of the eleven-phase Baron 4.1 program after
+  removing automatic Skill creation/distillation from scope.
+- Stable public baseline remains `v4.0.0`; no version bump is authorized until
+  the independent Phase 86 acceptance gate passes.
+- Active design:
+  `docs/superpowers/specs/2026-08-13-baron-4-1-intelligence-evaluation-design.md`.
+- Active plan:
+  `docs/superpowers/plans/2026-08-13-baron-4-1-program.md`.
+- Last successful checkpoint: Baron 4.0 source and public release evidence are
+  intact; the 4.1 release-profile benchmark now records split index/query
+  latency and real Windows peak working-set memory.
+- Current work: execute the Phase 86 acceptance preflight over the Phase 77-85
+  candidate additions while retaining 4.0 fallback behavior. The frozen
+  contract, isolated fixture, three repeated release runs, and local report
+  artifacts are complete; the explicit Tencent same-corpus baseline and
+  independent confidence artifact are still unavailable, so the hard target is
+  not achieved.
+- Latest proof batch: `cargo check --workspace`, workspace Clippy with
+  warnings denied, Baron core library tests, CLI integration tests, and the
+  focused Vault/CodeGraph/context suites passed. The full workspace/all-target
+  test command was retried and exceeded the local 304-second runner budget
+  without a final result; this is recorded as a timeout, not a pass.
+- The latest complete `cargo test -p baron-cli --tests --no-fail-fast` run also
+  passed all CLI integration groups (23 test binaries/groups, including
+  lifecycle, memory, context, CodeGraph, release, and recovery coverage).
+- A fresh full workspace/all-target run was retried with a 360-second local
+  runner budget but again timed out before a final exit result; it is recorded
+  as a timeout, not a pass. The complete CLI suite and 28 Baron core tests are
+  the successful bounded proof currently available.
+- The isolated seeded development-fixture test now passes all five local
+  surfaces at `100/100` without mutating a user's Vault; it deliberately still
+  leaves Tencent comparison and confidence gates failed.
+- The frozen-contract Phase 86 runner now repeats the release binary three
+  times, verifies the contract/source hashes, records raw failures, and returns
+  `blocked_external_evidence` rather than silently replacing missing Tencent
+  data. Artifact: `docs/assessment/baron-4.1-phase86-runner.*`.
+- Implemented candidate surfaces include deterministic lexical/vector/RRF
+  retrieval, bounded session-learning candidates with no Skill creation,
+  temporal ledger refresh/rollback, grounded handoff citations, semantic Wiki
+  and CodeGraph ranking, poisoning quarantine, token/cost measurements, stale
+  cache rebuild, and an explicit `BARON_ENGINE_GENERATION=4.1` opt-in with
+  per-query 4.0 fallback.
+- Latest clean benchmark report: `docs/assessment/baron-4.1-benchmark.json`
+  (report `c26d78b29ee45251528b4b527956b4282879397b20de6acc950feed555eec559`,
+  contract `9a79b2dd385c814127453dabda5edfcf36af16b9ad563a26785fa76518fc3f5f`).
+  The seeded development fixture scored Memory `100/100`, Semantic/grounded
+  synthesis `100/100`, Session learning `100/100`, Wiki `100/100`, and
+  CodeGraph `100/100` on the release binary. Tencent is unavailable and the
+  repeated runner has no reviewed confidence artifact, so
+  `target_achieved=false` remains correct. Total runtime was `4735 ms`
+  (`2367 ms` indexing, `2367 ms` query), estimated 367 handoff tokens,
+  `44,155,262` cache/artifact bytes, and `168,239,104` peak working-set bytes;
+  the 10,000 ms query and 512 MiB memory budgets passed.
+- Proof status: no Baron 4.1 phase is complete yet; implemented candidate tasks
+  are checked in `docs/BARON_STATUS.md`, while the Phase 86/87 hard gates remain
+  open.
+- Safe resume point: provide a reviewed same-corpus Tencent runner/baseline and
+  independent confidence artifact, then seed the Baron fixture with project
+  memory/session history and rerun the Phase 86 script. Do not bump version or
+  publish until every surface is >=95 with a supported win.
+- Tencent inspection evidence is recorded in
+  `docs/assessment/baron-4.1-tencent-v2.0.0-inspection.*`: tag `v2.0.0`
+  resolves to commit `0aff21a2d9f2b8a0354aaa80a2e586aab4054562`, but the public
+  README only exposes PersonaMem `48% -> 76%`, not the five per-surface scores
+  needed for a same-corpus gate.
+
 Date: 2026-08-13
-Target: Baron 4.0.0
-Program target: Baron 4.0.0
+Target: Baron 4.1.0 candidate
+Program target: Baron 4.1.0
 
 ## Final Public Release Checkpoint (2026-08-13)
 

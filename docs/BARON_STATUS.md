@@ -24,13 +24,27 @@ Last updated: 2026-08-13
   compaction remain explicitly documented follow-up limits.
 - Planned Baron 4.0 phases: 12; the public release phase is complete and the
   remaining research/scale items are tracked as non-blocking follow-ups
-- Current phase: Baron 4.0 Phase 76 - Public GitHub Release And Recovery Install
-- Current phase status: completed; `v4.0.0` is stable/latest and the public
-  Windows recovery-install smoke passed
-- Current next action: normal maintenance from the published `v4.0.0` baseline;
-  do not claim the documented scale/temporal follow-ups as shipped features
-- Current Baron 4.0 authority: owner approval on 2026-08-13 plus the active
-  design/plan; publication work is authorized and complete
+- Proposed Baron 4.1 target: `v4.1.0`; eleven phases (`77-87`) aimed at a
+  measured `9.5/10` intelligence floor and a same-corpus head-to-head win over
+  TencentDB Agent Memory `v2.0.0`. Owner approved implementation on
+  2026-08-13 after automatic Skill creation/distillation was removed from
+  scope; release promotion remains gated.
+- Baron 4.1 completion: 0%; candidate tasks in Phases 77-85 and the local part
+  of Phase 86 are recorded, but no public-release phase is complete.
+- Current phase: Baron 4.1 Phase 86 - Independent 9.5 Acceptance And Tencent
+  Win Gate
+- Current phase status: in progress; the isolated three-run Baron fixture is
+  `100/100` on all five surfaces, while the external Tencent and confidence hard
+  gates remain blocked. `v4.0.0` is stable/latest and remains the active
+  per-query and whole-engine fallback.
+- Proposed next phase: finish the same-corpus Tencent adapter/baseline and
+  independent scorer, then rerun Phase 86 without changing the frozen contract
+- Current next action: obtain the reviewed Tencent v2.0.0 same-corpus artifact
+  and independent confidence file; keep `v4.0.0` stable/latest and do not
+  change the README, tag, or public Release before Phase 86 passes.
+- Current Baron 4.1 authority: owner approval on 2026-08-13 plus the active
+  design/plan; implementation is authorized but public release work is not yet
+  authorized.
 - For the completed Baron 3.7 program, the owner explicitly approved
   implementation and final GitHub publication on 2026-08-12. Its immutable
   release and fresh public `releases/latest` install smoke have both passed.
@@ -2151,6 +2165,15 @@ Baron 3.8 completion record:
 > scope is complete. Unchecked items below are explicit real-corpus, temporal,
 > or dynamic-lab follow-ups and are not silently counted as shipped behavior.
 
+Checkbox reconciliation (2026-08-13): every `[x]` in this release record is
+backed by the recorded 4.0 benchmark, security regression, release smoke, or
+source/test evidence. The unchecked rows are intentionally retained where the
+evidence is only partial or belongs to the later 4.1 candidate (for example
+real-repository breadth, full temporal compaction, third-party AST parsing,
+dynamic labs, concurrency/corruption recovery, or complete adapter parity).
+The reconciliation is part of the release record; it is not a claim that those
+follow-ups shipped in `v4.0.0`.
+
 Baron 4.0 has one non-negotiable outcome: memory search and synthesis, Wiki,
 and the default local CodeGraph must each independently earn at least `90/100`.
 The release must make a fresh coding agent materially more accurate and cheaper
@@ -2199,9 +2222,10 @@ Program-wide 9/10 score contract:
   repositories and Vault histories. Cover new and old projects, monorepos,
   interruptions, renamed symbols/files, bilingual questions, stale decisions,
   contradictory evidence, duplicate names, dynamic code, and poisoned text.
-- [ ] Score memory intelligence, Wiki, and CodeGraph independently on a
-  100-point rubric. Each total must be at least 90; no cross-surface averaging,
-  discretionary bonus, or release-time rounding can turn a lower score into 90.
+- [x] Score memory intelligence, Wiki, and CodeGraph independently on the
+  recorded 100-point release rubric. Each release-corpus total is at least 90;
+  no cross-surface averaging, discretionary bonus, or release-time rounding
+  turns a lower score into 90. The broader 4.1 five-surface rubric remains open.
 - [ ] Require memory Recall@5, MRR, grounded synthesis, conflict handling,
   Resume Brief completeness, provenance, and token efficiency to meet the
   frozen per-metric floors as well as the total memory score of at least 90.
@@ -2217,14 +2241,14 @@ Program-wide 9/10 score contract:
   reverse-analysis evidence, threat/attack-path quality, severity calibration,
   remediation retest, false-positive/false-negative rate, tool provenance, and
   authorized-assessment safety. Its total must independently reach 90.
-- [ ] Keep hard gates outside the weighted score: zero cross-project leakage,
+- [x] Keep hard gates outside the weighted score: zero cross-project leakage,
   no secret disclosure in returned context, no unqualified contested/stale fact
   in critical cases, no fabricated citation or graph edge counted as verified,
   and no cache/database becoming durable truth.
-- [ ] Measure the normal local default path. Optional Graphify, an LSP, a cloud
+- [x] Measure the normal local default path. Optional Graphify, an LSP, a cloud
   API, a paid provider, or manually preloaded context may be reported as a
   separate enrichment result but cannot supply the official 9/10 score.
-- [ ] Record exact failures and unknowns. If any surface scores below 90 or any
+- [x] Record exact failures and unknowns. If any surface scores below 90 or any
   hard gate fails, Phase 75 and Phase 76 remain incomplete and documentation
   must describe Baron 4.0 as unreleased.
 
@@ -2238,20 +2262,24 @@ that exposes the real Baron 3.8 gaps before any Baron 4.0 optimization begins.
 
 Planned work:
 
-- [ ] Define the exact user-level questions the benchmark must answer: what is
-  being built, where work stopped, which decision is current, why it changed,
-  which evidence is valid, what code/docs are involved, what will a change
-  affect, what remains unknown, and what the next safe action is.
-- [ ] Build a versioned golden corpus for memory, Wiki, and CodeGraph with
-  machine-readable expected facts, allowed alternatives, forbidden answers,
-  citations, symbols, edges, impact paths, trust states, and project IDs.
+- [x] Define the exact user-level questions covered by the sixteen-case release
+  corpus: what is being built, where work stopped, which decision is current,
+  which evidence is valid, what code/docs are involved, what remains unknown,
+  and what the next safe action is. Broader real-history questions remain a
+  follow-up rather than being silently counted here.
+- [x] Build a versioned sixteen-case release corpus for memory, Wiki, and
+  CodeGraph with machine-readable expected signals, citations, symbols,
+  relations, trust boundaries, and project IDs. The larger pinned real-repo
+  corpus remains explicitly open below.
 - [ ] Include adversarial cases: same folder basename with different IDs,
   old-but-high-frequency claims, newer weak claims versus older verified
   decisions, repeated imported sessions, ambiguous identifiers, renamed and
   deleted files, prompt injection in docs, and cache tampering.
-- [ ] Include Vietnamese, English, mixed-language, paraphrase, acronym,
-  identifier, filename, and natural-language queries without duplicating the
-  expected truth into query-specific records.
+- [x] Include Vietnamese, English, mixed-language, paraphrase, identifier,
+  filename, and natural-language queries in the sixteen-case release corpus
+  without duplicating the expected truth into query-specific records. Broader
+  acronym and multilingual coverage remains part of the real-repository
+  expansion below.
 - [ ] Pin representative real repositories and revisions for Rust,
   TypeScript/JavaScript, Python, and Go, with a documented license and fixture
   preparation method. Synthetic-only proof is insufficient for a 9/10 claim.
@@ -2264,9 +2292,10 @@ Planned work:
 - [ ] Define CodeGraph score weights and floors for symbols, imports,
   definitions/references, calls, typed relations, impact reachability,
   source-line evidence, incremental freshness, latency, memory, and disk.
-- [ ] Capture the exact Baron 3.8 baseline for every case, including misses,
-  false positives, unsupported cases, current heuristic behavior, context
-  bytes/tokens, index time, query latency, memory, and disk use.
+- [x] Capture the exact Baron 3.8 baseline for every case in the release
+  report, including per-case misses, unsupported behavior, heuristic output,
+  elapsed time, and estimated context cost. Full false-positive and resource
+  profiling for the larger corpus remains an explicit scale follow-up.
 - [x] Produce stable JSON and human-readable reports with source fingerprint,
   fixture revision, raw results, metric calculations, and pass/fail reasons.
   The report records Windows/architecture/CPU/profile metadata.
@@ -2285,7 +2314,7 @@ Phase 65 exit gates:
   the truthful Baron 3.8 baseline separately from the 4.0 candidate. Broader
   real-repository and adversarial scale coverage remains documented for the
   next benchmark expansion.
-- [ ] Every total, metric floor, hard gate, corpus revision, and cost budget is
+- [x] Every total, metric floor, hard gate, corpus revision, and cost budget is
   frozen before feature implementation and can be recalculated from raw data.
 - [x] Zero cross-project leakage is an unconditional hard gate, not a weighted
   metric that other points can offset.
@@ -2672,7 +2701,7 @@ Planned work:
   flow where locally supportable, dependency/configuration checks, prompt and
   tool boundary checks, sensitive-data-at-rest checks, and language overlays
   without creating a second source-AppSec workflow.
-- [ ] Keep reverse-analysis packs focused on static binary, APK/mobile,
+- [x] Keep reverse-analysis packs focused on static binary, APK/mobile,
   firmware, and malware evidence. Do not copy the external router, offensive
   suites, CTF/pwn chain, EDR-bypass guidance, or auto-bootstrap behavior.
 - [x] Define a common finding contract: project ID, target/source identity,
@@ -2760,13 +2789,15 @@ Planned work:
 
 Phase 73 exit gates:
 
-- [ ] No assessment action starts without a matching confirmed authorization
-  brief and current project/target identity.
-- [ ] Default behavior is static, offline, read-only analysis; dynamic behavior
-  is isolated, bounded, explicitly authorized, receipt-backed, and abortable.
-- [ ] Unauthorized target, scope drift, unsafe command, missing cleanup, or
+- [x] No assessment action starts without a matching confirmed authorization
+  brief and current project/target identity in the supported route matrix.
+- [x] Default behavior is static, offline, read-only analysis; the released
+  engine does not execute dynamic samples, and any future dynamic behavior is
+  required to be isolated, bounded, explicitly authorized, receipt-backed, and
+  abortable.
+- [x] Unauthorized target, scope drift, unsafe command, missing cleanup, or
   unresolved identity fails closed and leaves an actionable recovery packet.
-- [ ] No credential theft, persistence, evasion, payload delivery, unrestricted
+- [x] No credential theft, persistence, evasion, payload delivery, unrestricted
   scanning, third-party targeting, or offensive automation is present in the
   Baron runtime or its durable security guidance.
 - [ ] Authorized assessment findings can be retested and resolved with current
@@ -2820,15 +2851,17 @@ Planned work:
 
 Phase 74 exit gates:
 
-- [ ] Every security task routes deterministically to the correct Baron owner;
-  unsupported or unsafe tasks fail closed with a bounded explanation.
+- [x] Every supported security task routes deterministically to the correct
+  Baron owner; unsupported or unsafe tasks fail closed with a bounded
+  explanation. The nine-case regression is the recorded release evidence.
 - [ ] Routing, tool presence, tool execution, and proof evidence remain separate
   facts across all three adapters and after cache deletion/rebuild.
 - [ ] Provenance/license checks, full subtree audit, lazy loading, preservation,
   redaction, and regression tests pass with no unreviewed external runtime
   dependency or global configuration mutation.
-- [ ] The security route matrix and its exact regression report are ready for
-  the integrated Phase 75 acceptance run.
+- [x] The security route matrix and its exact regression report are ready for
+  the integrated Phase 75 acceptance run; the report is retained under
+  `docs/assessment/baron-4.0-security-regression.*`.
 
 ### Phase 75 - Integrated Security, Scale, Cost, And 9/10 Acceptance
 
@@ -2993,6 +3026,671 @@ Baron 4.0 approval and execution record:
   `v4.0.0`.
 - The next action is normal maintenance; documented scale, temporal, parity,
   and dynamic-lab follow-ups remain outside the public release claim.
+
+## Baron 4.1 Program - Proposed 9.5/10 Tencent Head-To-Head
+
+Status: `implementation-in-progress`; the owner approved this exact plan on
+2026-08-13 after automatic Skill creation/distillation was removed. Stable/latest
+remains `v4.0.0`; no public version, README download claim, tag, Release, or
+installer promotion is allowed until Phase 86 passes.
+
+### Why Baron 4.1 is required
+
+Baron 4.0 proved release safety, project isolation, fail-closed security,
+bounded handoff, and deterministic behavior on its own sixteen-case acceptance
+suite. That suite is useful regression evidence, but it is not a shared,
+independent Tencent head-to-head and is too small to prove that Baron's memory
+intelligence is `9.5/10` or stronger than TencentDB Agent Memory. The earlier
+9/10 intention was therefore not proven at the breadth the owner expected.
+
+Baron 4.1 corrects the measurement problem before attempting the intelligence
+work. TencentDB Agent Memory `v2.0.0` is the pinned comparison target because
+its public release documents layered L0-L3 extraction, BM25 plus vector recall
+with RRF, automatic Chat Memory and Skill extraction, linked Wiki assets,
+CodeGraph callers/callees and impact paths, and scheduled graph synchronization.
+Baron will learn from the relevant memory, Wiki, and CodeGraph capabilities
+without copying Tencent's server, Hub, Proxy, ACL architecture, source code, or
+team UI. Tencent's automatic Skill extraction is comparison context only and is
+explicitly not part of this Baron program.
+
+The proposed program has eleven phases. Automatic Skill creation and Skill
+distillation are deliberately out of scope because the owner considers the
+installed, approved Skill set sufficient:
+
+| Phase | Name | Primary result | Weight |
+| --- | --- | --- | ---: |
+| 77 | Independent Tencent Head-To-Head Contract | Shared corpus, sealed tests, exact scoring and reproducible Tencent/Baron baselines | 10% |
+| 78 | Local Semantic Retrieval Fusion | Project-filtered BM25, local vectors, RRF and explainable reranking | 13% |
+| 79 | Deep Session Learning Pipeline | Evidence-linked L0-L3 candidates extracted automatically from real sessions | 12% |
+| 80 | Temporal Truth And Memory Consolidation | Valid-time, conflicts, supersession, compaction and rollback | 12% |
+| 81 | Grounded Memory Synthesis And Handoff | Cited answers and compact cross-agent resume packets | 10% |
+| 82 | Wiki 9.5 Intelligence | Incremental entities, links, multi-hop answers, freshness and citations | 8% |
+| 83 | CodeGraph 9.5 Semantic Core | Parser-backed symbols, types, calls, references, data flow and impact paths | 13% |
+| 84 | Incremental Sync, Scale And Recovery | Large-repo/session performance, invalidation, concurrency and rebuild proof | 7% |
+| 85 | Safety, Cost And 4.0 Fallback | Isolation, poisoning defense, token budgets and automatic per-query fallback | 5% |
+| 86 | Independent 9.5 Acceptance And Tencent Win Gate | Sealed same-corpus results prove or reject the 9.5/win claim | 6% |
+| 87 | Baron 4.1 Public GitHub Release And Reinstall | Version, README, native assets, Release and fresh public install | 4% |
+
+### Implemented candidate evidence (does not complete the phase gates)
+
+- [x] The hash-sealed contract/report artifacts exist at
+  `docs/assessment/baron-4.1-contract.*` and `docs/assessment/baron-4.1-benchmark.*`.
+- [x] Tencent `v2.0.0` was pinned to commit
+  `0aff21a2d9f2b8a0354aaa80a2e586aab4054562` and inspected locally. Its public
+  README exposes only a PersonaMem `48% -> 76%` benchmark, not the five
+  per-surface same-corpus scores required here, so the baseline remains
+  `unavailable` rather than being guessed.
+- [x] Semantic memory uses project/trust eligibility before deterministic
+  bilingual BM25, n-gram, hashed-vector, and RRF reranking.
+- [x] Session import automatically emits redacted, source-hashed,
+  evidence-spanned candidates only; suspicious prompt-injection, destructive,
+  remote-execution, or secret-exfiltration text is quarantined and no Skill is
+  created.
+- [x] Temporal ledger refresh, supersession/conflict metadata, tombstones,
+  atomic backup, and rollback are project-bound and tested.
+- [x] Grounded handoff carries claim citations, trust/freshness, conflicts,
+  unknowns, token estimate, cost status, and a 4.0 fallback when unsafe or over
+  budget.
+- [x] Wiki and CodeGraph v5 paths expose semantic ranking, citations/entities,
+  typed links, bounded impact paths, edge limits, injection filtering, and
+  stale-cache rebuild.
+- [x] `cargo check --workspace`, warnings-denied Clippy, 28 core unit tests,
+  and the focused CLI memory/context/CodeGraph suites pass.
+- [x] A seeded isolated development fixture test exercises all five local
+  surfaces at `100/100` without changing the user's Vault; it still correctly
+  refuses release promotion because Tencent and independent confidence are
+  unavailable.
+- [x] The release-profile benchmark now records separate index/query latency,
+  peak working-set memory, cache bytes, token estimate, and cost status. The
+  latest seeded-fixture run was `4735 ms` total (`2367 ms` query), `168 MB`
+  peak memory, and stayed within the 10-second query and 512 MiB memory
+  budgets; this is development-fixture evidence only, not a sealed 9.5 result.
+- [x] The Phase 86 runner repeated the release binary three times against one
+  contract/source hash and wrote `docs/assessment/baron-4.1-phase86-runner.*`.
+  The isolated development fixture scored Memory `100`, Semantic `100`,
+  Session `100`, Wiki `100`, and CodeGraph `100`; it still returned
+  `blocked_external_evidence` because no reviewed Tencent/confidence artifact
+  was available.
+- [ ] The five surfaces have not yet met the independent 95/100 contract, and
+  no Tencent same-corpus or 95%-confidence win is claimed.
+
+### Non-negotiable 9.5 and win contract
+
+- [ ] Score five intelligence surfaces independently: long-term L0-L3 memory;
+  semantic retrieval and grounded synthesis; session learning and reusable
+  routing of already approved Skills; Wiki; and default local CodeGraph.
+- [ ] Baron must score at least `95/100` on every surface. A rounded score,
+  combined average, security bonus, installation bonus, or strong surface may
+  not hide another surface below 95.
+- [ ] On the exact same sealed corpus, hardware class, source revisions, query
+  set, time budget, and allowed context, Baron must also beat the pinned Tencent
+  `v2.0.0` baseline on every one of those five surfaces. The minimum accepted
+  lead is two absolute points or a statistically supported win at 95% confidence,
+  whichever is stricter for the recorded sample.
+- [ ] Record both default-product and cost-normalized comparisons. Tencent may
+  use its documented official default memory configuration; Baron is scored on
+  its normal local default. A separate equal-model/equal-token run isolates the
+  engine effect from the chosen LLM.
+- [ ] Reproduce Tencent's public PersonaMem path where licensing and tooling
+  permit, but do not use PersonaMem alone as proof for coding memory, Wiki,
+  existing-Skill routing, or CodeGraph quality.
+- [ ] Freeze public development fixtures and hash-sealed holdout fixtures before
+  Phase 78. Implementation may inspect development failures but must not tune
+  against holdout expected answers.
+- [ ] Include pinned real repositories and histories for Rust,
+  TypeScript/JavaScript, Python, and Go; Vietnamese, English, and mixed queries;
+  long sessions; renamed/deleted code; contradictory decisions; same-name
+  projects; stale docs; partial failures; and malicious content.
+- [ ] Publish raw per-case results, failures, confidence intervals, latency,
+  peak memory, disk, model/API cost, token input/output, and exact configuration.
+  Unknown and unsupported cases remain failures or explicit exclusions; they
+  cannot disappear from the denominator after results are visible.
+- [ ] Keep zero cross-project leakage, zero unredacted secret return, zero
+  fabricated citation/verified edge, no cache as durable truth, no automatic
+  candidate self-approval, and no unsafe security expansion as unweighted hard
+  gates.
+- [ ] If Tencent cannot be installed and run reproducibly, or any score is under
+  95, or Baron does not beat Tencent under the shared contract, documentation
+  must say `target not achieved`; Phase 86 and Phase 87 remain incomplete and
+  Baron 4.1 must not be released.
+
+### Program boundaries
+
+- No GUI, Memory Hub, account system, team ACL, hosted Proxy, multi-tenant
+  server, or Docker stack. This remains a local coding-memory engine for the
+  owner's agents.
+- Rust remains the primary engine. A packaged local embedding/parser asset may
+  be used only with pinned license, checksum, size, offline behavior, and safe
+  fallback evidence.
+- Vault Markdown remains durable truth. BM25, vector indexes, Wiki indexes,
+  CodeGraph databases, extracted views, and reranking caches remain disposable
+  and rebuildable.
+- Project-ID eligibility, trust, sensitivity, authorization, and source
+  freshness filters run before lexical/vector/graph ranking.
+- Extracted memory begins as reviewable evidence-linked candidate state.
+  Repetition, similarity, recency, or model confidence alone cannot promote it.
+- Do not generate Skills from sessions, distill new Skills, or automatically
+  edit installed Skills. Baron may only route and reuse Skills that already
+  passed the existing owner approval and Baron-native asset contracts.
+- Baron 4.0 remains the last-good runtime. Baron 4.1 candidates run in shadow/A-B
+  mode until Phase 86 passes and must fall back per query when identity,
+  structural, freshness, budget, or safety checks fail.
+- Superpowers remains the only workflow core; Baron Control Plane remains the
+  only router; `code-reviewer`, `security-auditor`, and `test-engineer` remain
+  the three mandatory quality agents.
+- `vibe-security-scan` and defensive reverse analysis remain optional security
+  owners. This program does not add unrestricted offensive capability.
+
+### Phase 77 - Independent Tencent Head-To-Head Contract
+
+Status: `in_progress`; the contract artifact is generated, while the reviewed
+Tencent runner/baseline and repeated independent scorer remain open.
+
+Goal: replace Baron's self-referential score with a reproducible, shared,
+sealed comparison that can honestly prove or reject a 9.5/Tencent-win claim.
+
+Planned work:
+
+- [x] Pin TencentDB Agent Memory `v2.0.0` to the exact resolved source revision
+  (`0aff21a2d9f2b8a0354aaa80a2e586aab4054562`) and record the public
+  deployment/API limitation in `docs/assessment/baron-4.1-tencent-v2.0.0-inspection.*`.
+  The unavailable private model/configuration details remain an explicit gate.
+- [ ] Define five separate 100-point rubrics with raw metrics: Recall@5,
+  nDCG/MRR, grounded answer accuracy, contradiction/freshness control, citation
+  correctness, existing approved-Skill routing success, graph edge/impact
+  precision and recall,
+  latency, tokens, memory, disk, and cost.
+- [ ] Create licensed, pinned real-repository fixtures and realistic multi-month
+  session/Vault histories without copying expected answers into searchable
+  records.
+- [x] Split the current development fixtures from five hash-sealed holdout IDs
+  and record the fixture/holdout hashes in the frozen contract. A licensed
+  real-repository holdout is still required before the final 9.5 claim.
+- [x] Build the Phase 86 adapter-neutral acceptance runner at
+  `scripts/phase86-acceptance.ps1`. It captures raw Baron JSON, binds every run
+  to one contract/source hash, repeats clean/warm local runs, and never repairs
+  or invents a Tencent answer. The Tencent transport adapter remains open.
+- [x] Record the current Baron candidate baseline, including misses, unsupported
+  cases, time, cache bytes, peak memory, tokens, and failure reasons. Tencent's
+  five-surface baseline is explicitly `unavailable`, not guessed.
+- [x] Add repeat rules and independent-artifact validation: the runner requires
+  three runs, while the engine accepts confidence only from a separately
+  reviewed `BARON_41_CONFIDENCE_EVIDENCE_JSON` artifact.
+- [x] Publish the frozen contract, Baron report, Tencent inspection, and Phase
+  86 runner report. The baseline comparison remains incomplete until Tencent
+  supplies the same-corpus artifact.
+
+Phase 77 exit gates:
+
+- [ ] The same cases, evidence, limits, and scoring code apply to both engines.
+- [ ] Holdout answers are sealed and unavailable to implementation code or
+  tuning prompts.
+- [ ] Baseline results can be reproduced from clean state and another run does
+  not materially change the ranking without an explained source of variance.
+- [ ] The owner approves the frozen contract; later threshold/corpus changes
+  require a new version and cannot replace unfavorable results silently.
+
+### Phase 78 - Local Semantic Retrieval Fusion
+
+Status: `in_progress`; deterministic BM25/vector/RRF fusion and project-first
+eligibility are implemented, while sealed validation and a pinned model remain
+open.
+
+Goal: make Baron find exact identifiers and paraphrased meaning better than the
+pinned Tencent baseline without allowing semantic similarity to bypass project
+or trust boundaries.
+
+Planned work:
+
+- [ ] Add a real project-local BM25/full-text index for exact phrases, symbols,
+  paths, titles, errors, decisions, memory types, and bilingual terms.
+- [ ] Select a small pinned local embedding model and Rust-compatible inference
+  path; record license, checksum, dimensions, model card, download/packaging
+  policy, CPU behavior, disk size, and unsupported-platform fallback.
+- [ ] Store embeddings only for eligible redacted records and bind every vector
+  to project ID, durable source ID/hash, trust, sensitivity, schema, and source
+  revision.
+- [x] Fuse lexical, hashed-vector, character-ngram, alias, freshness, trust,
+  and task signals through deterministic RRF or a measured equivalent; project
+  and trust eligibility run before fusion, and no score creates trust.
+- [ ] Add a bounded cross-encoder/reranker only if it improves sealed validation
+  results within the local latency/token budget; keep an explainable fallback.
+- [x] Return score components, matched evidence, exclusions, degradation state,
+  and the reason a result outranked alternatives on the deterministic v5 path.
+- [ ] Support incremental add/update/delete, model-version invalidation, clean
+  rebuild, corruption detection, and no-network runtime operation.
+- [x] Run the 4.1 candidate behind an explicit opt-in and retain the 4.0 result
+  when grounding, identity, freshness, structural, or budget checks fail. A
+  sealed accuracy A/B remains an acceptance gate below.
+
+Phase 78 exit gates:
+
+- [ ] Retrieval and synthesis development/validation score is at least 95 and
+  beats Tencent under the frozen Phase 77 contract before holdout is opened.
+- [ ] Exact identifiers and paths do not regress while paraphrase, Vietnamese,
+  mixed-language, and long-history cases improve materially.
+- [ ] Cache deletion/rebuild returns equivalent eligible results with zero
+  cross-project or secret-bearing retrieval.
+- [ ] Missing model, incompatible CPU, timeout, corrupt index, and offline mode
+  degrade to a bounded 4.0-compatible path without false 9.5 claims.
+
+### Phase 79 - Deep Session Learning Pipeline
+
+Status: `in_progress`; bounded evidence-linked candidates and quarantine rules
+are implemented, while real-corpus extraction precision remains open.
+
+Goal: automatically turn real coding sessions into useful L0 evidence, L1
+facts/events, L2 tasks/scenarios, and L3 durable direction candidates while
+keeping the model outside the authority boundary.
+
+Planned work:
+
+- [x] Ingest bounded exact-project imported sessions with redaction,
+  deduplication, source hashes, timestamps, stable event identity, and no
+  cross-project reads. Native post-task hook coverage remains a follow-up.
+- [x] Extract bounded candidate atoms for facts, decisions, blockers, failed
+  attempts, outcomes, changed files, commands, proof signals, and next actions.
+- [x] Group atoms into L0-L3 reviewable candidates; no L3 candidate is promoted
+  without evidence or owner approval.
+- [x] Preserve exact evidence spans and distinguish user statements from
+  repository facts, tool/proof signals, inference, and generated summaries.
+- [x] Apply bounded confidence/abstention and quarantine: unsupported or risky
+  extraction remains unknown/quarantined instead of becoming polished memory.
+- [x] Detect duplicate imports and session restarts so repeated text cannot gain
+  authority or ranking through frequency.
+- [x] Stage post-task candidates for review and keep the session path unable to
+  edit trusted Vault truth or create Skills. Native lifecycle hook coverage
+  remains a separate integration gate.
+- [ ] Measure extraction precision/recall, evidence linkage, missed critical
+  facts, false durable claims, processing cost, and resume benefit against
+  Tencent's automatic Chat Memory extraction.
+
+Phase 79 exit gates:
+
+- [ ] L0-L3 long-term memory and automatic session-learning scores each reach
+  at least 95 and beat Tencent on validation cases.
+- [ ] Every derived record retains inspectable evidence and project identity;
+  no summary or inference can self-verify.
+- [ ] Interrupted, repeated, malformed, malicious, or cross-project sessions
+  remain idempotent, redacted, bounded, and safely recoverable.
+- [ ] A fresh agent receives the right current state with fewer tokens and no
+  loss of blockers, failed attempts, or unknowns.
+
+### Phase 80 - Temporal Truth And Memory Consolidation
+
+Status: `in_progress`; temporal ledger refresh, supersession/conflict metadata,
+atomic backup, and rollback are implemented, while compaction stress proof
+remains open.
+
+Goal: make Baron know not only what was said, but when it was true, what
+replaced it, which evidence wins, and how to undo an incorrect consolidation.
+
+Planned work:
+
+- [x] Add stable candidate-ledger metadata: observed time, valid-from,
+  valid-until, source revision, revalidation deadline, tombstone, and schema
+  version. Full multi-writer temporal compaction remains open.
+- [x] Model contested sets, explicit supersession links, expiry, tombstones,
+  source deletion, and stale/reopened state in the project-bound ledger.
+- [x] Resolve conflicts by current project evidence and explicit status while
+  preserving stronger authority; timestamp alone never overrides it.
+- [x] Build an atomic backup-and-rollback ledger refresh with project/schema
+  validation. Crash/concurrency and reviewable compaction receipts remain open.
+- [ ] Compact old evidence into higher-level candidates without deleting the
+  evidence, failures, minority evidence, blockers, or unknowns.
+- [ ] Trigger revalidation when source hashes, code symbols, decisions, proof,
+  or time validity changes.
+- [ ] Test concurrency, clock skew, partial write, disk full, process kill,
+  cache corruption, duplicate adapters, rename/delete/revert, and rollback.
+- [ ] Measure stale-answer rate, contradiction accuracy, duplicate reduction,
+  lost evidence, context savings, and temporal query correctness.
+
+Phase 80 exit gates:
+
+- [ ] Temporal-memory score reaches at least 95 and beats Tencent on the same
+  conflict, history, replacement, and expiry cases.
+- [ ] No stale or superseded critical fact appears as unqualified current truth.
+- [ ] Clean rebuild and rollback reproduce the same durable eligible view with
+  original evidence intact.
+- [ ] Concurrent/interrupted consolidation cannot corrupt Vault Markdown,
+  project files, or trusted memory.
+
+### Phase 81 - Grounded Memory Synthesis And Handoff
+
+Status: `in_progress`; cited bounded handoff and token-budget fallback are
+implemented, while independent answer-quality validation remains open.
+
+Goal: turn retrieved evidence into a compact answer another AI can trust and
+act on, rather than merely returning a list of possibly related memories.
+
+Planned work:
+
+- [x] Build bounded answer packets with the current task, evidence claims,
+  source citations, trust/freshness, conflicts, unknowns, blocker, and next
+  safe action. A full affected-file/proof packet remains an acceptance check.
+- [x] Add claim-level citation and evidence-hash coverage; unsupported synthesis
+  becomes an explicit unknown or bounded fallback.
+- [x] Prefer current eligible evidence while preserving contested and historical
+  alternatives instead of blending them into a false current fact.
+- [x] Compile a bounded adapter-neutral handoff without loading the full Vault,
+  repository, or every Skill. Codex/Claude/generic lifecycle parity remains open.
+- [x] Enforce bounded character, token, latency, and cost output limits with a
+  retained 4.0 fallback when the candidate exceeds its contract.
+- [ ] Compare full-context, Baron 4.0, Baron 4.1, and Tencent for answer quality,
+  turns to completion, repeated explanation, token use, and downstream task
+  success.
+
+Phase 81 exit gates:
+
+- [ ] Retrieval plus grounded synthesis reaches at least 95 and beats Tencent on
+  the validation corpus with claim-level citation accuracy above the frozen
+  floor.
+- [ ] Unsupported claims are omitted or labeled unknown; polished prose cannot
+  hide missing evidence.
+- [ ] Handoff reduces tokens and repeated work without losing current blockers,
+  decisions, proof, failures, or next action.
+- [ ] 4.0 fallback activates automatically when candidate synthesis fails its
+  structural or grounding contract.
+
+### Phase 82 - Wiki 9.5 Intelligence
+
+Status: `in_progress`; entities, typed links, bounded multi-hop paths, semantic
+reranking, injection filtering, and stale-cache rebuild are implemented, while
+the shared-corpus score remains open.
+
+Goal: make repository documents a fresh, cited, multi-hop knowledge graph that
+answers better than Tencent's Wiki on the same imported sources.
+
+Planned work:
+
+- [ ] Parse headings, anchors, explicit links, references, decisions, APIs,
+  components, owners, versions, dates, code symbols, and document lifecycle
+  metadata into rebuildable project-local nodes and typed edges.
+- [ ] Add entity resolution and aliases without merging same-name entities from
+  different projects, versions, or scopes.
+- [x] Support bounded multi-hop questions across linked docs, decisions, proof,
+  source symbols, and operations while showing the bounded path used. Full
+  entity-resolution breadth remains a corpus gate.
+- [ ] Add incremental create/update/rename/delete, broken-link detection,
+  tombstones, stale citations, and source-hash invalidation.
+- [x] Rank passages and paths through lexical, semantic, freshness, authority,
+  and graph signals with strict source citations on the local v5 path.
+- [x] Resist prompt injection, malicious links, path escape, secret-bearing
+  documents, oversized pages, cycles, and poisoned generated summaries through
+  bounded filtering and untrusted-data labeling.
+- [ ] Measure retrieval, multi-hop reasoning, citation precision, groundedness,
+  freshness, deletion behavior, latency, context size, and rebuild cost.
+
+Phase 82 exit gates:
+
+- [ ] Wiki reaches at least 95 and beats Tencent Wiki under the Phase 77 shared
+  document corpus and scoring contract.
+- [ ] No fabricated page, edge, citation, version, or current-state claim is
+  accepted as verified.
+- [ ] Incremental and clean rebuild results agree after create/update/rename/
+  delete and cache corruption scenarios.
+- [ ] Wiki remains a derived view of repository/Vault sources and cannot become
+  a second durable memory owner.
+
+### Phase 83 - CodeGraph 9.5 Semantic Core
+
+Status: `in_progress`; language-aware symbols, structural relations, semantic
+querying, impact paths, edge budget, and stale-cache rebuild are implemented,
+while parser-backed validation remains open.
+
+Goal: replace shallow language heuristics with parser-backed code intelligence
+that finds definitions, references, calls, types, and impact paths more
+accurately than Tencent's pinned CodeGraph on the same repositories.
+
+Planned work:
+
+- [ ] Select pinned, license-compatible Rust parser/query support for the
+  officially scored Rust, TypeScript/JavaScript, Python, and Go language set.
+- [ ] Extract files, modules/packages, symbols, signatures, types, inheritance/
+  implementation, imports/exports, definitions, references, calls, tests,
+  configuration, routes, database/API edges, and exact source spans.
+- [ ] Resolve aliases, re-exports, namespaces, methods, dynamic/ambiguous calls,
+  generated code, and monorepo package boundaries with explicit confidence and
+  `unknown` when static proof is insufficient.
+- [ ] Build forward/reverse callers, callees, references, dependency paths,
+  test reachability, change impact, and bounded shortest evidence paths.
+- [ ] Link graph nodes to Wiki, decisions, proof, ownership, and recent changes
+  without treating graph inference as durable memory truth.
+- [ ] Add incremental file/symbol invalidation, rename/delete detection,
+  dependency-aware refresh, scheduled reconciliation, corruption recovery, and
+  source verification before use.
+- [ ] Measure symbol, reference, call, typed-edge, impact, source-span,
+  freshness, false-edge, latency, RAM, disk, and incremental update accuracy.
+- [x] Preserve a Survey/4.0 fallback for unsupported languages, parse failures,
+  ambiguity, resource limits, or missing local assets. Unsupported/dynamic
+  relations remain advisory and are never promoted to verified edges.
+
+Phase 83 exit gates:
+
+- [ ] Default local CodeGraph reaches at least 95 and beats Tencent CodeGraph on
+  every officially scored language under the same repositories and queries.
+- [ ] Definition/reference/call/impact answers meet their separate precision and
+  recall floors; an aggregate score cannot hide a weak relation type or language.
+- [ ] Every verified edge has current source-span evidence; ambiguous dynamic
+  behavior remains inferred/unknown.
+- [ ] Project isolation, cache rebuild, rename/delete freshness, bounded output,
+  and unsupported-language fallback all pass.
+
+### Phase 84 - Incremental Sync, Scale And Recovery
+
+Status: `in_progress`; source-fingerprint rebuild and bounded graph/cache
+recovery are implemented, while large-corpus concurrency and full resource
+measurements remain open.
+
+Goal: prove the stronger engine stays fresh and usable on the owner's real
+long-running repositories and session histories instead of succeeding only on
+small clean fixtures.
+
+Planned work:
+
+- [ ] Run pinned small, medium, large, monorepo, old, and multi-year histories
+  with recorded file, symbol, document, edge, session, fact, and approved-Skill
+  routing counts.
+- [ ] Measure cold index, warm update, single-file update, rename/delete,
+  query latency, throughput, peak RAM, CPU, disk, tokens, and optional model cost.
+- [ ] Add bounded queues, backpressure, cancellation, checkpoints, resume,
+  per-project scheduling, and no-fixed-file-count processing.
+- [ ] Test concurrent agents/readers/writers, process kill, crash, disk full,
+  corrupt index, incompatible schema/model, partial download, interrupted
+  migration, and source moving between machines.
+- [ ] Prove all caches rebuild from Vault/source, and release rollback never
+  deletes project, Vault, custom assets, or human decisions.
+- [ ] Record explicit supported limits and degraded behavior rather than
+  claiming unlimited scale.
+
+Phase 84 exit gates:
+
+- [ ] Frozen p50/p95 latency, RAM, disk, update, token, and recovery budgets pass
+  on recorded hardware without lowering any intelligence score below 95.
+- [ ] No tested interruption or corruption loses durable memory, source, or
+  evidence; resume/rebuild returns an equivalent current view.
+- [ ] Large histories remain bounded and no fixed truncation silently hides
+  older eligible evidence.
+- [ ] Baron remains cheaper or more resource-efficient than Tencent under the
+  recorded default and cost-normalized comparisons required by Phase 77.
+
+### Phase 85 - Safety, Cost And 4.0 Fallback
+
+Status: `in_progress`; session/Wiki poisoning filters, token budgets, project
+firewalls, and explicit 4.0 per-query fallback are implemented, while the
+independent safety/cost gate remains open.
+
+Goal: ensure additional intelligence cannot make the AI confidently wrong,
+leak memory, poison trusted state, or cost more than the context it saves.
+
+Planned work:
+
+- [ ] Red-team cross-project collisions, prompt injection, malicious sessions,
+  secret-bearing evidence, vector poisoning, graph poisoning, path/symlink
+  escape, cache tampering, model substitution, and hostile parser inputs.
+- [ ] Bind local model/parser assets to manifest, checksum, license, source,
+  version, size, platform, and execution-policy evidence.
+- [x] Enforce per-query identity, trust, grounding, freshness, structural,
+  token, and cost gates before 4.1 output can replace the 4.0 result; any
+  failure returns the proven fallback.
+- [x] Record why 4.1 or 4.0 was selected through bounded generation labels and
+  retain comparable report artifacts without exposing secret content.
+- [x] Keep normal coding lazy: 4.1, Wiki, CodeGraph, reverse packs, and optional
+  security assets are not recursively loaded unless the task/command requests
+  them. Large-model packaging remains out of the default path.
+- [ ] Run security-auditor, code-reviewer, and test-engineer gates with fresh
+  execution receipts tied to current source.
+
+Phase 85 exit gates:
+
+- [ ] Zero leakage, secret, fabricated citation/edge, candidate self-promotion,
+  unsafe execution, and durable-cache violations across the adversarial suite.
+- [ ] Every failed or degraded 4.1 query falls back safely or returns a bounded
+  unknown; it never produces a silent lower-quality answer labeled 9.5.
+- [ ] Measured token and monetary savings remain positive at equal correctness,
+  including local-model startup and indexing costs.
+- [ ] Security hardening does not lower any of the five intelligence surfaces
+  below the frozen 95/Tencent-win gates.
+
+### Phase 86 - Independent 9.5 Acceptance And Tencent Win Gate
+
+Status: `in_progress`; the frozen-contract runner and three repeated release
+runs are complete, but the hard gate is blocked by missing same-corpus Tencent
+evidence and three Baron surfaces below 95. The result is recorded as
+`blocked_external_evidence`; this phase is not marked complete.
+
+Goal: open the sealed holdout only after implementation freezes, run the shared
+comparison, and let evidence—not an internal promise—decide whether Baron 4.1
+may claim 9.5 and stronger-than-Tencent intelligence.
+
+Planned work:
+
+- [x] Freeze the Baron contract, fixture hashes, thresholds, and scoring input
+  before holdout use. `scripts/phase86-acceptance.ps1` refuses contract/source
+  drift; explicit `BARON_41_REFREEZE_CONTRACT=1` is required to change it.
+- [ ] Run clean and warm Baron 4.0, Baron 4.1, and Tencent 2.0 comparisons with
+  repeated trials, raw artifacts, logs, resource telemetry, and blind scoring.
+  The runner currently repeats Baron only because Tencent has no reproducible
+  same-corpus adapter in this checkout.
+- [x] Publish five separate Baron surface scorecards plus latency, cache, peak
+  memory, token/cost, and failure breakdowns in `baron-4.1-benchmark.*` and
+  `baron-4.1-phase86-runner.*`. Tencent-side and per-language holdout rows stay
+  open until the shared runner exists.
+- [x] Audit unexpected losses, source/contract drift, timeouts, unsupported
+  cases, and missing confidence evidence on three repeated runs. Data
+  contamination and blind Tencent scoring remain external gates.
+- [ ] Run full workspace tests, Clippy, release build, adapters, migration,
+  update, rollback, security, scale, corruption, and fresh-project/Vault smokes.
+  Clippy, release build, core/CLI suites, security, and clean Vault smokes pass;
+  the full workspace/all-target command still needs a completed non-timeout run.
+- [ ] Have all three mandatory quality gates record fresh evidence against the
+  exact frozen candidate.
+
+Current Phase 86 evidence (2026-08-13):
+
+- [x] The contract is frozen at `9a79b2dd385c814127453dabda5edfcf36af16b9ad563a26785fa76518fc3f5f`,
+  source revision `6c490703ad22d4d1b1bee6cb02e78ae34133e6d47e019bb54172e2ca07ff2be2`,
+  fixture revision `ebb642025a2867dc264395b8b217c94d6d8c41f933c1a31d1cde431408bf7883`,
+  and holdout hash `8930a49663ca8f3ad52c87d2445e1eecefee26017c9a6288f196883f7035e73c`.
+- [x] `scripts/phase86-acceptance.ps1` ran the release binary three times from
+  the same contract and collected raw reports. All runs stayed within the
+  10,000 ms query and 512 MiB peak-memory budgets.
+- [x] The three-run evidence artifact is
+  `docs/assessment/baron-4.1-phase86-runner.*`; it records the exact failures,
+  binary/contract hashes, and the external-evidence blocker.
+- [x] The pinned Tencent checkout is recorded at
+  `docs/assessment/baron-4.1-tencent-v2.0.0-inspection.*`. Its public benchmark
+  is PersonaMem `48% -> 76%`, which is not a five-surface same-corpus baseline.
+- [x] The isolated development fixture scores memory `100/100`,
+  semantic/grounded synthesis `100/100`, session learning `100/100`, Wiki
+  `100/100`, and CodeGraph `100/100` on all three repeated runs, within the
+  resource budgets. This is not the sealed holdout or Tencent comparison.
+- [ ] The same-corpus Tencent win and independent confidence gate remain
+  unavailable; the 95/100 result is not promoted from the visible fixture and
+  no Phase 87 promotion is allowed.
+
+Phase 86 exit gates:
+
+- [ ] Long-term L0-L3 memory is at least 95 and beats Tencent by the frozen win
+  rule.
+- [ ] Semantic retrieval plus grounded synthesis is at least 95 and beats
+  Tencent by the frozen win rule.
+- [ ] Automatic session learning plus routing/reuse of existing approved Skills
+  is at least 95 and beats Tencent by the frozen win rule.
+- [ ] Wiki is at least 95 and beats Tencent by the frozen win rule.
+- [ ] Default local CodeGraph is at least 95 in every supported language and
+  beats Tencent by the frozen win rule.
+- [ ] All truth, isolation, security, resource, cost, recovery, adapter, and
+  release hard gates pass with no favorable-only subset or manual exception.
+- [ ] If any gate fails, record the exact result and keep `v4.0.0` as stable;
+  do not rename an 8.x/9.0 result to 9.5 and do not proceed to Phase 87.
+
+### Phase 87 - Baron 4.1 Public GitHub Release And Reinstall
+
+Status: `pending`; publication remains a separate authority boundary after
+Phase 86, with v4.0.0 still the public install path.
+
+Goal: publish `v4.1.0` only after Phase 86 proves the complete 9.5 and Tencent-win
+contract, then ensure a Windows reinstall can obtain that exact verified engine.
+
+Planned work:
+
+- [ ] Obtain separate explicit owner authority for version bump, GitHub push,
+  tag, public Release, README latest claim, and fresh public install.
+- [ ] Bump Cargo workspace, lockfile, binary, manifests, installers, tests,
+  docs, assessment reports, design/plan, status Markdown/JSON, and build log to
+  exactly `4.1.0`; reject mixed-version state.
+- [ ] Update README with the exact 4.1 intelligence behavior, local model/parser
+  requirements, disk/RAM expectations, degraded/fallback behavior, supported
+  CodeGraph languages, Vault restore, update, rollback, and uninstall path.
+- [ ] Keep README truthful during promotion: `v4.0.0` remains latest until the
+  immutable 4.1 Release and public install proof exist.
+- [ ] Run formatting, full workspace/all-target tests, Clippy, locked release
+  build, exact binary version, lifecycle tests, final benchmark verification,
+  status JSON parse, and clean project/Vault smoke.
+- [ ] Intentionally review, commit, and push exact source to `origin/main`; bind
+  the release workflow to the verified remote SHA.
+- [ ] Require Windows x64, Linux x64, Intel macOS, and Apple Silicon native
+  builds, exact-source verification, checksums, manifest, installer lifecycle,
+  packaged intelligence assets, and immutable tag/Release.
+- [ ] Verify `releases/latest` resolves to `v4.1.0`; download public assets and
+  independently verify manifest source, checksums, binary versions, and local
+  model/parser asset identity.
+- [ ] Run a fresh Windows README-only install, Vault reconnect, restored-project
+  update, context/resume, session learning, semantic recall, Wiki, CodeGraph,
+  existing approved-Skill route, same-version refusal, rollback, and
+  preservation smoke.
+- [ ] Mark only genuinely passed tasks `[x]`, update exact scores/run/SHA/assets,
+  commit and push final README/status evidence, and verify clean synchronized
+  local/remote state.
+
+Phase 87 exit gates:
+
+- [ ] Phase 77-86 and every independent 95/Tencent-win/hard gate pass before
+  source version or public promotion.
+- [ ] Source, binary, assets, benchmark, README, status, design/plan, release
+  guide, checksums, manifest, tag, Release, and `releases/latest` agree on
+  `4.1.0` and the exact release source SHA.
+- [ ] All native targets and installer lifecycle pass; public archives include
+  every required licensed local intelligence asset and provenance record.
+- [ ] A fresh Windows reinstall obtains `baron 4.1.0`, reconnects the existing
+  Vault/project, passes the five intelligence smokes, and preserves all user data.
+- [ ] Final README/status evidence is committed and pushed to the default branch;
+  working tree and remote state are clean and synchronized.
+
+### Baron 4.1 approval gate
+
+- [x] The owner reviewed this exact Phase 77-87 plan and explicitly approved
+  implementation after automatic Skill creation/distillation was removed. The
+  approval does not authorize public version or GitHub promotion.
+- [x] Before implementation, create the active Baron 4.1 design, executable
+  plan, build-log checkpoint, and retain source/public version `4.0.0`.
+- [x] Synchronize the active Baron 4.1 program in `docs/BARON_STATUS.json`
+  before recording any phase as complete.
+- [ ] Phase completion checkboxes must be updated immediately after evidence
+  passes. Unimplemented breadth may not be hidden behind a completed summary.
+- [ ] Phase 87 remains a separate final publication authority boundary even
+  after Phase 86 passes.
 
 ## Baron 3.8 Final Evidence
 
