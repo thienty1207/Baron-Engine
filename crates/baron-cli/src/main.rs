@@ -52,7 +52,7 @@ use baron_core::control_plane::{
     route_task, validate_control_plane,
 };
 use baron_core::execution_receipt::{execute_command, ExecutionRequest, ExecutionResult};
-use baron_core::firewall::{compact_memory_brief, recall, render_recall};
+use baron_core::firewall::{compact_memory_brief, recall, recall_v4, render_recall};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
 use baron_core::harness::{
     ensure_harness_workspace, harness_status, record_decision, record_friction,
@@ -63,11 +63,18 @@ use baron_core::harness_improvement::{
     audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
     verify_open_stories,
 };
+use baron_core::intelligence::{
+    candidate_generation_enabled, route_security_task, run_integrated_acceptance,
+    run_local_benchmark, run_security_regression, run_static_security_scan, select_resume_brief,
+    write_acceptance_report, write_benchmark_report, write_security_regression_report,
+    write_static_security_report,
+};
 use baron_core::intent::{intent_status, record_intent, IntentBriefInput};
 use baron_core::knowledge::{
-    benchmark_resume, build_local_code_graph, build_resume_brief, index_wiki, load_wiki_index,
-    render_resume_brief, search_local_code_graph, search_wiki,
+    benchmark_resume, build_local_code_graph, index_wiki, load_wiki_index, render_resume_brief,
+    search_local_code_graph, search_wiki, search_wiki_v4,
 };
+use baron_core::memory::{analyze_memory_consolidation, stage_memory_consolidation};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
@@ -209,6 +216,11 @@ enum Commands {
         command: KnowledgeCommands,
     },
     #[command(hide = true)]
+    Intelligence {
+        #[command(subcommand)]
+        command: IntelligenceCommands,
+    },
+    #[command(hide = true)]
     Recall {
         query: String,
         repo_path: Option<PathBuf>,
@@ -344,6 +356,18 @@ enum MemoryCommands {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    Consolidate {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+        #[arg(
+            long,
+            help = "Stage a reviewable candidate file without promoting records"
+        )]
+        stage: bool,
+    },
     Resume {
         repo_path: Option<PathBuf>,
         #[arg(long)]
@@ -399,6 +423,44 @@ enum KnowledgeCommands {
         repo_path: Option<PathBuf>,
         #[arg(long, default_value_t = 8)]
         limit: usize,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum IntelligenceCommands {
+    Benchmark {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    SecurityRoute {
+        query: String,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    SecurityRegression {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    StaticScan {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Acceptance {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
@@ -1559,6 +1621,38 @@ fn run() -> Result<()> {
                 println!("- Skipped noise: {}", report.skipped_noise);
                 println!("- State: `{}`", report.state_path.display());
             }
+            MemoryCommands::Consolidate {
+                repo_path,
+                vault,
+                json,
+                stage,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                build_memory_index(&context)?;
+                let mut report = analyze_memory_consolidation(&context)?;
+                if stage {
+                    let path = stage_memory_consolidation(&context, &report)?;
+                    report.staged_path = Some(path.display().to_string());
+                }
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    println!("# Baron Memory Consolidation (read-only)\n");
+                    println!("- Records: {}", report.record_count);
+                    println!("- Duplicate groups: {}", report.duplicate_groups);
+                    println!("- Conflict groups: {}", report.conflict_groups);
+                    println!("- Superseded candidates: {}", report.superseded_records);
+                    println!("- Candidate records: {}", report.candidate_records);
+                    println!("- Writes performed: `{}`", report.writes_performed);
+                    println!(
+                        "- Staged proposal: `{}`",
+                        report.staged_path.as_deref().unwrap_or("not requested")
+                    );
+                    println!("- Next: review staged items; no record was promoted automatically.");
+                }
+            }
             MemoryCommands::Resume {
                 repo_path,
                 vault,
@@ -1569,10 +1663,14 @@ fn run() -> Result<()> {
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
-                let brief = build_resume_brief(&context, task.as_deref(), 8_000)?;
+                let (generation, brief) = select_resume_brief(&context, task.as_deref(), 8_000)?;
                 if json {
                     println!("{}", serde_json::to_string_pretty(&brief)?);
                 } else {
+                    println!(
+                        "- Intelligence generation: `{}` (3.8 fallback retained)\n",
+                        generation.as_str()
+                    );
                     print!("{}", render_resume_brief(&brief, 8_000));
                 }
             }
@@ -1595,9 +1693,21 @@ fn run() -> Result<()> {
                 limit,
             } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
-                let hits = search_wiki(&repo_path, &query, limit)?;
+                let candidate = candidate_generation_enabled();
+                let (generation, hits) = if candidate {
+                    match search_wiki_v4(&repo_path, &query, limit) {
+                        Ok(hits) => ("4.0", hits),
+                        Err(_) => ("3.8", search_wiki(&repo_path, &query, limit)?),
+                    }
+                } else {
+                    ("3.8", search_wiki(&repo_path, &query, limit)?)
+                };
                 println!("# Baron Wiki Search\n");
                 println!("- Query: `{}`", query);
+                println!(
+                    "- Intelligence generation: `{}` (3.8 fallback retained)",
+                    generation
+                );
                 if hits.is_empty() {
                     println!("- No cited Wiki section matched the current project.");
                 } else {
@@ -1611,6 +1721,12 @@ fn run() -> Result<()> {
                             hit.excerpt.replace('\n', " ")
                         );
                         println!("  Citation: `{}`", hit.citation);
+                        if !hit.links.is_empty() {
+                            println!("  Linked docs: {}", hit.links.join(", "));
+                        }
+                        if !hit.link_path.is_empty() {
+                            println!("  Link path: {}", hit.link_path.join(" | "));
+                        }
                     }
                 }
             }
@@ -1652,10 +1768,14 @@ fn run() -> Result<()> {
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
-                let brief = build_resume_brief(&context, task.as_deref(), 8_000)?;
+                let (generation, brief) = select_resume_brief(&context, task.as_deref(), 8_000)?;
                 if json {
                     println!("{}", serde_json::to_string_pretty(&brief)?);
                 } else {
+                    println!(
+                        "- Intelligence generation: `{}` (3.8 fallback retained)\n",
+                        generation.as_str()
+                    );
                     print!("{}", render_resume_brief(&brief, 8_000));
                 }
             }
@@ -1722,29 +1842,174 @@ fn run() -> Result<()> {
                 json,
             } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
-                let hits = search_local_code_graph(&repo_path, &query, limit)?;
+                let candidate = candidate_generation_enabled();
+                let (generation, hits) = if candidate {
+                    match baron_core::knowledge::search_local_code_graph_v4(
+                        &repo_path, &query, limit,
+                    ) {
+                        Ok(hits) => ("4.0", hits),
+                        Err(_) => ("3.8", search_local_code_graph(&repo_path, &query, limit)?),
+                    }
+                } else {
+                    ("3.8", search_local_code_graph(&repo_path, &query, limit)?)
+                };
                 if json {
                     println!("{}", serde_json::to_string_pretty(&hits)?);
                 } else {
                     println!("# Baron Local CodeGraph Query\n");
                     println!("- Query: `{}`", query);
+                    println!("- Intelligence generation: `{generation}` (3.8 fallback retained)");
                     if hits.is_empty() {
                         println!("- No current project symbols matched; Survey fallback remains available.");
                     }
                     for hit in hits {
                         println!(
-                            "- `{}` {} at `{}:{}` [{}]",
+                            "- `{}` {} ({}) at `{}:{}` [{}]",
                             hit.symbol.name,
                             hit.symbol.kind,
+                            hit.symbol.language,
                             hit.symbol.file,
                             hit.symbol.line,
                             hit.symbol.confidence
                         );
                         println!("  Why: {}", hit.why);
+                        if !hit.imports.is_empty() {
+                            println!("  Imports: {}", hit.imports.join(", "));
+                        }
                         if !hit.relations.is_empty() {
                             println!("  Relations: {}", hit.relations.join(", "));
                         }
                     }
+                }
+            }
+        },
+        Some(Commands::Intelligence { command }) => match command {
+            IntelligenceCommands::Benchmark {
+                repo_path,
+                vault,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                let report = run_local_benchmark(&context)?;
+                let (json_path, markdown_path) =
+                    write_benchmark_report(&report, repo_path.join("docs/assessment"))?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    println!("# Baron 4.0 Intelligence Benchmark\n");
+                    println!("- Report: `{}`", report.report_id);
+                    println!("- Source revision: `{}`", report.source_revision);
+                    println!("- Fixture revision: `{}`", report.fixture_revision);
+                    for score in &report.candidate_scores {
+                        println!(
+                            "- {}: {}/100 ({} cases)",
+                            score.surface.as_str(),
+                            score.score,
+                            score.case_count
+                        );
+                    }
+                    println!("- Cross-project leakage: {}", report.cross_project_leakage);
+                    println!(
+                        "- Promotion-ready: {}",
+                        if report.candidate_ready_for_promotion {
+                            "yes"
+                        } else {
+                            "no"
+                        }
+                    );
+                    println!("- JSON log: `{json_path}`");
+                    println!("- Markdown log: `{markdown_path}`");
+                }
+            }
+            IntelligenceCommands::SecurityRoute {
+                query,
+                repo_path,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let project_id = baron_core::identity::project_id_for_path(&repo_path)?;
+                let decision = route_security_task(&query, None, &project_id);
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&decision)?);
+                } else {
+                    println!("# Baron Security Route\n");
+                    println!("- Route: `{:?}`", decision.route);
+                    println!("- Allowed: `{}`", decision.allowed);
+                    println!(
+                        "- Authorization required: `{}`",
+                        decision.requires_authorization
+                    );
+                    println!("- Owners: {}", decision.owners.join(", "));
+                    if !decision.hard_failures.is_empty() {
+                        println!("- Hard failures: {}", decision.hard_failures.join("; "));
+                    }
+                }
+            }
+            IntelligenceCommands::SecurityRegression {
+                repo_path,
+                vault,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                let report = run_security_regression(&context);
+                let (json_path, markdown_path) =
+                    write_security_regression_report(&report, repo_path.join("docs/assessment"))?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    println!("# Baron 4.0 Security Regression\n");
+                    println!("- Score: {}/100", report.score);
+                    println!("- Passed: {}", report.passed);
+                    println!("- JSON log: `{json_path}`");
+                    println!("- Markdown log: `{markdown_path}`");
+                }
+            }
+            IntelligenceCommands::StaticScan {
+                repo_path,
+                vault,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                let report = run_static_security_scan(&context)?;
+                let (json_path, markdown_path) =
+                    write_static_security_report(&report, repo_path.join("docs/assessment"))?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    println!("# Baron 4.0 Static Security Scan\n");
+                    println!("- Files checked: {}", report.files_checked);
+                    println!("- Findings: {}", report.findings.len());
+                    println!("- Score: {}/100", report.score);
+                    println!("- Dynamic execution: `false`");
+                    println!("- JSON log: `{json_path}`");
+                    println!("- Markdown log: `{markdown_path}`");
+                }
+            }
+            IntelligenceCommands::Acceptance {
+                repo_path,
+                vault,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                let report = run_integrated_acceptance(&context)?;
+                let (json_path, markdown_path) =
+                    write_acceptance_report(&report, repo_path.join("docs/assessment"))?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    println!("# Baron 4.0 Integrated Acceptance\n");
+                    println!("- Score: {}/100", report.score);
+                    println!("- Passed: {}", report.passed);
+                    println!("- JSON log: `{json_path}`");
+                    println!("- Markdown log: `{markdown_path}`");
                 }
             }
         },
@@ -1757,7 +2022,13 @@ fn run() -> Result<()> {
             let vault_path = resolve_command_vault(vault, &repo_path)?;
             let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             build_memory_index(&context)?;
-            print!("{}", render_recall(&recall(&context, &query, 8)?));
+            let candidate = candidate_generation_enabled();
+            let result = if candidate {
+                recall_v4(&context, &query, 8).or_else(|_| recall(&context, &query, 8))?
+            } else {
+                recall(&context, &query, 8)?
+            };
+            print!("{}", render_recall(&result));
         }
         Some(Commands::Context {
             repo_path,
@@ -3642,7 +3913,7 @@ mod tests {
     #[test]
     fn activated_runtime_requires_the_exact_release_version() {
         let expected_version = env!("CARGO_PKG_VERSION");
-        let accepted = StaticInspector("baron 3.8.0");
+        let accepted = StaticInspector("baron 4.0.0");
         assert!(
             verify_activated_runtime_version(&accepted, Path::new("baron"), expected_version)
                 .is_ok()
@@ -3654,6 +3925,6 @@ mod tests {
                 .expect_err("a mismatched activated runtime must be rejected");
         assert!(error
             .to_string()
-            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 3.8.0`"));
+            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 4.0.0`"));
     }
 }

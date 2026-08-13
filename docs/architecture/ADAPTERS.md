@@ -93,6 +93,13 @@ task is provided, the context bundle may include a few matching prior messages
 from imported sessions, but it never dumps full session history and it filters
 results by project identity.
 
+On Baron 4.0, context compilation reports the selected intelligence generation
+(`4.0` default or `3.8` fallback) and keeps the same bounded contract for
+Codex, Claude, and generic agents. Wiki hits carry exact citations and bounded
+linked-document hints; CodeGraph hits carry source spans, imports, and advisory
+reference/call relations. Security and reverse-analysis guidance stays lazy
+and is routed by Baron Control Plane, never loaded for ordinary coding.
+
 Codex and Claude hooks record SessionStart, prompt, edit checkpoint, and Stop
 events. SessionStart injects bounded context. Stop reconciliation blocks one
 premature completion attempt when active work lacks proof or a passing trace,

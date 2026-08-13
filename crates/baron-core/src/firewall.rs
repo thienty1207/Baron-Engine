@@ -317,6 +317,87 @@ fn lexical_overlap(query_tokens: &BTreeSet<String>, record_tokens: &BTreeSet<Str
     query_tokens.intersection(record_tokens).count()
 }
 
+/// Baron 4.0 candidate reranking. The 3.8 firewall remains the first
+/// eligibility gate; this layer only reorders already-eligible project/global
+/// hits and therefore cannot use semantic similarity to bypass isolation.
+pub fn recall_v4(context: &VaultContext, query: &str, limit: usize) -> Result<RecallResult> {
+    let mut result = recall(context, query, limit.saturating_mul(4).max(8))?;
+    let normalized_query = normalize_text(query);
+    let query_tokens = tokenize(&normalized_query);
+    let query_phrase = normalized_query
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for hit in &mut result.results {
+        let record_text = normalize_text(&format!(
+            "{} {} {}",
+            hit.record.title, hit.record.excerpt, hit.record.path
+        ));
+        let record_tokens = tokenize(&record_text);
+        let coverage = lexical_overlap(&query_tokens, &record_tokens);
+        let phrase_bonus = if !query_phrase.is_empty() && record_text.contains(&query_phrase) {
+            48
+        } else {
+            0
+        };
+        let title_bonus = if tokenize(&normalize_text(&hit.record.title))
+            .intersection(&query_tokens)
+            .next()
+            .is_some()
+        {
+            28
+        } else {
+            0
+        };
+        let identifier_bonus = query_tokens
+            .iter()
+            .filter(|token| {
+                token.contains('_') || token.chars().any(|character| character.is_ascii_digit())
+            })
+            .filter(|token| record_text.contains(*token))
+            .count() as i64
+            * 36;
+        let alias_bonus = concept_alias_expansion(&normalized_query)
+            .iter()
+            .filter(|alias| record_text.contains(*alias))
+            .count() as i64
+            * 14;
+        hit.score +=
+            (coverage as i64 * 18) + phrase_bonus + title_bonus + identifier_bonus + alias_bonus;
+        hit.notes.push(format!("v4-coverage:{coverage}"));
+        hit.notes.push(format!(
+            "v4-abstraction:{}",
+            hit.record.abstraction_level().as_str()
+        ));
+        hit.notes
+            .push(format!("v4-trust:{}", hit.record.trust_state().as_str()));
+        if phrase_bonus > 0 {
+            hit.notes.push("v4-exact-phrase".to_string());
+        }
+        if alias_bonus > 0 {
+            hit.notes.push(format!("v4-alias:{alias_bonus}"));
+        }
+    }
+    result.results.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then_with(|| left.record.path.cmp(&right.record.path))
+    });
+    result.results.truncate(limit.max(1));
+    Ok(result)
+}
+
+fn concept_alias_expansion(query: &str) -> BTreeSet<String> {
+    let mut aliases = BTreeSet::new();
+    for (_, values) in CONCEPT_ALIASES {
+        if values.iter().any(|value| query.contains(value)) {
+            aliases.extend(values.iter().map(|value| (*value).to_string()));
+        }
+    }
+    aliases
+}
+
 /// Deterministic offline semantic approximation used by Baron 3.8 hybrid
 /// recall. Character trigrams improve matching for inflected Vietnamese words
 /// and identifier-heavy coding queries without requiring an embedding service.

@@ -1,56 +1,69 @@
 # Baron Engine
 
-Baron is a Rust-first memory and harness engine for coding agents.
+Baron is a Rust-first memory and harness engine for coding agents. It turns an
+existing repository into an agent-ready workspace for Codex, Claude, and other
+agent tools while keeping the normal user flow small.
 
-It turns an existing software repository into an agent-ready workspace for
-Codex, Claude, Cursor-style agents, and other tools without making the user
-learn a long command list.
+Current source version: `4.0.0`.
+Public promotion: `v4.0.0` release workflow in progress; the last stable,
+downloadable release is [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0)
+until the immutable 4.0.0 Release is published.
 
-Current source version: `3.8.0`.
-Current public release: [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0).
-
-> **Download check:** install only when [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-> resolves to `v3.8.0` and `baron --version` prints `baron 3.8.0`. If it prints a
-> different version, stop there and refresh the
-> [Releases page](https://github.com/thienty1207/Baron-Engine/releases) before
-> initializing a project.
+> **Download check:** after the 4.0.0 Release workflow completes, install only
+> from [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
+> and confirm that `baron --version` prints `baron 4.0.0`. If it prints an older
+> version, stop and refresh the
+> [Releases page](https://github.com/thienty1207/Baron-Engine/releases).
 
 ## What Baron Does
 
 Baron helps an AI answer the questions that matter before it edits code:
 
-- What project is this?
-- What should be read first?
-- What memory belongs to this project, and what memory is global?
-- What task is active, what proof is required, and what trace should be left?
-- Which skills, agents, and tools are safe to use for this work?
+- What project is this, and which memory belongs to it?
+- What is being built, where did work stop, and what decision is current?
+- Which source, proof, blocker, unknown, and next safe action should be carried
+  into a new agent session?
+- Which Wiki pages, symbols, imports, calls, and impact paths are relevant?
+- Which security route is safe, authorized, and evidence-backed?
 
-Under the hood, Baron combines a repository survey, Vault-backed memory, memory
-firewall, context compiler, active plan state, Product Harness, proof gates,
-trace quality, session replay, safe runtime policy, and strict skill/agent
-routing. Baron now adds deep platform profiles, a non-destructive architecture
-governor, evidence-backed reviewer closure, confirmed task intent, and an
-actionable recovery point so a failed or interrupted session can resume
-without guessing. Baron 3.3 also separates inspection from authorized changes,
-refuses incoherent project/Vault identity, and rechecks completion against real
-proof instead of trusting edited status text. The normal user flow stays small.
+Baron combines repository survey, Vault-backed memory, a project firewall,
+bounded context compilation, plans, Product Harness, proof and trace gates,
+session replay, safe runtime policy, and strict skill/agent routing. Superpowers
+remains the workflow core, and the mandatory quality gates remain
+`code-reviewer`, `security-auditor`, and `test-engineer`.
 
-Baron 3.8 adds a durable coding-memory layer for long-running work:
+## What Baron 4.0 Adds
 
-- a bounded Resume Brief that tells a fresh agent the current objective,
-  checkpoint, decisions, blocker, proof state, affected files, unknowns, and
-  next safe action;
-- deterministic hybrid recall that works locally without a paid embedding API;
-- incremental project Wiki citations and a disposable local CodeGraph for
-  architecture/impact questions;
-- project-ID isolation, secret redaction, stale/inferred labels, cache rebuild,
-  and recovery rules across those knowledge surfaces;
-- repaired `vibe-security-scan` guidance plus three narrow optional defensive
-  reverse packs for binary, APK/mobile, and malware triage. They are static,
-  read-only, lazy-loaded, and never auto-install tools or execute samples.
+Baron 4.0 is the intelligence and defensive-security release:
 
-The normal user still needs only install, Vault setup, adapter/platform init, and
-`baron update`. AI adapters use the advanced knowledge commands automatically.
+- **Long-term memory:** L0 evidence through L3 project invariants are labelled
+  separately from trust (`candidate`, `verified`, `contested`, `superseded`,
+  `expired`, or `unknown`). Memory consolidation is read-only by default and
+  writes only reviewable candidate proposals; it never silently promotes a
+  model summary into truth.
+- **Grounded handoff:** every new agent receives a bounded, project-bound
+  Resume Brief with current work, decisions, proof, blockers, unknowns,
+  affected files, and the next safe action. Sources and stale/contested labels
+  remain visible.
+- **Wiki:** Markdown structure, citations, freshness, and explicit links are
+  indexed locally. Queries can follow a bounded two-hop link path without
+  loading the whole documentation tree into the prompt.
+- **CodeGraph:** the default local graph covers Rust, TypeScript, JavaScript,
+  Python, and Go symbols, imports, references, calls, and source spans. The
+  graph is project-isolated, disposable, and rebuilt from source when stale.
+- **Security:** `vibe-security-scan` keeps source AppSec ownership while
+  defensive reverse-analysis routes cover static binary/APK/malware triage.
+  Offensive or destructive requests, missing authorization, scope mismatch,
+  path escape, and network escape fail closed. Baron does not execute samples or
+  download security tools automatically.
+- **Safe fallback:** 4.0 is the normal guarded path. If a candidate build,
+  cache, project identity, or structural check fails, Baron falls back to the
+  proven 3.8 result. To force the baseline during incident recovery, set
+  `BARON_ENGINE_GENERATION=3.8` (or `baseline`).
+
+The 4.0 surfaces are local and deterministic; no paid embedding account,
+network request, or model service is required for normal indexing and recall.
+Optional providers remain lazy and degrade to the bounded local path.
 
 ## Quick Start
 
@@ -72,7 +85,12 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
 baron --version
 ```
 
-### 2. Set The Vault
+After the public promotion completes, the expected output is `baron 4.0.0`.
+During promotion, `releases/latest` may still return the previous stable
+binary. The installers verify SHA-256 checksums and the staged binary version
+before replacing an existing Baron executable.
+
+### 2. Set the Vault
 
 Stand inside the folder you want to use as Baron's long-term memory Vault:
 
@@ -87,7 +105,10 @@ Or pass the Vault path directly:
 baron setup --vault "D:\work\AgentMemory"
 ```
 
-### 3. Initialize A Project
+Vault Markdown is the durable source of truth. SQLite, search indexes, Wiki,
+and CodeGraph caches are rebuildable accelerators.
+
+### 3. Initialize a project
 
 Stand inside the project and choose the agent surface plus project focus:
 
@@ -100,118 +121,78 @@ baron init --agent --tool
 Supported focus flags include `--frontend`, `--backend`, `--fullstack`,
 `--mobile`, `--desktop`, `--tool`, `--library`, `--data`, and `--cloud`.
 
-Baron generates a deep profile and architecture contract from the selected
-focus plus evidence found in the repository. If the product later expands,
-`baron init --mobile` adds mobile as an extension; it does not replace the
-original fullstack foundation or rearrange existing code.
-
-### 4. Update Later
+### 4. Update later
 
 ```bash
 baron update
 ```
 
-From Baron 3.4 onward, this one command checks the official release,
-verifies the candidate before use, refreshes only Baron-managed project files,
-and keeps a recoverable transaction if a local edit needs review. It never
-overwrites an ambiguous managed edit, custom skill, custom agent, project
-source file, or Vault memory. On Windows, Baron may finish replacing its own
-binary after the current process exits; the command reports that plainly.
+Baron verifies the official release, refreshes only Baron-managed project
+files, and keeps a recoverable transaction if a local edit needs review. It
+never overwrites project source, Vault Markdown, custom skills, or custom
+agents. On Windows, a verified binary replacement may finish after the current
+process exits; open a new terminal before checking the version.
 
-If Baron 3.3 or an older version is already installed, use the installer once
-to cross the 3.4 update boundary. The short recovery instructions are in
-[docs/RELEASE.md](docs/RELEASE.md).
-
-## Reinstall Windows Safely
+## Reinstall Windows safely
 
 Before reinstalling Windows, copy these two things somewhere safe:
 
-- your Vault folder, for example `D:\work\AgentMemory`
-- every project folder that uses Baron, including its hidden `.baron` folder
+- your Vault folder, for example `D:\work\AgentMemory`;
+- every project folder that uses Baron, including its hidden `.baron` folder.
 
-After Windows is installed again, restore those folders, then follow this
-short sequence:
+After Windows is installed again, restore those folders and run:
 
-1. Run the Windows install block above and confirm `baron --version` prints
-   the public version shown at the top of this README (`baron 3.8.0`).
-2. Reconnect the restored Vault:
+1. the Windows install block above; after public promotion, confirm
+   `baron --version` prints `baron 4.0.0`;
+2. `baron setup --vault "D:\work\AgentMemory"`;
+3. `baron update` inside each restored Baron project.
 
-   ```powershell
-   baron setup --vault "D:\work\AgentMemory"
-   ```
+This reconnects the long-term memory and refreshes Baron-managed adapter files;
+it does not erase project code or Vault memory.
 
-3. In each restored Baron project, run:
+## What the AI runs automatically
 
-   ```powershell
-   baron update
-   ```
-
-That restores Baron itself, reconnects its long-term memory, and refreshes
-only Baron-managed project files. It does not erase the project code or Vault
-memory.
-
-## Baron 3.8 Continuity And Knowledge
-
-Baron 3.8 automatically gives a newly opened AI agent a small, project-bound
-Resume Brief with the current work, decisions, evidence, blocker, affected
-files, and next safe action. It also provides cited Wiki lookup and a disposable
-local CodeGraph for impact hints. These views stay bounded, redact common
-secrets, and rebuild from repository/Vault source; they never become a second
-source of truth. If an optional provider or cache is missing, Baron degrades to
-the local Survey and lexical path without blocking normal coding.
-
-The complete advanced command surface is kept in
-[docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md),
-so the main README remains a short install and recovery guide for users.
-
-## What The AI Runs Automatically
-
-After init, the user normally does not run the deep engine commands by hand.
+After `init`, users normally do not run the deep engine commands by hand.
 Baron installs adapter instructions and supported hooks so the AI can load
-bounded context, route skills, check memory, track active work, record proof,
-score traces, confirm medium/high-risk intent before implementation, preserve
-continuity, record an actionable recovery path after failure or interruption,
-load task-relevant platform guidance, reconcile architecture safely, preserve
-reviewer findings until fix proof exists, and avoid unsafe completion claims.
+bounded context, check capability/runtime safety, recall project memory, route
+skills, track work, record proof, score traces, preserve continuity, recover
+from interruption, consult the relevant Wiki/CodeGraph slices, and avoid
+unsafe completion claims. Hook absence degrades to reconciliation; it never
+pretends that instruction-only behavior executed.
 
-The full advanced command surface is documented in
+The complete advanced command surface is documented in
 [docs/architecture/COMMAND_SURFACE.md](docs/architecture/COMMAND_SURFACE.md).
 
 ## Demo
 
 Read the public walkthrough:
-[docs/demo/README.md](docs/demo/README.md).
-
-It shows a simulated 10-year repository before and after Baron is installed,
-including Codex, Claude, and generic-agent flows, project memory isolation,
-proof gates, trace output, session replay, and safe runtime backend checks.
+[docs/demo/README.md](docs/demo/README.md). It shows a simulated long-running
+repository before and after Baron is installed, including memory isolation,
+proof gates, trace output, and adapter flows.
 
 ## Public Proof
 
-- [Baron 3 public certification](docs/assessment/baron-3-public-certification.md)
-  records the test, Clippy, smoke, install, shared Vault, and migration evidence
-  used for the public-trust release.
-- [Demo walkthrough](docs/demo/README.md) shows the public 10-year-repo flow
-  without comparing Baron to another project.
+- [Baron 4.0 integrated acceptance](docs/assessment/baron-4.0-certification.md)
+  records the six hard checks, bounded handoff, zero leakage, security routing,
+  static AppSec boundary, and cache/source identity evidence.
+- [Baron 4.0 benchmark](docs/assessment/baron-4.0-benchmark.md) records the
+  independent 3.8 baseline and 4.0 candidate cases for Memory, Wiki, CodeGraph,
+  and security routing.
 - [Release guide](docs/RELEASE.md) documents install, update, rollback,
-  checksum verification, and how `releases/latest` is produced.
+  checksum verification, and the public `releases/latest` path.
+- [Build status](docs/BARON_STATUS.md) is the durable phase dashboard.
 
-## Source Of Truth
+The historical [Baron 3 public certification](docs/assessment/baron-3-public-certification.md)
+and prior release records remain available for audit; they do not change the
+current `v4.0.0` install target.
 
-- Vault Markdown is the durable memory.
-- SQLite and cache files are rebuildable accelerators.
-- Superpowers remains the workflow core.
-- The three mandatory quality gates are `code-reviewer`,
-  `security-auditor`, and `test-engineer`.
-- Agent-specific files are adapters, not separate brains.
+## Source of truth and safety
 
-## Release Safety
-
-The installer verifies downloads against `SHA256SUMS` before replacing the
-binary. Update keeps a rollback binary. Uninstall removes only Baron itself and
-does not delete project files, adapters, `.baron/`, or Vault Markdown.
-Release tags are created only after the exact source commit, all native builds,
-checksums, and installer lifecycle have passed verification.
-
-For current implementation status, read
-[docs/BARON_STATUS.md](docs/BARON_STATUS.md).
+- Vault Markdown is durable memory; caches can be deleted and rebuilt.
+- `.baron/project.toml` stores project routing, never memory; local machine
+  Vault routing stays in ignored `.baron/local.toml`.
+- The memory firewall uses project identity rather than a folder name.
+- Security analysis is defensive, bounded, and authorization-aware. Baron does
+  not provide unrestricted offensive automation.
+- Uninstall removes Baron itself and install metadata only; it does not delete
+  project files, adapters, `.baron/`, or Vault Markdown.

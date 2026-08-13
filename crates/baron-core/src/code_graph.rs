@@ -928,8 +928,20 @@ fn is_skipped_source_path(path: &Path) -> bool {
                 | "__pycache__"
         )
     }) || names
-        .windows(2)
-        .any(|pair| pair[0] == "docs" && pair[1] == "baron")
+        .last()
+        .is_some_and(|name| matches!(name.as_str(), "readme.md" | "release.md"))
+        || names.windows(2).any(|pair| {
+            (pair[0] == "docs"
+                && matches!(
+                    pair[1].as_str(),
+                    "baron"
+                        | "assessment"
+                        | "superpowers"
+                        | "baron_status.md"
+                        | "baron_status.json"
+                ))
+                || (pair[0] == "notes" && pair[1] == "build-log")
+        })
 }
 
 fn validate_fingerprint(value: &str) -> Result<()> {

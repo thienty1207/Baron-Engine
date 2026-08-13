@@ -1,12 +1,83 @@
 # Current Build Note
 
-Date: 2026-08-12
-Target: Baron 3.8.0
-Program target: Baron 3.8.0
+Date: 2026-08-13
+Target: Baron 4.0.0
+Program target: Baron 4.0.0
+
+## Baron 4.0 Release Checkpoint
+
+- Owner approval: explicit approval to implement Phases 65-76, run the full
+  benchmark/test/certification program, publish `v4.0.0` to GitHub, and update
+  the README with the newest install path.
+- Baseline: Baron `3.8.0` remains the stable public release and explicit
+  recovery fallback; source is now versioned `4.0.0` on branch `agent/baron-4-0`.
+- Active branch: `agent/baron-4-0`; publication is intentionally isolated from
+  `main` until the exact source and release proof are ready.
+- Active design: `docs/superpowers/specs/2026-08-13-baron-4-0-intelligence-security-design.md`.
+- Active plan: `docs/superpowers/plans/2026-08-13-baron-4-0-program.md`.
+- Phase 65 starts with a frozen score contract and baseline; no 4.0 result may
+  replace the 3.8 path without per-query comparison and hard-gate evidence.
+- Current proof: `cargo fmt --all -- --check`, workspace check, workspace
+  Clippy with warnings denied, full workspace/all-target tests (exit 0), all
+  Baron core/CLI focused tests, guarded context smoke, the independent
+  sixteen-case A/B benchmark (all four surfaces 100/100, zero leakage), the
+  nine-case security routing regression (100/100), the bounded static scan
+  (100/100, 0 findings), and integrated acceptance (100/100) pass. Reports are in
+  `docs/assessment/baron-4.0-benchmark.*` and
+  `docs/assessment/baron-4.0-security-regression.*` and
+  `docs/assessment/baron-4.0-certification.*`. The expanded clean benchmark
+  report id is `fedeace68a4efd6e979a5a217f7b99676f5eaaaa5d58c3bf17c54d9da138e19c`
+  with source fingerprint
+  `85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69`.
+- Candidate behavior: released 4.0 memory/Wiki/CodeGraph paths are default;
+  `BARON_ENGINE_GENERATION=3.8` or `baseline` forces the active 3.8 recovery
+  path, and unknown values fail closed.
+  Wiki links/citations, CodeGraph imports/spans/calls/references, and security
+  fail-closed/allowlist checks are implemented as local bounded candidates.
+- Phase 67 now has a read-only `baron memory consolidate` analyzer that stages
+  duplicate/conflict/supersession candidates without writing or promoting any
+  Vault record; durable compaction, temporal authority, and rollback are still
+  open.
+- Known open gates: native GitHub matrix, locked release build evidence from the
+  final 4.0.0 tree, exact-source push to `origin/main`, immutable tag/Release,
+  checksums/manifest, and fresh public Windows recovery install. Broader real
+  repository/large-scale corpus and durable temporal compaction remain explicit
+  follow-up limits and are not silently claimed as completed.
+- Safe next action: run the final local release gates, inspect the complete diff,
+  commit/push exact source, wait for the native matrix, tag `v4.0.0`, verify
+  `releases/latest`, then record public install evidence.
+
+## Final Local Release Evidence Before GitHub Publication
+
+- Source version is `4.0.0`; `cargo fmt --all -- --check`, `cargo check
+  --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and
+  `cargo build --release --locked -p baron-cli` pass. The optimized binary
+  reports `baron 4.0.0`.
+- `cargo test --workspace --all-targets --no-fail-fast` passes after the README,
+  status, and fingerprint-boundary updates. The final `public_trust_docs` suite
+  is 9/9, and the full workspace run exits 0.
+- Final clean acceptance report: `docs/assessment/baron-4.0-certification.*`,
+  score `100/100`, benchmark id
+  `fedeace68a4efd6e979a5a217f7b99676f5eaaaa5d58c3bf17c54d9da138e19c`, source
+  fingerprint
+  `85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69`.
+  Memory/Wiki/CodeGraph/Security each score 100/100; leakage is 0; security
+  routing is 9/9; static scan is 100/100 with 0 findings; bounded handoff is
+  902 characters and project-grounded.
+- CodeGraph source fingerprints now exclude generated assessment/status/build
+  metadata and release README prose, so evidence references cannot invalidate
+  their own code identity; Wiki remains the documentation index/source path.
+- Optimized binary smoke passes setup, Codex fullstack init, default 4.0
+  context/Resume Brief, Wiki index/search, CodeGraph index/query, and explicit
+  `BARON_ENGINE_GENERATION=3.8` recovery context.
+- Remaining gate: exact diff review, commit/push to `origin/main`, native
+  GitHub release matrix, immutable `v4.0.0` tag/Release, checksums/installers,
+  and a fresh public Windows README reinstall. No public 4.0 claim is complete
+  before those checks.
 
 ## Current Phase
 
-Baron 3.8 Phase 53-64 implementation and public release (`completed`).
+Baron 4.0 Phase 76 exact-source publication and recovery install (`in progress`).
 
 ## Baron 3.8 Implementation Checkpoint
 

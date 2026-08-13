@@ -12,8 +12,9 @@ use crate::control_plane::validate_control_plane;
 use crate::domain_language::{read_domain_language, render_domain_language_context};
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
-use crate::knowledge::{build_resume_brief, render_resume_brief};
-use crate::memory::build_memory_index;
+use crate::intelligence::select_resume_brief;
+use crate::knowledge::render_resume_brief;
+use crate::memory::{analyze_memory_consolidation, build_memory_index};
 use crate::operations::{load_runbook, relevant_to_task, render_bounded_context};
 use crate::platform::render_platform_context;
 use crate::review_gate::review_status;
@@ -69,7 +70,8 @@ pub fn compile_context_for_task(
     build_memory_index(&vault)?;
     index_session_replay(&vault)?;
     let memory_brief = compact_memory_brief_for_task(&vault, task)?;
-    let resume_brief = build_resume_brief(&vault, task, 4_800)?;
+    let (intelligence_generation, resume_brief) = select_resume_brief(&vault, task, 4_800)?;
+    let consolidation = analyze_memory_consolidation(&vault)?;
     let risk = classify_risk(task, &survey);
 
     let mut output = String::new();
@@ -80,6 +82,10 @@ pub fn compile_context_for_task(
     output.push_str(
         "- Memory firewall: current project first; weak cross-project memory blocked\n\n",
     );
+    output.push_str(&format!(
+        "- Intelligence generation: `{}` (Baron 3.8 fallback retained)\n\n",
+        intelligence_generation.as_str()
+    ));
 
     output.push_str("## Adapter Guidance\n\n");
     output.push_str(&format!("- {}\n", target.guidance()));
@@ -103,6 +109,14 @@ pub fn compile_context_for_task(
     output.push_str(&render_actionable_recovery(repo_path));
     output.push_str(&render_resume_brief(&resume_brief, 4_800));
     output.push('\n');
+    output.push_str("## Memory Maintenance Candidates\n\n");
+    output.push_str(&format!(
+        "- Duplicate groups: `{}`; conflict groups: `{}`; stale/supersession candidates: `{}`\n",
+        consolidation.duplicate_groups,
+        consolidation.conflict_groups,
+        consolidation.superseded_records
+    ));
+    output.push_str("- Read-only analysis only; no memory fact was promoted or rewritten.\n\n");
     output.push_str(&render_survey_context(&survey));
     output.push_str(&render_optional_code_map_context(repo_path, task)?);
     if task.map(relevant_to_task).unwrap_or(false) {

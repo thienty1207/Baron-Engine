@@ -1,26 +1,53 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-08-12",
+  "lastUpdated": "2026-08-13",
   "stableRelease": "3.8.0",
   "downloadableRelease": "3.8.0",
-  "candidateSourceVersion": "3.8.0",
-  "releasePromotionStatus": "completed",
+  "candidateSourceVersion": "4.0.0",
+  "releasePromotionStatus": "in_progress",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "3.8.0",
-  "targetReleaseCompletionPercent": 100,
-  "programTargetRelease": "3.8.0",
-  "programCompletionPercent": 100,
-  "remainingPhaseCount": 0,
-  "currentPhase": "baron-3-8-phase-64-public-release",
-  "currentPhaseStatus": "completed",
-  "nextAction": "None; continue normal maintenance from the published v3.8.0 baseline.",
-  "buildConfidence": "Baron 3.8 is public-release certified. Exact-source verification, the full workspace suite, Clippy, native builds for Windows/Linux/macOS Intel/macOS Apple Silicon, checksum and manifest verification, installer lifecycle, immutable publication, and fresh releases/latest Windows installation all passed.",
+  "targetRelease": "4.0.0",
+  "targetReleaseCompletionPercent": 88,
+  "programTargetRelease": "4.0.0",
+  "programCompletionPercent": 88,
+  "remainingPhaseCount": 2,
+  "currentPhase": "baron-4-0-phase-76-public-github-release",
+  "currentPhaseStatus": "in_progress",
+  "nextAction": "Run the exact 4.0.0 local release gates, push origin/main, wait for the native GitHub matrix, tag v4.0.0, verify the immutable Release, and run the fresh Windows README reinstall smoke.",
+  "buildConfidence": "Baron 4.0 source is versioned 4.0.0 and the integrated local acceptance is 100/100 on sixteen frozen cases, nine security routes, a bounded static scan, and clean cache identity. Public stability remains 3.8.0 until the native matrix, tag, Release, checksums, and fresh public Windows smoke pass.",
   "releaseEvidence": {
     "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31603251123",
     "sourceRevision": "57c5d94a5459e4597bd8a63bb1a6e65f7c197c23",
     "tag": "v3.8.0",
     "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0",
     "publicWindowsSmoke": "Fresh install.ps1 from releases/latest returned baron 3.8.0; setup, init --codex --fullstack, and context passed in a fresh project/Vault smoke; checksum verification and user-data safety passed."
+  },
+  "baron4Evidence": {
+    "benchmarkReport": "docs/assessment/baron-4.0-benchmark.json",
+    "benchmarkMarkdown": "docs/assessment/baron-4.0-benchmark.md",
+    "securityRegressionReport": "docs/assessment/baron-4.0-security-regression.json",
+    "securityRegressionMarkdown": "docs/assessment/baron-4.0-security-regression.md",
+    "certificationReport": "docs/assessment/baron-4.0-certification.json",
+    "certificationMarkdown": "docs/assessment/baron-4.0-certification.md",
+    "staticSecurityReport": "docs/assessment/baron-4.0-static-security.json",
+    "staticSecurityMarkdown": "docs/assessment/baron-4.0-static-security.md",
+    "sourceFingerprint": "85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69",
+    "cleanCacheRerun": true,
+    "cleanVaultRerun": true,
+    "benchmarkReportId": "fedeace68a4efd6e979a5a217f7b99676f5eaaaa5d58c3bf17c54d9da138e19c",
+    "acceptanceScore": 100,
+    "acceptancePassed": true,
+    "securityRegressionScore": 100,
+    "staticSecurityScore": 100,
+    "staticSecurityFindings": 0,
+    "surfaces": {
+      "memory": 100,
+      "wiki": 100,
+      "codeGraph": 100,
+      "security": 100
+    },
+    "crossProjectLeakage": 0,
+    "candidatePromotion": "integrated_acceptance_passed_public_promotion_waits_for_native_matrix_and_release_smoke"
   },
   "completionDefinition": [
     "survey and shadow mode support old repositories",
@@ -971,10 +998,122 @@
       "targetReleaseWeightPercent": 14,
       "completionPercent": 100,
       "requiredProof": [
-        "source/docs/version/status synchronize at 3.8.0",
-        "exact commit is pushed and the immutable v3.8.0 Release assets are installable"
-      ]
-    }
+          "source/docs/version/status synchronize at 3.8.0",
+          "exact commit is pushed and the immutable v3.8.0 Release assets are installable"
+        ]
+      },
+      {
+      "id": 65,
+        "name": "Ground-Truth 9/10 Score Contract",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 8,
+        "completionPercent": 40,
+        "requiredProof": [
+        "versioned sixteen-case four-surface benchmark with separate baseline/candidate results",
+        "docs/assessment/baron-4.0-benchmark.json and .md",
+          "zero cross-project leakage; clean cache/Vault rerun, 16-case expansion, Windows environment metadata, and independent 3.8/4.0 scorecards are recorded; real-repository and adversarial scale breadth remains a documented follow-up"
+        ]
+      },
+      {
+        "id": 66,
+        "name": "Layered Memory Abstraction And Trust",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 9,
+        "completionPercent": 38,
+        "requiredProof": ["L0-L3 abstraction and trust separation", "frontmatter labels, project firewall, and bounded rebuild proof; full migration remains follow-up"]
+      },
+      {
+        "id": 67,
+        "name": "Consolidation Conflict And Supersession",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 8,
+        "completionPercent": 35,
+        "requiredProof": ["read-only deterministic duplicate/conflict/supersession analysis", "authority explanations and atomic reviewable staging; durable temporal compaction remains follow-up"]
+      },
+      {
+        "id": 68,
+        "name": "Local Semantic Retrieval And Reranking",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 12,
+        "completionPercent": 32,
+        "requiredProof": ["local hybrid retrieval and pre-ranking firewall", "bounded reranking, score explanations, and automatic 3.8 recovery fallback"]
+      },
+      {
+        "id": 69,
+        "name": "Grounded Synthesis And Cross-Agent Handoff",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 9,
+        "completionPercent": 36,
+        "requiredProof": ["cited grounded Resume Brief", "project identity, blockers, unknowns, proof, and bounded 902-character handoff evidence"]
+      },
+      {
+        "id": 70,
+        "name": "Linked Wiki Knowledge Graph",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 10,
+        "completionPercent": 42,
+        "requiredProof": ["bounded linked two-hop Wiki retrieval", "exact citations, link paths, freshness labels, and project-bound rebuild evidence"]
+      },
+      {
+        "id": 71,
+        "name": "AST CodeGraph And Impact Intelligence",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 11,
+        "completionPercent": 42,
+        "requiredProof": ["language-aware symbols/imports/calls/impact", "source spans, incremental source verification, and project isolation evidence"]
+      },
+      {
+        "id": 72,
+        "name": "Security Intelligence And AppSec Expansion",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 8,
+        "completionPercent": 30,
+        "requiredProof": ["defensive static AppSec boundary", "vibe-security ownership, reverse-static routing, redaction, and advisory evidence"]
+      },
+      {
+        "id": 73,
+        "name": "Authorized Adversary Assessment And Lab Safety",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 8,
+        "completionPercent": 32,
+        "requiredProof": ["authorization/scope/safety contract", "nine-case fail-closed routing regression; dynamic lab execution remains intentionally disabled"]
+      },
+      {
+        "id": 74,
+        "name": "Security Routing Tool Governance And Regression",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 5,
+        "completionPercent": 36,
+        "requiredProof": ["deterministic security route matrix", "nine-case regression, project scope, allowlist, offensive-intent, and missing-auth hard stops"]
+      },
+      {
+        "id": 75,
+        "name": "Integrated Security Scale Cost And 9/10 Acceptance",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 7,
+        "completionPercent": 78,
+        "requiredProof": ["integrated 100/100 acceptance, four independent 100/100 surfaces, zero leakage, nine security cases, static scan, bounded handoff, and cache identity; native/scale/cost breadth remains release evidence"]
+      },
+      {
+        "id": 76,
+        "name": "Baron 4.0 Public GitHub Release And Recovery Install",
+        "status": "in_progress",
+        "release": "4.0.0",
+        "targetReleaseWeightPercent": 5,
+        "completionPercent": 20,
+        "requiredProof": ["versioned 4.0.0 source and README are prepared", "immutable v4.0.0 Release, checksums, native matrix, and fresh public Windows install remain open"]
+      }
   ],
   "decisions20260724": [
     {

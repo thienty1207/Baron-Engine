@@ -1,0 +1,892 @@
+{
+  "schema_version": 1,
+  "report_id": "fedeace68a4efd6e979a5a217f7b99676f5eaaaa5d58c3bf17c54d9da138e19c",
+  "generated_at": "2026-08-13T07:44:00.544490600+00:00",
+  "source_revision": "85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69",
+  "fixture_revision": "baron-4.0-fixtures-v1",
+  "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa",
+  "baseline_generation": "3.8",
+  "candidate_generation": "4.0",
+  "candidate_available": true,
+  "candidate_note": "Candidate 4.0 engines ran independently for sixteen frozen cases across memory, Wiki, CodeGraph, and security routing; promotion still requires every score and hard gate to pass.",
+  "cases": [
+    {
+      "id": "memory-resume-contract",
+      "surface": "memory",
+      "query": "current work checkpoint proof next safe action",
+      "expected_terms": [
+        "project",
+        "source",
+        "checkpoint",
+        "next safe action"
+      ],
+      "expected_citations": [],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "memory-trust-contract",
+      "surface": "memory",
+      "query": "confirmed decisions source revision unknowns",
+      "expected_terms": [
+        "project",
+        "source revision",
+        "confirmed decisions",
+        "unknowns"
+      ],
+      "expected_citations": [],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "memory-vietnamese-handoff-contract",
+      "surface": "memory",
+      "query": "đang làm dở checkpoint bước an toàn tiếp theo",
+      "expected_terms": [
+        "project",
+        "next safe action",
+        "unknowns"
+      ],
+      "expected_citations": [],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "memory-exact-path-contract",
+      "surface": "memory",
+      "query": "docs BARON_STATUS source revision proof",
+      "expected_terms": [
+        "project id",
+        "source revision",
+        "proof status"
+      ],
+      "expected_citations": [],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "wiki-citation-contract",
+      "surface": "wiki",
+      "query": "architecture memory security",
+      "expected_terms": [
+        "architecture",
+        "memory"
+      ],
+      "expected_citations": [
+        "docs/"
+      ],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "wiki-freshness-contract",
+      "surface": "wiki",
+      "query": "Baron status architecture",
+      "expected_terms": [
+        "baron",
+        "status",
+        "architecture",
+        "links="
+      ],
+      "expected_citations": [
+        "docs/"
+      ],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "wiki-mixed-language-contract",
+      "surface": "wiki",
+      "query": "memory trí nhớ architecture kiến trúc",
+      "expected_terms": [
+        "memory",
+        "architecture",
+        "links="
+      ],
+      "expected_citations": [
+        "docs/"
+      ],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "wiki-injection-boundary-contract",
+      "surface": "wiki",
+      "query": "security source truth cache",
+      "expected_terms": [
+        "security",
+        "citation=",
+        "stale="
+      ],
+      "expected_citations": [
+        "docs/"
+      ],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "codegraph-impact-contract",
+      "surface": "code_graph",
+      "query": "context knowledge recall",
+      "expected_terms": [
+        "context"
+      ],
+      "expected_citations": [],
+      "expected_relations": [
+        "references"
+      ],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "codegraph-call-contract",
+      "surface": "code_graph",
+      "query": "select_resume_brief intelligence",
+      "expected_terms": [
+        "select_resume_brief",
+        "intelligence",
+        "span=",
+        "imports="
+      ],
+      "expected_citations": [],
+      "expected_relations": [
+        "references"
+      ],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "codegraph-symbol-span-contract",
+      "surface": "code_graph",
+      "query": "MemoryRecord abstraction_level",
+      "expected_terms": [
+        "MemoryRecord",
+        "span=",
+        "imports="
+      ],
+      "expected_citations": [],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "codegraph-project-isolation-contract",
+      "surface": "code_graph",
+      "query": "context project identity",
+      "expected_terms": [
+        "context",
+        "span="
+      ],
+      "expected_citations": [],
+      "expected_relations": [],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "security-routing-contract",
+      "surface": "security",
+      "query": "authorized threat model API security",
+      "expected_terms": [
+        "authorization",
+        "security"
+      ],
+      "expected_citations": [],
+      "expected_relations": [
+        "security-auditor"
+      ],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "security-source-appsec-contract",
+      "surface": "security",
+      "query": "API authentication dependency security",
+      "expected_terms": [
+        "source",
+        "security"
+      ],
+      "expected_citations": [],
+      "expected_relations": [
+        "security-auditor"
+      ],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "security-oauth-source-contract",
+      "surface": "security",
+      "query": "review OAuth cookies and secrets",
+      "expected_terms": [
+        "source",
+        "security",
+        "generation"
+      ],
+      "expected_citations": [],
+      "expected_relations": [
+        "vibe-security-scan"
+      ],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    },
+    {
+      "id": "security-reverse-static-contract",
+      "surface": "security",
+      "query": "analyze firmware malware",
+      "expected_terms": [
+        "reverse",
+        "security",
+        "allowed"
+      ],
+      "expected_citations": [],
+      "expected_relations": [
+        "reverse-analysis-pack"
+      ],
+      "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+    }
+  ],
+  "baseline_results": [
+    {
+      "case_id": "memory-resume-contract",
+      "generation": "3.8",
+      "surface": "memory",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 3.8 Resume Brief"
+      ],
+      "elapsed_ms": 40,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "memory-trust-contract",
+      "generation": "3.8",
+      "surface": "memory",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 3.8 Resume Brief"
+      ],
+      "elapsed_ms": 34,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "memory-vietnamese-handoff-contract",
+      "generation": "3.8",
+      "surface": "memory",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 3.8 Resume Brief"
+      ],
+      "elapsed_ms": 33,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "memory-exact-path-contract",
+      "generation": "3.8",
+      "surface": "memory",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 3.8 Resume Brief"
+      ],
+      "elapsed_ms": 41,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "wiki-citation-contract",
+      "generation": "3.8",
+      "surface": "wiki",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "docs/BARON_STATUS.md#L108-L142",
+        "docs/BARON_STATUS.md#L303-L358",
+        "docs/BARON_STATUS.md#L407-L535",
+        "docs/BARON_STATUS.md#L1320-L1374",
+        "docs/BARON_STATUS.md#L2066-L2143",
+        "docs/BARON_STATUS.md#L2227-L2310",
+        "docs/BARON_STATUS.md#L2829-L2895",
+        "docs/BARON_STATUS.md#L2896-L2991"
+      ],
+      "elapsed_ms": 4344,
+      "estimated_tokens": 2050
+    },
+    {
+      "case_id": "wiki-freshness-contract",
+      "generation": "3.8",
+      "surface": "wiki",
+      "matched_expectations": 4,
+      "total_expectations": 5,
+      "score": 80,
+      "hard_failures": [],
+      "evidence": [
+        "docs/BARON_STATUS.md#L108-L142",
+        "docs/BARON_STATUS.md#L233-L245",
+        "docs/BARON_STATUS.md#L303-L358",
+        "docs/BARON_STATUS.md#L407-L535",
+        "docs/BARON_STATUS.md#L538-L551",
+        "docs/BARON_STATUS.md#L678-L687",
+        "docs/BARON_STATUS.md#L697-L704",
+        "docs/BARON_STATUS.md#L714-L723"
+      ],
+      "elapsed_ms": 8450,
+      "estimated_tokens": 1643
+    },
+    {
+      "case_id": "wiki-mixed-language-contract",
+      "generation": "3.8",
+      "surface": "wiki",
+      "matched_expectations": 3,
+      "total_expectations": 4,
+      "score": 75,
+      "hard_failures": [],
+      "evidence": [
+        "README.md#L153-L165",
+        "docs/BARON_STATUS.md#L108-L142",
+        "docs/BARON_STATUS.md#L303-L358",
+        "docs/BARON_STATUS.md#L407-L535",
+        "docs/BARON_STATUS.md#L697-L704",
+        "docs/BARON_STATUS.md#L877-L888",
+        "docs/BARON_STATUS.md#L1320-L1374",
+        "docs/BARON_STATUS.md#L2066-L2143"
+      ],
+      "elapsed_ms": 3750,
+      "estimated_tokens": 1896
+    },
+    {
+      "case_id": "wiki-injection-boundary-contract",
+      "generation": "3.8",
+      "surface": "wiki",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "README.md#L35-L67",
+        "README.md#L189-L198",
+        "docs/BARON_STATUS.md#L303-L358",
+        "docs/BARON_STATUS.md#L370-L406",
+        "docs/BARON_STATUS.md#L2144-L2226",
+        "docs/BARON_STATUS.md#L2227-L2310",
+        "docs/BARON_STATUS.md#L2829-L2895",
+        "docs/architecture/COMMAND_SURFACE.md#L415-L442"
+      ],
+      "elapsed_ms": 4145,
+      "estimated_tokens": 1938
+    },
+    {
+      "case_id": "codegraph-impact-contract",
+      "generation": "3.8",
+      "surface": "code_graph",
+      "matched_expectations": 2,
+      "total_expectations": 2,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-adapters/src/install.rs",
+        "crates/baron-adapters/src/install.rs",
+        "crates/baron-adapters/src/install.rs",
+        "crates/baron-cli/src/main.rs",
+        "crates/baron-cli/src/main.rs",
+        "crates/baron-cli/src/main.rs",
+        "crates/baron-cli/src/main.rs",
+        "crates/baron-cli/src/main.rs"
+      ],
+      "elapsed_ms": 1336,
+      "estimated_tokens": 1320
+    },
+    {
+      "case_id": "codegraph-call-contract",
+      "generation": "3.8",
+      "surface": "code_graph",
+      "matched_expectations": 3,
+      "total_expectations": 5,
+      "score": 60,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-cli/src/main.rs",
+        "crates/baron-cli/tests/adapter_cli.rs",
+        "crates/baron-cli/tests/cli.rs",
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-core/src/intelligence.rs"
+      ],
+      "elapsed_ms": 1023,
+      "estimated_tokens": 1350
+    },
+    {
+      "case_id": "codegraph-symbol-span-contract",
+      "generation": "3.8",
+      "surface": "code_graph",
+      "matched_expectations": 1,
+      "total_expectations": 3,
+      "score": 33,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs"
+      ],
+      "elapsed_ms": 904,
+      "estimated_tokens": 333
+    },
+    {
+      "case_id": "codegraph-project-isolation-contract",
+      "generation": "3.8",
+      "surface": "code_graph",
+      "matched_expectations": 1,
+      "total_expectations": 2,
+      "score": 50,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-core/src/context.rs",
+        "crates/baron-core/src/identity.rs",
+        "crates/baron-core/src/identity.rs",
+        "crates/baron-core/src/vault.rs",
+        "crates/baron-core/tests/code_graph.rs",
+        "crates/baron-core/tests/config.rs",
+        "crates/baron-core/tests/vault_memory.rs",
+        "crates/baron-adapters/src/install.rs"
+      ],
+      "elapsed_ms": 1386,
+      "estimated_tokens": 1349
+    },
+    {
+      "case_id": "security-routing-contract",
+      "generation": "3.8",
+      "surface": "security",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "vibe-security-scan",
+        "reverse-analysis-pack",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 90
+    },
+    {
+      "case_id": "security-source-appsec-contract",
+      "generation": "3.8",
+      "surface": "security",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "vibe-security-scan",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 68
+    },
+    {
+      "case_id": "security-oauth-source-contract",
+      "generation": "3.8",
+      "surface": "security",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "vibe-security-scan",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 68
+    },
+    {
+      "case_id": "security-reverse-static-contract",
+      "generation": "3.8",
+      "surface": "security",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "reverse-analysis-pack",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 70
+    }
+  ],
+  "candidate_results": [
+    {
+      "case_id": "memory-resume-contract",
+      "generation": "4.0",
+      "surface": "memory",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 4.0 candidate Resume Brief",
+        "schema:2"
+      ],
+      "elapsed_ms": 76,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "memory-trust-contract",
+      "generation": "4.0",
+      "surface": "memory",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 4.0 candidate Resume Brief",
+        "schema:2"
+      ],
+      "elapsed_ms": 69,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "memory-vietnamese-handoff-contract",
+      "generation": "4.0",
+      "surface": "memory",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 4.0 candidate Resume Brief",
+        "schema:2"
+      ],
+      "elapsed_ms": 77,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "memory-exact-path-contract",
+      "generation": "4.0",
+      "surface": "memory",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "baron 4.0 candidate Resume Brief",
+        "schema:2"
+      ],
+      "elapsed_ms": 86,
+      "estimated_tokens": 226
+    },
+    {
+      "case_id": "wiki-citation-contract",
+      "generation": "4.0",
+      "surface": "wiki",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "docs/BARON_STATUS.md#L2829-L2895",
+        "docs/architecture/ARCHITECTURE.md#L1-L36",
+        "docs/BARON_STATUS.md#L108-L142",
+        "docs/BARON_STATUS.md#L303-L358",
+        "docs/BARON_STATUS.md#L407-L535",
+        "docs/BARON_STATUS.md#L2227-L2310",
+        "docs/BARON_STATUS.md#L2896-L2991",
+        "docs/BARON_STATUS.md#L2066-L2143"
+      ],
+      "elapsed_ms": 13414,
+      "estimated_tokens": 2080
+    },
+    {
+      "case_id": "wiki-freshness-contract",
+      "generation": "4.0",
+      "surface": "wiki",
+      "matched_expectations": 5,
+      "total_expectations": 5,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "docs/BARON_STATUS.md#L2896-L2991",
+        "docs/BARON_STATUS.md#L303-L358",
+        "docs/BARON_STATUS.md#L851-L865",
+        "docs/BARON_STATUS.md#L108-L142",
+        "docs/BARON_STATUS.md#L866-L876",
+        "docs/BARON_STATUS.md#L877-L888",
+        "docs/superpowers/plans/2026-06-14-phase-4-5-adapters-execution-engine.md#L120-L141",
+        "docs/superpowers/plans/2026-07-24-phase-42-45-baron-3-6-code-graph.md#L439-L554"
+      ],
+      "elapsed_ms": 17992,
+      "estimated_tokens": 2124
+    },
+    {
+      "case_id": "wiki-mixed-language-contract",
+      "generation": "4.0",
+      "surface": "wiki",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "docs/architecture/ADAPTERS.md#L1-L12",
+        "docs/architecture/ARCHITECTURE.md#L1-L36",
+        "docs/superpowers/plans/2026-06-08-vault-memory-firewall.md#L1-L12",
+        "docs/superpowers/plans/2026-06-15-phase-9-10-automation-memory.md#L1-L12",
+        "README.md#L153-L165",
+        "docs/BARON_STATUS.md#L2227-L2310",
+        "docs/superpowers/plans/2026-06-15-phase-9-10-automation-memory.md#L13-L29",
+        "docs/BARON_STATUS.md#L1320-L1374"
+      ],
+      "elapsed_ms": 12403,
+      "estimated_tokens": 2000
+    },
+    {
+      "case_id": "wiki-injection-boundary-contract",
+      "generation": "4.0",
+      "surface": "wiki",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "README.md#L189-L198",
+        "docs/BARON_STATUS.md#L2227-L2310",
+        "docs/BARON_STATUS.md#L2829-L2895",
+        "docs/architecture/COMMAND_SURFACE.md#L415-L442",
+        "docs/BARON_STATUS.md#L2144-L2226",
+        "README.md#L35-L67",
+        "docs/superpowers/specs/2026-07-23-baron-3-4-safe-self-update-design.md#L29-L45",
+        "docs/BARON_STATUS.md#L303-L358"
+      ],
+      "elapsed_ms": 13000,
+      "estimated_tokens": 1992
+    },
+    {
+      "case_id": "codegraph-impact-contract",
+      "generation": "4.0",
+      "surface": "code_graph",
+      "matched_expectations": 2,
+      "total_expectations": 2,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-core/src/knowledge.rs",
+        "crates/baron-core/src/knowledge.rs",
+        "crates/baron-core/src/knowledge.rs",
+        "crates/baron-cli/tests/adapter_cli.rs",
+        "crates/baron-core/src/knowledge.rs",
+        "crates/baron-core/src/knowledge.rs",
+        "crates/baron-core/src/knowledge.rs",
+        "crates/baron-core/src/knowledge.rs"
+      ],
+      "elapsed_ms": 4894,
+      "estimated_tokens": 2344
+    },
+    {
+      "case_id": "codegraph-call-contract",
+      "generation": "4.0",
+      "surface": "code_graph",
+      "matched_expectations": 5,
+      "total_expectations": 5,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-core/tests/platform_intelligence.rs",
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-core/src/intelligence.rs",
+        "crates/baron-cli/tests/adapter_cli.rs",
+        "crates/baron-cli/tests/cli.rs"
+      ],
+      "elapsed_ms": 5859,
+      "estimated_tokens": 2411
+    },
+    {
+      "case_id": "codegraph-symbol-span-contract",
+      "generation": "4.0",
+      "surface": "code_graph",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs",
+        "crates/baron-core/src/memory.rs"
+      ],
+      "elapsed_ms": 7003,
+      "estimated_tokens": 2415
+    },
+    {
+      "case_id": "codegraph-project-isolation-contract",
+      "generation": "4.0",
+      "surface": "code_graph",
+      "matched_expectations": 2,
+      "total_expectations": 2,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "crates/baron-core/src/identity.rs",
+        "crates/baron-core/tests/config.rs",
+        "crates/baron-core/src/identity.rs",
+        "crates/baron-core/src/vault.rs",
+        "crates/baron-core/tests/code_graph.rs",
+        "crates/baron-core/tests/vault_memory.rs",
+        "crates/baron-core/src/context.rs",
+        "crates/baron-cli/src/self_update.rs"
+      ],
+      "elapsed_ms": 6313,
+      "estimated_tokens": 2402
+    },
+    {
+      "case_id": "security-routing-contract",
+      "generation": "4.0",
+      "surface": "security",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "vibe-security-scan",
+        "reverse-analysis-pack",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 90
+    },
+    {
+      "case_id": "security-source-appsec-contract",
+      "generation": "4.0",
+      "surface": "security",
+      "matched_expectations": 3,
+      "total_expectations": 3,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "vibe-security-scan",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 68
+    },
+    {
+      "case_id": "security-oauth-source-contract",
+      "generation": "4.0",
+      "surface": "security",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "vibe-security-scan",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 68
+    },
+    {
+      "case_id": "security-reverse-static-contract",
+      "generation": "4.0",
+      "surface": "security",
+      "matched_expectations": 4,
+      "total_expectations": 4,
+      "score": 100,
+      "hard_failures": [],
+      "evidence": [
+        "reverse-analysis-pack",
+        "security-auditor"
+      ],
+      "elapsed_ms": 0,
+      "estimated_tokens": 70
+    }
+  ],
+  "baseline_scores": [
+    {
+      "surface": "memory",
+      "score": 100,
+      "case_count": 4,
+      "passed_cases": 4,
+      "hard_failures": [],
+      "per_metric_floor_passed": true
+    },
+    {
+      "surface": "wiki",
+      "score": 88,
+      "case_count": 4,
+      "passed_cases": 2,
+      "hard_failures": [],
+      "per_metric_floor_passed": false
+    },
+    {
+      "surface": "code_graph",
+      "score": 60,
+      "case_count": 4,
+      "passed_cases": 1,
+      "hard_failures": [],
+      "per_metric_floor_passed": false
+    },
+    {
+      "surface": "security",
+      "score": 100,
+      "case_count": 4,
+      "passed_cases": 4,
+      "hard_failures": [],
+      "per_metric_floor_passed": true
+    }
+  ],
+  "candidate_scores": [
+    {
+      "surface": "memory",
+      "score": 100,
+      "case_count": 4,
+      "passed_cases": 4,
+      "hard_failures": [],
+      "per_metric_floor_passed": true
+    },
+    {
+      "surface": "wiki",
+      "score": 100,
+      "case_count": 4,
+      "passed_cases": 4,
+      "hard_failures": [],
+      "per_metric_floor_passed": true
+    },
+    {
+      "surface": "code_graph",
+      "score": 100,
+      "case_count": 4,
+      "passed_cases": 4,
+      "hard_failures": [],
+      "per_metric_floor_passed": true
+    },
+    {
+      "surface": "security",
+      "score": 100,
+      "case_count": 4,
+      "passed_cases": 4,
+      "hard_failures": [],
+      "per_metric_floor_passed": true
+    }
+  ],
+  "cross_project_leakage": 0,
+  "critical_regressions": [],
+  "candidate_ready_for_promotion": true,
+  "environment": {
+    "os": "windows",
+    "arch": "x86_64",
+    "pointer_width": "64",
+    "cpu_count": 12,
+    "profile": "debug",
+    "cache_rebuilt_by_runner": true,
+    "vault_rebuilt_by_runner": false
+  }
+}

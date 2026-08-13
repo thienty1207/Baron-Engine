@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 use crate::code_graph::compute_code_source_fingerprint;
 use crate::config::{load_project_config, PROJECT_SCHEMA_VERSION};
-use crate::firewall::recall;
+use crate::firewall::{recall, recall_v4};
 use crate::identity::project_id_for_path;
 use crate::memory::{MemoryConfidence, MemoryKind, MemoryRecord};
 use crate::vault::VaultContext;
@@ -132,6 +132,8 @@ pub struct WikiSection {
     pub heading: String,
     pub content: String,
     pub citation: String,
+    #[serde(default)]
+    pub links: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,6 +142,10 @@ pub struct WikiSearchHit {
     pub heading: String,
     pub citation: String,
     pub excerpt: String,
+    #[serde(default)]
+    pub links: Vec<String>,
+    #[serde(default)]
+    pub link_path: Vec<String>,
     pub score: usize,
     pub stale: bool,
 }
@@ -169,6 +175,8 @@ pub struct LocalGraphFile {
     pub path: String,
     pub language: String,
     pub content_hash: String,
+    #[serde(default)]
+    pub imports: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -176,9 +184,13 @@ pub struct LocalGraphSymbol {
     pub id: String,
     pub name: String,
     pub kind: String,
+    #[serde(default)]
+    pub language: String,
     pub file: String,
     pub line: usize,
     pub confidence: String,
+    #[serde(default)]
+    pub span: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -192,6 +204,8 @@ pub struct LocalGraphEdge {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalGraphSearchHit {
     pub symbol: LocalGraphSymbol,
+    #[serde(default)]
+    pub imports: Vec<String>,
     pub relations: Vec<String>,
     pub why: String,
 }
@@ -260,14 +274,15 @@ pub fn build_resume_brief(
         .take(8)
         .map(|hit| {
             let record = hit.record;
-            let layer = memory_layer(&record).as_str().to_string();
+            let trust = format!("{:?}", record.trust_state()).to_lowercase();
+            let layer = record.abstraction_level().as_str().to_string();
             ResumeMemoryHit {
                 id: record.id,
                 layer,
                 kind: format!("{:?}", record.kind).to_lowercase(),
                 excerpt: redact_sensitive(&record.excerpt),
                 path: record.path,
-                trust: format!("{:?}/{:?}", record.confidence, record.status).to_lowercase(),
+                trust,
                 why: hit.notes,
             }
         })
@@ -291,6 +306,43 @@ pub fn build_resume_brief(
         memory_hits,
         bounded_chars: 0,
     };
+    brief.bounded_chars = render_resume_brief(&brief, max_chars).chars().count();
+    Ok(brief)
+}
+
+/// Baron 4.0 candidate Resume Brief. It preserves the 3.8 contract and adds
+/// stronger project-filtered reranking plus explicit abstraction/trust labels.
+pub fn build_resume_brief_v4(
+    context: &VaultContext,
+    task: Option<&str>,
+    max_chars: usize,
+) -> Result<ResumeBrief> {
+    let mut brief = build_resume_brief(context, task, max_chars)?;
+    let query = task
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("current work resume checkpoint");
+    let recalled = recall_v4(context, query, 12)?;
+    brief.memory_hits = recalled
+        .results
+        .into_iter()
+        .filter(|hit| hit.record.project_id.as_deref() == Some(context.project_id.as_str()))
+        .take(8)
+        .map(|hit| {
+            let record = hit.record;
+            let trust = format!("{:?}", record.trust_state()).to_lowercase();
+            let layer = record.abstraction_level().as_str().to_string();
+            ResumeMemoryHit {
+                id: record.id,
+                layer: format!("l{}-{}", layer_rank(&layer), layer),
+                kind: format!("{:?}", record.kind).to_lowercase(),
+                excerpt: redact_sensitive(&record.excerpt),
+                path: record.path,
+                trust,
+                why: hit.notes,
+            }
+        })
+        .collect();
+    brief.schema_version = KNOWLEDGE_SCHEMA_VERSION.saturating_add(1);
     brief.bounded_chars = render_resume_brief(&brief, max_chars).chars().count();
     Ok(brief)
 }
@@ -461,8 +513,8 @@ pub fn search_wiki(
     let tokens = query_tokens(query);
     let current_revision = compute_code_source_fingerprint(&repo_root).unwrap_or_default();
     let mut hits = Vec::new();
-    for document in index.documents {
-        for section in document.sections {
+    for document in &index.documents {
+        for section in &document.sections {
             let haystack = format!("{} {} {}", document.title, section.heading, section.content);
             let score = tokens
                 .iter()
@@ -473,14 +525,144 @@ pub fn search_wiki(
             }
             hits.push(WikiSearchHit {
                 document: document.path.clone(),
-                heading: section.heading,
-                citation: section.citation,
+                heading: section.heading.clone(),
+                citation: section.citation.clone(),
                 excerpt: redact_sensitive(&bounded_text(&section.content, 900)),
+                links: section.links.clone(),
+                link_path: Vec::new(),
                 score,
                 stale: !current_revision.is_empty() && current_revision != index.source_revision,
             });
         }
     }
+    hits.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then_with(|| left.document.cmp(&right.document))
+    });
+    hits.truncate(limit.clamp(1, MAX_WIKI_RESULTS));
+    Ok(hits)
+}
+
+/// Candidate Wiki retrieval with heading/path/phrase/character overlap and
+/// bounded link expansion. It still loads only the project-local disposable
+/// index and marks every result with its source citation.
+pub fn search_wiki_v4(
+    repo_root: impl AsRef<Path>,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<WikiSearchHit>> {
+    let repo_root = canonical_repo(repo_root.as_ref())?;
+    let index = load_wiki_index(&repo_root)?;
+    let tokens = query_tokens(query);
+    let normalized = query.to_lowercase();
+    let current_revision = compute_code_source_fingerprint(&repo_root).unwrap_or_default();
+    let mut hits = Vec::new();
+    for document in &index.documents {
+        for section in &document.sections {
+            let haystack = format!(
+                "{} {} {} {}",
+                document.title,
+                section.heading,
+                section.content,
+                section.links.join(" ")
+            )
+            .to_lowercase();
+            let lexical = tokens
+                .iter()
+                .filter(|token| haystack.contains(*token))
+                .count();
+            let phrase = if !normalized.trim().is_empty() && haystack.contains(&normalized) {
+                20
+            } else {
+                0
+            };
+            let trigram = text_trigram_overlap(&normalized, &haystack).min(24);
+            let heading_bonus = tokens
+                .iter()
+                .filter(|token| section.heading.to_lowercase().contains(*token))
+                .count()
+                * 8;
+            let link_bonus = section
+                .links
+                .iter()
+                .filter(|link| {
+                    normalized
+                        .split_whitespace()
+                        .any(|token| link.to_lowercase().contains(token))
+                })
+                .count()
+                * 5;
+            let score = lexical * 14 + phrase + trigram + heading_bonus + link_bonus;
+            if score == 0 {
+                continue;
+            }
+            hits.push(WikiSearchHit {
+                document: document.path.clone(),
+                heading: section.heading.clone(),
+                citation: section.citation.clone(),
+                excerpt: redact_sensitive(&bounded_text(&section.content, 900)),
+                links: section.links.clone(),
+                link_path: Vec::new(),
+                score,
+                stale: !current_revision.is_empty() && current_revision != index.source_revision,
+            });
+        }
+    }
+    // Traverse at most two bounded link hops. The path is retained as
+    // inspectable evidence so a linked answer cannot masquerade as direct
+    // lexical evidence. Broken/external links simply produce no hit.
+    let mut frontier = hits.iter().take(8).cloned().collect::<Vec<_>>();
+    for depth in 1..=2 {
+        let parents = frontier.clone();
+        frontier.clear();
+        for parent in parents {
+            for link in &parent.links {
+                for document in &index.documents {
+                    if !wiki_link_matches(link, &document.path) {
+                        continue;
+                    }
+                    for section in &document.sections {
+                        let linked_text = format!(
+                            "{} {} {} {}",
+                            document.title,
+                            section.heading,
+                            section.content,
+                            section.links.join(" ")
+                        )
+                        .to_lowercase();
+                        let linked_tokens = tokens
+                            .iter()
+                            .filter(|token| linked_text.contains(*token))
+                            .count();
+                        let linked_phrase =
+                            normalized.trim().len() > 2 && linked_text.contains(&normalized);
+                        if linked_tokens == 0 && !linked_phrase {
+                            continue;
+                        }
+                        let mut link_path = parent.link_path.clone();
+                        link_path.push(format!("{} -> {}", parent.document, document.path));
+                        let hit = WikiSearchHit {
+                            document: document.path.clone(),
+                            heading: section.heading.clone(),
+                            citation: section.citation.clone(),
+                            excerpt: redact_sensitive(&bounded_text(&section.content, 900)),
+                            links: section.links.clone(),
+                            link_path,
+                            score: parent.score / (depth + 1) + linked_tokens * 10,
+                            stale: !current_revision.is_empty()
+                                && current_revision != index.source_revision,
+                        };
+                        frontier.push(hit.clone());
+                        hits.push(hit);
+                    }
+                }
+            }
+        }
+    }
+    let mut seen = BTreeSet::new();
+    hits.retain(|hit| seen.insert(format!("{}#{}", hit.document, hit.heading)));
     hits.sort_by(|left, right| {
         right
             .score
@@ -503,16 +685,19 @@ pub fn build_local_code_graph(repo_root: impl AsRef<Path>) -> Result<LocalCodeGr
     let source_paths = discover_source_paths(&repo_root)?;
     let mut files = Vec::new();
     let mut symbols = Vec::new();
+    let mut contents = BTreeMap::<String, String>::new();
     for path in source_paths {
         let relative = safe_relative(&repo_root, &path)?;
         let content = fs::read_to_string(&path).unwrap_or_default();
         let language = language_for(&path).to_string();
         files.push(LocalGraphFile {
             path: relative.clone(),
-            language,
+            language: language.clone(),
             content_hash: sha256(content.as_bytes()),
+            imports: extract_imports(&content),
         });
-        symbols.extend(extract_symbols(&relative, &content));
+        contents.insert(relative.clone(), content.clone());
+        symbols.extend(extract_symbols(&relative, &content, &language));
     }
     symbols.sort_by(|left, right| {
         left.file
@@ -524,29 +709,49 @@ pub fn build_local_code_graph(repo_root: impl AsRef<Path>) -> Result<LocalCodeGr
         .iter()
         .map(|symbol| symbol.name.clone())
         .collect::<BTreeSet<_>>();
+    let symbols_by_name = symbols
+        .iter()
+        .map(|symbol| (symbol.name.clone(), symbol.id.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let identifier_pattern = Regex::new(r"\b[A-Za-z_][A-Za-z0-9_]*\b").expect("identifier regex");
+    let identifiers_by_file = contents
+        .iter()
+        .map(|(file, content)| {
+            let identifiers = identifier_pattern
+                .find_iter(content)
+                .map(|value| value.as_str().to_string())
+                .collect::<BTreeSet<_>>();
+            (file.clone(), identifiers)
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut edges = Vec::new();
     for symbol in &symbols {
-        let content = fs::read_to_string(repo_root.join(&symbol.file)).unwrap_or_default();
-        for name in names
-            .iter()
-            .filter(|name| **name != symbol.name && content.contains(*name))
-        {
-            if let Some(target) = symbols.iter().find(|candidate| candidate.name == *name) {
+        let Some(identifiers) = identifiers_by_file.get(&symbol.file) else {
+            continue;
+        };
+        for name in identifiers.intersection(&names) {
+            if *name == symbol.name {
+                continue;
+            }
+            if let Some(target_id) = symbols_by_name.get(name) {
                 edges.push(LocalGraphEdge {
                     from: symbol.id.clone(),
-                    to: target.id.clone(),
+                    to: target_id.clone(),
                     relation: "references".to_string(),
                     confidence: "inferred".to_string(),
                 });
             }
         }
     }
+    edges.extend(extract_call_edges(&symbols, &repo_root));
     edges.sort_by(|left, right| {
         left.from
             .cmp(&right.from)
             .then_with(|| left.to.cmp(&right.to))
     });
-    edges.dedup_by(|left, right| left.from == right.from && left.to == right.to);
+    edges.dedup_by(|left, right| {
+        left.from == right.from && left.to == right.to && left.relation == right.relation
+    });
     let graph = LocalCodeGraph {
         schema_version: KNOWLEDGE_SCHEMA_VERSION,
         project_id,
@@ -558,6 +763,79 @@ pub fn build_local_code_graph(repo_root: impl AsRef<Path>) -> Result<LocalCodeGr
     let path = local_graph_cache_path(&repo_root);
     atomic_write_json(&path, &graph)?;
     Ok(graph)
+}
+
+/// Candidate CodeGraph query adds source-aware relation labels and import/call
+/// hints. The current source remains authoritative; these edges are advisory.
+pub fn search_local_code_graph_v4(
+    repo_root: impl AsRef<Path>,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<LocalGraphSearchHit>> {
+    let repo_root = canonical_repo(repo_root.as_ref())?;
+    let graph = load_local_code_graph(&repo_root)?;
+    let tokens = query_tokens(query);
+    let mut hits = Vec::new();
+    for symbol in graph.symbols {
+        let imports = graph
+            .files
+            .iter()
+            .find(|file| file.path == symbol.file)
+            .map(|file| file.imports.clone())
+            .unwrap_or_default();
+        let haystack = format!(
+            "{} {} {} {}",
+            symbol.name,
+            symbol.file,
+            symbol.span,
+            imports.join(" ")
+        )
+        .to_lowercase();
+        let exact = tokens
+            .iter()
+            .filter(|token| haystack.contains(*token))
+            .count();
+        let fuzzy = text_trigram_overlap(&query.to_lowercase(), &haystack).min(20);
+        let score = exact * 20 + fuzzy;
+        if score == 0 {
+            continue;
+        }
+        let relations = graph
+            .edges
+            .iter()
+            .filter(|edge| edge.from == symbol.id || edge.to == symbol.id)
+            .take(12)
+            .map(|edge| {
+                format!(
+                    "{} {} [{}]",
+                    edge.relation,
+                    if edge.from == symbol.id {
+                        &edge.to
+                    } else {
+                        &edge.from
+                    },
+                    edge.confidence
+                )
+            })
+            .collect::<Vec<_>>();
+        hits.push((score, LocalGraphSearchHit {
+            symbol,
+            imports,
+            relations,
+            why: "v4 lexical/fuzzy symbol match; relations remain advisory until current source verification".to_string(),
+        }));
+    }
+    hits.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| left.1.symbol.file.cmp(&right.1.symbol.file))
+    });
+    Ok(hits
+        .into_iter()
+        .take(limit.clamp(1, MAX_GRAPH_RESULTS))
+        .map(|(_, hit)| hit)
+        .collect())
 }
 
 pub fn load_local_code_graph(repo_root: impl AsRef<Path>) -> Result<LocalCodeGraph> {
@@ -588,7 +866,14 @@ pub fn search_local_code_graph(
     let tokens = query_tokens(query);
     let mut hits = Vec::new();
     for symbol in graph.symbols {
-        let haystack = format!("{} {}", symbol.name, symbol.file).to_lowercase();
+        let imports = graph
+            .files
+            .iter()
+            .find(|file| file.path == symbol.file)
+            .map(|file| file.imports.clone())
+            .unwrap_or_default();
+        let haystack =
+            format!("{} {} {}", symbol.name, symbol.file, imports.join(" ")).to_lowercase();
         let score = tokens
             .iter()
             .filter(|token| haystack.contains(*token))
@@ -615,6 +900,7 @@ pub fn search_local_code_graph(
             .collect::<Vec<_>>();
         hits.push((score, LocalGraphSearchHit {
             symbol,
+            imports,
             relations,
             why: "matched current project symbol/path; graph edges are advisory until source verification".to_string(),
         }));
@@ -728,10 +1014,11 @@ fn wiki_section(path: &str, heading: &str, content: &str, start: usize, end: usi
         heading: heading.to_string(),
         content: redact_sensitive(&bounded_text(content.trim(), 6_000)),
         citation: format!("{path}#L{start}-L{end}"),
+        links: extract_markdown_links(content),
     }
 }
 
-fn extract_symbols(file: &str, content: &str) -> Vec<LocalGraphSymbol> {
+fn extract_symbols(file: &str, content: &str, language: &str) -> Vec<LocalGraphSymbol> {
     let patterns = [
         (
             "function",
@@ -751,6 +1038,14 @@ fn extract_symbols(file: &str, content: &str) -> Vec<LocalGraphSymbol> {
             Regex::new(r"^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
         ),
         (
+            "function",
+            Regex::new(r"^\s*func\s+(?:\([^)]*\)\s+)?([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        ),
+        (
+            "class",
+            Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        ),
+        (
             "type",
             Regex::new(
                 r"^\s*(?:pub\s+)?(?:struct|enum|trait|interface|type)\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -763,13 +1058,22 @@ fn extract_symbols(file: &str, content: &str) -> Vec<LocalGraphSymbol> {
         for (kind, pattern) in &patterns {
             if let Some(captures) = pattern.captures(line) {
                 if let Some(name) = captures.get(1).map(|value| value.as_str()) {
+                    let column = line.find(name).unwrap_or(0) + 1;
                     symbols.push(LocalGraphSymbol {
                         id: sha256(format!("{file}|{}|{name}", line_number + 1).as_bytes()),
                         name: name.to_string(),
                         kind: (*kind).to_string(),
+                        language: language.to_string(),
                         file: file.to_string(),
                         line: line_number + 1,
                         confidence: "extracted".to_string(),
+                        span: format!(
+                            "L{}-L{}:C{}-C{}",
+                            line_number + 1,
+                            line_number + 1,
+                            column,
+                            column + name.len().saturating_sub(1)
+                        ),
                     });
                     break;
                 }
@@ -777,6 +1081,134 @@ fn extract_symbols(file: &str, content: &str) -> Vec<LocalGraphSymbol> {
         }
     }
     symbols
+}
+
+fn extract_markdown_links(content: &str) -> Vec<String> {
+    let pattern = Regex::new(r"\[[^\]]+\]\(([^)]+)\)").expect("link regex");
+    pattern
+        .captures_iter(content)
+        .filter_map(|captures| {
+            captures
+                .get(1)
+                .map(|value| value.as_str().trim().to_string())
+        })
+        .filter(|value| !value.starts_with("http://") && !value.starts_with("https://"))
+        .take(32)
+        .collect()
+}
+
+fn wiki_link_matches(link: &str, target: &str) -> bool {
+    let normalized_link = link
+        .split('#')
+        .next()
+        .unwrap_or(link)
+        .trim_start_matches("./")
+        .replace('\\', "/");
+    let normalized_target = target.replace('\\', "/");
+    !normalized_link.is_empty()
+        && (normalized_link == normalized_target
+            || normalized_target.ends_with(&format!("/{normalized_link}"))
+            || normalized_link.ends_with(&format!("/{normalized_target}"))
+            || Path::new(&normalized_link).file_name() == Path::new(&normalized_target).file_name())
+}
+
+fn extract_imports(content: &str) -> Vec<String> {
+    let patterns = [
+        Regex::new(r"^\s*use\s+([^;]+)").expect("rust import regex"),
+        Regex::new(r#"^\s*(?:import|export)\s+.*?from\s+['"]([^'"]+)"#).expect("js import regex"),
+        Regex::new(r#"^\s*import\s+['"]([^'"]+)['"]"#).expect("js side effect import regex"),
+        Regex::new(r"^\s*from\s+([^\s]+)\s+import\s+").expect("python import regex"),
+        Regex::new(r#"^\s*import\s+"([^"]+)""#).expect("go import regex"),
+    ];
+    patterns
+        .iter()
+        .flat_map(|pattern| pattern.captures_iter(content))
+        .filter_map(|captures| {
+            captures
+                .get(1)
+                .map(|value| value.as_str().trim().to_string())
+        })
+        .take(64)
+        .collect()
+}
+
+fn extract_call_edges(symbols: &[LocalGraphSymbol], repo_root: &Path) -> Vec<LocalGraphEdge> {
+    let names = symbols
+        .iter()
+        .map(|symbol| symbol.name.clone())
+        .collect::<BTreeSet<_>>();
+    let call_pattern = Regex::new(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(").expect("call regex");
+    let mut contents = BTreeMap::<String, String>::new();
+    for symbol in symbols {
+        contents.entry(symbol.file.clone()).or_insert_with(|| {
+            fs::read_to_string(repo_root.join(&symbol.file)).unwrap_or_default()
+        });
+    }
+    let calls_by_file = contents
+        .iter()
+        .map(|(file, content)| {
+            let calls = call_pattern
+                .captures_iter(content)
+                .filter_map(|captures| captures.get(1).map(|value| value.as_str().to_string()))
+                .filter(|name| {
+                    names.contains(name)
+                        && !matches!(
+                            name.as_str(),
+                            "if" | "for" | "while" | "match" | "switch" | "catch"
+                        )
+                })
+                .collect::<BTreeSet<_>>();
+            (file.clone(), calls)
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut edges = Vec::new();
+    for symbol in symbols {
+        let Some(calls) = calls_by_file.get(&symbol.file) else {
+            continue;
+        };
+        for name in calls {
+            if name == &symbol.name {
+                continue;
+            }
+            if let Some(target) = symbols.iter().find(|candidate| candidate.name == *name) {
+                edges.push(LocalGraphEdge {
+                    from: symbol.id.clone(),
+                    to: target.id.clone(),
+                    relation: "calls".to_string(),
+                    confidence: "syntax-evidence".to_string(),
+                });
+            }
+        }
+    }
+    edges
+}
+
+fn text_trigram_overlap(left: &str, right: &str) -> usize {
+    let grams = |value: &str| {
+        let chars = value
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<Vec<_>>();
+        chars
+            .windows(3)
+            .map(|window| window.iter().collect::<String>())
+            .collect::<BTreeSet<_>>()
+    };
+    let left = grams(left);
+    let right = grams(right);
+    left.intersection(&right).count()
+}
+
+fn layer_rank(layer: &str) -> usize {
+    if layer.starts_with("l3") {
+        3
+    } else if layer.starts_with("l2") {
+        2
+    } else if layer.starts_with("l1") {
+        1
+    } else {
+        0
+    }
 }
 
 fn discover_wiki_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
@@ -1069,7 +1501,7 @@ mod tests {
         fs::create_dir_all(repo.join("docs")).unwrap();
         fs::write(
             repo.join("README.md"),
-            "# Project\n\nUse the memory resume brief.\n",
+            "# Project\n\nUse the memory resume brief. See [Architecture](docs/ARCHITECTURE.md).\n",
         )
         .unwrap();
         fs::write(
@@ -1079,15 +1511,66 @@ mod tests {
         .unwrap();
         fs::write(
             repo.join("src.rs"),
-            "fn build_memory() {}\nfn resume() { build_memory(); }\n",
+            "use crate::helper;\nfn build_memory() {}\nfn resume() { build_memory(); helper(); }\n",
+        )
+        .unwrap();
+        fs::write(repo.join("helper.rs"), "fn helper() {}\n").unwrap();
+        fs::create_dir_all(repo.join("src")).unwrap();
+        fs::write(
+            repo.join("src/app.ts"),
+            "import {resume} from './resume';\nexport function app() { return resume(); }\n",
+        )
+        .unwrap();
+        fs::write(
+            repo.join("src/tool.py"),
+            "from helper import run\ndef tool():\n    return run()\n",
+        )
+        .unwrap();
+        fs::write(
+            repo.join("src/main.go"),
+            "package main\nfunc main() { helper() }\nfunc helper() {}\n",
         )
         .unwrap();
         let wiki = index_wiki(&repo).unwrap();
         assert_eq!(wiki.documents, 2);
         assert_eq!(search_wiki(&repo, "memory", 5).unwrap().len(), 2);
+        let linked = search_wiki_v4(&repo, "memory", 5).unwrap();
+        assert!(linked.iter().any(|hit| !hit.links.is_empty()));
+        let traversed = search_wiki_v4(&repo, "architecture", 5).unwrap();
+        assert!(traversed
+            .iter()
+            .any(|hit| hit.document == "docs/ARCHITECTURE.md"));
         let graph = build_local_code_graph(&repo).unwrap();
         assert!(graph.symbols.iter().any(|symbol| symbol.name == "resume"));
-        assert!(search_local_code_graph(&repo, "resume", 5).unwrap().len() == 1);
+        assert!(graph
+            .symbols
+            .iter()
+            .any(|symbol| symbol.name == "app" && symbol.language == "typescript"));
+        assert!(graph
+            .symbols
+            .iter()
+            .any(|symbol| symbol.name == "tool" && symbol.language == "python"));
+        assert!(graph
+            .symbols
+            .iter()
+            .any(|symbol| symbol.name == "main" && symbol.language == "go"));
+        assert!(graph
+            .symbols
+            .iter()
+            .all(|symbol| symbol.span.contains(":C")));
+        assert!(graph.files.iter().any(|file| !file.imports.is_empty()));
+        assert!(graph.edges.iter().any(|edge| edge.relation == "calls"));
+        let v4_hits = search_local_code_graph_v4(&repo, "resume", 5).unwrap();
+        assert!(v4_hits.iter().any(|hit| !hit.imports.is_empty()));
+        assert!(v4_hits
+            .iter()
+            .flat_map(|hit| hit.relations.iter())
+            .any(|relation| relation.contains("calls")));
+        let graph = build_local_code_graph(&repo).unwrap();
+        assert!(graph.symbols.iter().any(|symbol| symbol.name == "resume"));
+        assert!(!search_local_code_graph(&repo, "resume", 5)
+            .unwrap()
+            .is_empty());
         let second = index_wiki(&repo).unwrap();
         assert_eq!(second.changed_documents, 0);
     }

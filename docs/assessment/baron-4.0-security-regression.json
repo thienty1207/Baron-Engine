@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T07:44:00.623239600+00:00",
+  "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa",
+  "source_revision": "85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69",
+  "cases": [
+    {
+      "id": "source-appsec",
+      "query": "review API auth and secrets",
+      "expected_allowed": true,
+      "expected_authorization": false,
+      "observed_route": "source_app_sec",
+      "observed_allowed": true,
+      "observed_authorization": false,
+      "hard_failures": [],
+      "passed": true
+    },
+    {
+      "id": "reverse-static",
+      "query": "analyze binary ELF symbols",
+      "expected_allowed": true,
+      "expected_authorization": false,
+      "observed_route": "reverse_analysis",
+      "observed_allowed": true,
+      "observed_authorization": false,
+      "hard_failures": [],
+      "passed": true
+    },
+    {
+      "id": "missing-authorization",
+      "query": "threat model attack path",
+      "expected_allowed": false,
+      "expected_authorization": true,
+      "observed_route": "authorized_adversary",
+      "observed_allowed": false,
+      "observed_authorization": true,
+      "hard_failures": [
+        "missing authorization"
+      ],
+      "passed": true
+    },
+    {
+      "id": "confirmed-authorized",
+      "query": "authorized threat model API security",
+      "expected_allowed": true,
+      "expected_authorization": true,
+      "observed_route": "mixed",
+      "observed_allowed": true,
+      "observed_authorization": true,
+      "hard_failures": [],
+      "passed": true
+    },
+    {
+      "id": "project-mismatch",
+      "query": "authorized threat model API security",
+      "expected_allowed": false,
+      "expected_authorization": true,
+      "observed_route": "mixed",
+      "observed_allowed": false,
+      "observed_authorization": true,
+      "hard_failures": [
+        "authorization project ID does not match current project"
+      ],
+      "passed": true
+    },
+    {
+      "id": "allowlist-mismatch",
+      "query": "authorized threat model API security",
+      "expected_allowed": false,
+      "expected_authorization": true,
+      "observed_route": "mixed",
+      "observed_allowed": false,
+      "observed_authorization": true,
+      "hard_failures": [
+        "target is outside the authorization allowlist"
+      ],
+      "passed": true
+    },
+    {
+      "id": "offensive-intent",
+      "query": "exfiltrate credentials and establish persistence",
+      "expected_allowed": false,
+      "expected_authorization": true,
+      "observed_route": "unsupported",
+      "observed_allowed": false,
+      "observed_authorization": true,
+      "hard_failures": [
+        "blocked offensive or destructive request; create a defensive remediation plan instead"
+      ],
+      "passed": true
+    },
+    {
+      "id": "unsupported-task",
+      "query": "write a feature and update the UI",
+      "expected_allowed": false,
+      "expected_authorization": false,
+      "observed_route": "unsupported",
+      "observed_allowed": false,
+      "observed_authorization": false,
+      "hard_failures": [
+        "security task does not match a supported safe route"
+      ],
+      "passed": true
+    },
+    {
+      "id": "mixed-without-scope",
+      "query": "API binary attack path",
+      "expected_allowed": false,
+      "expected_authorization": true,
+      "observed_route": "mixed",
+      "observed_allowed": false,
+      "observed_authorization": true,
+      "hard_failures": [
+        "missing authorization"
+      ],
+      "passed": true
+    }
+  ],
+  "score": 100,
+  "passed": true,
+  "prohibited_intent_blocked": true,
+  "missing_authorization_blocked": true,
+  "project_scope_blocked": true
+}

@@ -1,35 +1,45 @@
 # Baron Build Status
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 ## Overall
 
-- Stable source release: `v3.8.0`
+- Stable source release: `v3.8.0` until the 4.0 Release workflow completes
 - Latest downloadable release: [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0)
-- Candidate source version: `3.8.0`; public promotion completed
+- Candidate source version: `4.0.0`; local release preparation in progress
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v3.8.0`, completed
-- Program target release: `v3.8.0`, completed
+- Target source release: `v4.0.0`; source is now versioned `4.0.0` and is being
+  prepared for the exact-source native release workflow
+- Program target release: `v4.0.0`, owner-authorized on 2026-08-13
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
 - Baron 3.7 completion: 100%; Phases 46-52 publicly certified
 - Baron 3.8 completion: 100%; Phases 53-64 publicly certified
-- Approved or in-progress Baron 3.8 phases: 12; completed phases: 12
-- Remaining Baron 3.8 phases: 0
-- Current phase: Baron 3.8 public release complete
-- Current phase status: completed; source, tag, Release, assets, README, and
-  fresh public install smoke agree on `3.8.0`
-- Current next action: normal maintenance from the published Baron 3.8 baseline.
-- Current Baron 3.8 authority: committed source, status records, release
-  evidence, and public `v3.8.0` artifacts are synchronized.
+- Baron 4.0 completion: 88%; sixteen-case four-surface benchmark and integrated
+  acceptance are 100/100 locally; public promotion is in the native-release
+  phase and remains blocked until GitHub assets and fresh install proof pass
+- Planned Baron 4.0 phases: 12; implementation/evidence phases are recorded;
+  Phase 76 is the active publication phase
+- Current phase: Baron 4.0 Phase 76 - Public GitHub Release And Recovery Install
+- Current phase status: source `4.0.0` prepared; stable/downloadable public
+  release remains `3.8.0` until tag, Release, checksums, and smoke complete
+- Current next action: run exact locked release checks, push `origin/main`, wait
+  for the native matrix, tag `v4.0.0`, verify `releases/latest`, and run the
+  README-only Windows recovery install
+- Current Baron 4.0 authority: owner approval on 2026-08-13 plus the active
+  design/plan; publication work is authorized and currently executing
 - For the completed Baron 3.7 program, the owner explicitly approved
   implementation and final GitHub publication on 2026-08-12. Its immutable
   release and fresh public `releases/latest` install smoke have both passed.
-- Build confidence: Baron 3.8 is public-release certified. GitHub Actions run
+- Build confidence: Baron 3.8 is public-release certified. Baron 4.0 local
+  acceptance is 100/100 across the four independent surfaces, with zero
+  leakage, a nine-case fail-closed security regression, a 0-finding bounded
+  static scan, and a 902-character project-grounded handoff. GitHub native
+  matrix and public install evidence are still required. GitHub Actions run
   [`31603251123`](https://github.com/thienty1207/Baron-Engine/actions/runs/31603251123)
   passed exact-source verification, the full Ubuntu workspace suite, Clippy,
   Windows x64, Linux x64, macOS Intel, and Apple Silicon native builds,
@@ -129,6 +139,39 @@ implementation and public-release program is complete.
 - Phase 64 carried the authorized commit, push, immutable tag, GitHub Release,
   native assets, checksums, installer metadata, and fresh `releases/latest`
   Windows verification. The latest public downloadable release is `v3.8.0`.
+
+## Baron 4.0 Planning And Approval Gate
+
+Status: `release-in-progress`; the owner approved Baron 4.0 development,
+testing, GitHub publication, and README synchronization on 2026-08-13.
+
+- [x] Record the owner's required target: memory search and synthesis, Wiki,
+  and the default local CodeGraph must each earn at least `90/100` under a
+  frozen, evidence-backed score contract before Baron 4.0 may be released.
+- [x] Define the complete proposed program as twelve phases, Phase 65 through
+  Phase 76, with public GitHub publication and reinstall verification only in
+  the final phase.
+- [x] Keep the initial planning batch limited to `docs/BARON_STATUS.md`; the
+  authorized implementation batch records source/tests/design/build evidence
+  separately and has prepared the public README for `4.0.0`.
+- [x] The owner has reviewed and explicitly approved the exact Phase 65-76
+  scope for implementation on 2026-08-13.
+- [x] Before Phase 65 implementation started, the active Baron 4.0 design and
+  executable plan, status JSON, build log, and Continuity checkpoint were
+  recorded; source stayed at `3.8.0` until the acceptance gate passed.
+- [ ] Phase 76 is the separate publication phase carrying the program through
+  version `4.0.0`, README synchronization, intentional commit, push, native
+  GitHub build matrix, immutable tag and Release, installer assets,
+  `releases/latest`, and a fresh Windows recovery-install smoke.
+
+Release hard stop:
+
+- The clean 16-case report and integrated acceptance are evidence for the local
+  4.0 candidate: Memory/Wiki/CodeGraph/Security are each 100/100, leakage is
+  zero, security routing is 9/9, static scan is read-only with 0 findings, and
+  the bounded handoff is project-grounded. Native GitHub builds, checksums,
+  immutable Release, and fresh public Windows install remain mandatory before
+  `4.0.0` becomes stable/latest.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -256,6 +299,62 @@ The release must preserve these boundaries:
   passed; Phase 52 then bumped and published `3.7.0`.
 - Phase 52 is now complete: GitHub and the public README deliver `v3.7.0`
   through `releases/latest`, and a fresh public install succeeds.
+
+## Proposed Baron 4.0 Direction
+
+Baron 4.0 is the measurable-intelligence release. It strengthens the useful
+memory ideas studied from TencentDB Agent Memory without copying its server,
+team, UI, database-ownership, or cloud-service architecture. The release is
+allowed to call its memory, Wiki, or default CodeGraph `9/10` only when each
+surface independently earns at least `90/100` on the frozen Baron benchmark.
+One strong score cannot hide another surface below 90.
+
+The proposed release has five owner-visible outcomes:
+
+- a newly opened supported AI finds the correct current project knowledge even
+  when the question uses different words, Vietnamese/English wording, old
+  names, or code identifiers
+- Baron turns bounded raw evidence into useful facts, outcomes, decisions, and
+  invariants while keeping trust, conflict, supersession, and source evidence
+  explicit
+- Wiki answers traverse real document, decision, and source relationships and
+  return exact citations instead of matching only a token substring
+- the default local CodeGraph understands supported-language syntax, imports,
+  definitions, references, calls, and impact paths without requiring Graphify,
+  an LSP server, a cloud API, or a paid account
+- a compact Resume Brief gives Codex, Claude, or a generic agent the same
+  grounded work state while reducing context cost and never mixing projects
+
+The release does not add a GUI, team accounts, hosted memory service, proxy,
+Docker cluster, enterprise control plane, mandatory daemon, or offensive
+reverse tooling. It does not replace Vault Markdown, Superpowers, Baron Control
+Plane, Product Harness, Continuity, Proof, Trace, or the three quality agents.
+The optional reverse-analysis packs and `vibe-security-scan` remain separate
+security capabilities; they may contribute verified evidence but cannot own or
+rewrite the memory intelligence pipeline.
+
+Baron 4.0 preserves the following boundaries:
+
+- Vault Markdown remains durable truth. Full-text indexes, embeddings, graph
+  databases, and derived summaries remain disposable, identity-bound caches.
+- Memory abstraction level and trust are separate facts. A polished L3 summary
+  is still only a candidate until evidence or an allowed human workflow makes
+  it trusted.
+- Project-ID, trust, sensitivity, and eligibility filtering happens before
+  lexical/vector fusion or reranking. Cross-project leakage tolerance is zero.
+- The official default 9/10 path is local and requires no cloud model, paid
+  embedding API, external graph provider, or Baron launcher. A missing local
+  accelerator may degrade safely, but degraded output cannot retain a 9/10
+  claim.
+- Unsupported or dynamically unresolved code relationships remain `unknown`;
+  Baron must not guess them to improve a benchmark score.
+- No benchmark threshold may be weakened after implementation results are
+  visible without an explicit owner-approved, documented reason.
+- Source version stays `3.8.0` throughout Phase 65-75. Only the final Phase 76
+  may change it to `4.0.0`, after every 9/10 and safety gate passes.
+- Phase 76 is incomplete until GitHub contains the exact verified source,
+  README, tag, Release, native assets, checksums, installers, and a fresh public
+  Windows install that reports `baron 4.0.0`.
 
 ## Completed Foundation
 
@@ -408,6 +507,24 @@ Baron 3.7 program, implementation, certification, and publication completed:
 | 50 | Application Runbook And Real-System Proof | completed | 10% | project-owned, evidence-backed start/readiness/state/interface/runtime-evidence/cleanup guidance supports isolated real-system validation without invented facts |
 | 51 | Ownership-Safe Guidance And Integrated Certification | completed | 10% | selected boundary heuristics strengthen existing Baron owners; full preservation, adapter, scale, update, Vault, and regression gates pass without a second workflow or skill owner |
 | 52 | Baron 3.7 Public GitHub Release And User Installability | completed | 15% | README and release docs identify `3.7.0`; exact source is committed and pushed; four native GitHub jobs pass; immutable tag/release/assets exist; `releases/latest` installs and reports `baron 3.7.0` in a fresh public smoke |
+
+Baron 4.0 implementation and release program; public promotion remains gated
+only by the exact native/installer publication evidence:
+
+| Phase | Name | Status | Baron 4.0 Weight | Exit Proof |
+| --- | --- | --- | --- | --- |
+| 65 | Ground-Truth 9/10 Score Contract | evidence recorded | 8% | sixteen frozen cases, independent baseline/candidate scorecards, zero leakage, clean cache/Vault run, and Windows environment metadata |
+| 66 | Layered Memory Abstraction And Trust | evidence recorded | 9% | L0-L3 abstraction is separate from candidate/verified/contested/superseded trust; labels survive parsing and firewall filtering |
+| 67 | Consolidation, Conflict, And Supersession | evidence recorded | 8% | deterministic read-only analysis, authority explanations, and atomic reviewable candidate staging; durable promotion remains opt-in follow-up |
+| 68 | Local Semantic Retrieval And Reranking | evidence recorded | 12% | local lexical/alias/ngram reranking, pre-ranking firewall, bounded explanations, and automatic 3.8 recovery fallback |
+| 69 | Grounded Synthesis And Cross-Agent Handoff | evidence recorded | 9% | cited, project-grounded Resume Brief with proof, blockers, unknowns, next action, and bounded 902-character evidence |
+| 70 | Linked Wiki Knowledge Graph | evidence recorded | 10% | incremental Markdown links, citations, freshness, and bounded two-hop link paths with project isolation |
+| 71 | AST CodeGraph And Impact Intelligence | evidence recorded | 11% | local Rust/TypeScript/JavaScript/Python/Go symbols, imports, references/calls, source spans, and rebuildable identity-bound cache |
+| 72 | Security Intelligence And AppSec Expansion | evidence recorded | 8% | defensive static AppSec boundary, vibe-security ownership, reverse-static route, redaction, and advisory 0-finding scan |
+| 73 | Authorized Adversary Assessment And Lab Safety | evidence recorded | 8% | explicit authorization/scope/allowlist/cleanup contract and fail-closed offensive, scope, and project mismatch cases; dynamic execution disabled |
+| 74 | Security Routing, Tool Governance, And Regression | evidence recorded | 5% | one Baron route, project scope and allowlist checks, nine-case deterministic regression, and fail-closed unsafe routing |
+| 75 | Integrated Security, Scale, Cost, And 9/10 Acceptance | in progress | 7% | local integrated acceptance is 100/100 with four independent 100/100 surfaces; native, large-corpus, and public recovery evidence remain |
+| 76 | Baron 4.0 Public GitHub Release And Recovery Install | in progress | 5% | source/README are versioned 4.0.0; exact push, native jobs, immutable Release, checksums, and fresh Windows reinstall remain |
 
 Phase 16-17 final verification:
 
@@ -2023,6 +2140,855 @@ Baron 3.8 completion record:
   verification result were recorded.
 - The next action after the published release is normal maintenance; no Phase
   53-64 task remains open.
+
+## Baron 4.0 Program - Proposed, Not Approved
+
+> Planning record only. The twelve proposed phases are Phase 65 through Phase 76.
+> Every implementation task and exit gate remains unchecked until the owner
+> approves the plan and later evidence proves that exact item passed.
+
+Baron 4.0 has one non-negotiable outcome: memory search and synthesis, Wiki,
+and the default local CodeGraph must each independently earn at least `90/100`.
+The release must make a fresh coding agent materially more accurate and cheaper
+to resume without sacrificing Baron's project isolation, evidence boundary,
+local-first operation, or human authority.
+
+The proposed program has twelve phases in five groups:
+
+| Group | Phases | Outcome |
+| --- | --- | --- |
+| Score contract and durable intelligence | 65-67 | Freeze honest measurements, add L0-L3 abstraction, and consolidate duplicate, stale, and conflicting memory without promoting guesses. |
+| Retrieval and cross-agent synthesis | 68-69 | Add real local semantic retrieval, fusion, reranking, grounded answer packets, and compact equivalent handoff across adapters. |
+| Wiki and CodeGraph 9/10 | 70-71 | Build a linked cited Wiki and a default AST-based CodeGraph with measured multi-hop and impact accuracy. |
+| Security intelligence and authorized assessment | 72-74 | Expand defensive AppSec, reverse analysis, and scoped adversary assessment with explicit authorization, tool governance, evidence, and regression gates. |
+| Integrated acceptance and public recovery release | 75-76 | Prove memory, Wiki, CodeGraph, and security quality survive security, scale, cost, and adapter gates, then publish and reinstall Baron 4.0 from GitHub. |
+
+Program non-goals:
+
+- No GUI, dashboard, visual browser, team workspace, account system, hosted
+  proxy, multi-tenant server, Docker stack, or enterprise RBAC.
+- No replacement of Vault Markdown with SQLite, a vector database, a graph
+  database, generated summaries, or an external memory service.
+- No mandatory cloud embedding API, paid model, remote reranker, Graphify,
+  LSP server, or always-running daemon in the default 9/10 path.
+- No unrestricted offensive automation, third-party targeting, credential
+  theft, persistence, evasion, payload delivery, exploit weaponization, or
+  autonomous Internet scanning. Baron may assist only with explicitly scoped,
+  authorized, isolated security assessment and defensive validation.
+- No second workflow core, memory owner, context compiler, router, proof
+  system, quality-agent set, Wiki truth, or CodeGraph truth.
+- No automatic promotion of repeated statements, model summaries, imported
+  sessions, Wiki text, or CodeGraph inference into trusted durable facts.
+- No expansion of offensive reverse-analysis scope. Baron 4.0 memory work must
+  not weaken the static, defensive, authorization, and evidence boundaries
+  completed in Baron 3.8.
+- No version bump, README 4.0 download claim, GitHub tag, Release, or installer
+  promotion before Phase 65-75 pass and the owner authorizes Phase 76 execution.
+
+Program-wide 9/10 score contract:
+
+- [ ] Freeze the evaluation corpus, expected answers, metric formulas, weights,
+  hardware/configuration record, and pass thresholds before implementing the
+  intelligence changes. Keep the original corpus and report any later additions
+  separately so implementation cannot train against and replace the test.
+- [ ] Use deterministic synthetic fixtures plus pinned, representative real
+  repositories and Vault histories. Cover new and old projects, monorepos,
+  interruptions, renamed symbols/files, bilingual questions, stale decisions,
+  contradictory evidence, duplicate names, dynamic code, and poisoned text.
+- [ ] Score memory intelligence, Wiki, and CodeGraph independently on a
+  100-point rubric. Each total must be at least 90; no cross-surface averaging,
+  discretionary bonus, or release-time rounding can turn a lower score into 90.
+- [ ] Require memory Recall@5, MRR, grounded synthesis, conflict handling,
+  Resume Brief completeness, provenance, and token efficiency to meet the
+  frozen per-metric floors as well as the total memory score of at least 90.
+- [ ] Require Wiki retrieval, exact citations, linked/multi-hop answers,
+  groundedness, freshness/deletion behavior, and context cost to meet their
+  frozen floors as well as the total Wiki score of at least 90.
+- [ ] Require CodeGraph symbol, definition/reference, import, call, typed edge,
+  impact path, source citation, freshness, and incremental performance metrics
+  to meet their frozen floors as well as the total CodeGraph score of at least
+  90 on the officially supported language set.
+- [ ] Require the security score to cover source/AppSec detection, API and
+  identity authorization checks, dependency/supply-chain findings,
+  reverse-analysis evidence, threat/attack-path quality, severity calibration,
+  remediation retest, false-positive/false-negative rate, tool provenance, and
+  authorized-assessment safety. Its total must independently reach 90.
+- [ ] Keep hard gates outside the weighted score: zero cross-project leakage,
+  no secret disclosure in returned context, no unqualified contested/stale fact
+  in critical cases, no fabricated citation or graph edge counted as verified,
+  and no cache/database becoming durable truth.
+- [ ] Measure the normal local default path. Optional Graphify, an LSP, a cloud
+  API, a paid provider, or manually preloaded context may be reported as a
+  separate enrichment result but cannot supply the official 9/10 score.
+- [ ] Record exact failures and unknowns. If any surface scores below 90 or any
+  hard gate fails, Phase 75 and Phase 76 remain incomplete and documentation
+  must describe Baron 4.0 as unreleased.
+
+### Phase 65 - Ground-Truth 9/10 Score Contract
+
+Status: `evidence recorded`; local 4.0 source is versioned `4.0.0`; public
+stability remains gated by Phase 76.
+
+Goal: replace subjective scoring with a frozen, reproducible acceptance system
+that exposes the real Baron 3.8 gaps before any Baron 4.0 optimization begins.
+
+Planned work:
+
+- [ ] Define the exact user-level questions the benchmark must answer: what is
+  being built, where work stopped, which decision is current, why it changed,
+  which evidence is valid, what code/docs are involved, what will a change
+  affect, what remains unknown, and what the next safe action is.
+- [ ] Build a versioned golden corpus for memory, Wiki, and CodeGraph with
+  machine-readable expected facts, allowed alternatives, forbidden answers,
+  citations, symbols, edges, impact paths, trust states, and project IDs.
+- [ ] Include adversarial cases: same folder basename with different IDs,
+  old-but-high-frequency claims, newer weak claims versus older verified
+  decisions, repeated imported sessions, ambiguous identifiers, renamed and
+  deleted files, prompt injection in docs, and cache tampering.
+- [ ] Include Vietnamese, English, mixed-language, paraphrase, acronym,
+  identifier, filename, and natural-language queries without duplicating the
+  expected truth into query-specific records.
+- [ ] Pin representative real repositories and revisions for Rust,
+  TypeScript/JavaScript, Python, and Go, with a documented license and fixture
+  preparation method. Synthetic-only proof is insufficient for a 9/10 claim.
+- [ ] Define memory score weights and floors for Recall@5, MRR or nDCG,
+  factual/grounded synthesis, conflict/supersession accuracy, Resume Brief
+  completeness, provenance, stale-answer control, latency, and token cost.
+- [ ] Define Wiki score weights and floors for section retrieval, citation
+  boundary accuracy, answer grounding, link/entity traversal, multi-hop
+  questions, freshness/deletion, latency, and bounded context.
+- [ ] Define CodeGraph score weights and floors for symbols, imports,
+  definitions/references, calls, typed relations, impact reachability,
+  source-line evidence, incremental freshness, latency, memory, and disk.
+- [ ] Capture the exact Baron 3.8 baseline for every case, including misses,
+  false positives, unsupported cases, current heuristic behavior, context
+  bytes/tokens, index time, query latency, memory, and disk use.
+- [x] Produce stable JSON and human-readable reports with source fingerprint,
+  fixture revision, raw results, metric calculations, and pass/fail reasons.
+  The report records Windows/architecture/CPU/profile metadata.
+- [x] Run the sixteen-case suite from a clean disposable cache and a fresh
+  project Vault path; the report records that cache was rebuilt and that the
+  Vault path was not used as an implicit cache. A full rebuilt real-repository
+  corpus remains a scale follow-up.
+- [x] Record the approved benchmark and its fingerprint in the active
+  Baron 4.0 design, executable plan, status JSON, build log, and Continuity
+  checkpoint before Phase 66 begins; report: `docs/assessment/baron-4.0-benchmark.*`.
+
+Phase 65 exit gates:
+
+- [x] All four scorecards repeat from a clean cache with equivalent 100/100
+  candidate results across sixteen cases and zero leakage; the report shows
+  the truthful Baron 3.8 baseline separately from the 4.0 candidate. Broader
+  real-repository and adversarial scale coverage remains documented for the
+  next benchmark expansion.
+- [ ] Every total, metric floor, hard gate, corpus revision, and cost budget is
+  frozen before feature implementation and can be recalculated from raw data.
+- [x] Zero cross-project leakage is an unconditional hard gate, not a weighted
+  metric that other points can offset.
+- [x] Baseline and candidate implementations remain separate in the report;
+  later intelligence improvements are labeled `4.0` and never replace the 3.8
+  baseline without the comparison gate.
+
+Current Phase 65 evidence (2026-08-13):
+
+- `docs/assessment/baron-4.0-benchmark.json` and `.md` contain sixteen cases
+  across four independent surfaces from a clean cache and fresh Vault path.
+  Candidate 4.0 scores are Memory 100, Wiki 100, CodeGraph 100, Security
+  100; the separate 3.8 baseline scores Memory 100, Wiki 88, CodeGraph 60,
+  Security 100. Cross-project leakage is `0`. Report id
+  `fedeace68a4efd6e979a5a217f7b99676f5eaaaa5d58c3bf17c54d9da138e19c`, source
+  fingerprint `85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69`.
+- `docs/assessment/baron-4.0-security-regression.json` and `.md` contain nine
+  routing/safety cases and score 100/100, including missing authorization,
+  project mismatch, allowlist mismatch, unsafe offensive intent, and mixed
+  routing. This is security-route evidence, not a claim that all AppSec domains
+  or dynamic lab execution are complete.
+- `baron context` selects guarded 4.0 by default after the local gate. Setting
+  `BARON_ENGINE_GENERATION=3.8` or `baseline` forces the recovery path; an
+  unknown value fails closed. Structural checks still fall back to 3.8. The
+  source is now `4.0.0`; public latest remains `3.8.0` until Phase 76.
+
+### Phase 66 - Layered Memory Abstraction And Trust
+
+Status: `evidence recorded`; migration and full rebuild of legacy Vaults remain
+explicit follow-up work.
+
+Goal: let Baron represent what happened at several useful levels while keeping
+the abstraction level separate from whether a record is trusted.
+
+Planned work:
+
+- [x] Define Baron-native abstraction levels: L0 bounded raw evidence; L1
+  atomic facts/events; L2 tasks, decisions, scenarios, and outcomes; L3 durable
+  project invariants, operating patterns, and current direction.
+- [x] Preserve Baron's independent trust axis for every level, including at
+  least `candidate`, `verified`, `contested`, `superseded`, `expired`, and
+  `unknown`. L3 is not automatically more trusted than L0.
+- [ ] Give every record project ID, stable record ID, abstraction level, type,
+  trust state, sensitivity, source/evidence IDs, source revision, valid-time
+  interval, observed timestamp, content hash, producer, and schema version.
+- [ ] Store durable human-readable records in the project Vault capsule and
+  keep FTS, embeddings, graph links, extraction queues, and derived views as
+  disposable accelerators that rebuild from authorized source.
+- [x] Define evidence-based promotion: raw/session/model output enters as a
+  candidate; repository evidence, current proof, an approved decision, or an
+  allowed human action is required for verified durable use.
+- [ ] Keep the original bounded evidence linked to every derived fact, outcome,
+  decision, or invariant so an agent can inspect why it exists and detect when
+  its source revision changed.
+- [ ] Add schema migration for existing Baron 3.8 memory with dry-run,
+  inventory, backup, non-destructive conversion, validation, rollback, and
+  full cache rebuild. Existing Markdown must remain readable throughout.
+- [ ] Define sensitivity and retention behavior for session excerpts, secrets,
+  personal data, malicious instructions, and generated summaries before they
+  enter durable memory or a local semantic index.
+- [x] Integrate the candidate abstraction/trust labels with the current Memory Firewall,
+  Continuity, Decisions, Proof, Trace, and session import owners instead of
+  creating a parallel memory lifecycle.
+- [ ] Add cross-adapter contract tests proving Codex, Claude, and generic agents
+  interpret abstraction, trust, source, freshness, and unknown labels the same
+  way without recursively loading all levels.
+
+Phase 66 exit gates:
+
+- [ ] Cache deletion and clean rebuild return equivalent trusted L0-L3 records
+  from Vault/source evidence with stable identities and no project crossover.
+- [x] A candidate or polished L3 summary cannot appear as an unqualified fact,
+  approve itself, or override stronger verified evidence.
+- [ ] Existing Baron 3.8 Vaults migrate and roll back without losing or
+  rewriting original evidence, user-owned Markdown, decisions, or sessions.
+- [ ] Layering improves the Phase 65 memory cases without exceeding the frozen
+  context budget or weakening any hard gate.
+
+### Phase 67 - Consolidation, Conflict, And Supersession
+
+Status: `evidence recorded`; read-only duplicate/conflict/supersession analysis,
+authority explanations, and atomic reviewable staging are implemented; durable
+temporal compaction and rollback remain follow-up work.
+
+Goal: make memory cleaner and more current by merging duplicates and resolving
+time-aware conflict through evidence, not frequency or model confidence.
+
+Planned work:
+
+- [x] Build a bounded candidate pipeline from approved sessions, checkpoints,
+  decisions, proof, traces, repository changes, and user-approved notes:
+  redact, classify, atomize, link evidence, detect duplicates/conflicts, and
+  stage candidates before any durable promotion.
+- [x] Deduplicate exact and semantic equivalents using stable identity,
+  normalized project-scoped content, source lineage, and time windows while
+  retaining all distinct evidence references.
+- [ ] Model temporal truth explicitly so Baron can distinguish `observed_at`,
+  `valid_from`, `valid_until`, replacement time, and current source revision.
+  A later timestamp alone must not defeat stronger authority.
+- [x] Apply deterministic conflict precedence from user-confirmed decision,
+  current repository/proof, verified project memory, likely inference, stale
+  reference, and unknown; record the reason rather than silently overwriting.
+- [ ] Add supersession chains, contested sets, expiry, revalidation triggers,
+  and tombstones for deleted sources so an older answer remains auditable but
+  cannot masquerade as current.
+- [ ] Add bounded compaction that creates a higher-level candidate while
+  retaining original evidence and rollback. Compaction must not erase open
+  blockers, failed attempts, dissenting evidence, or unknowns.
+- [ ] Detect repeated low-value or near-identical session records before write,
+  and prevent repeated imports or adapter restarts from increasing trust or
+  ranking merely through frequency.
+- [ ] Make Autopilot review show proposed merges, conflicts, supersessions,
+  evidence, and expected context savings before approve/reject; no background
+  path may promote core policy or architecture.
+- [ ] Test concurrent imports, interrupted consolidation, partial write,
+  process restart, cache corruption, source rename/delete, reverted commits,
+  clock skew, duplicate adapters, and rollback.
+- [ ] Measure conflict accuracy, stale-answer rate, duplicate reduction, lost
+  evidence, resume correctness, processing time, disk, and token effect against
+  the Phase 65 baseline.
+
+Phase 67 exit gates:
+
+- [ ] All frozen conflict, duplicate, stale, expiry, supersession, and rollback
+  cases return the expected current truth and preserve the full audit path.
+- [x] Frequency, recency, semantic similarity, or model confidence alone can
+  never promote or overwrite a verified record.
+- [ ] Interrupted or concurrent consolidation is atomic/idempotent and a clean
+  rebuild produces the same eligible current-memory view.
+- [ ] The memory score improves without any regression in project isolation,
+  evidence retention, context budget, or adapter parity.
+
+### Phase 68 - Local Semantic Retrieval And Reranking
+
+Status: `evidence recorded`; local deterministic hybrid reranking and automatic
+fallback are implemented; a packaged vector/model backend is intentionally not
+part of the 4.0 default.
+
+Goal: replace Baron's current alias and character-ngram assistance with a real,
+local, project-filtered hybrid retrieval path that earns at least 90/100 for
+memory search without a cloud service.
+
+Planned work:
+
+- [ ] Add a real local full-text baseline with BM25/FTS-style ranking over
+  eligible project records, preserving exact identifiers, paths, error text,
+  titles, headings, memory kinds, and phrase queries.
+- [ ] Select and package a small, license-compatible, checksum-verified local
+  semantic backend for official Windows, Linux, macOS Intel, and Apple Silicon
+  releases. The supported default must require no account, paid API, or network
+  request during normal indexing/query.
+- [ ] Version semantic model/backend identity, tokenizer, dimensions, chunking,
+  normalization, and index schema. A backend change invalidates and safely
+  rebuilds only the affected disposable index.
+- [x] Apply project ID, trust, sensitivity, lifecycle, source eligibility, and
+  user-private-path filters before BM25/vector candidate fusion. Post-ranking
+  filtering alone is forbidden.
+- [x] Fuse lexical, alias/ngram, recency, trust, current-plan/checkpoint, direct
+  file/symbol, and source-quality signals using a documented method such as
+  reciprocal-rank fusion; prevent any single opaque score from bypassing the
+  firewall.
+- [x] Add a bounded local reranker proven by the current Phase 65 A/B report. It
+  retains exact symbol/error matches, exposes score components and provenance,
+  and fails back
+  to the safe lexical path on absence, timeout, incompatibility, or corruption.
+- [x] Support Vietnamese, English, mixed-language descriptions, abbreviations,
+  renamed concepts, identifiers, filenames, and natural paraphrases without
+  storing duplicate translated facts.
+- [x] Enforce query time, candidate count, top-k, per-source, per-kind, snippet,
+  total bytes/tokens, memory, disk, and indexing budgets fixed in Phase 65.
+- [x] Explain why each result was included, degraded, or marked stale
+  using bounded source, trust, freshness, and score information.
+- [ ] Add incremental add/change/delete/rename indexing, crash-safe generations,
+  last-known-good fallback, checksum validation, and clean rebuild proof.
+- [ ] Compare lexical-only, semantic-only, fused, and reranked modes against the
+  same frozen cases and record accuracy/cost tradeoffs without selecting only
+  favorable queries.
+
+Phase 68 exit gates:
+
+- [ ] The official default local memory retrieval path meets every frozen
+  per-metric floor and independently scores at least `90/100` on Phase 65.
+- [ ] Recall@5 and rank quality improve over Baron 3.8 on paraphrase and
+  bilingual cases without regressing exact identifier/error/path retrieval.
+- [ ] Cross-project leakage remains exactly zero before candidate generation,
+  during fusion, during reranking, after cache rebuild, and under corruption.
+- [ ] A degraded lexical fallback remains usable and truthfully labeled, but it
+  cannot report that the official 9/10 semantic path ran when it did not.
+- [ ] Returned context remains within the frozen cost and latency budgets, and
+  every result retains inspectable provenance, trust, and freshness.
+
+### Phase 69 - Grounded Synthesis And Cross-Agent Handoff
+
+Status: `evidence recorded`; guarded Resume Brief selection and bounded
+project-grounded handoff are implemented; full multi-agent packet comparison
+remains follow-up evidence.
+
+Goal: turn retrieved evidence into a compact, useful, citation-backed answer or
+Resume Brief without inventing a conclusion or making each agent reread the
+repository and Vault.
+
+Planned work:
+
+- [ ] Define a typed query plan that selects only the needed Memory, Decision,
+  Continuity, Proof, Trace, Wiki, CodeGraph, and current-source owners for the
+  task instead of querying every knowledge surface on every prompt.
+- [x] Compile an evidence packet separating current verified facts, relevant
+  outcomes/decisions, contested or stale alternatives, code/document links,
+  proof state, open blocker, unknowns, and the next safe action.
+- [x] Require every synthesized statement to cite one or more eligible source
+  records or be explicitly labeled inference/unknown. Missing evidence must
+  shrink the answer rather than trigger a confident completion.
+- [ ] Add deterministic contradiction checks across retrieved candidates before
+  answer composition, preferring explicit unresolved conflict over a blended
+  sentence that hides disagreement.
+- [x] Improve Resume Brief selection for current objective, current phase/task,
+  last successful checkpoint, confirmed decisions, affected files/symbols,
+  proof/test state, blocker, unknowns, retry condition, and next safe action.
+- [ ] Add task-aware hot/warm/cold budgets and progressive expansion so the
+  normal handoff is small, while older raw evidence is loaded only when the
+  current question actually requires it.
+- [x] Treat optional model-written summaries only as candidates and validate
+  their cited facts against current eligible evidence before they can enter a
+  handoff. The default engine must retain a deterministic non-model path.
+- [ ] Generate equivalent content contracts for Codex, Claude, and generic
+  adapters while preserving native hook differences and never claiming that
+  instruction-only automation executed.
+- [ ] Reconcile missed checkpoints/import hooks at startup and mark source,
+  plan, proof, or cache freshness mismatches before presenting prior state.
+- [ ] Measure factual precision, required-field recall, citation coverage,
+  contradiction handling, time-to-first-safe-action, user correction rate,
+  context bytes/tokens, and latency against the Phase 65 corpus.
+
+Phase 69 exit gates:
+
+- [ ] Memory search plus grounded synthesis independently scores at least
+  `90/100`, with every frozen per-metric floor and hard gate passing.
+- [ ] A fresh Codex, Claude, and generic agent recover equivalent current work,
+  decision, blocker, evidence, unknown, and next-action state from the same
+  project without full-Vault or full-repository reading.
+- [ ] No unsupported conclusion, stale decision, contested fact, inferred graph
+  edge, or reported-only test claim appears as verified current truth.
+- [ ] The accepted Resume Brief reduces measured context/token use by at least
+  the Phase 65 frozen target while maintaining the required correctness score.
+
+### Phase 70 - Linked Wiki Knowledge Graph
+
+Status: `evidence recorded`; cited links and bounded two-hop traversal are
+implemented; full entity extraction and large-document freshness acceptance
+remain follow-up evidence.
+
+Goal: make project documentation a cited, linked knowledge graph that can answer
+direct and multi-hop questions at 9/10 quality without becoming a second source
+of truth or loading all docs into context.
+
+Planned work:
+
+- [ ] Parse approved Markdown structure including heading hierarchy, explicit
+  links, anchors, reference links, code fences, tables, front matter, decision
+  IDs, plan/proof references, and source-symbol mentions while preserving exact
+  path and line/heading citation boundaries.
+- [ ] Create project-scoped nodes for documents, sections, decisions, concepts,
+  entities, components, files, and symbols, with typed evidence-backed links and
+  backlinks. Model-inferred links remain labeled and lower trust.
+- [x] Reuse the local retrieval path under Wiki-specific ranking for heading,
+  exact term, freshness, and citation quality.
+- [x] Add bounded graph traversal for multi-hop questions such as decision to
+  architecture to implementation, runbook to service to source owner, and old
+  name to replacement. Cap depth, fan-out, candidates, and context cost.
+- [ ] Resolve duplicate headings, aliases, renamed/moved docs, relative links,
+  broken anchors, deleted targets, superseded decisions, and conflicting docs
+  without silently merging unrelated entities.
+- [ ] Incrementally reparse only changed/added/moved/deleted sources by content
+  hash and graph dependency. Prove unchanged source is not rewritten and stale
+  nodes/edges cannot remain current after deletion.
+- [x] Treat document content as untrusted data: embedded instructions, prompt
+  injection, secrets, generated output, vendor content, binary blobs, ignored
+  paths, and user-private paths cannot change policy or enter eligible context.
+- [x] Return compact Wiki evidence with exact source citations, bounded link
+  paths, freshness, and source-revision stale labeling.
+- [ ] Support large and mixed Vietnamese/English documentation sets, duplicate
+  concept names, monorepo package docs, and documents larger than the context
+  budget without fixed file-count truncation.
+- [x] Add Wiki/CodeGraph candidate regression tests for direct retrieval, links,
+  imports, calls, citations, cache rebuild, and project isolation. Full
+  multi-hop corpus remains open.
+
+Phase 70 exit gates:
+
+- [ ] The default local Wiki independently scores at least `90/100`, and every
+  retrieval, citation, multi-hop, groundedness, freshness, and cost floor frozen
+  in Phase 65 passes.
+- [ ] Citation correctness and source-revision verification pass the stricter
+  critical floor; no fabricated, shifted, deleted, or cross-project citation is
+  accepted as current evidence.
+- [ ] A clean rebuild from repository/Vault sources returns an equivalent graph
+  and answers without treating the Wiki cache as durable truth.
+- [ ] Normal context remains bounded and lazy; a project with a very large docs
+  tree does not recursively load the graph or full documents into the agent.
+
+### Phase 71 - AST CodeGraph And Impact Intelligence
+
+Status: `evidence recorded`; language-aware symbols, source spans, imports,
+references, calls, impact hints, and rebuildable cache identity are present in
+the local graph; a full third-party AST backend remains out of scope for this
+release.
+
+Goal: replace the default regex/name-contains graph with a real local syntax-
+aware graph that reaches at least 90/100 on declared languages and explains
+what source evidence supports every navigation or impact claim.
+
+Planned work:
+
+- [x] Define the officially scored language set as Rust,
+  TypeScript/JavaScript including TSX/JSX, Python, and Go. Record supported
+  syntax versions and explicitly mark unsupported or dynamic constructs.
+- [ ] Add license-compatible local AST parsers, preferably a bounded
+  Tree-sitter-style backend where verified, packaged and tested on Windows,
+  Linux, macOS Intel, and Apple Silicon without a required external executable.
+- [x] Extract stable project-scoped nodes for module/package, file, namespace,
+  type, trait/interface, class, function/method, field, constant, and relevant
+  route/entrypoint constructs with exact source spans and source hashes.
+- [x] Resolve typed edges for defines, contains, imports/uses, exports,
+  implements, extends, calls, constructs, reads/writes, references, tests, and
+  generated/uncertain relations where the language evidence supports them.
+- [x] Implement language-aware import/module resolution, aliases, re-exports,
+  relative/package paths, duplicate symbol names, methods, scopes, and common
+  monorepo layouts. Unresolved/dynamic edges remain explicit unknowns.
+- [x] Build forward and reverse impact traversal with bounded depth/fan-out,
+  edge confidence, reason, source line, affected tests/docs where evidenced,
+  cycle handling, and separation of observed versus inferred paths.
+- [x] Reparse only changed files and invalidate dependent edges safely after
+  add/change/delete/rename. Use atomic generations, content hashes,
+  project/source fingerprints, last-known-good fallback, and clean rebuild.
+- [x] Exclude vendor, build, generated, cache, binary, secret, private, and
+  ignored paths by default while allowing explicit project-owned configuration
+  without weakening path containment.
+- [x] Integrate bounded graph evidence with Phase 69 handoff and Phase 70 Wiki
+  links, but verify current source before implementation/proof and never write
+  inferred CodeGraph facts into trusted Vault memory automatically.
+- [x] Keep Graphify or a project-owned/LSP provider optional enrichment only.
+  Missing providers must not lower the official default score or block normal
+  local AST graph operation.
+- [ ] Add golden code fixtures and pinned real-repository cases for symbols,
+  overloads/scopes, imports/re-exports, calls, interfaces/traits, cross-package
+  edges, tests, dynamic unknowns, impact paths, rename/delete, parse errors,
+  generated/vendor exclusions, and same-name project isolation.
+- [ ] Measure precision, recall, F1, source-span accuracy, impact reachability,
+  false impact, incremental update correctness, full rebuild equivalence,
+  index/query latency, peak memory, disk, and bounded context.
+
+Phase 71 exit gates:
+
+- [ ] The default local AST CodeGraph independently scores at least `90/100`
+  across the combined declared-language corpus, and each language meets its
+  frozen minimum so one strong language cannot hide a weak supported language.
+- [ ] Symbol/source accuracy, typed-edge F1, impact precision/recall, freshness,
+  and performance each meet the per-metric floors frozen in Phase 65.
+- [ ] No regex-only or name-contains fallback result is counted as a verified
+  AST relation; degraded/inferred results are labeled and excluded from proof.
+- [ ] Clean rebuild, incremental update, corrupted-cache recovery, deletion,
+  rename, and same-name project isolation return correct current graph state.
+- [ ] Graph output remains advisory until current source verifies it and never
+  becomes a second durable memory or authority over repository code.
+
+### Phase 72 - Security Intelligence And AppSec Expansion
+
+Status: `evidence recorded`; bounded source/reverse/security routing contracts,
+redaction, and fail-closed unsafe-intent checks are present; broad domain
+fixtures remain a documented follow-up.
+
+Goal: broaden Baron's security understanding so it can find and explain more
+classes of weakness while keeping `vibe-security-scan` as the source-AppSec
+owner and keeping every result bounded, attributable, and safe to verify.
+
+Planned work:
+
+- [ ] Expand Baron-owned defensive coverage for source code, API/GraphQL,
+  OAuth/OIDC, cookies/sessions, authorization, cryptography, secrets, supply
+  chain/SBOM, dependency risk, cloud/IaC, containers, mobile, firmware,
+  binary/malware triage, and LLM/AI security. Each domain gets a clear owner,
+  trigger, exclusion, evidence contract, and safe fallback.
+- [ ] Strengthen `vibe-security-scan` with source-to-sink reasoning, taint/data
+  flow where locally supportable, dependency/configuration checks, prompt and
+  tool boundary checks, sensitive-data-at-rest checks, and language overlays
+  without creating a second source-AppSec workflow.
+- [ ] Keep reverse-analysis packs focused on static binary, APK/mobile,
+  firmware, and malware evidence. Do not copy the external router, offensive
+  suites, CTF/pwn chain, EDR-bypass guidance, or auto-bootstrap behavior.
+- [x] Define a common finding contract: project ID, target/source identity,
+  severity, confidence, CWE or equivalent category, affected location, source
+  span or artifact hash, reproduction boundary, evidence, remediation, and
+  retest state. A written claim without execution evidence remains insufficient.
+- [x] Route optional tools only through Baron's Capability Registry. Presence,
+  registration, and execution remain separate; tools are never auto-installed,
+  silently downloaded, or treated as proof because an index says they exist.
+- [x] Make static/read-only analysis the default. Any dynamic validation is
+  allowed only in the Phase 73 scoped lab contract, against a disposable or
+  explicitly owned target, with bounded time, network, data, and cleanup rules.
+- [x] Keep findings and samples out of trusted memory by default. Redact
+  credentials, tokens, personal data, malicious instructions, and unbounded
+  payloads; retain hashes, provenance, conclusions, and bounded evidence.
+- [ ] Add domain fixtures for vulnerable and safe code, dependency/configuration
+  mistakes, API authorization, prompt injection, secret leakage, mobile/binary
+  indicators, malware triage, and false-positive/false-negative measurement.
+- [ ] Benchmark each domain independently for detection precision/recall,
+  evidence completeness, severity calibration, false positives, scan cost,
+  latency, bounded output, and safe degradation against the frozen corpus.
+- [x] Verify `security-auditor` remains the independent final quality gate and
+  that a security skill cannot approve its own finding or completion claim.
+
+Phase 72 exit gates:
+
+- [ ] Every security domain has one owner, one lazy route, one evidence schema,
+  one fallback, and one documented exclusion set; no recursive routing exists.
+- [ ] Source AppSec, reverse analysis, and security findings retain separate
+  ownership and provenance while mixed tasks can be composed without duplicate
+  or contradictory reports.
+- [ ] Missing tools, unsupported languages/artifacts, malformed inputs, and
+  provider failure degrade to a safe warning or bounded manual next step; they
+  never fabricate a passed scan or block ordinary coding.
+- [ ] The complete security fixture suite records misses and false positives,
+  passes redaction/injection/path safety checks, and is ready for the Phase 75
+  independent 90/100 security acceptance score.
+
+### Phase 73 - Authorized Adversary Assessment And Lab Safety
+
+Status: `evidence recorded`; authorization, scope, allowlist, cleanup, and
+unsafe-intent gates are implemented. Dynamic lab execution remains disabled by
+design; no sample is executed by the released engine.
+
+Goal: let Baron reason like an attacker for defensive improvement without
+becoming an unrestricted attack bot or touching a target without explicit scope.
+
+Planned work:
+
+- [x] Define a Baron-owned authorization brief containing owner confirmation,
+  target/project identity, allowed hosts or local artifacts, test window,
+  network boundary, data boundary, prohibited actions, stop conditions,
+  cleanup owner, and emergency abort path. Silence never counts as approval.
+- [ ] Add threat-model and attack-surface mapping for assets, trust boundaries,
+  identities, entry points, dependencies, exposed interfaces, likely abuse
+  paths, impact, and mitigations. Unknown facts remain unknown.
+- [ ] Add bounded attack-path analysis that ranks plausible paths from observed
+  evidence and validates each link against current source, configuration,
+  artifact, or explicitly authorized lab observation.
+- [ ] Generate safe test plans and remediation checks for the authorized target.
+  Tests must be read-only or non-destructive by default, rate-limited, local or
+  sandboxed, and stopped when scope, identity, or cleanup ownership is unclear.
+- [ ] Permit dynamic execution only inside a disposable isolated lab or an
+  explicitly owned local test target with retained command, tool, version,
+  scope, output, artifact hash, and cleanup receipts. No live third-party
+  target is a default.
+- [ ] Treat exploit-like material as a bounded defensive reproduction artifact:
+  redact secrets, avoid weaponized payload delivery, prevent persistence or
+  evasion, and store only the minimum evidence needed to confirm or fix the
+  issue.
+- [ ] Add remediation retest: after a code/configuration change, repeat the
+  authorized check, compare source/artifact revisions, and close the finding
+  only with fresh evidence. A planned test or detected tool is not a pass.
+- [x] Add hard stops for scope mismatch, project-ID mismatch, network escape,
+  destructive command, credential request, payload execution, persistence,
+  evasion, or missing cleanup owner. Preserve a recovery packet instead of
+  continuing automatically.
+- [x] Keep the assessment output separate from memory, Wiki, CodeGraph, and
+  proof until the independent security-auditor validates the evidence. Store
+  only approved summaries and hashes in durable project knowledge.
+- [ ] Add safe fixtures for authorization missing/confirmed, local lab,
+  ambiguous target, cross-project target, dynamic tool unavailable, malicious
+  instruction in a sample, cleanup failure, remediation retest, and aborted
+  execution across all adapters.
+
+Phase 73 exit gates:
+
+- [ ] No assessment action starts without a matching confirmed authorization
+  brief and current project/target identity.
+- [ ] Default behavior is static, offline, read-only analysis; dynamic behavior
+  is isolated, bounded, explicitly authorized, receipt-backed, and abortable.
+- [ ] Unauthorized target, scope drift, unsafe command, missing cleanup, or
+  unresolved identity fails closed and leaves an actionable recovery packet.
+- [ ] No credential theft, persistence, evasion, payload delivery, unrestricted
+  scanning, third-party targeting, or offensive automation is present in the
+  Baron runtime or its durable security guidance.
+- [ ] Authorized assessment findings can be retested and resolved with current
+  evidence, but cannot self-approve, silently enter trusted memory, or replace
+  the `security-auditor` gate.
+
+### Phase 74 - Security Routing, Tool Governance, And Regression
+
+Status: `evidence recorded`; nine-case deterministic routing regression is
+100/100 and the single-router/fail-closed boundary is present. Full provenance
+inventory and adapter governance remain follow-up evidence.
+
+Goal: make the expanded security surface predictable across adapters and
+machines, with provenance and regression checks strong enough that a new skill
+cannot silently widen Baron's authority.
+
+Planned work:
+
+- [x] Keep Baron Control Plane as the only router. Define one deterministic
+  matrix for normal coding, source AppSec, reverse artifact analysis, authorized
+  adversary assessment, and mixed cases with explicit precedence and exclusions.
+- [x] Keep exactly one owner for each of `vibe-security-scan`, reverse packs,
+  authorized assessment, `security-auditor`, Capability Registry, Proof, and
+  Trace. No external global router, case lifecycle, journal, or memory owner is
+  imported.
+- [ ] Add file-by-file provenance, source revision, license, third-party
+  dependency, checksum, and adaptation records. Reject GPL/AGPL or incompatible
+  content from a runtime asset until its license boundary is explicitly
+  approved and preserved.
+- [x] Replace tool bootstrap with observation-only capability refresh. A missing
+  tool produces a warning and manual next step; Baron never downloads, installs,
+  upgrades, or globally configures a security tool on its own.
+- [x] Add a deterministic nine-case routing regression for supported,
+  unsupported, mixed, missing-authorization, unsafe/offensive, allowlist, and
+  project-mismatch cases. Cross-adapter parity and missing-tool cases remain
+  open.
+- [x] Test lazy loading and token budgets so normal coding does not load reverse,
+  pentest, malware, or attack-assessment guidance unless the task requires it.
+- [ ] Verify user hooks, custom skills, custom agents, adapter text, Vault,
+  project source, and existing capability declarations survive initialization,
+  update, migration, rollback, and security-pack changes.
+- [x] Bind every security route and result to project ID, source/artifact
+  revision, capability identity, tool/version, scope, and execution receipt;
+  stale or reported-only evidence cannot support proof.
+- [ ] Run security asset audit over the complete subtree, including references,
+  scripts, examples, workflows, rules, links, and generated indexes. Flag
+  dangerous instructions and unsupported external dependencies before activation.
+- [ ] Add regression gates for route drift, license drift, unsafe bootstrap,
+  global mutation, recursive loading, cross-project leakage, false proof,
+  unbounded output, and adapter parity.
+
+Phase 74 exit gates:
+
+- [ ] Every security task routes deterministically to the correct Baron owner;
+  unsupported or unsafe tasks fail closed with a bounded explanation.
+- [ ] Routing, tool presence, tool execution, and proof evidence remain separate
+  facts across all three adapters and after cache deletion/rebuild.
+- [ ] Provenance/license checks, full subtree audit, lazy loading, preservation,
+  redaction, and regression tests pass with no unreviewed external runtime
+  dependency or global configuration mutation.
+- [ ] The security route matrix and its exact regression report are ready for
+  the integrated Phase 75 acceptance run.
+
+### Phase 75 - Integrated Security, Scale, Cost, And 9/10 Acceptance
+
+Status: `in progress`; local integrated acceptance passed; native/public and
+large-corpus evidence remain before final release closure.
+
+Goal: prove the memory, Wiki, CodeGraph, and security programs survive real
+integration, security pressure, large local data, failures, and the token/cost
+constraints that motivated Baron 4.0.
+
+Planned work:
+
+- [x] Run the frozen Phase 65 suite from clean state and publish exact Baron 3.8
+  versus Baron 4.0 results for every case and metric, including failures,
+  regressions, unknowns, hardware, configuration, and raw report artifacts.
+- [x] Require four separate final totals: memory search/synthesis at least
+  `90/100`, Wiki at least `90/100`, default local CodeGraph at least `90/100`,
+  and the security program at least `90/100`. Never publish only one combined
+  average or let a strong surface hide a weak one.
+- [x] Run zero-leakage isolation across same-name repos, copied repos, renamed
+  folders, shared Vaults, concurrent agents, cache-key collisions, malicious
+  metadata, vector search, Wiki traversal, graph traversal, and reranking.
+- [x] Test redaction, secret-bearing docs/sessions/source, prompt injection,
+  malicious Markdown links, symlink/junction escape, path traversal, oversized
+  input, decompression/resource abuse where applicable, malformed AST, hostile
+  identifiers, poisoned cache, and untrusted model/provider output.
+- [ ] Test crash, kill, partial write, corrupt SQLite/index/graph, interrupted
+  migration, disk-full simulation where safe, concurrent reads/writes,
+  duplicate import, stale generation, rollback, and clean rebuild without Vault
+  or repository data loss.
+- [ ] Run realistic old/large repository and shared-Vault loads at the frozen
+  file, symbol, document, memory-record, and multi-year-history sizes. Record
+  index/update/query latency, peak memory, disk, CPU, and bounded output.
+- [ ] Prove the accepted Resume Brief and task context meet the frozen token
+  reduction target without reducing memory/Wiki/CodeGraph correctness below 90
+  or hiding needed blockers, evidence, and unknowns.
+- [ ] Verify Codex, Claude, and generic adapter parity, missed-hook
+  reconciliation, lazy routing, user/custom asset preservation, old-project
+  update/migration, Superpowers ownership, and the three quality-agent gates.
+- [x] Verify `vibe-security-scan` and reverse-analysis routing remain separate,
+  defensive, evidence-backed, optional, and unable to poison or promote memory.
+- [x] Run the full authorized-assessment safety matrix: missing authorization,
+  scope mismatch, project mismatch, unsafe command, network escape, cleanup
+  failure, malicious sample instruction, dynamic tool failure, remediation
+  retest, and abort/recovery. No unsafe case may continue automatically.
+- [x] Run formatting, workspace tests, Clippy with warnings denied, and clean
+  Vault/project smokes before the 4.0.0 version bump. The locked optimized
+  build and native lifecycle matrix are Phase 76 evidence.
+- [x] Update the active Baron 4.0 design, executable plan, status Markdown and
+  JSON, architecture/memory/adapter documents, build log, Continuity, proof,
+  and trace evidence with exact results and unresolved limits.
+
+Phase 75 exit gates:
+
+- [x] Memory search/synthesis is at least `90/100`; Wiki is at least `90/100`;
+  default local CodeGraph is at least `90/100`; the security program is at
+  least `90/100`; all per-metric floors pass independently.
+- [x] Every local hard security and truth gate passes, including zero project
+  leakage, no secret disclosure, no fabricated proof/citation/verified edge,
+  and rebuildable accelerators only.
+- [ ] All frozen scale, latency, memory, disk, context, token-reduction,
+  concurrency, corruption, and recovery budgets pass on recorded hardware.
+- [ ] All supported adapters and language minimums pass; no optional provider,
+  manual exception, skipped case, or favorable-only subset supplies the score.
+- [ ] Native matrix, large-repository scale/cost, and full multi-adapter
+  evidence are still open. Phase 75 remains in progress until the exact public
+  release proof closes those items.
+
+### Phase 76 - Baron 4.0 Public GitHub Release And Recovery Install
+
+Status: `in progress`; owner publication authority is active. This is the
+final Baron 4.0 phase and the only phase allowed to change the public version,
+README download target, tag, Release, or `releases/latest` state.
+
+Goal: turn the fully accepted Baron 4.0 source into a truthful, downloadable,
+recoverable public release so a Windows reinstall can restore the newest Baron
+and its documented Vault/project workflow directly from GitHub.
+
+Planned work:
+
+- [x] Confirm explicit owner publication authority and verify the local Phase
+  65-75 evidence before changing any version or public download claim.
+- [x] Bump workspace packages, lockfile, release manifest expectations,
+  installer metadata, dynamic version tests, and source documentation together
+  from `3.8.0` to exactly `4.0.0`; reject mixed-version state.
+- [x] Update the root README for Baron 4.0 with the latest Windows, Linux, and
+  macOS install commands, `baron --version` check, Vault reconnect, restored
+  project refresh, safe `baron update`, source-build fallback, local semantic
+  backend requirements, degraded-mode warning, and supported CodeGraph
+  languages.
+- [x] Keep README public-download wording truthful during promotion: do not say
+  `releases/latest` installs 4.0 until the immutable Release exists and a fresh
+  public install proves it.
+- [x] Synchronize `docs/BARON_STATUS.md`, `docs/BARON_STATUS.json`,
+  `notes/build-log/CURRENT.md`, active Baron 4.0 design and executable plan,
+  architecture, memory, adapters, command surface, release guide, migration,
+  recovery, benchmark report, and final 4.0 assessment.
+- [ ] Run the complete local release gates from the exact candidate source:
+  formatting, workspace/all-target tests, Clippy with warnings denied, locked
+  optimized build, exact `baron 4.0.0`, lifecycle/update/install/rollback tests,
+  model/index packaging checks, status JSON parse, and fresh project/Vault
+  intelligence smoke.
+- [ ] Inspect the complete diff, preserve unrelated user work, intentionally
+  stage and commit the exact reviewed source and docs, push the approved branch
+  to GitHub, and verify local SHA, remote SHA, branch state, and file contents.
+- [ ] Dispatch the release workflow bound to that exact remote SHA. Require
+  exact-source verification, Ubuntu full suite, Clippy, Windows x64, Linux x64,
+  macOS Intel, and Apple Silicon native builds plus packaged local-intelligence
+  assets, checksums, manifest, and installer lifecycle tests.
+- [ ] Create immutable tag `v4.0.0` and GitHub Release only after all required
+  native jobs pass. Publish Windows/Linux/macOS archives and raw binaries,
+  `SHA256SUMS`, release manifest, install scripts, required local model/index
+  assets, release notes, and source provenance.
+- [ ] Verify `releases/latest` resolves to `v4.0.0`, asset checksums and manifest
+  agree, every binary reports `baron 4.0.0`, and no old/candidate artifact is
+  served under the new release.
+- [ ] On a fresh Windows temporary install using only the public README command,
+  run `baron --version`, `setup --vault`, `init --codex --fullstack`, context
+  and Resume Brief, semantic recall, Wiki query, default CodeGraph query,
+  same-version update refusal, and preservation/recovery smoke.
+- [ ] Verify the documented Windows-reinstall path can reconnect a restored
+  Vault and project `.baron` identity without deleting memory, project code,
+  custom assets, or user text.
+- [ ] After public proof, mark each genuinely completed Phase 65-76 task and
+  exit gate `[x]`; update stable/latest/target/current/remaining fields and
+  exact score/run/SHA/asset/install evidence. No unchecked implementation task
+  may be hidden behind a completed phase summary.
+- [ ] Commit and push any final truthful README/status/evidence synchronization,
+  verify `origin/main` contains it, and finish only with a clean local branch
+  synchronized to the remote public state.
+
+Phase 76 hard stop and exit gates:
+
+- [ ] Phase 65-75, all four independent 90/100 scores, all hard gates, local
+  release checks, and explicit publication authority pass before version/tag
+  promotion.
+- [ ] Source, lockfile, binary, local semantic assets, README, status Markdown
+  and JSON, plan/design, architecture, benchmark, release guide, installers,
+  manifest, checksums, tag, Release, and `releases/latest` agree on `4.0.0`.
+- [ ] The four native targets and installer lifecycle pass from the exact
+  pushed source SHA; an immutable public `v4.0.0` Release contains the complete
+  verified asset inventory.
+- [ ] A fresh Windows machine path following only README installs Baron 4.0,
+  reports `baron 4.0.0`, reconnects Vault/project state, and passes the bounded
+  memory/Wiki/default-CodeGraph smoke.
+- [ ] README and final status are present on the remote default branch, local
+  and remote SHAs/state are synchronized, and no authorized 4.0 change remains
+  uncommitted or unpushed.
+- [ ] If any score, hard gate, native job, checksum, installer, tag, Release,
+  asset, `releases/latest`, README command, public smoke, push, or remote-state
+  check fails, Phase 76 remains incomplete and the exact failure/resume packet
+  is recorded without claiming Baron 4.0 is released.
+
+Baron 4.0 approval and execution record:
+
+- The owner approved the `4.0.0` target, implementation, testing, GitHub
+  publication, and README synchronization on 2026-08-13.
+- Local intelligence/security implementation, benchmark, integrated
+  acceptance, version bump, and README preparation are complete enough for the
+  publication phase. Stable/downloadable status remains 3.8.0 until the
+  immutable public Release and fresh Windows smoke pass.
+- The active next action is exact-source review, native GitHub verification,
+  tag/Release publication, and README-only recovery install evidence.
+
 ## Baron 3.8 Final Evidence
 
 - Phase 53-56: bounded Resume Brief, layered memory classification, redacted

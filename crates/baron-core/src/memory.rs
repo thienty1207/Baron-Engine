@@ -56,6 +56,31 @@ pub enum MemoryStatus {
     Active,
     Warning,
     Candidate,
+    Contested,
+    Superseded,
+    Expired,
+}
+
+/// Baron 4.0 keeps abstraction level separate from trust. A polished
+/// summary (L3) is never trusted merely because it is polished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryAbstraction {
+    L0Evidence,
+    L1Fact,
+    L2Decision,
+    L3Invariant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryTrustState {
+    Candidate,
+    Verified,
+    Contested,
+    Superseded,
+    Expired,
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,6 +100,54 @@ pub struct MemoryRecord {
     pub content_hash: String,
 }
 
+impl MemoryRecord {
+    pub fn abstraction_level(&self) -> MemoryAbstraction {
+        if self
+            .tags
+            .iter()
+            .any(|tag| tag.eq_ignore_ascii_case("invariant"))
+        {
+            return MemoryAbstraction::L3Invariant;
+        }
+        match self.kind {
+            MemoryKind::Session
+            | MemoryKind::Research
+            | MemoryKind::Note
+            | MemoryKind::Question => MemoryAbstraction::L0Evidence,
+            MemoryKind::Fact | MemoryKind::Proof | MemoryKind::Trace => MemoryAbstraction::L1Fact,
+            MemoryKind::Decision
+            | MemoryKind::Task
+            | MemoryKind::Plan
+            | MemoryKind::Harness
+            | MemoryKind::Handoff
+            | MemoryKind::Global => MemoryAbstraction::L2Decision,
+        }
+    }
+
+    pub fn trust_state(&self) -> MemoryTrustState {
+        if self.status == MemoryStatus::Candidate || self.confidence == MemoryConfidence::Candidate
+        {
+            return MemoryTrustState::Candidate;
+        }
+        if self.status == MemoryStatus::Contested {
+            return MemoryTrustState::Contested;
+        }
+        if self.status == MemoryStatus::Superseded {
+            return MemoryTrustState::Superseded;
+        }
+        if self.status == MemoryStatus::Expired {
+            return MemoryTrustState::Expired;
+        }
+        if self.confidence == MemoryConfidence::Stale || self.status == MemoryStatus::Warning {
+            return MemoryTrustState::Expired;
+        }
+        if self.confidence == MemoryConfidence::Verified {
+            return MemoryTrustState::Verified;
+        }
+        MemoryTrustState::Unknown
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryIndexReport {
     pub total_sources: usize,
@@ -86,6 +159,250 @@ pub struct MemoryIndexReport {
     pub global_verified_records: usize,
     pub global_candidate_records: usize,
     pub cross_project_records: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryConsolidationItem {
+    pub kind: String,
+    pub record_ids: Vec<String>,
+    pub reason: String,
+    pub action: String,
+    #[serde(default)]
+    pub preferred_record_id: Option<String>,
+    #[serde(default)]
+    pub authority: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryConsolidationReport {
+    pub schema_version: u32,
+    pub generated_at: String,
+    pub project_id: String,
+    pub record_count: usize,
+    pub duplicate_groups: usize,
+    pub duplicate_records: usize,
+    pub conflict_groups: usize,
+    pub superseded_records: usize,
+    pub candidate_records: usize,
+    pub items: Vec<MemoryConsolidationItem>,
+    pub writes_performed: bool,
+    #[serde(default)]
+    pub staged_path: Option<String>,
+}
+
+/// Read-only Phase 67 analysis. It stages merge/conflict/supersession decisions
+/// as evidence; it never rewrites Vault Markdown or promotes a candidate.
+pub fn analyze_memory_consolidation(context: &VaultContext) -> Result<MemoryConsolidationReport> {
+    let records = load_memory_records(context)?
+        .into_iter()
+        .filter(|record| {
+            record.scope != MemoryScope::Project
+                || record.project_id.as_deref() == Some(context.project_id.as_str())
+        })
+        .collect::<Vec<_>>();
+    let mut exact_groups = BTreeMap::<String, Vec<&MemoryRecord>>::new();
+    let mut title_groups = BTreeMap::<String, Vec<&MemoryRecord>>::new();
+    for record in &records {
+        let identity = format!(
+            "{}|{}|{}",
+            record.project_id.as_deref().unwrap_or("global"),
+            record.kind.as_str(),
+            normalize_memory_text(&record.excerpt)
+        );
+        exact_groups.entry(identity).or_default().push(record);
+        let title = format!(
+            "{}|{}|{}",
+            record.project_id.as_deref().unwrap_or("global"),
+            record.kind.as_str(),
+            normalize_memory_text(&record.title)
+        );
+        title_groups.entry(title).or_default().push(record);
+    }
+    let mut items = Vec::new();
+    let mut duplicate_groups = 0;
+    let mut duplicate_records = 0;
+    for group in exact_groups.values().filter(|group| group.len() > 1) {
+        duplicate_groups += 1;
+        duplicate_records += group.len() - 1;
+        items.push(MemoryConsolidationItem {
+            kind: "duplicate".to_string(),
+            record_ids: group.iter().map(|record| record.id.clone()).collect(),
+            reason: "normalized project-scoped evidence is identical; retain source lineage"
+                .to_string(),
+            action: "stage_merge_candidate; retain every source lineage".to_string(),
+            preferred_record_id: preferred_record(group).map(|record| record.id.clone()),
+            authority: authority_explanation(group),
+        });
+    }
+    let mut conflict_groups = 0;
+    for group in title_groups.values().filter(|group| {
+        group.len() > 1
+            && group
+                .iter()
+                .map(|record| normalize_memory_text(&record.excerpt))
+                .collect::<BTreeSet<_>>()
+                .len()
+                > 1
+    }) {
+        conflict_groups += 1;
+        items.push(MemoryConsolidationItem {
+            kind: "conflict".to_string(),
+            record_ids: group.iter().map(|record| record.id.clone()).collect(),
+            reason: "same project/kind/title has divergent evidence".to_string(),
+            action: "keep_contested; require source/decision authority".to_string(),
+            preferred_record_id: preferred_record(group).map(|record| record.id.clone()),
+            authority: authority_explanation(group),
+        });
+    }
+    let superseded_records = records
+        .iter()
+        .filter(|record| {
+            record.confidence == MemoryConfidence::Stale
+                || matches!(
+                    record.status,
+                    MemoryStatus::Expired | MemoryStatus::Superseded
+                )
+        })
+        .count();
+    for record in records.iter().filter(|record| {
+        record.confidence == MemoryConfidence::Stale
+            || matches!(
+                record.status,
+                MemoryStatus::Expired | MemoryStatus::Superseded
+            )
+    }) {
+        items.push(MemoryConsolidationItem {
+            kind: "supersession_candidate".to_string(),
+            record_ids: vec![record.id.clone()],
+            reason: "source is stale or explicitly marked interrupted/draft".to_string(),
+            action: "retain_audit_trail; exclude_from_current_truth".to_string(),
+            preferred_record_id: None,
+            authority: "stale_or_expired_never_overrides_current_verified_evidence".to_string(),
+        });
+    }
+    let candidate_records = records
+        .iter()
+        .filter(|record| {
+            record.scope == MemoryScope::GlobalCandidate
+                || record.confidence == MemoryConfidence::Candidate
+                || record.status == MemoryStatus::Candidate
+        })
+        .count();
+    Ok(MemoryConsolidationReport {
+        schema_version: 1,
+        generated_at: Utc::now().to_rfc3339(),
+        project_id: context.project_id.clone(),
+        record_count: records.len(),
+        duplicate_groups,
+        duplicate_records,
+        conflict_groups,
+        superseded_records,
+        candidate_records,
+        items,
+        writes_performed: false,
+        staged_path: None,
+    })
+}
+
+/// Persist a consolidation proposal as a disposable, reviewable Vault
+/// artifact. This does not edit source Markdown, change SQLite records, or
+/// promote any candidate. Repeated staging is atomic and idempotent for the
+/// same report content.
+pub fn stage_memory_consolidation(
+    context: &VaultContext,
+    report: &MemoryConsolidationReport,
+) -> Result<PathBuf> {
+    let path = context
+        .project_root
+        .join("Artifacts")
+        .join("memory-consolidation-candidates.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let temp = path.with_extension("json.tmp");
+    let mut staged = report.clone();
+    staged.staged_path = Some(path.display().to_string());
+    let content = serde_json::to_vec_pretty(&staged)?;
+    fs::write(&temp, content)
+        .with_context(|| format!("Could not stage consolidation report: {}", temp.display()))?;
+    fs::rename(&temp, &path).with_context(|| {
+        format!(
+            "Could not activate consolidation report: {}",
+            path.display()
+        )
+    })?;
+    Ok(path)
+}
+
+fn authority_rank(record: &MemoryRecord) -> u8 {
+    if matches!(
+        record.status,
+        MemoryStatus::Candidate
+            | MemoryStatus::Contested
+            | MemoryStatus::Superseded
+            | MemoryStatus::Expired
+    ) || matches!(
+        record.confidence,
+        MemoryConfidence::Candidate | MemoryConfidence::Stale
+    ) {
+        return 0;
+    }
+    let kind_rank = match record.kind {
+        MemoryKind::Decision | MemoryKind::Proof => 4,
+        MemoryKind::Fact | MemoryKind::Trace => 3,
+        MemoryKind::Plan | MemoryKind::Harness | MemoryKind::Handoff => 2,
+        MemoryKind::Task | MemoryKind::Global => 1,
+        _ => 0,
+    };
+    let confidence_rank = match record.confidence {
+        MemoryConfidence::Verified => 2,
+        MemoryConfidence::Likely => 1,
+        _ => 0,
+    };
+    kind_rank * 3 + confidence_rank
+}
+
+fn preferred_record<'a>(group: &[&'a MemoryRecord]) -> Option<&'a MemoryRecord> {
+    group
+        .iter()
+        .copied()
+        .filter(|record| authority_rank(record) > 0)
+        .max_by(|left, right| {
+            authority_rank(left)
+                .cmp(&authority_rank(right))
+                .then_with(|| left.updated_at.cmp(&right.updated_at))
+                .then_with(|| left.id.cmp(&right.id))
+        })
+}
+
+fn authority_explanation(group: &[&MemoryRecord]) -> String {
+    preferred_record(group)
+        .map(|record| {
+            format!(
+                "preferred_by_authority={} rank={} observed_at={}",
+                record.id,
+                authority_rank(record),
+                record.updated_at.as_deref().unwrap_or("unknown")
+            )
+        })
+        .unwrap_or_else(|| "no_verified_authority; keep_contested_or_candidate".to_string())
+}
+
+fn normalize_memory_text(value: &str) -> String {
+    value
+        .chars()
+        .flat_map(|character| character.to_lowercase())
+        .map(|character| {
+            if character.is_alphanumeric() {
+                character
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[derive(Debug, Clone)]
@@ -476,6 +793,9 @@ fn parse_source(
     let mut records = Vec::new();
     let mut seen_ids = BTreeSet::new();
     let mut in_frontmatter = false;
+    let mut frontmatter_confidence = None;
+    let mut frontmatter_status = None;
+    let mut frontmatter_tags = Vec::new();
     let updated_at = metadata
         .modified()
         .ok()
@@ -488,6 +808,21 @@ fn parse_source(
             continue;
         }
         if in_frontmatter {
+            if let Some(value) = trimmed.strip_prefix("confidence:") {
+                frontmatter_confidence = Some(MemoryConfidence::from_str(value.trim()));
+            } else if let Some(value) = trimmed.strip_prefix("status:") {
+                frontmatter_status = Some(MemoryStatus::from_str(value.trim()));
+            } else if let Some(value) = trimmed.strip_prefix("tags:") {
+                frontmatter_tags.extend(
+                    value
+                        .trim()
+                        .trim_matches(['[', ']'])
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|tag| !tag.is_empty())
+                        .map(|tag| tag.trim_matches(['\'', '"']).to_string()),
+                );
+            }
             continue;
         }
         if trimmed.starts_with('#') {
@@ -509,12 +844,13 @@ fn parse_source(
             continue;
         }
         let excerpt = redact_index_excerpt(excerpt);
-        let confidence = classify_confidence(source.scope, source.kind, &excerpt);
-        let status = match confidence {
+        let confidence = frontmatter_confidence
+            .unwrap_or_else(|| classify_confidence(source.scope, source.kind, &excerpt));
+        let status = frontmatter_status.unwrap_or(match confidence {
             MemoryConfidence::Candidate => MemoryStatus::Candidate,
             MemoryConfidence::Stale => MemoryStatus::Warning,
             MemoryConfidence::Verified | MemoryConfidence::Likely => MemoryStatus::Active,
-        };
+        });
         let id_source = format!(
             "{}|{:?}|{:?}|{}|{}",
             source.relative_path, source.scope, source.project_id, title, excerpt
@@ -532,7 +868,10 @@ fn parse_source(
             path: source.relative_path.clone(),
             title: title.clone(),
             excerpt,
-            tags: tags_for(source.kind, confidence),
+            tags: tags_for(source.kind, confidence)
+                .into_iter()
+                .chain(frontmatter_tags.iter().cloned())
+                .collect(),
             confidence,
             status,
             updated_at: updated_at.clone(),
@@ -756,6 +1095,9 @@ impl MemoryStatus {
             MemoryStatus::Active => "active",
             MemoryStatus::Warning => "warning",
             MemoryStatus::Candidate => "candidate",
+            MemoryStatus::Contested => "contested",
+            MemoryStatus::Superseded => "superseded",
+            MemoryStatus::Expired => "expired",
         }
     }
 
@@ -763,7 +1105,150 @@ impl MemoryStatus {
         match value {
             "warning" => MemoryStatus::Warning,
             "candidate" => MemoryStatus::Candidate,
+            "contested" => MemoryStatus::Contested,
+            "superseded" => MemoryStatus::Superseded,
+            "expired" => MemoryStatus::Expired,
             _ => MemoryStatus::Active,
         }
+    }
+}
+
+impl MemoryAbstraction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MemoryAbstraction::L0Evidence => "l0_evidence",
+            MemoryAbstraction::L1Fact => "l1_fact",
+            MemoryAbstraction::L2Decision => "l2_decision",
+            MemoryAbstraction::L3Invariant => "l3_invariant",
+        }
+    }
+}
+
+impl MemoryTrustState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MemoryTrustState::Candidate => "candidate",
+            MemoryTrustState::Verified => "verified",
+            MemoryTrustState::Contested => "contested",
+            MemoryTrustState::Superseded => "superseded",
+            MemoryTrustState::Expired => "expired",
+            MemoryTrustState::Unknown => "unknown",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(
+        kind: MemoryKind,
+        confidence: MemoryConfidence,
+        status: MemoryStatus,
+    ) -> MemoryRecord {
+        MemoryRecord {
+            id: "record".to_string(),
+            scope: MemoryScope::Project,
+            project_id: Some("project".to_string()),
+            project_slug: Some("project".to_string()),
+            kind,
+            path: "Facts.md".to_string(),
+            title: "Fact".to_string(),
+            excerpt: "evidence".to_string(),
+            tags: Vec::new(),
+            confidence,
+            status,
+            updated_at: None,
+            content_hash: "hash".to_string(),
+        }
+    }
+
+    #[test]
+    fn abstraction_and_trust_are_separate_axes() {
+        let verified_fact = record(
+            MemoryKind::Fact,
+            MemoryConfidence::Verified,
+            MemoryStatus::Active,
+        );
+        assert_eq!(verified_fact.abstraction_level(), MemoryAbstraction::L1Fact);
+        assert_eq!(verified_fact.trust_state(), MemoryTrustState::Verified);
+
+        let candidate_decision = record(
+            MemoryKind::Decision,
+            MemoryConfidence::Candidate,
+            MemoryStatus::Candidate,
+        );
+        assert_eq!(
+            candidate_decision.abstraction_level(),
+            MemoryAbstraction::L2Decision
+        );
+        assert_eq!(
+            candidate_decision.trust_state(),
+            MemoryTrustState::Candidate
+        );
+    }
+
+    #[test]
+    fn consolidation_only_stages_dedup_conflict_and_stale_evidence() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        std::fs::create_dir_all(&repo).unwrap();
+        let context = crate::vault::ensure_vault(&vault, &repo).unwrap();
+        std::fs::write(
+            context.project_root.join("Facts.md"),
+            "# Direction\n\n- Verified source uses Rust.\n- Verified source uses Rust.\n- Draft source uses another language.\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(context.project_root.join("Sessions")).unwrap();
+        std::fs::create_dir_all(context.project_root.join("Notes")).unwrap();
+        for name in ["duplicate.md", "duplicate-2.md"] {
+            std::fs::write(
+                context.project_root.join("Notes").join(name),
+                "# Direction\n\n- Verified source uses Rust.\n",
+            )
+            .unwrap();
+        }
+        std::fs::write(
+            context.project_root.join("Sessions/old.md"),
+            "# Session\n\n- interrupted attempt must remain evidence\n",
+        )
+        .unwrap();
+        build_memory_index(&context).unwrap();
+        let report = analyze_memory_consolidation(&context).unwrap();
+        assert!(report.duplicate_groups >= 1);
+        assert!(report.superseded_records >= 1);
+        assert!(!report.writes_performed);
+        let staged = stage_memory_consolidation(&context, &report).unwrap();
+        let staged_report: MemoryConsolidationReport =
+            serde_json::from_str(&std::fs::read_to_string(&staged).unwrap()).unwrap();
+        assert_eq!(
+            staged_report.staged_path.as_deref(),
+            Some(staged.to_str().unwrap())
+        );
+        assert!(!staged_report.writes_performed);
+    }
+
+    #[test]
+    fn frontmatter_preserves_abstraction_tags_and_trust_without_auto_promotion() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        std::fs::create_dir_all(&repo).unwrap();
+        let context = crate::vault::ensure_vault(&vault, &repo).unwrap();
+        std::fs::write(
+            context.project_root.join("Decisions.md"),
+            "---\nconfidence: candidate\nstatus: contested\ntags: [invariant, owner-review]\n---\n# Current direction\n- Candidate decision must remain reviewable.\n",
+        )
+        .unwrap();
+        build_memory_index(&context).unwrap();
+        let records = load_memory_records(&context).unwrap();
+        let record = records
+            .iter()
+            .find(|record| record.excerpt.contains("reviewable"))
+            .unwrap();
+        assert_eq!(record.abstraction_level(), MemoryAbstraction::L3Invariant);
+        assert_eq!(record.trust_state(), MemoryTrustState::Candidate);
+        assert!(record.tags.iter().any(|tag| tag == "owner-review"));
     }
 }

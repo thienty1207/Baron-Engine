@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T07:44:01.063025100+00:00",
+  "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa",
+  "source_revision": "85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69",
+  "files_checked": 124,
+  "findings": [],
+  "redacted": true,
+  "dynamic_execution": false,
+  "score": 100
+}

@@ -411,3 +411,32 @@ The optional reverse skills are routed by `baron control-plane route` only for
 binary, APK/mobile, malware, or firmware analysis. They are static/read-only by
 default and do not add a router, case lifecycle, global bootstrap, or quality
 gate.
+
+## Baron 4.0 Intelligence And Security (guarded during development)
+
+The following hidden AI-facing commands expose guarded 4.0 intelligence without
+changing the normal user surface. Baron 4.0 is the released default;
+`BARON_ENGINE_GENERATION=3.8` (or `baseline`) opts into the recovery baseline,
+and every 4.0 path automatically falls back to 3.8 when structural checks fail.
+
+```bash
+baron memory consolidate [repo-path] --vault <vault-path> [--json] [--stage]
+baron intelligence benchmark [repo-path] --vault <vault-path> [--json]
+baron intelligence security-route "<task>" [repo-path] [--json]
+baron intelligence security-regression [repo-path] --vault <vault-path> [--json]
+baron intelligence static-scan [repo-path] --vault <vault-path> [--json]
+baron intelligence acceptance [repo-path] --vault <vault-path> [--json]
+```
+
+`memory consolidate` is deliberately non-promoting: it reports duplicate,
+conflicting, superseded, stale, and unknown candidates but never promotes or
+rewrites Vault facts. Optional `--stage` writes one atomic, reviewable proposal
+under the project capsule's `Artifacts/` folder; it still does not change
+memory records. The benchmark writes only rebuildable assessment logs,
+and the security regression command writes deterministic evidence under
+`docs/assessment/`. `static-scan` is a bounded source-only AppSec pass: it
+never executes targets and every finding remains advisory until the
+`security-auditor` gate validates it. Wiki and CodeGraph candidates remain available through the
+existing hidden `baron wiki` and `baron knowledge` commands; their links,
+imports, spans, and advisory relations are bounded cache evidence, not durable
+truth.

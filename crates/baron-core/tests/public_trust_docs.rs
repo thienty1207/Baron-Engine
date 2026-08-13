@@ -201,10 +201,16 @@ fn status_tracks_current_program() {
         serde_json::from_str(&read("docs/BARON_STATUS.json")).expect("valid status json");
     let stable_release = status_json["stableRelease"].as_str().unwrap();
     assert!(status_md.contains(&format!("Stable source release: `v{stable_release}`")));
+    let target_release = status_json["targetRelease"].as_str().unwrap();
     if stable_release == "3.6.0" {
         assert_eq!(status_json["targetRelease"], "3.8.0");
         assert_eq!(status_json["programTargetRelease"], "3.8.0");
         assert_eq!(status_json["remainingPhaseCount"], 1);
+    } else if target_release != stable_release {
+        assert_eq!(stable_release, "3.8.0");
+        assert_eq!(target_release, "4.0.0");
+        assert_eq!(status_json["programTargetRelease"], "4.0.0");
+        assert!(status_json["remainingPhaseCount"].as_u64().unwrap() > 0);
     } else {
         assert_eq!(status_json["stableRelease"], status_json["targetRelease"]);
         assert_eq!(

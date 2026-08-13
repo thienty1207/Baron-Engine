@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-13T07:44:01.983742400+00:00",
+  "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa",
+  "source_revision": "85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69",
+  "benchmark_report_id": "fedeace68a4efd6e979a5a217f7b99676f5eaaaa5d58c3bf17c54d9da138e19c",
+  "checks": [
+    {
+      "id": "four-surface-score-floor",
+      "area": "memory/wiki/codegraph/security",
+      "passed": true,
+      "score": 100,
+      "evidence": [
+        "benchmark=fedeace68a4efd6e979a5a217f7b99676f5eaaaa5d58c3bf17c54d9da138e19c",
+        "leakage=0"
+      ]
+    },
+    {
+      "id": "security-route-regression",
+      "area": "security-routing",
+      "passed": true,
+      "score": 100,
+      "evidence": [
+        "cases=9",
+        "offensive/missing-auth/project-scope hard stops included"
+      ]
+    },
+    {
+      "id": "static-security-boundary",
+      "area": "defensive-static-appsec",
+      "passed": true,
+      "score": 100,
+      "evidence": [
+        "files=124",
+        "findings=0",
+        "dynamic_execution=false"
+      ]
+    },
+    {
+      "id": "memory-no-auto-promotion",
+      "area": "memory-consolidation",
+      "passed": true,
+      "score": 100,
+      "evidence": [
+        "records=0",
+        "candidate staging is reviewable and non-promoting"
+      ]
+    },
+    {
+      "id": "bounded-grounded-handoff",
+      "area": "resume-brief",
+      "passed": true,
+      "score": 100,
+      "evidence": [
+        "chars=902",
+        "project_id=59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa"
+      ]
+    },
+    {
+      "id": "cache-source-identity",
+      "area": "wiki-codegraph-rebuildable-cache",
+      "passed": true,
+      "score": 100,
+      "evidence": [
+        "wiki_documents=81",
+        "graph_symbols=1699",
+        "source_revision=85e1ba7181924d58e207839ce5c0a70f96e3d334aea1739d98e4c06919205c69"
+      ]
+    }
+  ],
+  "score": 100,
+  "passed": true,
+  "environment": {
+    "os": "windows",
+    "arch": "x86_64",
+    "pointer_width": "64",
+    "cpu_count": 12,
+    "profile": "debug",
+    "cache_rebuilt_by_runner": true,
+    "vault_rebuilt_by_runner": false
+  }
+}

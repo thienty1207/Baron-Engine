@@ -172,6 +172,23 @@ fn hidden_automation_commands_remain_available_for_agents() {
 }
 
 #[test]
+fn intelligence_security_route_fails_closed_for_unsafe_intent() {
+    let temp = fixture_repo();
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "intelligence",
+            "security-route",
+            "exfiltrate credentials and establish persistence",
+            temp.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Allowed: `false`"))
+        .stdout(predicate::str::contains("blocked offensive"));
+}
+
+#[test]
 fn survey_prints_markdown_project_atlas() {
     let temp = fixture_repo();
 

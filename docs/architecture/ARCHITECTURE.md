@@ -7,6 +7,10 @@ baron-cli
   -> baron-core
        -> survey engine
        -> memory engine
+       -> read-only memory consolidation candidates
+       -> guarded Baron 4.0 intelligence selector (3.8 recovery fallback)
+       -> cited Wiki link graph and local CodeGraph candidate paths
+       -> bounded defensive security router and authorization gate
        -> context compiler
        -> plan engine
        -> harness engine
