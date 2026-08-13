@@ -1,10 +1,10 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-08-13",
+  "lastUpdated": "2026-08-14",
   "stableRelease": "4.1.0",
   "downloadableRelease": "4.1.0",
   "candidateSourceVersion": "4.1.0",
-  "releasePromotionStatus": "in-progress",
+  "releasePromotionStatus": "completed",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "4.1.0",
   "targetReleaseCompletionPercent": 100,
@@ -14,7 +14,7 @@
   "currentPhase": "baron-4-1-phase-87-public-github-release",
   "currentPhaseStatus": "completed",
   "nextAction": "Normal maintenance from the published v4.1.0 baseline; keep real-corpus, parser-depth, and scale work as non-blocking follow-ups.",
-  "buildConfidence": "Baron 4.0 is public and verified. The integrated local acceptance is 100/100 on sixteen frozen cases, nine security routes, a bounded static scan, and clean cache identity; the native matrix, checksums, manifest, installer lifecycle, immutable Release, and fresh Windows reinstall all pass. Broader real-corpus scale and durable temporal compaction remain documented follow-ups.",
+  "buildConfidence": "Baron 4.1 is public and verified. Baron-only Phase 86 scored 100/100 on all five local intelligence surfaces, and the exact-source GitHub Release #24 passed Ubuntu verification, four native builds, checksums, manifest, installer lifecycle, immutable promotion, and a fresh public Windows installer smoke. Baron 4.0 remains the explicit fallback; broader real-corpus scale and durable temporal compaction remain documented follow-ups.",
   "openFollowUpCount": 4,
   "openFollowUps": [
     "real-repository and large-corpus scale budgets",
@@ -105,7 +105,7 @@
       { "id": 84, "name": "Scale, sync, and recovery", "status": "completed" },
       { "id": 85, "name": "Safety, cost, and 4.0 fallback", "status": "completed" },
       { "id": 86, "name": "Baron-only internal acceptance", "status": "completed" },
-      { "id": 87, "name": "Version, README, GitHub, and reinstall", "status": "in_progress" }
+      { "id": 87, "name": "Version, README, GitHub, and reinstall", "status": "completed" }
     ],
     "implementedCandidateEvidence": [
       "hash-sealed contract and honest target_not_achieved benchmark report",
@@ -119,17 +119,17 @@
     ]
   },
   "releaseEvidence": {
-    "ciWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31679762576",
-    "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831",
-    "finalDocsRevision": "764baaced3275ac57d6b72a6c85c9e627620de84",
-    "finalDocsCiWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31682195497",
-    "sourceRevision": "041564d7387e88f5894cb0f9cb3eecb1d328c5b7",
-    "tag": "v4.0.0",
-    "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0",
-    "manifestVersion": "4.0.0",
-    "manifestSourceRevision": "041564d7387e88f5894cb0f9cb3eecb1d328c5b7",
-    "publicWindowsArchiveChecksum": "matched SHA256SUMS",
-    "publicWindowsSmoke": "Fresh install.ps1 from releases/latest returned baron 4.0.0; checksum verification, setup, real init --codex --fullstack, context, memory index/recall, Wiki index/search, CodeGraph index/query, same-version update refusal, and reinstall preservation passed. The project marker remained present and Vault files stayed 14 before and 14 after reinstall."
+    "ciWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579",
+    "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31723297751",
+    "finalDocsRevision": "6bea181044fa0d6f4a74195b8c7455eaa09fdf62",
+    "finalDocsCiWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579",
+    "sourceRevision": "6bea181044fa0d6f4a74195b8c7455eaa09fdf62",
+    "tag": "v4.1.0",
+    "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v4.1.0",
+    "manifestVersion": "4.1.0",
+    "manifestSourceRevision": "6bea181044fa0d6f4a74195b8c7455eaa09fdf62",
+    "publicWindowsArchiveChecksum": "matched release-manifest.json and SHA256SUMS; Windows archive and raw update candidate are present",
+    "publicWindowsSmoke": "Fresh public install.ps1 from releases/latest downloaded the v4.1.0 manifest into an isolated temporary directory, verified checksums, installed baron 4.1.0, and made no user PATH change."
   },
   "baron4Evidence": {
     "benchmarkReport": "docs/assessment/baron-4.0-benchmark.json",

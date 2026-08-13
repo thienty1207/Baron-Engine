@@ -1,6 +1,6 @@
 # Baron Build Status
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 ## Overall
 
@@ -44,22 +44,18 @@ Last updated: 2026-08-13
 - For the completed Baron 3.7 program, the owner explicitly approved
   implementation and final GitHub publication on 2026-08-12. Its immutable
   release and fresh public `releases/latest` install smoke have both passed.
-- Build confidence: Baron 3.8 is public-release certified. Baron 4.0 local
-  acceptance is 100/100 across the four independent surfaces, with zero
-  leakage, a nine-case fail-closed security regression, a 0-finding bounded
-  static scan, and a 902-character project-grounded handoff. GitHub Actions run
-  [`31679762576`](https://github.com/thienty1207/Baron-Engine/actions/runs/31679762576)
-  passed format/Clippy and the Windows x64, Linux x64, macOS Intel, and Apple
-  Silicon native matrix. Release run
-  [`31680499831`](https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831)
-  passed exact-source verification, full workspace tests, Clippy, archive
-  builds, checksums, manifest verification, installer lifecycle smoke, and
-  public Release promotion from source
-  `041564d7387e88f5894cb0f9cb3eecb1d328c5b7`.
-  The immutable tag is `v4.0.0`; a fresh Windows smoke installed directly from
-  `releases/latest`, returned `baron 4.0.0`, passed `setup`, real
-  `init --codex --fullstack`, `context`, memory index/recall, Wiki index/search,
-  CodeGraph index/query, same-version update refusal, and reinstall preservation.
+- Build confidence: Baron 4.1 Baron-only acceptance is `100/100` on all five
+  local intelligence surfaces. CI run
+  [`31723285579`](https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579)
+  passed format/Clippy, the full workspace tests, and the native matrix on
+  Windows x64, Linux x64, macOS Intel, and Apple Silicon. Release run
+  [`31723297751`](https://github.com/thienty1207/Baron-Engine/actions/runs/31723297751)
+  passed exact-source verification, checksums, `release-manifest.json`,
+  installer lifecycle smoke, and immutable Release promotion from source
+  `6bea181044fa0d6f4a74195b8c7455eaa09fdf62`. A public `install.ps1` smoke
+  returned `baron 4.1.0`, then passed survey, setup, Codex/fullstack init,
+  memory index/recall, and context in an isolated directory without changing
+  the user PATH. Baron 4.0 remains the explicit fallback.
   The optional local code map remains identity-bound and project-local, stays
   outside Vault memory, preserves agent instructions and hooks, remains bounded
   on old/large repositories, and falls back to Survey on every absence or
@@ -3646,6 +3642,16 @@ Phase 87 exit gates:
   Vault/project, passes the five intelligence smokes, and preserves all user data.
 - [x] Final README/status evidence is committed and pushed to the default branch;
   working tree and remote state are clean and synchronized.
+
+Public evidence for the completed phase:
+
+- Source/tag: `6bea181044fa0d6f4a74195b8c7455eaa09fdf62` / `v4.1.0`
+- Release: https://github.com/thienty1207/Baron-Engine/releases/tag/v4.1.0
+- CI #56: https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579
+- Release #24: https://github.com/thienty1207/Baron-Engine/actions/runs/31723297751
+- Public `install.ps1` smoke: manifest/checksum verification, `baron 4.1.0`,
+  survey, setup, Codex/fullstack init, memory index/recall, and context passed
+  in an isolated directory; no user PATH or project/Vault data was touched.
 
 ### Baron 4.1 approval gate
 

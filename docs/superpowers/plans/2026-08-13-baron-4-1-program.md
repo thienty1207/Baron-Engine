@@ -1,7 +1,7 @@
 # Baron 4.1 Program
 
 Date: 2026-08-13
-Status: owner-approved internal release; GitHub promotion in progress
+Status: completed public release; Baron 4.0 fallback retained
 
 ## Execution order
 
@@ -15,7 +15,7 @@ Status: owner-approved internal release; GitHub promotion in progress
 - [x] Phase 84: add incremental sync, scale, corruption recovery, and rebuild.
 - [x] Phase 85: run security, cost, and per-query 4.0 fallback gates.
 - [x] Phase 86: run repeated Baron-only internal acceptance; Tencent is optional.
-- [ ] Phase 87: bump 4.1.0, update README, tag, release, push GitHub, and verify
+- [x] Phase 87: bump 4.1.0, update README, tag, release, push GitHub, and verify
   fresh Windows installation.
 
 ## Invariants
@@ -55,4 +55,15 @@ Status: owner-approved internal release; GitHub promotion in progress
   `docs/assessment/baron-4.1-phase86-runner.*` evidence. Tencent and external
   confidence are recorded only when supplied and never become fake scores.
 - [x] Baron-only internal acceptance passed on the five surfaces and resource
-  gates; Phase 87 is the remaining publication/reinstall task.
+  gates; Phase 87 published `v4.1.0`, verified the native matrix and immutable
+  Release, and completed a fresh public Windows installer smoke.
+
+## Public release evidence
+
+- Source: `6bea181044fa0d6f4a74195b8c7455eaa09fdf62`
+- Tag/Release: [`v4.1.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.1.0)
+- Baron CI #56: https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579
+- Baron Release #24: https://github.com/thienty1207/Baron-Engine/actions/runs/31723297751
+- Public manifest: `4.1.0` with the same source revision; Windows installer
+  smoke returned `baron 4.1.0` from an isolated directory without changing the
+  user's PATH. Tencent remains optional reference material and is not a gate.

@@ -1,6 +1,6 @@
 # Current Build Note
 
-## Baron 4.1 Release Checkpoint (2026-08-13)
+## Baron 4.1 Release Checkpoint (2026-08-14)
 
 - Owner approved implementation of the eleven-phase Baron 4.1 program after
   removing automatic Skill creation/distillation from scope.
@@ -11,24 +11,21 @@
   `docs/superpowers/specs/2026-08-13-baron-4-1-intelligence-evaluation-design.md`.
 - Active plan:
   `docs/superpowers/plans/2026-08-13-baron-4-1-program.md`.
-- Last successful checkpoint: Baron 4.0 source and public release evidence are
-  intact; the 4.1 release-profile benchmark now records split index/query
-  latency and real Windows peak working-set memory.
-- Current work: finish the 4.1 version/README/status synchronization, run the
-  Baron-only Phase 86 acceptance, publish the native release, and verify a
-  fresh install while retaining 4.0 fallback behavior.
+- Last successful checkpoint: Baron 4.1 source `6bea181` is public as tag
+  `v4.1.0`; Baron CI #56 and Baron Release #24 passed exact-source,
+  cross-platform, checksum, manifest, installer, and immutable-promotion gates.
+- Current work: reconcile final public-release evidence in status files, retain
+  the 4.0 fallback, and perform the requested disposable cache cleanup.
 - Latest proof batch: `cargo check --workspace`, workspace Clippy with
   warnings denied, Baron core library tests, CLI integration tests, and the
   focused Vault/CodeGraph/context suites passed. The full workspace/all-target
-  test command was retried and exceeded the local 304-second runner budget
-  without a final result; this is recorded as a timeout, not a pass.
+  test command passed locally after the semantic candidate filter fix and also
+  passed in the hosted Ubuntu release verifier.
 - The latest complete `cargo test -p baron-cli --tests --no-fail-fast` run also
   passed all CLI integration groups (23 test binaries/groups, including
   lifecycle, memory, context, CodeGraph, release, and recovery coverage).
-- A fresh full workspace/all-target run was retried with a 360-second local
-  runner budget but again timed out before a final exit result; it is recorded
-  as a timeout, not a pass. The complete CLI suite and 28 Baron core tests are
-  the successful bounded proof currently available.
+- The complete CLI suite and 28 Baron core tests also passed; the hosted native
+  matrix covered Windows x64, Linux x64, Intel macOS, and Apple Silicon.
 - The isolated seeded development-fixture test passes all five local surfaces
   at `100/100` without mutating a user's Vault; external comparison and
   confidence artifacts are non-blocking diagnostics.
@@ -52,21 +49,28 @@
   (`2189 ms` indexing, `2343 ms` query), estimated 367 handoff tokens,
   `44,155,262` cache/artifact bytes, and `168,239,104` peak working-set bytes;
   the 10,000 ms query and 512 MiB memory budgets passed.
-- Proof status: Baron-only Phase 86 is complete; Phase 87 publication and
-  reinstall verification are the remaining release actions. Broader real-
-  corpus/scale hardening remains non-blocking follow-up.
-- Safe resume point: complete the version bump, run the release workflow, verify
-  `releases/latest`, and retain the 4.0 fallback. Optional Tencent diagnostics
-  are not a release claim.
+- Proof status: Baron-only Phase 86 and public Phase 87 are complete; a fresh
+  public `install.ps1` smoke returned `baron 4.1.0` in an isolated directory.
+  Broader real-corpus/scale hardening remains a non-blocking follow-up.
+- Safe resume point: use the published `v4.1.0` baseline, retain the explicit
+  `BARON_ENGINE_GENERATION=4.0` fallback, and clean only rebuildable/disposable
+  caches. Optional Tencent diagnostics are not a release claim.
 - Tencent inspection evidence is recorded in
   `docs/assessment/baron-4.1-tencent-v2.0.0-inspection.*`: tag `v2.0.0`
   resolves to commit `0aff21a2d9f2b8a0354aaa80a2e586aab4054562`, but the public
   README only exposes PersonaMem `48% -> 76%`, not the five per-surface scores
   needed for a same-corpus gate.
 
-Date: 2026-08-13
-Target: Baron 4.1.0 candidate
+Date: 2026-08-14
+Target: Baron 4.1.0 public release
 Program target: Baron 4.1.0
+
+Public release evidence:
+
+- Source/tag: `6bea181044fa0d6f4a74195b8c7455eaa09fdf62` / `v4.1.0`
+- Release: https://github.com/thienty1207/Baron-Engine/releases/tag/v4.1.0
+- CI: https://github.com/thienty1207/Baron-Engine/actions/runs/31723285579
+- Release workflow: https://github.com/thienty1207/Baron-Engine/actions/runs/31723297751
 
 ## Final Public Release Checkpoint (2026-08-13)
 
