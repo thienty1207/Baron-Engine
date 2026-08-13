@@ -473,6 +473,28 @@ pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<Re
         .iter()
         .map(|hit| (hit.id.as_str(), hit))
         .collect::<std::collections::BTreeMap<_, _>>();
+    // Candidate expansion is intentionally broad so a paraphrase can enter
+    // the semantic ranker, but zero-evidence candidates must not fill the
+    // bounded result set merely because reciprocal-rank fusion assigns every
+    // document a small score. Keep candidates with lexical/ngram evidence or
+    // a meaningful positive vector match; firewall-approved lexical hits stay
+    // eligible even when the offline vector has no signal.
+    result.results.retain(|hit| {
+        if !hit
+            .notes
+            .iter()
+            .any(|note| note == "v5-semantic-eligible-after-firewall")
+        {
+            return true;
+        }
+        semantic_by_id
+            .get(hit.record.id.as_str())
+            .is_some_and(|semantic| {
+                semantic.lexical_score > 0.0
+                    || semantic.ngram_score > 0.0
+                    || semantic.vector_score >= 0.25
+            })
+    });
     for hit in &mut result.results {
         if let Some(semantic) = semantic_by_id.get(hit.record.id.as_str()) {
             hit.score = hit.score.saturating_add((semantic.score * 100.0) as i64);
