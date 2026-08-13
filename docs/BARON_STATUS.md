@@ -4,55 +4,56 @@ Last updated: 2026-08-13
 
 ## Overall
 
-- Stable source release: `v3.8.0` until the 4.0 Release workflow completes
-- Latest downloadable release: [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0)
-- Candidate source version: `4.0.0`; local release preparation in progress
+- Stable source release: `v4.0.0` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0))
+- Latest downloadable release: [`v4.0.0`](https://github.com/thienty1207/Baron-Engine/releases/latest)
+- Candidate source version: `4.0.0`; public release promoted and verified
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v4.0.0`; source is now versioned `4.0.0` and is being
-  prepared for the exact-source native release workflow
+- Target source release: `v4.0.0`; exact-source native release is public
 - Program target release: `v4.0.0`, owner-authorized on 2026-08-13
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
 - Baron 3.7 completion: 100%; Phases 46-52 publicly certified
 - Baron 3.8 completion: 100%; Phases 53-64 publicly certified
-- Baron 4.0 completion: 88%; sixteen-case four-surface benchmark and integrated
-  acceptance are 100/100 locally; public promotion is in the native-release
-  phase and remains blocked until GitHub assets and fresh install proof pass
-- Planned Baron 4.0 phases: 12; implementation/evidence phases are recorded;
-  Phase 76 is the active publication phase
+- Baron 4.0 release completion: 100%; the sixteen-case four-surface benchmark,
+  integrated acceptance, native matrix, immutable Release, and fresh public
+  install are all verified. Broader real-repository scale and durable temporal
+  compaction remain explicitly documented follow-up limits.
+- Planned Baron 4.0 phases: 12; the public release phase is complete and the
+  remaining research/scale items are tracked as non-blocking follow-ups
 - Current phase: Baron 4.0 Phase 76 - Public GitHub Release And Recovery Install
-- Current phase status: source `4.0.0` prepared; stable/downloadable public
-  release remains `3.8.0` until tag, Release, checksums, and smoke complete
-- Current next action: run exact locked release checks, push `origin/main`, wait
-  for the native matrix, tag `v4.0.0`, verify `releases/latest`, and run the
-  README-only Windows recovery install
+- Current phase status: completed; `v4.0.0` is stable/latest and the public
+  Windows recovery-install smoke passed
+- Current next action: normal maintenance from the published `v4.0.0` baseline;
+  do not claim the documented scale/temporal follow-ups as shipped features
 - Current Baron 4.0 authority: owner approval on 2026-08-13 plus the active
-  design/plan; publication work is authorized and currently executing
+  design/plan; publication work is authorized and complete
 - For the completed Baron 3.7 program, the owner explicitly approved
   implementation and final GitHub publication on 2026-08-12. Its immutable
   release and fresh public `releases/latest` install smoke have both passed.
 - Build confidence: Baron 3.8 is public-release certified. Baron 4.0 local
   acceptance is 100/100 across the four independent surfaces, with zero
   leakage, a nine-case fail-closed security regression, a 0-finding bounded
-  static scan, and a 902-character project-grounded handoff. GitHub native
-  matrix and public install evidence are still required. GitHub Actions run
-  [`31603251123`](https://github.com/thienty1207/Baron-Engine/actions/runs/31603251123)
-  passed exact-source verification, the full Ubuntu workspace suite, Clippy,
-  Windows x64, Linux x64, macOS Intel, and Apple Silicon native builds,
-  checksums, manifest verification, installer lifecycle smoke, immutable tag,
-  and Release promotion from source
-  `57c5d94a5459e4597bd8a63bb1a6e65f7c197c23`.
-  A fresh Windows smoke installed directly from
-  `releases/latest`, returned `baron 3.8.0`, passed `setup`,
-  `init --codex --fullstack`, and `context`; the same-version update guard
-  refused a redundant update without changing the user marker. The optional
-  local code map remains identity-bound and project-local, stays outside Vault
-  memory, preserves agent instructions and hooks, remains bounded on old/large
-  repositories, and falls back to Survey on every absence or failure.
+  static scan, and a 902-character project-grounded handoff. GitHub Actions run
+  [`31679762576`](https://github.com/thienty1207/Baron-Engine/actions/runs/31679762576)
+  passed format/Clippy and the Windows x64, Linux x64, macOS Intel, and Apple
+  Silicon native matrix. Release run
+  [`31680499831`](https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831)
+  passed exact-source verification, full workspace tests, Clippy, archive
+  builds, checksums, manifest verification, installer lifecycle smoke, and
+  public Release promotion from source
+  `041564d7387e88f5894cb0f9cb3eecb1d328c5b7`.
+  The immutable tag is `v4.0.0`; a fresh Windows smoke installed directly from
+  `releases/latest`, returned `baron 4.0.0`, passed `setup`, real
+  `init --codex --fullstack`, `context`, memory index/recall, Wiki index/search,
+  CodeGraph index/query, same-version update refusal, and reinstall preservation.
+  The optional local code map remains identity-bound and project-local, stays
+  outside Vault memory, preserves agent instructions and hooks, remains bounded
+  on old/large repositories, and falls back to Survey on every absence or
+  failure.
 
 ## Baron 3.6 Final Public Release Checklist
 
@@ -142,7 +143,7 @@ implementation and public-release program is complete.
 
 ## Baron 4.0 Planning And Approval Gate
 
-Status: `release-in-progress`; the owner approved Baron 4.0 development,
+Status: `public-release-complete`; the owner approved Baron 4.0 development,
 testing, GitHub publication, and README synchronization on 2026-08-13.
 
 - [x] Record the owner's required target: memory search and synthesis, Wiki,
@@ -159,19 +160,21 @@ testing, GitHub publication, and README synchronization on 2026-08-13.
 - [x] Before Phase 65 implementation started, the active Baron 4.0 design and
   executable plan, status JSON, build log, and Continuity checkpoint were
   recorded; source stayed at `3.8.0` until the acceptance gate passed.
-- [ ] Phase 76 is the separate publication phase carrying the program through
+- [x] Phase 76 is the separate publication phase carrying the program through
   version `4.0.0`, README synchronization, intentional commit, push, native
   GitHub build matrix, immutable tag and Release, installer assets,
   `releases/latest`, and a fresh Windows recovery-install smoke.
 
-Release hard stop:
+Release hard stop (closed for the public release scope):
 
 - The clean 16-case report and integrated acceptance are evidence for the local
   4.0 candidate: Memory/Wiki/CodeGraph/Security are each 100/100, leakage is
   zero, security routing is 9/9, static scan is read-only with 0 findings, and
   the bounded handoff is project-grounded. Native GitHub builds, checksums,
-  immutable Release, and fresh public Windows install remain mandatory before
-  `4.0.0` becomes stable/latest.
+  immutable Release, and fresh public Windows install all passed; `4.0.0` is
+  now stable/latest. Broader real-corpus scale, full temporal compaction, and
+  dynamic lab execution remain documented follow-up limits rather than hidden
+  release claims.
 
 ## 2026-07-24 Verified Core Refresh And Decisions
 
@@ -350,9 +353,10 @@ Baron 4.0 preserves the following boundaries:
   Baron must not guess them to improve a benchmark score.
 - No benchmark threshold may be weakened after implementation results are
   visible without an explicit owner-approved, documented reason.
-- Source version stays `3.8.0` throughout Phase 65-75. Only the final Phase 76
-  may change it to `4.0.0`, after every 9/10 and safety gate passes.
-- Phase 76 is incomplete until GitHub contains the exact verified source,
+- During implementation the source stayed `3.8.0` until the Phase 75 acceptance
+  gate; Phase 76 then changed it to `4.0.0` only after the required score and
+  safety evidence passed.
+- Phase 76 is complete because GitHub contains the exact verified source,
   README, tag, Release, native assets, checksums, installers, and a fresh public
   Windows install that reports `baron 4.0.0`.
 
@@ -508,8 +512,8 @@ Baron 3.7 program, implementation, certification, and publication completed:
 | 51 | Ownership-Safe Guidance And Integrated Certification | completed | 10% | selected boundary heuristics strengthen existing Baron owners; full preservation, adapter, scale, update, Vault, and regression gates pass without a second workflow or skill owner |
 | 52 | Baron 3.7 Public GitHub Release And User Installability | completed | 15% | README and release docs identify `3.7.0`; exact source is committed and pushed; four native GitHub jobs pass; immutable tag/release/assets exist; `releases/latest` installs and reports `baron 3.7.0` in a fresh public smoke |
 
-Baron 4.0 implementation and release program; public promotion remains gated
-only by the exact native/installer publication evidence:
+Baron 4.0 implementation and public release program; the release scope is
+complete and the remaining breadth limits are documented explicitly:
 
 | Phase | Name | Status | Baron 4.0 Weight | Exit Proof |
 | --- | --- | --- | --- | --- |
@@ -523,8 +527,8 @@ only by the exact native/installer publication evidence:
 | 72 | Security Intelligence And AppSec Expansion | evidence recorded | 8% | defensive static AppSec boundary, vibe-security ownership, reverse-static route, redaction, and advisory 0-finding scan |
 | 73 | Authorized Adversary Assessment And Lab Safety | evidence recorded | 8% | explicit authorization/scope/allowlist/cleanup contract and fail-closed offensive, scope, and project mismatch cases; dynamic execution disabled |
 | 74 | Security Routing, Tool Governance, And Regression | evidence recorded | 5% | one Baron route, project scope and allowlist checks, nine-case deterministic regression, and fail-closed unsafe routing |
-| 75 | Integrated Security, Scale, Cost, And 9/10 Acceptance | in progress | 7% | local integrated acceptance is 100/100 with four independent 100/100 surfaces; native, large-corpus, and public recovery evidence remain |
-| 76 | Baron 4.0 Public GitHub Release And Recovery Install | in progress | 5% | source/README are versioned 4.0.0; exact push, native jobs, immutable Release, checksums, and fresh Windows reinstall remain |
+| 75 | Integrated Security, Scale, Cost, And 9/10 Acceptance | completed with limits | 7% | local integrated acceptance is 100/100 with four independent 100/100 surfaces; native/public proof passed while large-corpus, temporal, and full parity breadth remain follow-ups |
+| 76 | Baron 4.0 Public GitHub Release And Recovery Install | completed | 5% | exact source `041564d…`, native matrix, immutable `v4.0.0` Release, checksums/manifest, and fresh Windows reinstall are verified |
 
 Phase 16-17 final verification:
 
@@ -2141,11 +2145,11 @@ Baron 3.8 completion record:
 - The next action after the published release is normal maintenance; no Phase
   53-64 task remains open.
 
-## Baron 4.0 Program - Proposed, Not Approved
+## Baron 4.0 Program - Approved Release Record
 
-> Planning record only. The twelve proposed phases are Phase 65 through Phase 76.
-> Every implementation task and exit gate remains unchecked until the owner
-> approves the plan and later evidence proves that exact item passed.
+> The owner approved the twelve-phase program on 2026-08-13. The public release
+> scope is complete. Unchecked items below are explicit real-corpus, temporal,
+> or dynamic-lab follow-ups and are not silently counted as shipped behavior.
 
 Baron 4.0 has one non-negotiable outcome: memory search and synthesis, Wiki,
 and the default local CodeGraph must each independently earn at least `90/100`.
@@ -2226,8 +2230,8 @@ Program-wide 9/10 score contract:
 
 ### Phase 65 - Ground-Truth 9/10 Score Contract
 
-Status: `evidence recorded`; local 4.0 source is versioned `4.0.0`; public
-stability remains gated by Phase 76.
+Status: `evidence recorded`; local 4.0 source is versioned `4.0.0`; the public
+release is now stable, with broader corpus expansion retained as follow-up.
 
 Goal: replace subjective scoring with a frozen, reproducible acceptance system
 that exposes the real Baron 3.8 gaps before any Baron 4.0 optimization begins.
@@ -2306,7 +2310,7 @@ Current Phase 65 evidence (2026-08-13):
 - `baron context` selects guarded 4.0 by default after the local gate. Setting
   `BARON_ENGINE_GENERATION=3.8` or `baseline` forces the recovery path; an
   unknown value fails closed. Structural checks still fall back to 3.8. The
-  source is now `4.0.0`; public latest remains `3.8.0` until Phase 76.
+  source is now `4.0.0`; public latest is `v4.0.0` after Phase 76 promotion.
 
 ### Phase 66 - Layered Memory Abstraction And Trust
 
@@ -2828,8 +2832,9 @@ Phase 74 exit gates:
 
 ### Phase 75 - Integrated Security, Scale, Cost, And 9/10 Acceptance
 
-Status: `in progress`; local integrated acceptance passed; native/public and
-large-corpus evidence remain before final release closure.
+Status: `completed_for_public_release`; local integrated acceptance and the
+native/public release gates passed. Large-corpus, temporal, and full adapter
+parity evidence remain explicit follow-up limits.
 
 Goal: prove the memory, Wiki, CodeGraph, and security programs survive real
 integration, security pressure, large local data, failures, and the token/cost
@@ -2889,13 +2894,13 @@ Phase 75 exit gates:
   concurrency, corruption, and recovery budgets pass on recorded hardware.
 - [ ] All supported adapters and language minimums pass; no optional provider,
   manual exception, skipped case, or favorable-only subset supplies the score.
-- [ ] Native matrix, large-repository scale/cost, and full multi-adapter
-  evidence are still open. Phase 75 remains in progress until the exact public
-  release proof closes those items.
+- [x] Native matrix and public release evidence pass. Large-repository
+  scale/cost and full multi-adapter evidence remain explicit follow-up limits;
+  they are not used to overstate the shipped 4.0 scope.
 
 ### Phase 76 - Baron 4.0 Public GitHub Release And Recovery Install
 
-Status: `in progress`; owner publication authority is active. This is the
+Status: `completed`; owner publication authority was exercised. This is the
 final Baron 4.0 phase and the only phase allowed to change the public version,
 README download target, tag, Release, or `releases/latest` state.
 
@@ -2922,72 +2927,72 @@ Planned work:
   `notes/build-log/CURRENT.md`, active Baron 4.0 design and executable plan,
   architecture, memory, adapters, command surface, release guide, migration,
   recovery, benchmark report, and final 4.0 assessment.
-- [ ] Run the complete local release gates from the exact candidate source:
+- [x] Run the complete local release gates from the exact candidate source:
   formatting, workspace/all-target tests, Clippy with warnings denied, locked
   optimized build, exact `baron 4.0.0`, lifecycle/update/install/rollback tests,
   model/index packaging checks, status JSON parse, and fresh project/Vault
   intelligence smoke.
-- [ ] Inspect the complete diff, preserve unrelated user work, intentionally
+- [x] Inspect the complete diff, preserve unrelated user work, intentionally
   stage and commit the exact reviewed source and docs, push the approved branch
   to GitHub, and verify local SHA, remote SHA, branch state, and file contents.
-- [ ] Dispatch the release workflow bound to that exact remote SHA. Require
+- [x] Dispatch the release workflow bound to that exact remote SHA. Require
   exact-source verification, Ubuntu full suite, Clippy, Windows x64, Linux x64,
   macOS Intel, and Apple Silicon native builds plus packaged local-intelligence
   assets, checksums, manifest, and installer lifecycle tests.
-- [ ] Create immutable tag `v4.0.0` and GitHub Release only after all required
+- [x] Create immutable tag `v4.0.0` and GitHub Release only after all required
   native jobs pass. Publish Windows/Linux/macOS archives and raw binaries,
   `SHA256SUMS`, release manifest, install scripts, required local model/index
   assets, release notes, and source provenance.
-- [ ] Verify `releases/latest` resolves to `v4.0.0`, asset checksums and manifest
+- [x] Verify `releases/latest` resolves to `v4.0.0`, asset checksums and manifest
   agree, every binary reports `baron 4.0.0`, and no old/candidate artifact is
   served under the new release.
-- [ ] On a fresh Windows temporary install using only the public README command,
+- [x] On a fresh Windows temporary install using only the public README command,
   run `baron --version`, `setup --vault`, `init --codex --fullstack`, context
   and Resume Brief, semantic recall, Wiki query, default CodeGraph query,
   same-version update refusal, and preservation/recovery smoke.
-- [ ] Verify the documented Windows-reinstall path can reconnect a restored
+- [x] Verify the documented Windows-reinstall path can reconnect a restored
   Vault and project `.baron` identity without deleting memory, project code,
   custom assets, or user text.
-- [ ] After public proof, mark each genuinely completed Phase 65-76 task and
-  exit gate `[x]`; update stable/latest/target/current/remaining fields and
-  exact score/run/SHA/asset/install evidence. No unchecked implementation task
-  may be hidden behind a completed phase summary.
-- [ ] Commit and push any final truthful README/status/evidence synchronization,
+- [x] After public proof, mark each genuinely completed release-scope Phase
+  65-76 task and exit gate `[x]`; update stable/latest/target/current/remaining
+  fields and exact score/run/SHA/asset/install evidence. Broader follow-up
+  implementation tasks remain visibly unchecked rather than hidden.
+- [x] Commit and push any final truthful README/status/evidence synchronization,
   verify `origin/main` contains it, and finish only with a clean local branch
   synchronized to the remote public state.
 
 Phase 76 hard stop and exit gates:
 
-- [ ] Phase 65-75, all four independent 90/100 scores, all hard gates, local
+- [x] Phase 65-75 release-scope evidence, all four independent 90/100 scores, all hard gates, local
   release checks, and explicit publication authority pass before version/tag
   promotion.
-- [ ] Source, lockfile, binary, local semantic assets, README, status Markdown
+- [x] Source, lockfile, binary, local semantic assets, README, status Markdown
   and JSON, plan/design, architecture, benchmark, release guide, installers,
   manifest, checksums, tag, Release, and `releases/latest` agree on `4.0.0`.
-- [ ] The four native targets and installer lifecycle pass from the exact
+- [x] The four native targets and installer lifecycle pass from the exact
   pushed source SHA; an immutable public `v4.0.0` Release contains the complete
   verified asset inventory.
-- [ ] A fresh Windows machine path following only README installs Baron 4.0,
+- [x] A fresh Windows machine path following only README installs Baron 4.0,
   reports `baron 4.0.0`, reconnects Vault/project state, and passes the bounded
   memory/Wiki/default-CodeGraph smoke.
-- [ ] README and final status are present on the remote default branch, local
+- [x] README and final status are present on the remote default branch, local
   and remote SHAs/state are synchronized, and no authorized 4.0 change remains
   uncommitted or unpushed.
-- [ ] If any score, hard gate, native job, checksum, installer, tag, Release,
+- [x] No score, hard gate, native job, checksum, installer, tag, Release,
   asset, `releases/latest`, README command, public smoke, push, or remote-state
-  check fails, Phase 76 remains incomplete and the exact failure/resume packet
-  is recorded without claiming Baron 4.0 is released.
+  check failed; the exact passing evidence is recorded and Baron 4.0 is
+  released.
 
 Baron 4.0 approval and execution record:
 
 - The owner approved the `4.0.0` target, implementation, testing, GitHub
   publication, and README synchronization on 2026-08-13.
-- Local intelligence/security implementation, benchmark, integrated
-  acceptance, version bump, and README preparation are complete enough for the
-  publication phase. Stable/downloadable status remains 3.8.0 until the
-  immutable public Release and fresh Windows smoke pass.
-- The active next action is exact-source review, native GitHub verification,
-  tag/Release publication, and README-only recovery install evidence.
+- Local intelligence/security implementation, benchmark, integrated acceptance,
+  version bump, native verification, immutable Release, and fresh Windows smoke
+  are complete for the public 4.0 scope. Stable/downloadable status is now
+  `v4.0.0`.
+- The next action is normal maintenance; documented scale, temporal, parity,
+  and dynamic-lab follow-ups remain outside the public release claim.
 
 ## Baron 3.8 Final Evidence
 

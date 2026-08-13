@@ -4,15 +4,50 @@ Date: 2026-08-13
 Target: Baron 4.0.0
 Program target: Baron 4.0.0
 
+## Final Public Release Checkpoint (2026-08-13)
+
+- Baron `v4.0.0` is public at
+  `https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0`.
+- Release source is exact commit
+  `041564d7387e88f5894cb0f9cb3eecb1d328c5b7`, tagged `v4.0.0`; the release
+  workflow is
+  `https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831`.
+  The preceding native CI matrix is
+  `https://github.com/thienty1207/Baron-Engine/actions/runs/31679762576`.
+- Native CI passed Format/Clippy, full tests, release build, and smoke on
+  Windows x64, Linux x64, Intel macOS, and Apple Silicon. The release job then
+  passed exact-source verification, archive builds, SHA-256 checksums,
+  `release-manifest.json`, installer lifecycle smoke, and immutable promotion.
+- Public assets include four native archives and raw binaries, `SHA256SUMS`,
+  `release-manifest.json`, `install.ps1`, and `install.sh`. The public
+  `releases/latest` endpoint resolves to `v4.0.0`; the downloaded manifest
+  reports version `4.0.0` and source `041564d…`, and the public Windows archive
+  SHA-256 matches `SHA256SUMS`.
+- Fresh Windows public install downloaded `install.ps1` from `releases/latest`,
+  verified the archive checksum, installed `baron 4.0.0`, and passed `setup`,
+  real `init --codex --fullstack`, `context`, memory index/recall, Wiki
+  index/search, and CodeGraph index/query. A reinstall into the same temporary
+  directory preserved the project marker and all Vault files (`14` before and
+  `14` after). The installed runtime's same-version `baron update --codex`
+  attempt refused the redundant `4.0.0` candidate without changing project or
+  Vault state.
+- Release scope is complete. Real-repository/large-corpus scale, durable
+  temporal compaction, full adapter parity, and dynamic lab execution remain
+  explicit follow-up limits; no release claim relies on those unimplemented
+  paths.
+- Next action: synchronize the final truthful README/status/build evidence to
+  `origin/main`, run the documentation trust tests, and leave the tree clean.
+
 ## Baron 4.0 Release Checkpoint
 
 - Owner approval: explicit approval to implement Phases 65-76, run the full
   benchmark/test/certification program, publish `v4.0.0` to GitHub, and update
   the README with the newest install path.
-- Baseline: Baron `3.8.0` remains the stable public release and explicit
-  recovery fallback; source is now versioned `4.0.0` on branch `agent/baron-4-0`.
-- Active branch: `agent/baron-4-0`; publication is intentionally isolated from
-  `main` until the exact source and release proof are ready.
+- Baseline: Baron `3.8.0` remains the explicit recovery fallback; public stable
+  and source release are now `4.0.0`.
+- Release source `041564d7387e88f5894cb0f9cb3eecb1d328c5b7` is pushed to
+  `origin/main`; the working branch retains the same source while final docs
+  synchronization is prepared.
 - Active design: `docs/superpowers/specs/2026-08-13-baron-4-0-intelligence-security-design.md`.
 - Active plan: `docs/superpowers/plans/2026-08-13-baron-4-0-program.md`.
 - Phase 65 starts with a frozen score contract and baseline; no 4.0 result may
@@ -38,16 +73,15 @@ Program target: Baron 4.0.0
   duplicate/conflict/supersession candidates without writing or promoting any
   Vault record; durable compaction, temporal authority, and rollback are still
   open.
-- Known open gates: native GitHub matrix, locked release build evidence from the
-  final 4.0.0 tree, exact-source push to `origin/main`, immutable tag/Release,
-  checksums/manifest, and fresh public Windows recovery install. Broader real
-  repository/large-scale corpus and durable temporal compaction remain explicit
-  follow-up limits and are not silently claimed as completed.
-- Safe next action: run the final local release gates, inspect the complete diff,
-  commit/push exact source, wait for the native matrix, tag `v4.0.0`, verify
-  `releases/latest`, then record public install evidence.
+- All public release gates are now closed: exact-source push, native matrix,
+  immutable tag/Release, checksums/manifest, and fresh public Windows recovery
+  install passed. Broader real-repository/large-scale corpus and durable
+  temporal compaction remain explicit follow-up limits and are not silently
+  claimed as completed.
+- Safe next action: commit/push the final truthful README, status, and build-log
+  synchronization, run the documentation trust tests, and leave the tree clean.
 
-## Final Local Release Evidence Before GitHub Publication
+## Pre-Publication Evidence (All Gates Passed)
 
 - Source version is `4.0.0`; `cargo fmt --all -- --check`, `cargo check
   --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and
@@ -70,14 +104,12 @@ Program target: Baron 4.0.0
 - Optimized binary smoke passes setup, Codex fullstack init, default 4.0
   context/Resume Brief, Wiki index/search, CodeGraph index/query, and explicit
   `BARON_ENGINE_GENERATION=3.8` recovery context.
-- Remaining gate: exact diff review, commit/push to `origin/main`, native
-  GitHub release matrix, immutable `v4.0.0` tag/Release, checksums/installers,
-  and a fresh public Windows README reinstall. No public 4.0 claim is complete
-  before those checks.
+- Public release gate complete; only final documentation synchronization remains
+  in this build note. No source or release artifact change is required.
 
 ## Current Phase
 
-Baron 4.0 Phase 76 exact-source publication and recovery install (`in progress`).
+Baron 4.0 Phase 76 exact-source publication and recovery install (`completed`).
 
 ## Baron 3.8 Implementation Checkpoint
 

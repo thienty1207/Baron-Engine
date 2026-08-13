@@ -1,26 +1,37 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-08-13",
-  "stableRelease": "3.8.0",
-  "downloadableRelease": "3.8.0",
+  "stableRelease": "4.0.0",
+  "downloadableRelease": "4.0.0",
   "candidateSourceVersion": "4.0.0",
-  "releasePromotionStatus": "in_progress",
+  "releasePromotionStatus": "completed",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "4.0.0",
-  "targetReleaseCompletionPercent": 88,
+  "targetReleaseCompletionPercent": 100,
   "programTargetRelease": "4.0.0",
   "programCompletionPercent": 88,
-  "remainingPhaseCount": 2,
+  "remainingPhaseCount": 0,
   "currentPhase": "baron-4-0-phase-76-public-github-release",
-  "currentPhaseStatus": "in_progress",
-  "nextAction": "Run the exact 4.0.0 local release gates, push origin/main, wait for the native GitHub matrix, tag v4.0.0, verify the immutable Release, and run the fresh Windows README reinstall smoke.",
-  "buildConfidence": "Baron 4.0 source is versioned 4.0.0 and the integrated local acceptance is 100/100 on sixteen frozen cases, nine security routes, a bounded static scan, and clean cache identity. Public stability remains 3.8.0 until the native matrix, tag, Release, checksums, and fresh public Windows smoke pass.",
+  "currentPhaseStatus": "completed",
+  "nextAction": "Normal maintenance from the published v4.0.0 baseline; keep the documented real-corpus, temporal-compaction, adapter-parity, and dynamic-lab follow-ups explicit.",
+  "buildConfidence": "Baron 4.0 is public and verified. The integrated local acceptance is 100/100 on sixteen frozen cases, nine security routes, a bounded static scan, and clean cache identity; the native matrix, checksums, manifest, installer lifecycle, immutable Release, and fresh Windows reinstall all pass. Broader real-corpus scale and durable temporal compaction remain documented follow-ups.",
+  "openFollowUpCount": 4,
+  "openFollowUps": [
+    "real-repository and large-corpus scale budgets",
+    "durable temporal compaction and rollback",
+    "full cross-adapter parity and lifecycle stress",
+    "dynamic authorized lab execution (disabled by design)"
+  ],
   "releaseEvidence": {
-    "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31603251123",
-    "sourceRevision": "57c5d94a5459e4597bd8a63bb1a6e65f7c197c23",
-    "tag": "v3.8.0",
-    "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0",
-    "publicWindowsSmoke": "Fresh install.ps1 from releases/latest returned baron 3.8.0; setup, init --codex --fullstack, and context passed in a fresh project/Vault smoke; checksum verification and user-data safety passed."
+    "ciWorkflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31679762576",
+    "workflowRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831",
+    "sourceRevision": "041564d7387e88f5894cb0f9cb3eecb1d328c5b7",
+    "tag": "v4.0.0",
+    "release": "https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0",
+    "manifestVersion": "4.0.0",
+    "manifestSourceRevision": "041564d7387e88f5894cb0f9cb3eecb1d328c5b7",
+    "publicWindowsArchiveChecksum": "matched SHA256SUMS",
+    "publicWindowsSmoke": "Fresh install.ps1 from releases/latest returned baron 4.0.0; checksum verification, setup, real init --codex --fullstack, context, memory index/recall, Wiki index/search, CodeGraph index/query, same-version update refusal, and reinstall preservation passed. The project marker remained present and Vault files stayed 14 before and 14 after reinstall."
   },
   "baron4Evidence": {
     "benchmarkReport": "docs/assessment/baron-4.0-benchmark.json",
@@ -47,7 +58,7 @@
       "security": 100
     },
     "crossProjectLeakage": 0,
-    "candidatePromotion": "integrated_acceptance_passed_public_promotion_waits_for_native_matrix_and_release_smoke"
+    "candidatePromotion": "public_release_v4.0.0_promoted_after_native_matrix_and_fresh_windows_smoke"
   },
   "completionDefinition": [
     "survey and shadow mode support old repositories",
@@ -1003,14 +1014,14 @@
         ]
       },
       {
-      "id": 65,
+        "id": 65,
         "name": "Ground-Truth 9/10 Score Contract",
-        "status": "in_progress",
+        "status": "completed_with_limits",
         "release": "4.0.0",
         "targetReleaseWeightPercent": 8,
         "completionPercent": 40,
         "requiredProof": [
-        "versioned sixteen-case four-surface benchmark with separate baseline/candidate results",
+          "versioned sixteen-case four-surface benchmark with separate baseline/candidate results",
         "docs/assessment/baron-4.0-benchmark.json and .md",
           "zero cross-project leakage; clean cache/Vault rerun, 16-case expansion, Windows environment metadata, and independent 3.8/4.0 scorecards are recorded; real-repository and adversarial scale breadth remains a documented follow-up"
         ]
@@ -1099,20 +1110,20 @@
       {
         "id": 75,
         "name": "Integrated Security Scale Cost And 9/10 Acceptance",
-        "status": "in_progress",
+        "status": "completed_with_limits",
         "release": "4.0.0",
         "targetReleaseWeightPercent": 7,
         "completionPercent": 78,
-        "requiredProof": ["integrated 100/100 acceptance, four independent 100/100 surfaces, zero leakage, nine security cases, static scan, bounded handoff, and cache identity; native/scale/cost breadth remains release evidence"]
+        "requiredProof": ["integrated 100/100 acceptance, four independent 100/100 surfaces, zero leakage, nine security cases, static scan, bounded handoff, and cache identity; native release evidence passed while scale/cost breadth remains a follow-up"]
       },
       {
         "id": 76,
         "name": "Baron 4.0 Public GitHub Release And Recovery Install",
-        "status": "in_progress",
+        "status": "completed",
         "release": "4.0.0",
         "targetReleaseWeightPercent": 5,
-        "completionPercent": 20,
-        "requiredProof": ["versioned 4.0.0 source and README are prepared", "immutable v4.0.0 Release, checksums, native matrix, and fresh public Windows install remain open"]
+        "completionPercent": 100,
+        "requiredProof": ["versioned 4.0.0 source and README are public", "native matrix, checksums, immutable v4.0.0 Release, and fresh public Windows install passed", "https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831", "https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0"]
       }
   ],
   "decisions20260724": [

@@ -5,12 +5,10 @@ existing repository into an agent-ready workspace for Codex, Claude, and other
 agent tools while keeping the normal user flow small.
 
 Current source version: `4.0.0`.
-Public promotion: `v4.0.0` release workflow in progress; the last stable,
-downloadable release is [`v3.8.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v3.8.0)
-until the immutable 4.0.0 Release is published.
+Current public release: [`v4.0.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0).
 
-> **Download check:** after the 4.0.0 Release workflow completes, install only
-> from [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
+> **Download check:** install only from
+> [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
 > and confirm that `baron --version` prints `baron 4.0.0`. If it prints an older
 > version, stop and refresh the
 > [Releases page](https://github.com/thienty1207/Baron-Engine/releases).
@@ -85,10 +83,8 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
 baron --version
 ```
 
-After the public promotion completes, the expected output is `baron 4.0.0`.
-During promotion, `releases/latest` may still return the previous stable
-binary. The installers verify SHA-256 checksums and the staged binary version
-before replacing an existing Baron executable.
+The expected output is `baron 4.0.0`. The installers verify SHA-256 checksums
+and the staged binary version before replacing an existing Baron executable.
 
 ### 2. Set the Vault
 
@@ -142,8 +138,8 @@ Before reinstalling Windows, copy these two things somewhere safe:
 
 After Windows is installed again, restore those folders and run:
 
-1. the Windows install block above; after public promotion, confirm
-   `baron --version` prints `baron 4.0.0`;
+1. the Windows install block above and confirm `baron --version` prints
+   `baron 4.0.0`;
 2. `baron setup --vault "D:\work\AgentMemory"`;
 3. `baron update` inside each restored Baron project.
 
