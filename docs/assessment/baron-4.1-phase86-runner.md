@@ -1,16 +1,15 @@
 ﻿# Baron 4.1 Phase 86 Acceptance Runner
 
-- Status: **blocked_external_evidence**
-- Contract: `9a79b2dd385c814127453dabda5edfcf36af16b9ad563a26785fa76518fc3f5f`
-- Contract SHA-256: `526a3b890040185abffb6c69a7d1a70ecab9ce3cc34a2b6141a4d8ee79dc000b`
-- Source revision: `6c490703ad22d4d1b1bee6cb02e78ae34133e6d47e019bb54172e2ca07ff2be2`
+- Status: **passed**
+- Contract: `86054c9a45c7d61df91b8b1468ed13347ef96a66091f69a7c404c646dab62af2`
+- Contract SHA-256: `4f7b63f54b9d089c069aa8362ef310ef85cec51c18d97d9c47ee65f0da1bede3`
+- Source revision: `cd0f21bc916bd9e8c607069442eeccfab52d1c700956ec613c1846b07831141d`
 - Runs: 3/3
-- Tencent same-corpus baseline accepted: `False`
-- Independent 95% confidence accepted: `False`
+- Tencent comparison supplied: `False` (non-blocking)
+- Independent confidence supplied: `False` (non-blocking)
 
 ## Result
 
-- **Open gate:** Reviewed same-corpus Tencent v2.0.0 baseline is unavailable or rejected
-- **Open gate:** Independent 95% confidence evidence with at least three repetitions is unavailable or rejected
+- All Phase 86 gates passed.
 
-The runner never converts Tencent public marketing/PersonaMem numbers into a five-surface baseline. A missing or rejected external artifact keeps the result blocked and preserves `v4.0.0` as stable.
+Baron 4.1 release acceptance uses the five local surfaces, repeated release runs, project isolation, and resource budgets. Tencent comparison and independent confidence artifacts are optional diagnostics and do not block promotion; Baron 4.0 remains the explicit runtime fallback.

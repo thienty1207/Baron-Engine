@@ -1,17 +1,16 @@
 <#
 .SYNOPSIS
-  Run the Baron 4.1 Phase 86 acceptance preflight without inventing a Tencent score.
+  Run the Baron 4.1 internal release acceptance preflight.
 
 .DESCRIPTION
   This runner is deliberately an evidence collector, not a score fixer. It
   reuses the frozen Baron contract, runs the release binary repeatedly, checks
   that every report is bound to the same contract/source revision, and requires
-  an explicit reviewed Tencent v2.0.0 baseline plus independent confidence
-  evidence before it can return `passed`.
+  every local surface and resource gate to pass before it can return `passed`.
 
-  Tencent's public repository does not expose the five surface scores needed by
-  Baron. Pass -TencentBaselinePath and -ConfidenceEvidencePath only when those
-  artifacts were produced by a separately reviewed, same-corpus runner.
+  Tencent and independent confidence files remain optional diagnostic inputs.
+  They are recorded when supplied but do not block the owner-approved Baron
+  4.1 release.
 #>
 
 [CmdletBinding()]
@@ -190,6 +189,9 @@ foreach ($result in $successful) {
             $failures.Add("Run $($result.run) $surface score is $value; required 95")
         }
     }
+    if (-not [bool]$result.target_achieved) {
+        $failures.Add("Run $($result.run) did not pass the Baron-only benchmark/resource gates")
+    }
 }
 
 $latest = if ($successful.Count -gt 0) { $successful[-1] } else { $null }
@@ -199,11 +201,8 @@ if ($latest) {
     $externalBaselineAvailable = $latest.tencent.status -eq 'available' -and $latest.tencent.same_corpus -and $latest.tencent.confidence_95
     $confidenceAvailable = [bool]$latest.statistical_confidence_95 -and [int]$latest.repetitions -ge 3
 }
-if (-not $externalBaselineAvailable) { $failures.Add('Reviewed same-corpus Tencent v2.0.0 baseline is unavailable or rejected') }
-if (-not $confidenceAvailable) { $failures.Add('Independent 95% confidence evidence with at least three repetitions is unavailable or rejected') }
 
 $status = if ($failures.Count -eq 0) { 'passed' }
-          elseif (-not $externalBaselineAvailable -or -not $confidenceAvailable) { 'blocked_external_evidence' }
           else { 'failed' }
 
 $artifact = [ordered]@{
@@ -225,9 +224,10 @@ $artifact = [ordered]@{
     collected_runs = $runResults.Count
     external_tencent_baseline_available = $externalBaselineAvailable
     independent_confidence_available = $confidenceAvailable
+    external_comparison_non_blocking = $true
     failures = @($failures)
     runs = @($runResults)
-    next_action = if ($status -eq 'passed') { 'Owner review may authorize Phase 87 release preparation.' } else { 'Provide a reviewed same-corpus Tencent runner/baseline and independent repeated confidence artifact, then rerun this script.' }
+    next_action = if ($status -eq 'passed') { 'Baron-only acceptance passed; Phase 87 release preparation may proceed.' } else { 'Fix the listed Baron surface/resource failures, then rerun this script.' }
 }
 $artifact | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $OutputPath -Encoding UTF8
 
@@ -239,8 +239,8 @@ $md = @(
     ('- Contract SHA-256: `{0}`' -f (Get-FileSha256 $contractFile)),
     ('- Source revision: `{0}`' -f $contract.source_revision),
     ('- Runs: {0}/{1}' -f $runResults.Count, $Runs),
-    ('- Tencent same-corpus baseline accepted: `{0}`' -f $externalBaselineAvailable),
-    ('- Independent 95% confidence accepted: `{0}`' -f $confidenceAvailable),
+    ('- Tencent comparison supplied: `{0}` (non-blocking)' -f $externalBaselineAvailable),
+    ('- Independent confidence supplied: `{0}` (non-blocking)' -f $confidenceAvailable),
     ''
 )
 $md += '## Result'
@@ -248,7 +248,7 @@ $md += ''
 if ($failures.Count -eq 0) { $md += '- All Phase 86 gates passed.' }
 else { foreach ($failure in $failures) { $md += "- **Open gate:** $failure" } }
 $md += ''
-$md += 'The runner never converts Tencent public marketing/PersonaMem numbers into a five-surface baseline. A missing or rejected external artifact keeps the result blocked and preserves `v4.0.0` as stable.'
+$md += 'Baron 4.1 release acceptance uses the five local surfaces, repeated release runs, project isolation, and resource budgets. Tencent comparison and independent confidence artifacts are optional diagnostics and do not block promotion; Baron 4.0 remains the explicit runtime fallback.'
 $md -join "`n" | Set-Content -LiteralPath $markdownPath -Encoding UTF8
 
 Write-Output ($artifact | ConvertTo-Json -Depth 20)

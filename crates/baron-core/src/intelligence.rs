@@ -440,9 +440,10 @@ pub fn candidate_generation_enabled() -> bool {
     }
 }
 
-/// Returns whether the Baron 4.1 candidate may run. Baron 4.0 remains the
-/// immediate fallback; an explicit 3.8/baseline value still forces the old
-/// recovery path and unknown values fail closed.
+/// Returns whether the Baron 4.1 release path may run. Baron 4.1 is the
+/// released default; an explicit 4.0 value selects the guarded 4.0 fallback,
+/// while 3.8/baseline selects the older recovery path. Unknown values fail
+/// closed to the 4.0 fallback.
 pub fn next_generation_enabled() -> bool {
     match std::env::var("BARON_ENGINE_GENERATION") {
         Ok(value) if value.trim() == BARON_BASELINE_GENERATION || value.trim() == "baseline" => {
@@ -451,7 +452,7 @@ pub fn next_generation_enabled() -> bool {
         Ok(value) if value.trim() == BARON_CANDIDATE_GENERATION => false,
         Ok(value) if value.trim() == BARON_NEXT_GENERATION => true,
         Ok(_) => false,
-        Err(_) => false,
+        Err(_) => true,
     }
 }
 

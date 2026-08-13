@@ -4063,7 +4063,7 @@ mod tests {
     #[test]
     fn activated_runtime_requires_the_exact_release_version() {
         let expected_version = env!("CARGO_PKG_VERSION");
-        let accepted = StaticInspector("baron 4.0.0");
+        let accepted = StaticInspector("baron 4.1.0");
         assert!(
             verify_activated_runtime_version(&accepted, Path::new("baron"), expected_version)
                 .is_ok()
@@ -4075,6 +4075,6 @@ mod tests {
                 .expect_err("a mismatched activated runtime must be rejected");
         assert!(error
             .to_string()
-            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 4.0.0`"));
+            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 4.1.0`"));
     }
 }

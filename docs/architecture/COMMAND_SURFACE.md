@@ -412,12 +412,13 @@ binary, APK/mobile, malware, or firmware analysis. They are static/read-only by
 default and do not add a router, case lifecycle, global bootstrap, or quality
 gate.
 
-## Baron 4.0 Intelligence And Security (guarded during development)
+## Baron 4.1 Intelligence And Security
 
-The following hidden AI-facing commands expose guarded 4.0 intelligence without
-changing the normal user surface. Baron 4.0 is the released default;
-`BARON_ENGINE_GENERATION=3.8` (or `baseline`) opts into the recovery baseline,
-and every 4.0 path automatically falls back to 3.8 when structural checks fail.
+The following hidden AI-facing commands expose guarded 4.1 intelligence without
+changing the normal user surface. Baron 4.1 is the released default;
+`BARON_ENGINE_GENERATION=4.0` selects the guarded fallback and
+`BARON_ENGINE_GENERATION=3.8` (or `baseline`) selects the older recovery
+baseline. Every 4.1 path automatically falls back when structural checks fail.
 
 ```bash
 baron memory consolidate [repo-path] --vault <vault-path> [--json] [--stage]

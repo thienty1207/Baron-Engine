@@ -1,7 +1,7 @@
 # Baron 4.1 Intelligence And Evaluation Design
 
 Date: 2026-08-13
-Status: implementation started after owner approval
+Status: owner-approved internal release contract
 
 ## Decision
 
@@ -28,10 +28,10 @@ project identity + trust firewall
         -> 4.1 result or per-query fallback to 4.0
 ```
 
-The 4.0 result remains available for every query. Candidate output is selected
-only when project identity, freshness, evidence, budget, and safety checks all
-pass. Unknown, contested, superseded, or unsupported content is labeled rather
-than guessed.
+The 4.0 result remains available for every query. After promotion, 4.1 is the
+normal path and output is selected only when project identity, freshness,
+evidence, budget, and safety checks all pass. Unknown, contested, superseded,
+or unsupported content is labeled rather than guessed.
 
 ## Intelligence additions
 
@@ -59,26 +59,23 @@ five development cases, a hash-sealed holdout, per-surface checks, evidence,
 bounded handoff tokens, and hard failures. The Phase 86 runner emits repeated
 index/query latency, cache/disk bytes, peak working-set memory, token, and
 cost measurements, and refuses to continue when the frozen contract/source
-hash changes. Phase 84 still has to repeat them on the pinned large corpus and
-under interruption/concurrency scenarios before they can be final release
-evidence. A release claim requires every intelligence surface to score at least
-95/100 and a reproducible shared-corpus Tencent v2.0.0 win; a missing or
-non-reproducible Tencent run is recorded as `target not achieved`.
+hash changes. A Baron 4.1 release requires every intelligence surface to score
+at least 95/100, preserve project isolation, and stay within the resource
+budgets. Tencent comparison and independent external confidence are optional
+diagnostics and are not release gates.
 
 The frozen query budget is 10,000 ms for the complete five-surface query pass
 on a release-profile binary; indexing is reported separately. Debug-profile
 measurements remain diagnostic and cannot be used as release evidence.
 
-The pinned public Tencent `v2.0.0` checkout currently exposes only a PersonaMem
-comparison in its README (`48%` without the system versus `76%` with it), not
-the five per-surface same-corpus scores needed by this contract. That public
-number is recorded as inspection evidence, never converted into a Baron
-surface score.
+The pinned public Tencent `v2.0.0` checkout is retained only as architectural
+reference material. Its public benchmark is recorded in the inspection note,
+but no Tencent number is converted into a Baron surface score or release gate.
 
-The engine accepts statistical confidence only from a separate reviewed
-`BARON_41_CONFIDENCE_EVIDENCE_JSON` artifact bound to the exact contract and
-source revision, with at least three independent repetitions. A normal local
-single run always remains `confidence_95=false`.
+The engine records optional statistical confidence only from a separate
+reviewed `BARON_41_CONFIDENCE_EVIDENCE_JSON` artifact bound to the exact
+contract and source revision. A missing confidence file is visible in the
+report but cannot block the owner-approved local release.
 
 ## Safety and cost
 

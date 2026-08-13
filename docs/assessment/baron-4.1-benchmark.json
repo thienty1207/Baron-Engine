@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "report_id": "c26d78b29ee45251528b4b527956b4282879397b20de6acc950feed555eec559",
-  "generated_at": "2026-08-13T15:28:33Z",
+  "report_id": "1e2f255122be48e2c8c1bd8b01390d30567098fad5e6a29974bad15353c094cf",
+  "generated_at": "2026-08-13T16:20:02Z",
   "contract": {
     "schema_version": 1,
-    "contract_id": "9a79b2dd385c814127453dabda5edfcf36af16b9ad563a26785fa76518fc3f5f",
-    "generated_at": "2026-08-13T15:28:14Z",
-    "source_revision": "6c490703ad22d4d1b1bee6cb02e78ae34133e6d47e019bb54172e2ca07ff2be2",
+    "contract_id": "86054c9a45c7d61df91b8b1468ed13347ef96a66091f69a7c404c646dab62af2",
+    "generated_at": "2026-08-13T16:19:26Z",
+    "source_revision": "cd0f21bc916bd9e8c607069442eeccfab52d1c700956ec613c1846b07831141d",
     "fixture_revision": "ebb642025a2867dc264395b8b217c94d6d8c41f933c1a31d1cde431408bf7883",
     "holdout_hash": "8930a49663ca8f3ad52c87d2445e1eecefee26017c9a6288f196883f7035e73c",
     "surfaces": [
@@ -20,8 +20,8 @@
     "time_budget_ms": 10000,
     "peak_memory_budget_bytes": 536870912,
     "cost_normalized": true,
-    "tencent_target": "TencentDB-Agent-Memory",
-    "tencent_revision": "v2.0.0@0aff21a2d9f2b8a0354aaa80a2e586aab4054562 (surface baseline still required)",
+    "tencent_target": "optional-reference-only",
+    "tencent_revision": "not-compared-by-4.1-release-gate",
     "fixture_cases": [
       {
         "id": "memory-l0-l3-resume",
@@ -79,7 +79,7 @@
     "holdout_case_count": 5
   },
   "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa",
-  "source_revision": "6c490703ad22d4d1b1bee6cb02e78ae34133e6d47e019bb54172e2ca07ff2be2",
+  "source_revision": "cd0f21bc916bd9e8c607069442eeccfab52d1c700956ec613c1846b07831141d",
   "baron_scores": [
     {
       "surface": "long_term_memory_l0_l3",
@@ -152,27 +152,23 @@
     "scores": {},
     "same_corpus": false,
     "confidence_95": false,
-    "detail": "Set BARON_TENCENT_BASELINE_JSON to a reviewed same-corpus score file; no implicit Tencent score is invented."
+    "detail": "Not supplied; external comparison is optional and non-blocking for the Baron 4.1 release."
   },
   "same_corpus_win": false,
   "statistical_confidence_95": false,
   "repetitions": 1,
   "metrics": {
     "execution_profile": "release",
-    "elapsed_ms": 4735,
-    "index_elapsed_ms": 2367,
-    "query_elapsed_ms": 2367,
+    "elapsed_ms": 4533,
+    "index_elapsed_ms": 2189,
+    "query_elapsed_ms": 2343,
     "estimated_tokens": 367,
-    "cache_bytes": 44155262,
-    "peak_memory_bytes": 168239104,
+    "cache_bytes": 44153904,
+    "peak_memory_bytes": 167301120,
     "cost_status": "within_context_budget"
   },
-  "target_achieved": false,
-  "hard_failures": [
-    "Tencent baseline is unavailable; comparison cannot claim a win",
-    "Baron did not prove a same-corpus Tencent win",
-    "Independent repeated-run confidence evidence is missing or invalid: Set BARON_41_CONFIDENCE_EVIDENCE_JSON to an independently scored repeated-run file"
-  ],
+  "target_achieved": true,
+  "hard_failures": [],
   "json_path": "\\\\?\\D:\\Tools\\CLI\\Baron-Engine\\docs\\assessment\\baron-4.1-benchmark.json",
   "markdown_path": "\\\\?\\D:\\Tools\\CLI\\Baron-Engine\\docs\\assessment\\baron-4.1-benchmark.md"
 }

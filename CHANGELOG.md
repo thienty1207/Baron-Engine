@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.1.0 - 2026-08-13
+
+Baron 4.1 makes the stronger local intelligence path the default while
+retaining Baron 4.0 as a guarded fallback:
+
+- deterministic bilingual semantic retrieval with lexical/vector/RRF evidence
+- bounded session learning that produces redacted, evidence-linked candidates
+  without creating or activating Skills
+- temporal memory with supersession, conflicts, freshness, backup, and rollback
+- grounded, cited handoffs with bounded token/cost budgets
+- semantic Wiki and CodeGraph retrieval with typed evidence and impact paths
+- Baron-only repeated acceptance across five local surfaces and resource gates
+- `BARON_ENGINE_GENERATION=4.0` fallback and `3.8`/`baseline` recovery switch
+- checksum-verified native release and reinstall documentation for `v4.1.0`
+
+TencentDB Agent Memory remains an optional architectural reference; it is not a
+release gate for Baron 4.1. Automatic Skill creation remains out of scope.
+
 ## 2.0.0 - 2026-06-16
 
 Baron 2.0 turns the first stable engine into a long-horizon agent harness:

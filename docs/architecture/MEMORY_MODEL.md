@@ -137,15 +137,16 @@ hybrid score for close Vietnamese/English and identifier matches. Project and
 trust filters happen before ranking. No cloud embedding, paid API, or mandatory
 daemon is required.
 
-Baron 4.0 adds a guarded candidate path on top of that firewall. `recall_v4`
-only reranks already-eligible records and annotates each hit with independent
+Baron 4.1 adds a guarded semantic/temporal path on top of that firewall.
+`recall_v5` only reranks already-eligible records and annotates each hit with
+independent
 abstraction (`l0_evidence` through `l3_invariant`) and trust (`candidate`,
-`verified`, `expired`, or `unknown`) labels. `select_resume_brief` uses the
-candidate when the released default is active (or `BARON_ENGINE_GENERATION=4.0`),
-and only when project identity, bounded size, and structure checks pass;
-`BARON_ENGINE_GENERATION=3.8` or `baseline` pins the proven fallback during
-incident response or comparison runs. A candidate may never bypass the project
-firewall
+`verified`, `expired`, or `unknown`) labels. `select_resume_brief_v41` uses the
+released 4.1 path by default and only when project identity, bounded size,
+temporal evidence, and structure checks pass; `BARON_ENGINE_GENERATION=4.0`
+pins the guarded 4.0 fallback, while `BARON_ENGINE_GENERATION=3.8` or
+`baseline` pins the proven older recovery path. A candidate may never bypass
+the project firewall
 or turn a polished summary into a verified fact.
 
 Project Wiki and local CodeGraph JSON under `.baron/cache/` are disposable

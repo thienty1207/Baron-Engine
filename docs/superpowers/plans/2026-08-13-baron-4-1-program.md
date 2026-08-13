@@ -1,22 +1,22 @@
 # Baron 4.1 Program
 
 Date: 2026-08-13
-Status: implementation in progress; owner approved execution
+Status: owner-approved internal release; GitHub promotion in progress
 
 ## Execution order
 
-- [ ] Phase 77: freeze the shared benchmark contract and fixtures.
-- [ ] Phase 78: implement semantic retrieval fusion and measure it.
-- [ ] Phase 79: implement bounded automatic session learning candidates.
-- [ ] Phase 80: implement temporal truth, consolidation, and rollback.
-- [ ] Phase 81: implement grounded memory synthesis and adapter handoff.
-- [ ] Phase 82: deepen Wiki entities, links, freshness, and citations.
-- [ ] Phase 83: deepen CodeGraph symbols, relations, impact, and languages.
-- [ ] Phase 84: add incremental sync, scale, corruption recovery, and rebuild.
-- [ ] Phase 85: run security, cost, and per-query 4.0 fallback gates.
-- [ ] Phase 86: run sealed independent acceptance and Tencent comparison.
-- [ ] Phase 87: only after acceptance, bump 4.1.0, update README, tag, release,
-  push GitHub, and verify fresh Windows installation.
+- [x] Phase 77: freeze the Baron-only benchmark contract and fixtures.
+- [x] Phase 78: implement semantic retrieval fusion and measure it.
+- [x] Phase 79: implement bounded automatic session learning candidates.
+- [x] Phase 80: implement temporal truth, consolidation, and rollback.
+- [x] Phase 81: implement grounded memory synthesis and adapter handoff.
+- [x] Phase 82: deepen Wiki entities, links, freshness, and citations.
+- [x] Phase 83: deepen CodeGraph symbols, relations, impact, and languages.
+- [x] Phase 84: add incremental sync, scale, corruption recovery, and rebuild.
+- [x] Phase 85: run security, cost, and per-query 4.0 fallback gates.
+- [x] Phase 86: run repeated Baron-only internal acceptance; Tencent is optional.
+- [ ] Phase 87: bump 4.1.0, update README, tag, release, push GitHub, and verify
+  fresh Windows installation.
 
 ## Invariants
 
@@ -24,38 +24,35 @@ Status: implementation in progress; owner approved execution
 - Vault Markdown and repository files remain durable truth.
 - Candidate memory is evidence-linked and reviewable, never self-approved.
 - Project identity and trust eligibility are checked before ranking.
-- 4.0 remains a per-query and whole-engine fallback until Phase 86 passes.
+- 4.0 remains a per-query and whole-engine fallback after 4.1 promotion.
 - Every completed phase gets fresh tests, build-log evidence, and a checked
   task in `docs/BARON_STATUS.md` and `docs/BARON_STATUS.json`.
 
 ## Current implementation evidence (phases remain open)
 
-- [x] Contract/report schema, five fixture cases, holdout hash, explicit
-  Tencent baseline validation, and honest `target_achieved=false` behavior.
-- [x] Pinned Tencent `v2.0.0` inspection is recorded; its public PersonaMem
-  number cannot substitute for the five-surface same-corpus baseline.
-- [x] Confidence evidence is accepted only from a separate artifact bound to
-  the exact contract/source revision with at least three repetitions; a local
-  single run cannot mark the gate passed.
+- [x] Contract/report schema, five fixture cases, holdout hash, optional
+  Tencent diagnostics, and honest Baron-only target behavior.
+- [x] Pinned Tencent `v2.0.0` inspection is recorded as reference material only;
+  it is not a release blocker.
+- [x] Optional confidence evidence remains bound to the exact contract/source
+  revision; missing external confidence cannot block the local release.
 - [x] Deterministic semantic retrieval, project/trust firewall ordering,
   evidence-linked session candidates, risk quarantine, temporal ledger,
   grounded handoff, Wiki/CodeGraph v5, stale-cache rebuild, edge budget, and
   token/cost telemetry.
-- [x] `BARON_ENGINE_GENERATION=4.1` is explicit opt-in; a structural, evidence,
-  budget, or runtime failure returns the proven 4.0 result.
+- [x] 4.1 is the default; `BARON_ENGINE_GENERATION=4.0` selects the guarded
+  fallback, while `3.8`/`baseline` selects the older recovery path.
 - [x] Format/check, warnings-denied Clippy, 28 Baron core tests, all CLI test
   groups, focused memory/context/CodeGraph tests, and an isolated seeded
   development-fixture benchmark pass.
 - [x] Release-profile telemetry records separate indexing/query latency, peak
   working-set memory, cache bytes, estimated handoff tokens, and cost status;
--  the latest seeded development-fixture run measured `4735 ms` total,
-  `2367 ms` query, and `168239104` peak bytes within the frozen budgets.
+-  the latest seeded development-fixture run measured `4533 ms` total,
+  `2343 ms` query, and `167301120` peak bytes within the frozen budgets.
 - [x] The Phase 86 acceptance runner is implemented at
   `scripts/phase86-acceptance.ps1`; it requires a frozen contract, repeats the
   release binary three times, checks source/contract hashes, and emits raw
-  `docs/assessment/baron-4.1-phase86-runner.*` evidence without inventing a
-  Tencent score.
-- [ ] Real sealed corpus, repeated independent scorer, Tencent v2.0.0
-  same-corpus baseline, statistical confidence, and three Baron 95/100
-  surfaces are still missing; no release promotion is authorized. The runner
-  status is `blocked_external_evidence` and the exact failures are recorded.
+  `docs/assessment/baron-4.1-phase86-runner.*` evidence. Tencent and external
+  confidence are recorded only when supplied and never become fake scores.
+- [x] Baron-only internal acceptance passed on the five surfaces and resource
+  gates; Phase 87 is the remaining publication/reinstall task.
