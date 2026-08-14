@@ -121,7 +121,7 @@ fn write_upgrade_fixture(
 
                     let mut permissions = fs::metadata(&candidate).unwrap().permissions();
                     permissions.set_mode(0o755);
-                    fs::set_permissions(&candidate, permissions).unwrap();
+                    fs::set_permissions(candidate, permissions).unwrap();
                 }
             }
         } else {

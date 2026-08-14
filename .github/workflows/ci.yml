@@ -63,7 +63,7 @@ jobs:
           if [[ "$status" -ne 0 ]]; then
             while IFS= read -r line; do
               echo "::error title=Native test failure::$line"
-            done < <(grep -E '^(test .* FAILED|failures:|----)' native-test.log || true)
+            done < <(grep -E '^(error(:|\[)|warning:|test .* FAILED|failures:|----)' native-test.log || true)
           fi
           exit "$status"
       - name: Upload native test log
