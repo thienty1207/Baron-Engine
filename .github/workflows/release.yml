@@ -73,7 +73,16 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          set +e
           RUST_BACKTRACE=1 cargo test --workspace --all-targets --no-fail-fast 2>&1 | tee release-native-test.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [[ "$status" -ne 0 ]]; then
+            while IFS= read -r line; do
+              echo "::error title=Release native test failure::$line"
+            done < <(grep -E '^(test .* FAILED|failures:|----)' release-native-test.log || true)
+          fi
+          exit "$status"
       - name: Upload release test log
         if: always()
         uses: actions/upload-artifact@v7
