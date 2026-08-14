@@ -1,10 +1,10 @@
 # Baron 4.2 Program
 
 Date: 2026-08-14
-Status: owner-approved; Phases 88-99 complete; Phase 100 publication in progress
+Status: release-complete; Phases 88-100 complete; normal maintenance remains
 Design: `docs/superpowers/specs/2026-08-14-baron-4-2-practical-perfection-design.md`
-Local source candidate is `4.2.0`; public `releases/latest` remains `4.1.0`
-until Phase 100's immutable Release and reinstall proof pass.
+Local and public source are `4.2.0`; `releases/latest` resolves to the verified
+immutable `v4.2.0` Release. Baron 4.1 and 4.0 remain recovery paths.
 
 ## Execution rules
 
@@ -132,8 +132,11 @@ until Phase 100's immutable Release and reinstall proof pass.
 - [x] Bump all source/docs/manifests/installers exactly to `4.2.0`.
 - [x] Update README with install, Vault restore, fallback, rollback, limits,
   local assets, and expected version.
-- [ ] Pass native matrix, exact-source verification, checksums, manifest,
+- [x] Pass native matrix, exact-source verification, checksums, manifest,
   installers, immutable tag/Release, `releases/latest`, fresh Windows install,
-  4.1 rollback, and 4.0 fallback.
-- [ ] Mark only evidenced tasks `[x]`, commit/push final docs, verify remote and
-  local state, and clean only disposable caches.
+  4.1 rollback, and 4.0 fallback. CI run
+  `31771633229`; release run `31771646989`; source/tag commit
+  `af42a2d3fcf37f315c6a24c5cebbef59ee6a4bc0`.
+- [x] Mark only evidenced tasks `[x]`, commit/push final docs, verify remote and
+  local state, and clean only disposable smoke/download caches. Public Release:
+  `https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0`.

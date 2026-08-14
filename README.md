@@ -108,6 +108,15 @@ baron --version
 The expected output is `baron 4.2.0`. The installers verify SHA-256 checksums
 and the staged binary version before replacing an existing Baron executable.
 
+The verified public release is [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0),
+source/tag commit `af42a2d3fcf37f315c6a24c5cebbef59ee6a4bc0`. Its native CI and
+release gates passed on Windows x64, Linux x64, Intel macOS, and Apple Silicon;
+the Release includes the archives, raw update candidates, both installers,
+`release-manifest.json`, and `SHA256SUMS`. Baron 4.1 remains the whole-engine
+rollback path and Baron 4.0 remains the explicit safe fallback. The passing
+verification records are [CI run 31771633229](https://github.com/thienty1207/Baron-Engine/actions/runs/31771633229)
+and [release run 31771646989](https://github.com/thienty1207/Baron-Engine/actions/runs/31771646989).
+
 ### 2. Set the Vault
 
 Stand inside the folder you want to use as Baron's long-term memory Vault:

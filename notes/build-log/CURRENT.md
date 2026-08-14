@@ -1,6 +1,6 @@
 # Current Build Note
 
-## Baron 4.2 Implementation Checkpoint (2026-08-14)
+## Baron 4.2 Final Public Release Checkpoint (2026-08-14)
 
 - Owner approved the thirteen-phase Baron 4.2 program (Phases 88-100) and
   authorized implementation, private local evaluation, testing, GitHub
@@ -9,11 +9,10 @@
   `docs/superpowers/specs/2026-08-14-baron-4-2-practical-perfection-design.md`.
 - Active plan:
   `docs/superpowers/plans/2026-08-14-baron-4-2-program.md`.
-- Current phase: Phase 100 public release boundary. Local source/binary is
-  `4.2.0`; public `releases/latest` remains `4.1.0` until the immutable tag,
-  native assets, and reinstall proof finish.
+- Current phase: Phase 100 complete. Local and public source/binary are
+  `4.2.0`; public `releases/latest` resolves to the immutable `v4.2.0` Release.
 - Continuity checkpoint: `notes/build-log/2026-08-14-baron-4-2-program.md`.
-- Proof status: Phases 88-99 are checked in the status/plan and accepted by the
+- Proof status: Phases 88-100 are checked in the status/plan and accepted by the
   bounded contract. Raw development runs are `100,100,100`; private holdout is
   `100/100` over 8 cases; promotion_ready is `true`.
 - Acceptance artifacts: `docs/assessment/baron-4.2-acceptance.{json,md}`,
@@ -23,11 +22,10 @@
   Clippy, full CLI/core tests, and release build all passed. Trusted gate
   receipts for code-reviewer, security-auditor, and test-engineer passed in the
   disposable gate fixture outside the repository.
-- First Phase 100 native workflow attempt was correctly rejected by the public
-  trust-doc contract because `remainingPhaseCount` still described the old
-  release-state convention. The status JSON is now aligned with the current
-  4.2 target, and the complete local core (including Windows Graphify) and CLI
-  suites pass again before the tag is recreated.
+- The first Phase 100 native workflow attempt was correctly rejected by the
+  public trust-doc contract because `remainingPhaseCount` still described the
+  old release-state convention. The status JSON was aligned with the current
+  4.2 target before promotion.
 - The next native diagnostic exposed two Unix-only update-recovery fixture
   failures: the shell delegate candidate was created without executable mode.
   The fixture now sets mode `0755`, matching a real Unix raw candidate; this is
@@ -35,15 +33,21 @@
 - The first executable-mode patch kept a moved `PathBuf` behind the Unix-only
   cfg block, so Linux/macOS compilation caught it while Windows could not. The
   fixture now borrows for the write and moves only after permissions are set.
-- The corrected candidate still reports the two Unix recovery tests as failed
-  in the hosted verifier; CI now publishes the final test-log tail as
-  annotations so the next run records the exact child-process error instead of
-  only the test names.
-- Safe resume point: run Phase 100 exact-source native CI/release, verify
-  `releases/latest`, perform README-only Windows reinstall/4.1 rollback/4.0
-  fallback smoke, then update this checkpoint and push the final docs.
-- Fallback: keep the verified `v4.1.0` public baseline and explicit
-  `BARON_ENGINE_GENERATION=4.0` per-query/whole-engine recovery path.
+- The final exact-source run passed after the Unix fixture preserved executable
+  mode, borrowed the candidate path correctly, avoided rewriting ELF ABI version
+  symbols, and scoped the Windows-only patch helper for hosted Clippy.
+- Public CI run `31771633229` passed native tests on Windows x64, Linux x64,
+  Intel macOS, and Apple Silicon plus format/Clippy. Public release run
+  `31771646989` passed exact-source verification, checksums, manifest, installer
+  lifecycle, and immutable promotion. Tag/source commit:
+  `af42a2d3fcf37f315c6a24c5cebbef59ee6a4bc0`.
+- Independent `releases/latest` verification downloaded the manifest and
+  checksums, matched the Windows archive/raw candidate hashes, and installed
+  `baron 4.2.0` without a PATH change. A separate 4.1 -> 4.2 -> 4.1 smoke
+  forced 4.0, restored 4.1, and preserved project/Vault sentinel hashes.
+- Safe resume point: normal maintenance. Baron 4.1 remains the whole-engine
+  rollback and `BARON_ENGINE_GENERATION=4.0` remains the per-query/legacy
+  recovery path.
 
 ## Baron 4.1 Release Checkpoint (2026-08-14)
 

@@ -1,7 +1,8 @@
 # Baron 4.2 Practical-Perfection Design
 
 Date: 2026-08-14
-Status: owner-approved; Phases 88-99 implemented and accepted; Phase 100 release in progress
+Status: release-complete; Phases 88-100 implemented, accepted, and publicly
+released
 Release authority: Phase 100 only
 
 ## Decision
@@ -13,13 +14,14 @@ parser-backed CodeGraph impact. The release is judged against a frozen corpus
 and explicit no-regression gates, not against a rounded self-reported score or
 an external Tencent comparison.
 
-Baron 4.1 remains the public whole-engine baseline until the Phase 100 Release
-is verified.
+Baron 4.2 is the verified public release; Baron 4.1 remains the whole-engine
+rollback path.
 Baron 4.0 remains the mandatory per-query safety fallback when a 4.2 result is
 missing, ambiguous, stale, unsupported, ungrounded, unsafe, or over budget.
-No public version/tag/Release promotion before the Phase 99 promote verdict and
-explicit Phase 100 publication authority. The local candidate is versioned
-4.2.0 so exact-source tests exercise the release artifact before publication.
+No public version/tag/Release promotion was allowed before the Phase 99 promote
+verdict and explicit Phase 100 publication authority. Those gates passed for
+source/tag commit `af42a2d3fcf37f315c6a24c5cebbef59ee6a4bc0`; the immutable
+`v4.2.0` Release and `releases/latest` installer are now verified.
 
 ## Durable truth and isolation
 
@@ -115,15 +117,21 @@ runner executes every holdout case once, binds output to source/contract/
 corpus/parser hashes, repeats clean and warm runs, and reports every failure.
 
 Raw 4.2, 4.1, and forced 4.0 are scored independently. Fallback protects the
-user but contributes zero to raw 4.2 quality. Phase 99 has promoted the bounded
-local candidate only; public source remains 4.1.0 until Phase 100's exact-source
-native Release and reinstall gate passes. If a final gate fails, the public
-source remains 4.1.0 and the failed gate stays visible.
+user but contributes zero to raw 4.2 quality. Phase 99 promoted the bounded
+candidate, and Phase 100 verified the exact-source native Release and reinstall
+gate. If a future maintenance gate fails, the published 4.2 path must fall back
+to 4.1/4.0 and the failed gate must stay visible.
 
 ## Release boundary
 
-Phase 100 alone may bump `4.2.0`, update the README latest target, commit and
-push, create the immutable GitHub Release, and run the fresh Windows reinstall
-plus 4.1/4.0 rollback smoke. The final release must leave the working tree and
-remote synchronized and must remove only disposable build/test/download
-caches, never Vault, project, source, evidence, or rollback data.
+Phase 100 alone was allowed to bump `4.2.0`, update the README latest target,
+commit and push, create the immutable GitHub Release, and run the fresh Windows
+reinstall plus 4.1/4.0 rollback smoke. It passed and left the working tree and
+remote synchronized; only disposable build/test/download caches were eligible
+for removal, never Vault, project, source, evidence, or rollback data.
+
+Public evidence: CI
+`https://github.com/thienty1207/Baron-Engine/actions/runs/31771633229`, Release
+workflow `https://github.com/thienty1207/Baron-Engine/actions/runs/31771646989`,
+and immutable Release
+`https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0`.
