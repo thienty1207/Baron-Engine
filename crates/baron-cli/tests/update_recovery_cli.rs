@@ -112,6 +112,17 @@ fn write_upgrade_fixture(
                 let backing = release.join(format!("candidate-runtime-{}", target.triple));
                 patched_upgrade_binary(running_binary, &backing, running_version, version);
                 fs::write(candidate, unix_candidate_delegate_script(&backing)).unwrap();
+                // `Command::new` must exercise the same executable handoff that
+                // a real Unix raw candidate uses. `fs::write` creates a shell
+                // delegate as 0644 by default, which only fails on Unix CI.
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+
+                    let mut permissions = fs::metadata(&candidate).unwrap().permissions();
+                    permissions.set_mode(0o755);
+                    fs::set_permissions(&candidate, permissions).unwrap();
+                }
             }
         } else {
             fs::write(candidate, format!("other-target:{}", target.triple)).unwrap();

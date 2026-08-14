@@ -28,6 +28,10 @@
   release-state convention. The status JSON is now aligned with the current
   4.2 target, and the complete local core (including Windows Graphify) and CLI
   suites pass again before the tag is recreated.
+- The next native diagnostic exposed two Unix-only update-recovery fixture
+  failures: the shell delegate candidate was created without executable mode.
+  The fixture now sets mode `0755`, matching a real Unix raw candidate; this is
+  a cross-platform test correction, not a gate relaxation.
 - Safe resume point: run Phase 100 exact-source native CI/release, verify
   `releases/latest`, perform README-only Windows reinstall/4.1 rollback/4.0
   fallback smoke, then update this checkpoint and push the final docs.
