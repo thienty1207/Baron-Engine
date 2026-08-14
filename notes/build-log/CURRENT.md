@@ -35,6 +35,10 @@
 - The first executable-mode patch kept a moved `PathBuf` behind the Unix-only
   cfg block, so Linux/macOS compilation caught it while Windows could not. The
   fixture now borrows for the write and moves only after permissions are set.
+- The corrected candidate still reports the two Unix recovery tests as failed
+  in the hosted verifier; CI now publishes the final test-log tail as
+  annotations so the next run records the exact child-process error instead of
+  only the test names.
 - Safe resume point: run Phase 100 exact-source native CI/release, verify
   `releases/latest`, perform README-only Windows reinstall/4.1 rollback/4.0
   fallback smoke, then update this checkpoint and push the final docs.

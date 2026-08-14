@@ -81,6 +81,9 @@ jobs:
             while IFS= read -r line; do
               echo "::error title=Release native test failure::$line"
             done < <(grep -E '^(error(:|\[)|warning:|test .* FAILED|failures:|----)' release-native-test.log || true)
+            while IFS= read -r line; do
+              echo "::error title=Release native test tail::$line"
+            done < <(tail -n 80 release-native-test.log || true)
           fi
           exit "$status"
       - name: Upload release test log
