@@ -10,7 +10,7 @@
   "targetReleaseCompletionPercent": 92,
   "programTargetRelease": "4.2.0",
   "programCompletionPercent": 92,
-  "remainingPhaseCount": 1,
+  "remainingPhaseCount": 0,
   "currentPhase": "baron-4-2-phase-100-public-release",
   "currentPhaseStatus": "in_progress",
   "nextAction": "Complete Phase 100 native CI/GitHub publication, verify releases/latest v4.2.0, and run the README-only Windows reinstall plus 4.1/4.0 rollback smoke.",

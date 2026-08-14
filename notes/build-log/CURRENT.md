@@ -23,6 +23,11 @@
   Clippy, full CLI/core tests, and release build all passed. Trusted gate
   receipts for code-reviewer, security-auditor, and test-engineer passed in the
   disposable gate fixture outside the repository.
+- First Phase 100 native workflow attempt was correctly rejected by the public
+  trust-doc contract because `remainingPhaseCount` still described the old
+  release-state convention. The status JSON is now aligned with the current
+  4.2 target, and the complete local core (including Windows Graphify) and CLI
+  suites pass again before the tag is recreated.
 - Safe resume point: run Phase 100 exact-source native CI/release, verify
   `releases/latest`, perform README-only Windows reinstall/4.1 rollback/4.0
   fallback smoke, then update this checkpoint and push the final docs.
