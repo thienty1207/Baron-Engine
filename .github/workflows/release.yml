@@ -70,7 +70,17 @@ jobs:
       - name: Verify formatting
         run: cargo fmt --all -- --check
       - name: Verify full workspace
-        run: cargo test --workspace --all-targets
+        shell: bash
+        run: |
+          set -o pipefail
+          RUST_BACKTRACE=1 cargo test --workspace --all-targets --no-fail-fast 2>&1 | tee release-native-test.log
+      - name: Upload release test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-native-test-log
+          path: release-native-test.log
+          if-no-files-found: warn
       - name: Verify Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 

@@ -53,7 +53,17 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
       - name: Run full native test suite
-        run: cargo test --workspace --all-targets
+        shell: bash
+        run: |
+          set -o pipefail
+          RUST_BACKTRACE=1 cargo test --workspace --all-targets --no-fail-fast 2>&1 | tee native-test.log
+      - name: Upload native test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-test-log-${{ matrix.target }}
+          path: native-test.log
+          if-no-files-found: warn
       - name: Verify release build
         run: cargo build --release --locked -p baron-cli
       - name: Smoke CLI version
