@@ -84,9 +84,11 @@ fn patched_upgrade_binary(source: &Path, destination: &Path, from: &str, to: &st
     fs::set_permissions(destination, fs::metadata(source).unwrap().permissions()).unwrap();
 }
 
-fn unix_candidate_delegate_script(backing_binary: &Path) -> String {
+fn unix_candidate_delegate_script(backing_binary: &Path, version: &str) -> String {
     let binary = backing_binary.to_string_lossy().replace('\'', "'\"'\"'");
-    format!("#!/bin/sh\nexec '{binary}' \"$@\"\n")
+    format!(
+        "#!/bin/sh\nif [ \"${{1:-}}\" = \"--version\" ]; then\n  printf '%s\\n' 'baron {version}'\n  exit 0\nfi\nexec '{binary}' \"$@\"\n"
+    )
 }
 
 fn write_upgrade_fixture(
@@ -111,7 +113,11 @@ fn write_upgrade_fixture(
                 // patched backing binary preserves the candidate protocol behavior.
                 let backing = release.join(format!("candidate-runtime-{}", target.triple));
                 patched_upgrade_binary(running_binary, &backing, running_version, version);
-                fs::write(&candidate, unix_candidate_delegate_script(&backing)).unwrap();
+                fs::write(
+                    &candidate,
+                    unix_candidate_delegate_script(&backing, version),
+                )
+                .unwrap();
                 // `Command::new` must exercise the same executable handoff that
                 // a real Unix raw candidate uses. `fs::write` creates a shell
                 // delegate as 0644 by default, which only fails on Unix CI.
@@ -352,7 +358,7 @@ fn public_update_keeps_a_pending_conflict_staged_without_project_or_vault_writes
 #[test]
 fn unix_candidate_delegate_script_escapes_paths_and_forwards_arguments() {
     assert_eq!(
-        unix_candidate_delegate_script(Path::new("/tmp/Baron's candidate")),
-        "#!/bin/sh\nexec '/tmp/Baron'\"'\"'s candidate' \"$@\"\n"
+        unix_candidate_delegate_script(Path::new("/tmp/Baron's candidate"), "4.2.1"),
+        "#!/bin/sh\nif [ \"${1:-}\" = \"--version\" ]; then\n  printf '%s\\n' 'baron 4.2.1'\n  exit 0\nfi\nexec '/tmp/Baron'\"'\"'s candidate' \"$@\"\n"
     );
 }
