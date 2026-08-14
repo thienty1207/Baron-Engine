@@ -110,9 +110,18 @@ fn write_upgrade_fixture(
             #[cfg(not(target_os = "windows"))]
             {
                 // The staged candidate obeys the production size limit while the
-                // patched backing binary preserves the candidate protocol behavior.
+                // backing binary preserves the candidate protocol behavior. Do
+                // not byte-patch an ELF version string: `4.2.0` also appears in
+                // the GCC symbol-version table on Linux and would corrupt the
+                // loader contract. The delegate below provides the candidate
+                // version probe independently.
                 let backing = release.join(format!("candidate-runtime-{}", target.triple));
-                patched_upgrade_binary(running_binary, &backing, running_version, version);
+                fs::copy(running_binary, &backing).unwrap();
+                fs::set_permissions(
+                    &backing,
+                    fs::metadata(running_binary).unwrap().permissions(),
+                )
+                .unwrap();
                 fs::write(
                     &candidate,
                     unix_candidate_delegate_script(&backing, version),
