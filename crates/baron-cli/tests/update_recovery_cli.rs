@@ -111,7 +111,7 @@ fn write_upgrade_fixture(
                 // patched backing binary preserves the candidate protocol behavior.
                 let backing = release.join(format!("candidate-runtime-{}", target.triple));
                 patched_upgrade_binary(running_binary, &backing, running_version, version);
-                fs::write(candidate, unix_candidate_delegate_script(&backing)).unwrap();
+                fs::write(&candidate, unix_candidate_delegate_script(&backing)).unwrap();
                 // `Command::new` must exercise the same executable handoff that
                 // a real Unix raw candidate uses. `fs::write` creates a shell
                 // delegate as 0644 by default, which only fails on Unix CI.

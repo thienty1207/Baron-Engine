@@ -32,6 +32,9 @@
   failures: the shell delegate candidate was created without executable mode.
   The fixture now sets mode `0755`, matching a real Unix raw candidate; this is
   a cross-platform test correction, not a gate relaxation.
+- The first executable-mode patch kept a moved `PathBuf` behind the Unix-only
+  cfg block, so Linux/macOS compilation caught it while Windows could not. The
+  fixture now borrows for the write and moves only after permissions are set.
 - Safe resume point: run Phase 100 exact-source native CI/release, verify
   `releases/latest`, perform README-only Windows reinstall/4.1 rollback/4.0
   fallback smoke, then update this checkpoint and push the final docs.
