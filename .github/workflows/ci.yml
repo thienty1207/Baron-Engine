@@ -66,6 +66,8 @@ jobs:
             done < <(grep -E '^(error(:|\[)|warning:|test .* FAILED|failures:|----)' native-test.log || true)
             tail_summary="$(tail -n 120 native-test.log | tr '\r\n' ' ')"
             echo "::error title=Native test tail::$tail_summary"
+            failure_summary="$(grep -A 24 -B 4 -E 'stdout ----|stderr ----|panicked at|assertion' native-test.log | tr '\r\n' ' ')"
+            echo "::error title=Native test failure detail::$failure_summary"
           fi
           exit "$status"
       - name: Upload native test log

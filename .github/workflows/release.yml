@@ -83,6 +83,8 @@ jobs:
             done < <(grep -E '^(error(:|\[)|warning:|test .* FAILED|failures:|----)' release-native-test.log || true)
             tail_summary="$(tail -n 120 release-native-test.log | tr '\r\n' ' ')"
             echo "::error title=Release native test tail::$tail_summary"
+            failure_summary="$(grep -A 24 -B 4 -E 'stdout ----|stderr ----|panicked at|assertion' release-native-test.log | tr '\r\n' ' ')"
+            echo "::error title=Release native test failure detail::$failure_summary"
           fi
           exit "$status"
       - name: Upload release test log
