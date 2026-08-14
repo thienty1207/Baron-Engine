@@ -84,6 +84,39 @@ fn patched_upgrade_binary(source: &Path, destination: &Path, from: &str, to: &st
     fs::set_permissions(destination, fs::metadata(source).unwrap().permissions()).unwrap();
 }
 
+#[cfg(unix)]
+fn patched_unix_upgrade_binary(source: &Path, destination: &Path, from: &str, to: &str) {
+    assert_eq!(
+        from.len(),
+        to.len(),
+        "test binary patch must preserve byte width"
+    );
+    let mut bytes = fs::read(source).unwrap();
+    let needle = from.as_bytes();
+    let replacement = to.as_bytes();
+    let mut replacements = 0;
+    for index in 0..=bytes.len().saturating_sub(needle.len()) {
+        if bytes[index..index + needle.len()] != *needle {
+            continue;
+        }
+        // ELF binaries carry ABI version strings such as `GCC_4.2.0`. Only
+        // rewrite a package-version token, never a token embedded in an
+        // identifier, so the loader's symbol-version contract stays intact.
+        if index > 0 && (bytes[index - 1].is_ascii_alphanumeric() || bytes[index - 1] == b'_') {
+            continue;
+        }
+        bytes[index..index + replacement.len()].copy_from_slice(replacement);
+        replacements += 1;
+        break;
+    }
+    assert!(
+        replacements == 1,
+        "Unix test binary must contain one safe package-version token"
+    );
+    fs::write(destination, bytes).unwrap();
+    fs::set_permissions(destination, fs::metadata(source).unwrap().permissions()).unwrap();
+}
+
 fn unix_candidate_delegate_script(backing_binary: &Path, version: &str) -> String {
     let binary = backing_binary.to_string_lossy().replace('\'', "'\"'\"'");
     format!(
@@ -109,19 +142,10 @@ fn write_upgrade_fixture(
             patched_upgrade_binary(running_binary, &candidate, running_version, version);
             #[cfg(not(target_os = "windows"))]
             {
-                // The staged candidate obeys the production size limit while the
-                // backing binary preserves the candidate protocol behavior. Do
-                // not byte-patch an ELF version string: `4.2.0` also appears in
-                // the GCC symbol-version table on Linux and would corrupt the
-                // loader contract. The delegate below provides the candidate
-                // version probe independently.
+                // The staged candidate obeys the production size limit while
+                // the safe patcher preserves the candidate protocol behavior.
                 let backing = release.join(format!("candidate-runtime-{}", target.triple));
-                fs::copy(running_binary, &backing).unwrap();
-                fs::set_permissions(
-                    &backing,
-                    fs::metadata(running_binary).unwrap().permissions(),
-                )
-                .unwrap();
+                patched_unix_upgrade_binary(running_binary, &backing, running_version, version);
                 fs::write(
                     &candidate,
                     unix_candidate_delegate_script(&backing, version),
