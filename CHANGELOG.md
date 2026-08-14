@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.2.0 - 2026-08-14
+
+Baron 4.2 makes memory answers evidence-first and measurable:
+
+- calibrated exact, bilingual lexical, local dense, temporal, Wiki, and
+  CodeGraph reranking with negative-query abstention and 4.0 fallback
+- task-segmented, idempotent session learning with deduplication, evidence
+  spans, candidate-only output, omission receipts, and poisoning quarantine
+- source-span-aware bi-temporal lineage, conflict detection, expiry,
+  project-bound ledgers, backups, and rollback
+- Wiki deletion/rename tombstones and CodeGraph symbol tombstones with
+  directional relation confidence and bounded impact paths
+- a hash-sealed development contract, private one-open holdout runner, and
+  three-repeat acceptance report; no fallback result inflates the raw score
+- README/install target, source version, and native release metadata are
+  synchronized at `v4.2.0`; 4.1 and 4.0 remain explicit fallbacks
+
 ## 4.1.0 - 2026-08-13
 
 Baron 4.1 makes the stronger local intelligence path the default while

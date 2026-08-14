@@ -12,6 +12,7 @@ pub mod continuity;
 pub mod control_plane;
 pub mod domain_language;
 pub mod evaluation41;
+pub mod evaluation42;
 pub mod execution_receipt;
 pub mod firewall;
 pub mod graphify;
@@ -21,6 +22,7 @@ pub mod harness_improvement;
 pub mod identity;
 pub mod intelligence;
 pub mod intelligence41;
+pub mod intelligence42;
 pub mod intent;
 pub mod knowledge;
 pub mod memory;
@@ -46,7 +48,7 @@ pub fn product_name() -> &'static str {
 }
 
 pub fn phase() -> &'static str {
-    "baron-4.1-intelligence-memory"
+    "baron-4.2-practical-perfection"
 }
 
 #[cfg(test)]
@@ -56,6 +58,6 @@ mod tests {
     #[test]
     fn exposes_current_phase_identity() {
         assert_eq!(product_name(), "Baron Engine");
-        assert_eq!(phase(), "baron-4.1-intelligence-memory");
+        assert_eq!(phase(), "baron-4.2-practical-perfection");
     }
 }

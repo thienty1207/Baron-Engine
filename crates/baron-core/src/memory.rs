@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 use crate::identity::CapsuleMetadata;
 use crate::vault::{load_capsule_metadata, VaultContext};
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -83,6 +83,33 @@ pub enum MemoryTrustState {
     Unknown,
 }
 
+/// Evidence required before a record may be used as current truth.  The
+/// SQLite index stores this envelope as JSON, while Vault Markdown remains the
+/// durable source of the content itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryProvenance {
+    #[serde(default)]
+    pub source_hash: String,
+    #[serde(default)]
+    pub source_span: String,
+    #[serde(default)]
+    pub observed_at: Option<String>,
+    #[serde(default)]
+    pub valid_from: Option<String>,
+    #[serde(default)]
+    pub valid_until: Option<String>,
+    #[serde(default)]
+    pub revision: Option<String>,
+    #[serde(default)]
+    pub supersedes: Option<String>,
+    #[serde(default)]
+    pub superseded_by: Option<String>,
+    #[serde(default)]
+    pub contradicts: Vec<String>,
+    #[serde(default)]
+    pub authority: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemoryRecord {
     pub id: String,
@@ -98,6 +125,8 @@ pub struct MemoryRecord {
     pub status: MemoryStatus,
     pub updated_at: Option<String>,
     pub content_hash: String,
+    #[serde(default)]
+    pub provenance: MemoryProvenance,
 }
 
 impl MemoryRecord {
@@ -525,7 +554,7 @@ pub fn load_memory_records(context: &VaultContext) -> Result<Vec<MemoryRecord>> 
     validate_read_schema(&connection)?;
     let mut statement = connection.prepare(
         "SELECT id, scope, project_id, project_slug, kind, path, title, excerpt, tags,
-                confidence, status, updated_at, content_hash
+                confidence, status, updated_at, content_hash, provenance
          FROM records
          ORDER BY path, id",
     )?;
@@ -549,6 +578,8 @@ pub fn load_memory_records(context: &VaultContext) -> Result<Vec<MemoryRecord>> 
             status: MemoryStatus::from_str(&row.get::<_, String>(10)?),
             updated_at: row.get(11)?,
             content_hash: row.get(12)?,
+            provenance: serde_json::from_str::<MemoryProvenance>(&row.get::<_, String>(13)?)
+                .unwrap_or_default(),
         })
     })?;
 
@@ -600,7 +631,8 @@ fn create_schema(connection: &Connection) -> Result<()> {
             confidence TEXT NOT NULL,
             status TEXT NOT NULL,
             updated_at TEXT,
-            content_hash TEXT NOT NULL
+            content_hash TEXT NOT NULL,
+            provenance TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS records_project_id ON records(project_id);
         CREATE INDEX IF NOT EXISTS records_scope ON records(scope);
@@ -801,7 +833,8 @@ fn parse_source(
         .ok()
         .map(DateTime::<Utc>::from)
         .map(|value| value.to_rfc3339_opts(SecondsFormat::Secs, true));
-    for line in content.lines() {
+    let source_hash = hash(content);
+    for (line_index, line) in content.lines().enumerate() {
         let trimmed = line.trim();
         if trimmed == "---" {
             in_frontmatter = !in_frontmatter;
@@ -876,6 +909,22 @@ fn parse_source(
             status,
             updated_at: updated_at.clone(),
             content_hash,
+            provenance: MemoryProvenance {
+                source_hash: source_hash.clone(),
+                source_span: format!("{}#L{}", source.relative_path, line_index + 1),
+                observed_at: updated_at.clone(),
+                valid_from: updated_at.clone(),
+                valid_until: None,
+                revision: Some(source_hash.clone()),
+                supersedes: None,
+                superseded_by: None,
+                contradicts: Vec::new(),
+                authority: if source.scope == MemoryScope::GlobalVerified {
+                    "approved-global".to_string()
+                } else {
+                    format!("project-{:?}", source.kind).to_lowercase()
+                },
+            },
         });
     }
     records
@@ -915,8 +964,8 @@ fn replace_source(
         transaction.execute(
             "INSERT INTO records (
                 id, source_path, scope, project_id, project_slug, kind, path, title, excerpt,
-                tags, confidence, status, updated_at, content_hash
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                tags, confidence, status, updated_at, content_hash, provenance
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 record.id,
                 source.relative_path,
@@ -931,7 +980,8 @@ fn replace_source(
                 record.confidence.as_str(),
                 record.status.as_str(),
                 record.updated_at,
-                record.content_hash
+                record.content_hash,
+                serde_json::to_string(&record.provenance)?
             ],
         )?;
     }
@@ -1160,6 +1210,7 @@ mod tests {
             status,
             updated_at: None,
             content_hash: "hash".to_string(),
+            provenance: MemoryProvenance::default(),
         }
     }
 

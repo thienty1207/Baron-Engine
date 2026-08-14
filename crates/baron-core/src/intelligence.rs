@@ -31,6 +31,7 @@ pub const INTELLIGENCE_SCHEMA_VERSION: u32 = 1;
 pub const BARON_BASELINE_GENERATION: &str = "3.8";
 pub const BARON_CANDIDATE_GENERATION: &str = "4.0";
 pub const BARON_NEXT_GENERATION: &str = "4.1";
+pub const BARON_EXPERIMENTAL_GENERATION: &str = "4.2";
 pub const MIN_PROMOTION_SCORE: u8 = 90;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,6 +60,7 @@ pub enum EngineGeneration {
     Baseline38,
     Candidate40,
     Candidate41,
+    Candidate42,
 }
 
 impl EngineGeneration {
@@ -67,6 +69,7 @@ impl EngineGeneration {
             Self::Baseline38 => BARON_BASELINE_GENERATION,
             Self::Candidate40 => BARON_CANDIDATE_GENERATION,
             Self::Candidate41 => BARON_NEXT_GENERATION,
+            Self::Candidate42 => BARON_EXPERIMENTAL_GENERATION,
         }
     }
 }
@@ -456,6 +459,16 @@ pub fn next_generation_enabled() -> bool {
     }
 }
 
+/// Returns whether the Baron 4.2 release path is selected.  After the 4.2
+/// release an unset variable means the verified 4.2 path; explicit 4.1, 4.0,
+/// or 3.8 values remain deterministic rollback switches.
+pub fn experimental_generation_enabled() -> bool {
+    match std::env::var("BARON_ENGINE_GENERATION") {
+        Ok(value) => value.trim() == BARON_EXPERIMENTAL_GENERATION,
+        Err(_) => true,
+    }
+}
+
 /// Select the 4.1 candidate only after its temporal and grounded handoff
 /// contracts succeed. A 4.0 Resume Brief remains the result when the candidate
 /// cannot prove identity, bounds, or evidence.
@@ -487,6 +500,60 @@ pub fn select_resume_brief_v41(
         Ok((EngineGeneration::Candidate41, baseline))
     } else {
         Ok((EngineGeneration::Candidate40, baseline))
+    }
+}
+
+/// Select the 4.2 candidate only when it is explicitly opted in and its
+/// claim-level evidence contract passes.  Any build, identity, temporal, or
+/// trust failure returns the proven 4.0 brief and labels the fallback.
+pub fn select_resume_brief_v42(
+    context: &VaultContext,
+    task: Option<&str>,
+    max_chars: usize,
+) -> Result<(EngineGeneration, ResumeBrief)> {
+    let baseline = build_resume_brief_v4(context, task, max_chars)?;
+    if !experimental_generation_enabled() {
+        return Ok((EngineGeneration::Candidate41, baseline));
+    }
+    if crate::intelligence41::refresh_temporal_ledger(context).is_err() {
+        return Ok((EngineGeneration::Candidate40, baseline));
+    }
+    let handoff = match build_grounded_handoff(context, task, max_chars) {
+        Ok(handoff) => handoff,
+        Err(_) => return Ok((EngineGeneration::Candidate40, baseline)),
+    };
+    let rendered = render_resume_brief(&baseline, max_chars);
+    let claims_grounded = !handoff.claims.is_empty()
+        && handoff.conflicts.is_empty()
+        && handoff.claims.iter().all(|claim| {
+            !matches!(claim.trust.as_str(), "candidate" | "contested" | "unknown")
+                && !claim.citation.trim().is_empty()
+                && !claim.evidence_hash.trim().is_empty()
+        });
+    let structurally_safe = baseline.project_id == context.project_id
+        && baseline.bounded_chars <= max_chars.clamp(1_200, MAX_RUNTIME_BRIEF_CHARS)
+        && handoff.bounded_chars <= max_chars.clamp(1_200, MAX_RUNTIME_BRIEF_CHARS)
+        && handoff.estimated_tokens <= handoff.budget_tokens
+        && rendered.contains(&context.project_id)
+        && claims_grounded;
+    if structurally_safe {
+        Ok((EngineGeneration::Candidate42, baseline))
+    } else {
+        Ok((EngineGeneration::Candidate40, baseline))
+    }
+}
+
+/// Runtime selector used by adapters.  It preserves the public 4.1 path by
+/// default and makes 4.2 an auditable, explicit shadow/opt-in candidate.
+pub fn select_resume_brief_runtime(
+    context: &VaultContext,
+    task: Option<&str>,
+    max_chars: usize,
+) -> Result<(EngineGeneration, ResumeBrief)> {
+    if experimental_generation_enabled() {
+        select_resume_brief_v42(context, task, max_chars)
+    } else {
+        select_resume_brief_v41(context, task, max_chars)
     }
 }
 

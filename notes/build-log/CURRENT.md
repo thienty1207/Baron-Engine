@@ -1,5 +1,34 @@
 # Current Build Note
 
+## Baron 4.2 Implementation Checkpoint (2026-08-14)
+
+- Owner approved the thirteen-phase Baron 4.2 program (Phases 88-100) and
+  authorized implementation, private local evaluation, testing, GitHub
+  publication, README synchronization, and final reinstall/rollback proof.
+- Active design:
+  `docs/superpowers/specs/2026-08-14-baron-4-2-practical-perfection-design.md`.
+- Active plan:
+  `docs/superpowers/plans/2026-08-14-baron-4-2-program.md`.
+- Current phase: Phase 100 public release boundary. Local source/binary is
+  `4.2.0`; public `releases/latest` remains `4.1.0` until the immutable tag,
+  native assets, and reinstall proof finish.
+- Continuity checkpoint: `notes/build-log/2026-08-14-baron-4-2-program.md`.
+- Proof status: Phases 88-99 are checked in the status/plan and accepted by the
+  bounded contract. Raw development runs are `100,100,100`; private holdout is
+  `100/100` over 8 cases; promotion_ready is `true`.
+- Acceptance artifacts: `docs/assessment/baron-4.2-acceptance.{json,md}`,
+  contract `432846e9aa5088a87a3c8ba2785cfc6c21a8afc12c6536fc8a78447c92b5b39a`,
+  source revision `545cf6ca6ef8a92886c09dc2bfd38c101edf43408a121a87eba408fde81a562d`.
+- Verification status: `cargo fmt --check`, workspace check, warnings-denied
+  Clippy, full CLI/core tests, and release build all passed. Trusted gate
+  receipts for code-reviewer, security-auditor, and test-engineer passed in the
+  disposable gate fixture outside the repository.
+- Safe resume point: run Phase 100 exact-source native CI/release, verify
+  `releases/latest`, perform README-only Windows reinstall/4.1 rollback/4.0
+  fallback smoke, then update this checkpoint and push the final docs.
+- Fallback: keep the verified `v4.1.0` public baseline and explicit
+  `BARON_ENGINE_GENERATION=4.0` per-query/whole-engine recovery path.
+
 ## Baron 4.1 Release Checkpoint (2026-08-14)
 
 - Owner approved implementation of the eleven-phase Baron 4.1 program after

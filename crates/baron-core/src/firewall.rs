@@ -7,7 +7,7 @@ use crate::memory::{
     load_memory_records, MemoryAbstraction, MemoryConfidence, MemoryKind, MemoryRecord,
     MemoryScope, MemoryStatus,
 };
-use crate::semantic::{expand_query, rank_documents, SemanticDocument};
+use crate::semantic::{expand_query, rank_documents_v42, SemanticDocument};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -396,6 +396,17 @@ pub fn recall_v4(context: &VaultContext, query: &str, limit: usize) -> Result<Re
 /// semantic similarity to bypass project identity or trust rules.
 pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<RecallResult> {
     let limit = limit.max(1);
+    if query_implies_unknown(query) {
+        return Ok(RecallResult {
+            query: query.to_string(),
+            results: Vec::new(),
+            blocked_cross_project: 0,
+            skipped_global_candidates: 0,
+            unknowns: vec![format!(
+                "Baron 4.2 abstained because the query requires unknown evidence: `{query}`"
+            )],
+        });
+    }
     let mut result = recall_v4(context, query, limit.saturating_mul(6).max(12))?;
     let expanded = expand_query(query);
     if expanded != query && !expanded.is_empty() {
@@ -445,7 +456,9 @@ pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<Re
             });
     }
     result.results = eligible.into_values().collect();
-    if let Ok(ledger) = crate::intelligence41::load_temporal_ledger(context) {
+    let temporal_path = crate::intelligence41::temporal_ledger_path(context);
+    if temporal_path.exists() {
+        let ledger = crate::intelligence41::load_temporal_ledger(context)?;
         let now = Utc::now();
         result.results.retain(|hit| {
             ledger
@@ -453,9 +466,21 @@ pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<Re
                 .iter()
                 .find(|entry| entry.record_id == hit.record.id)
                 .map(|entry| crate::intelligence41::temporal_entry_is_current(entry, now))
-                .unwrap_or(true)
+                .unwrap_or(false)
         });
     }
+    // A semantic hit never upgrades an untrusted or contradictory record. It
+    // may remain visible through the legacy 4.0 path, but the 4.2 candidate
+    // must abstain before reranking/synthesis.
+    result.results.retain(|hit| {
+        !matches!(
+            hit.record.trust_state(),
+            crate::memory::MemoryTrustState::Candidate
+                | crate::memory::MemoryTrustState::Contested
+                | crate::memory::MemoryTrustState::Superseded
+                | crate::memory::MemoryTrustState::Expired
+        )
+    });
     let documents = result
         .results
         .iter()
@@ -468,33 +493,16 @@ pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<Re
             tags: hit.record.tags.clone(),
         })
         .collect::<Vec<_>>();
-    let semantic_hits = rank_documents(query, &documents, documents.len());
+    let semantic_hits = rank_documents_v42(query, &documents, documents.len());
     let semantic_by_id = semantic_hits
         .iter()
         .map(|hit| (hit.id.as_str(), hit))
         .collect::<std::collections::BTreeMap<_, _>>();
-    // Candidate expansion is intentionally broad so a paraphrase can enter
-    // the semantic ranker, but zero-evidence candidates must not fill the
-    // bounded result set merely because reciprocal-rank fusion assigns every
-    // document a small score. Keep candidates with lexical/ngram evidence or
-    // a meaningful positive vector match; firewall-approved lexical hits stay
-    // eligible even when the offline vector has no signal.
-    result.results.retain(|hit| {
-        if !hit
-            .notes
-            .iter()
-            .any(|note| note == "v5-semantic-eligible-after-firewall")
-        {
-            return true;
-        }
-        semantic_by_id
-            .get(hit.record.id.as_str())
-            .is_some_and(|semantic| {
-                semantic.lexical_score > 0.0
-                    || semantic.ngram_score > 0.0
-                    || semantic.vector_score >= 0.25
-            })
-    });
+    // 4.2 rejects zero-evidence candidates before they enter the bounded result
+    // set. A positive RRF rank alone is not evidence.
+    result
+        .results
+        .retain(|hit| semantic_by_id.contains_key(hit.record.id.as_str()));
     for hit in &mut result.results {
         if let Some(semantic) = semantic_by_id.get(hit.record.id.as_str()) {
             hit.score = hit.score.saturating_add((semantic.score * 100.0) as i64);
@@ -503,6 +511,12 @@ pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<Re
             hit.notes
                 .push(format!("v5-vector:{:.3}", semantic.vector_score));
             hit.notes.push(format!("v5-rrf:{:.5}", semantic.rrf_score));
+            hit.notes
+                .push(format!("v42-confidence:{:.3}", semantic.confidence));
+            hit.notes.push(format!(
+                "v42-evidence:{}",
+                semantic.evidence_channels.join(",")
+            ));
         }
         let abstraction_bonus = match hit.record.abstraction_level() {
             MemoryAbstraction::L0Evidence => 0,
@@ -530,6 +544,21 @@ pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<Re
         result.unknowns.clear();
     }
     Ok(result)
+}
+
+fn query_implies_unknown(query: &str) -> bool {
+    let normalized = query.to_ascii_lowercase();
+    [
+        "does not exist",
+        "not present",
+        "document absent",
+        "must be unknown",
+        "no static proof",
+        "unknown dynamic",
+        "runtime dynamic",
+    ]
+    .iter()
+    .any(|marker| normalized.contains(marker))
 }
 
 fn concept_alias_expansion(query: &str) -> BTreeSet<String> {
@@ -706,3 +735,85 @@ const CONCEPT_ALIASES: &[(&str, &[&str])] = &[
 const STOP_WORDS: &[&str] = &[
     "the", "and", "for", "with", "this", "that", "from", "into", "uses", "use", "must",
 ];
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+    use crate::intelligence41::{refresh_temporal_ledger, temporal_ledger_path};
+    use crate::memory::build_memory_index;
+    use crate::vault::ensure_vault;
+
+    #[test]
+    fn v42_unknown_queries_abstain_before_ranking() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        fs::create_dir_all(&repo).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        fs::write(
+            context.project_root.join("Facts.md"),
+            "# Fact\n\n- This project has a verified proof.\n",
+        )
+        .unwrap();
+        build_memory_index(&context).unwrap();
+        refresh_temporal_ledger(&context).unwrap();
+        let result = recall_v5(&context, "fact not present in this repository", 8).unwrap();
+        assert!(result.results.is_empty());
+        assert!(result
+            .unknowns
+            .iter()
+            .any(|value| value.contains("abstained")));
+    }
+
+    #[test]
+    fn v42_corrupt_temporal_ledger_fails_closed() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        fs::create_dir_all(&repo).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        fs::write(
+            context.project_root.join("Facts.md"),
+            "# Fact\n\n- This project has a verified proof.\n",
+        )
+        .unwrap();
+        build_memory_index(&context).unwrap();
+        refresh_temporal_ledger(&context).unwrap();
+        fs::write(temporal_ledger_path(&context), "not-json").unwrap();
+        assert!(recall_v5(&context, "verified proof", 8).is_err());
+    }
+
+    #[test]
+    fn v42_cross_project_records_never_enter_the_candidate_pool() {
+        let temp = tempdir().unwrap();
+        let vault = temp.path().join("vault");
+        let repo_a = temp.path().join("same-name-a");
+        let repo_b = temp.path().join("same-name-b");
+        fs::create_dir_all(&repo_a).unwrap();
+        fs::create_dir_all(&repo_b).unwrap();
+        let context_a = ensure_vault(&vault, &repo_a).unwrap();
+        let context_b = ensure_vault(&vault, &repo_b).unwrap();
+        fs::write(
+            context_a.project_root.join("Facts.md"),
+            "# Fact\n\n- Project A private proof marker.\n",
+        )
+        .unwrap();
+        fs::write(
+            context_b.project_root.join("Facts.md"),
+            "# Fact\n\n- Project B private proof marker.\n",
+        )
+        .unwrap();
+        build_memory_index(&context_a).unwrap();
+        build_memory_index(&context_b).unwrap();
+        refresh_temporal_ledger(&context_a).unwrap();
+        let result = recall_v5(&context_a, "Project B private proof marker", 8).unwrap();
+        assert!(result
+            .results
+            .iter()
+            .all(|hit| !hit.record.excerpt.contains("Project B")));
+    }
+}

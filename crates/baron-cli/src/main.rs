@@ -52,6 +52,9 @@ use baron_core::control_plane::{
     route_task, validate_control_plane,
 };
 use baron_core::evaluation41::run_benchmark as run_benchmark41;
+use baron_core::evaluation42::{
+    freeze_contract42, run_acceptance42, run_benchmark42, run_holdout42, write_phase88_audit,
+};
 use baron_core::execution_receipt::{execute_command, ExecutionRequest, ExecutionResult};
 use baron_core::firewall::{compact_memory_brief, recall_v4, recall_v5, render_recall};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
@@ -65,10 +68,10 @@ use baron_core::harness_improvement::{
     verify_open_stories,
 };
 use baron_core::intelligence::{
-    next_generation_enabled, route_security_task, run_integrated_acceptance, run_local_benchmark,
-    run_security_regression, run_static_security_scan, select_resume_brief_v41,
-    write_acceptance_report, write_benchmark_report, write_security_regression_report,
-    write_static_security_report,
+    experimental_generation_enabled, next_generation_enabled, route_security_task,
+    run_integrated_acceptance, run_local_benchmark, run_security_regression,
+    run_static_security_scan, select_resume_brief_runtime, write_acceptance_report,
+    write_benchmark_report, write_security_regression_report, write_static_security_report,
 };
 use baron_core::intelligence41::{
     analyze_graph_impact, refresh_temporal_ledger, rollback_temporal_ledger,
@@ -76,7 +79,8 @@ use baron_core::intelligence41::{
 use baron_core::intent::{intent_status, record_intent, IntentBriefInput};
 use baron_core::knowledge::{
     benchmark_resume, build_local_code_graph, index_wiki, load_wiki_index, render_resume_brief,
-    search_local_code_graph, search_local_code_graph_v5, search_wiki_v4, search_wiki_v5,
+    search_local_code_graph, search_local_code_graph_v5, search_local_code_graph_v6,
+    search_wiki_v4, search_wiki_v5, search_wiki_v6,
 };
 use baron_core::memory::{analyze_memory_consolidation, stage_memory_consolidation};
 use baron_core::memory::{build_memory_index, load_memory_records};
@@ -456,6 +460,20 @@ enum IntelligenceCommands {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         vault: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    #[command(name = "benchmark42", hide = true)]
+    Benchmark42 {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        holdout: Option<PathBuf>,
+        #[arg(long, hide = true)]
+        seed_holdout: bool,
+        #[arg(long)]
+        acceptance: bool,
         #[arg(long)]
         json: bool,
     },
@@ -1641,6 +1659,7 @@ fn run() -> Result<()> {
                 build_memory_index(&context)?;
                 println!("# Baron Session Import\n");
                 println!("- Roots checked: {}", report.roots_checked);
+                println!("- Files discovered: {}", report.files_discovered);
                 println!("- Files checked: {}", report.files_checked);
                 println!("- Imported: {}", report.imported);
                 println!("- Deduplicated: {}", report.deduplicated);
@@ -1651,6 +1670,20 @@ fn run() -> Result<()> {
                     "- Learning error: {}",
                     report.learning_error.as_deref().unwrap_or("none")
                 );
+                println!(
+                    "- 4.2 task-learning candidates: {} (quarantined: {})",
+                    report.learning_v42_candidates, report.learning_v42_quarantined
+                );
+                println!(
+                    "- 4.2 learning error: {}",
+                    report.learning_v42_error.as_deref().unwrap_or("none")
+                );
+                if let Some(path) = &report.learning_v42_path {
+                    println!("- 4.2 candidate report: `{}`", path.display());
+                }
+                println!("- Read errors: {}", report.skipped_read_errors);
+                println!("- Invalid JSON records: {}", report.invalid_records);
+                println!("- Omission receipts: {}", report.omissions.len());
                 println!("- State: `{}`", report.state_path.display());
             }
             MemoryCommands::Consolidate {
@@ -1734,7 +1767,7 @@ fn run() -> Result<()> {
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
                 let (generation, brief) =
-                    select_resume_brief_v41(&context, task.as_deref(), 8_000)?;
+                    select_resume_brief_runtime(&context, task.as_deref(), 8_000)?;
                 if json {
                     println!("{}", serde_json::to_string_pretty(&brief)?);
                 } else {
@@ -1756,6 +1789,7 @@ fn run() -> Result<()> {
                 println!("- Documents: {}", report.documents);
                 println!("- Sections: {}", report.sections);
                 println!("- Changed documents: {}", report.changed_documents);
+                println!("- Deleted/renamed tombstones: {}", report.deleted_documents);
                 println!("- Cache: `{}`", report.cache_path);
             }
             WikiCommands::Search {
@@ -1764,11 +1798,15 @@ fn run() -> Result<()> {
                 limit,
             } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
-                let candidate = next_generation_enabled();
-                let (generation, hits) = if candidate {
+                let (generation, hits) = if experimental_generation_enabled() {
+                    match search_wiki_v6(&repo_path, &query, limit) {
+                        Ok(hits) if !hits.is_empty() => ("4.2", hits),
+                        Ok(_) | Err(_) => ("4.0", search_wiki_v4(&repo_path, &query, limit)?),
+                    }
+                } else if next_generation_enabled() {
                     match search_wiki_v5(&repo_path, &query, limit) {
-                        Ok(hits) => ("4.1", hits),
-                        Err(_) => ("4.0", search_wiki_v4(&repo_path, &query, limit)?),
+                        Ok(hits) if !hits.is_empty() => ("4.1", hits),
+                        Ok(_) | Err(_) => ("4.0", search_wiki_v4(&repo_path, &query, limit)?),
                     }
                 } else {
                     ("4.0", search_wiki_v4(&repo_path, &query, limit)?)
@@ -1797,6 +1835,9 @@ fn run() -> Result<()> {
                         }
                         if !hit.link_path.is_empty() {
                             println!("  Link path: {}", hit.link_path.join(" | "));
+                        }
+                        if !hit.evidence.is_empty() {
+                            println!("  Evidence: {}", hit.evidence.join(" | "));
                         }
                         if !hit.entities.is_empty() {
                             println!("  Entities: {}", hit.entities.join(", "));
@@ -1843,7 +1884,7 @@ fn run() -> Result<()> {
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
                 let (generation, brief) =
-                    select_resume_brief_v41(&context, task.as_deref(), 8_000)?;
+                    select_resume_brief_runtime(&context, task.as_deref(), 8_000)?;
                 if json {
                     println!("{}", serde_json::to_string_pretty(&brief)?);
                 } else {
@@ -1917,16 +1958,24 @@ fn run() -> Result<()> {
                 json,
             } => {
                 let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
-                let candidate = next_generation_enabled();
-                let (generation, hits) = if candidate {
+                let (generation, hits) = if experimental_generation_enabled() {
+                    match search_local_code_graph_v6(&repo_path, &query, limit) {
+                        Ok(hits) if !hits.is_empty() => ("4.2", hits),
+                        Ok(_) | Err(_) => {
+                            ("4.0", search_local_code_graph(&repo_path, &query, limit)?)
+                        }
+                    }
+                } else if next_generation_enabled() {
                     match search_local_code_graph_v5(&repo_path, &query, limit) {
-                        Ok(hits) => ("4.1", hits),
-                        Err(_) => ("4.0", search_local_code_graph(&repo_path, &query, limit)?),
+                        Ok(hits) if !hits.is_empty() => ("4.1", hits),
+                        Ok(_) | Err(_) => {
+                            ("4.0", search_local_code_graph(&repo_path, &query, limit)?)
+                        }
                     }
                 } else {
                     ("4.0", search_local_code_graph(&repo_path, &query, limit)?)
                 };
-                let impact = if generation == "4.1" {
+                let impact = if generation != "4.0" {
                     baron_core::knowledge::load_or_refresh_local_code_graph(&repo_path)
                         .ok()
                         .map(|graph| analyze_graph_impact(&graph, &query, limit))
@@ -2069,6 +2118,77 @@ fn run() -> Result<()> {
                     }
                 }
             }
+            IntelligenceCommands::Benchmark42 {
+                repo_path,
+                vault,
+                holdout,
+                seed_holdout,
+                acceptance,
+                json,
+            } => {
+                let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
+                let vault_path = resolve_command_vault(vault, &repo_path)?;
+                let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
+                if seed_holdout {
+                    let root = holdout.unwrap_or_else(|| {
+                        baron_core::evaluation42::private_holdout_root42(&context)
+                    });
+                    let seeded = baron_core::evaluation42::seed_holdout42(&context, &root)?;
+                    println!("Baron 4.2 private holdout seeded at `{}`", seeded.display());
+                    return Ok(());
+                }
+                let (contract, contract_path) = freeze_contract42(&context)?;
+                let audit_path = write_phase88_audit(&context)?;
+                let (report, report_path) = run_benchmark42(&context)?;
+                let holdout_report = holdout
+                    .as_deref()
+                    .map(|root| run_holdout42(&context, root))
+                    .transpose()?;
+                let acceptance_report = if acceptance {
+                    Some(run_acceptance42(&context)?)
+                } else {
+                    None
+                };
+                let holdout_executed = holdout_report.is_some()
+                    || acceptance_report
+                        .as_ref()
+                        .is_some_and(|report| report.holdout_executed);
+                let payload = serde_json::json!({
+                    "contract": contract,
+                    "contract_path": contract_path,
+                    "audit_path": audit_path,
+                    "report": report,
+                    "report_path": report_path,
+                    "holdout": holdout_report,
+                    "acceptance": acceptance_report,
+                    "status": "phase88-contract-and-development-run-recorded",
+                    "implementation": "4.2-release-candidate",
+                    "stable_baseline": "4.2.0",
+                    "fallback": "4.1.0",
+                    "legacy_fallback": "4.0.0"
+                });
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&payload)?);
+                } else {
+                    println!("# Baron 4.2 Phase 88 Contract");
+                    println!("- Contract: `{}`", contract.contract_id);
+                    println!("- Contract file: `{}`", contract_path.display());
+                    println!("- Audit file: `{}`", audit_path.display());
+                    println!("- Development report: `{}`", report_path.display());
+                    println!("- Raw development score: {}/100", report.score);
+                    println!("- Development cases: {}", contract.required_dev_cases.len());
+                    println!("- Holdout IDs: {}", contract.holdout_case_ids.len());
+                    println!("- Holdout executed: `{}`", holdout_executed);
+                    if let Some(acceptance) = acceptance_report {
+                        println!("- Acceptance scores: {:?}", acceptance.scores);
+                        println!("- Acceptance holdout score: {:?}", acceptance.holdout_score);
+                        println!("- Promotion ready: `{}`", acceptance.promotion_ready);
+                    }
+                    println!(
+                        "- Status: `phase88-contract-and-evaluation-recorded`; 4.2 release candidate"
+                    );
+                }
+            }
             IntelligenceCommands::SecurityRoute {
                 query,
                 repo_path,
@@ -2168,15 +2288,23 @@ fn run() -> Result<()> {
             let vault_path = resolve_command_vault(vault, &repo_path)?;
             let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             build_memory_index(&context)?;
-            let candidate = next_generation_enabled();
-            let result = if candidate {
-                recall_v5(&context, &query, 8).or_else(|_| recall_v4(&context, &query, 8))?
+            let temporal_ready = refresh_temporal_ledger(&context).is_ok();
+            let (generation, result) = if experimental_generation_enabled() {
+                match temporal_ready.then(|| recall_v5(&context, &query, 8)) {
+                    Some(Ok(result)) if !result.results.is_empty() => ("4.2", result),
+                    Some(Ok(_)) | Some(Err(_)) | None => ("4.0", recall_v4(&context, &query, 8)?),
+                }
+            } else if next_generation_enabled() {
+                match temporal_ready.then(|| recall_v5(&context, &query, 8)) {
+                    Some(Ok(result)) if !result.results.is_empty() => ("4.1", result),
+                    Some(Ok(_)) | Some(Err(_)) | None => ("4.0", recall_v4(&context, &query, 8)?),
+                }
             } else {
-                recall_v4(&context, &query, 8)?
+                ("4.0", recall_v4(&context, &query, 8)?)
             };
             println!(
                 "- Intelligence generation: `{}` (4.0 fallback retained)\n",
-                if candidate { "4.1" } else { "4.0" }
+                generation
             );
             print!("{}", render_recall(&result));
         }
@@ -4063,7 +4191,7 @@ mod tests {
     #[test]
     fn activated_runtime_requires_the_exact_release_version() {
         let expected_version = env!("CARGO_PKG_VERSION");
-        let accepted = StaticInspector("baron 4.1.0");
+        let accepted = StaticInspector(concat!("baron ", env!("CARGO_PKG_VERSION")));
         assert!(
             verify_activated_runtime_version(&accepted, Path::new("baron"), expected_version)
                 .is_ok()
@@ -4073,8 +4201,8 @@ mod tests {
         let error =
             verify_activated_runtime_version(&rejected, Path::new("baron"), expected_version)
                 .expect_err("a mismatched activated runtime must be rejected");
-        assert!(error
-            .to_string()
-            .contains("Activated Baron runtime reported `baron 3.5.0`; expected `baron 4.1.0`"));
+        assert!(error.to_string().contains(&format!(
+            "Activated Baron runtime reported `baron 3.5.0`; expected `baron {expected_version}`"
+        )));
     }
 }

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-14T03:07:03Z",
+  "contract_id": "432846e9aa5088a87a3c8ba2785cfc6c21a8afc12c6536fc8a78447c92b5b39a",
+  "repetitions": 3,
+  "scores": [
+    100,
+    100,
+    100
+  ],
+  "stable": true,
+  "development_gate_passed": true,
+  "holdout_executed": true,
+  "holdout_score": 100,
+  "promotion_ready": true,
+  "hard_failures": []
+}

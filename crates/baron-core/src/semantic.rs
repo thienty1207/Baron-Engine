@@ -34,6 +34,29 @@ pub struct SemanticHit {
     pub lexical_rank: usize,
     pub vector_rank: usize,
     pub notes: Vec<String>,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(default)]
+    pub evidence_channels: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SemanticPolicy42 {
+    pub minimum_confidence: f64,
+    pub minimum_vector_similarity: f64,
+    pub minimum_ngram_similarity: f64,
+    pub allow_vector_only: bool,
+}
+
+impl Default for SemanticPolicy42 {
+    fn default() -> Self {
+        Self {
+            minimum_confidence: 0.48,
+            minimum_vector_similarity: 0.50,
+            minimum_ngram_similarity: 0.08,
+            allow_vector_only: false,
+        }
+    }
 }
 
 const VECTOR_DIMENSIONS: usize = 64;
@@ -159,6 +182,8 @@ pub fn rank_documents(
                 lexical_rank,
                 vector_rank,
                 notes,
+                confidence: 0.0,
+                evidence_channels: Vec::new(),
             }
         })
         .collect::<Vec<_>>();
@@ -171,6 +196,163 @@ pub fn rank_documents(
     });
     hits.truncate(limit);
     hits
+}
+
+/// Baron 4.2 retrieval policy. Unlike the legacy 4.1 helper, this path never
+/// returns a document merely because it received an RRF rank. At least one
+/// meaningful evidence channel and a calibrated confidence threshold are
+/// required. Callers still perform project/trust filtering before this point.
+pub fn rank_documents_v42(
+    query: &str,
+    documents: &[SemanticDocument],
+    limit: usize,
+) -> Vec<SemanticHit> {
+    rank_documents_v42_with_policy(query, documents, limit, SemanticPolicy42::default())
+}
+
+pub fn rank_documents_v42_with_policy(
+    query: &str,
+    documents: &[SemanticDocument],
+    limit: usize,
+    policy: SemanticPolicy42,
+) -> Vec<SemanticHit> {
+    if documents.is_empty() || limit == 0 {
+        return Vec::new();
+    }
+    let normalized_query = normalize(query);
+    let query_tokens = expanded_tokens(&normalized_query);
+    let mut hits = rank_documents(query, documents, documents.len());
+    for hit in &mut hits {
+        let mut channels = Vec::new();
+        if hit.lexical_score > 0.0 {
+            channels.push("lexical".to_string());
+        }
+        if hit.ngram_score >= policy.minimum_ngram_similarity {
+            channels.push("ngram".to_string());
+        }
+        if hit.vector_score >= policy.minimum_vector_similarity {
+            channels.push("dense".to_string());
+        }
+        let document = documents.iter().find(|document| document.id == hit.id);
+        if document.is_some_and(|document| {
+            document.tags.iter().any(|tag| tag == "exact")
+                || (!normalized_query.is_empty()
+                    && normalize(&format!(
+                        "{} {} {}",
+                        document.title, document.body, document.path
+                    ))
+                    .contains(&normalized_query))
+        }) {
+            channels.push("exact".to_string());
+        }
+        if query_tokens.iter().any(|token| {
+            (token.contains('_') || token.chars().any(|character| character.is_ascii_digit()))
+                && document.is_some_and(|document| {
+                    normalize(&format!(
+                        "{} {} {}",
+                        document.title, document.body, document.path
+                    ))
+                    .contains(token)
+                })
+        }) {
+            channels.push("identifier".to_string());
+        }
+        let coverage = document
+            .map(|document| query_term_coverage(&normalized_query, document))
+            .unwrap_or_default();
+        hit.confidence = calibrated_confidence(hit, &channels, coverage);
+        hit.evidence_channels = channels;
+        hit.notes
+            .push(format!("v42-confidence:{:.3}", hit.confidence));
+        if hit.evidence_channels.is_empty() {
+            hit.notes
+                .push("v42-abstain:no-relevant-evidence".to_string());
+        } else if hit.confidence < policy.minimum_confidence {
+            hit.notes
+                .push("v42-abstain:confidence-below-threshold".to_string());
+        }
+    }
+    hits.retain(|hit| {
+        let vector_only = hit.evidence_channels.len() == 1
+            && hit
+                .evidence_channels
+                .iter()
+                .any(|channel| channel == "dense");
+        !hit.evidence_channels.is_empty()
+            && hit.confidence >= policy.minimum_confidence
+            && (!vector_only || policy.allow_vector_only)
+    });
+    // A bounded diversity pass prevents repeated excerpts from crowding out
+    // independent evidence. The stable id tie-break keeps clean/warm runs equal.
+    let mut seen_paths = BTreeSet::new();
+    hits.retain(|hit| {
+        let path = documents
+            .iter()
+            .find(|document| document.id == hit.id)
+            .map(|document| format!("{}::{}", document.path, document.title))
+            .unwrap_or_default();
+        if path.is_empty() {
+            return true;
+        }
+        seen_paths.insert(path)
+            || hit
+                .evidence_channels
+                .iter()
+                .any(|channel| channel == "exact")
+    });
+    hits.sort_by(|left, right| {
+        right
+            .confidence
+            .partial_cmp(&left.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| {
+                right
+                    .score
+                    .partial_cmp(&left.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    hits.truncate(limit);
+    hits
+}
+
+fn calibrated_confidence(hit: &SemanticHit, channels: &[String], coverage: f64) -> f64 {
+    if channels.is_empty() {
+        return 0.0;
+    }
+    let lexical = (hit.lexical_score / 3.0).clamp(0.0, 1.0);
+    let dense = (((hit.vector_score + 1.0) / 2.0) * 0.85).clamp(0.0, 1.0);
+    let ngram = hit.ngram_score.clamp(0.0, 1.0);
+    let exact_bonus = if channels.iter().any(|channel| channel == "exact") {
+        0.20
+    } else {
+        0.0
+    };
+    (lexical * 0.32
+        + dense * 0.22
+        + ngram * 0.16
+        + coverage * 0.22
+        + exact_bonus
+        + channels.len() as f64 * 0.04)
+        .clamp(0.0, 1.0)
+}
+
+fn query_term_coverage(query: &str, document: &SemanticDocument) -> f64 {
+    let query_tokens = tokenize(query).into_iter().collect::<BTreeSet<_>>();
+    if query_tokens.is_empty() {
+        return 0.0;
+    }
+    let document_tokens = tokenize(&normalize(&format!(
+        "{} {} {} {}",
+        document.title,
+        document.body,
+        document.path,
+        document.tags.join(" ")
+    )))
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    query_tokens.intersection(&document_tokens).count() as f64 / query_tokens.len() as f64
 }
 
 pub fn expand_query(query: &str) -> String {
@@ -490,5 +672,43 @@ mod tests {
         let second = rank_documents("temporal memory", &documents, 1);
         assert_eq!(first, second);
         assert_eq!(first.len(), 1);
+    }
+
+    #[test]
+    fn v42_retrieval_rejects_positive_rank_without_evidence() {
+        let documents = vec![
+            document("memory", "Project memory", "proof and next action"),
+            document("release", "Release archive", "checksum installer metadata"),
+        ];
+        let no_match = rank_documents_v42("quantum database that is not present", &documents, 8);
+        assert!(no_match.is_empty());
+        let match_hits = rank_documents_v42("proof next action", &documents, 8);
+        assert_eq!(
+            match_hits.first().map(|hit| hit.id.as_str()),
+            Some("memory")
+        );
+        assert!(match_hits[0].confidence >= SemanticPolicy42::default().minimum_confidence);
+        assert!(!match_hits[0].evidence_channels.is_empty());
+    }
+
+    #[test]
+    fn v42_rerank_is_repeatable_and_explains_abstention() {
+        let documents = vec![
+            document("a", "Memory", "proof current"),
+            document("b", "Wiki", "architecture"),
+        ];
+        let first = rank_documents_v42("missing fact", &documents, 8);
+        let second = rank_documents_v42("missing fact", &documents, 8);
+        assert_eq!(first, second);
+        let permissive = rank_documents_v42_with_policy(
+            "missing fact",
+            &documents,
+            8,
+            SemanticPolicy42 {
+                minimum_confidence: 0.99,
+                ..SemanticPolicy42::default()
+            },
+        );
+        assert!(permissive.is_empty());
     }
 }

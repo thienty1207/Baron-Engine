@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "report_id": "38ba0e0f325c466156d3e97f5c12d182cbdab4ca9c77af0d9bfeaacfb7b177ed",
+  "generated_at": "2026-08-14T03:07:02Z",
+  "source_revision": "545cf6ca6ef8a92886c09dc2bfd38c101edf43408a121a87eba408fde81a562d",
+  "contract_id": "432846e9aa5088a87a3c8ba2785cfc6c21a8afc12c6536fc8a78447c92b5b39a",
+  "project_id": "59b68ba36271a308126ddf49e5a8891fb6475665a0875b1a21fb094c990b46aa",
+  "raw_candidate": true,
+  "holdout_executed": false,
+  "cases": [
+    {
+      "case_id": "memory-current-project",
+      "surface": "long_term_memory",
+      "expected_outcome": "answer",
+      "observed_outcome": "answer",
+      "passed": true,
+      "matched_signals": [
+        "project_id",
+        "source",
+        "trust"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "citation=Projects/repo--b45a817d5302/Facts.md source=Projects/repo--b45a817d5302/Facts.md trust=verified provenance=Projects/repo--b45a817d5302/Facts.md#L7 project_id=b45a817d53029864d8e1b268460a176594ceae5cac04330f764cc45d39e31676 excerpt=Verified proof: current project uses semantic retrieval and a safe next action."
+      ],
+      "elapsed_ms": 17,
+      "fallback_used": false
+    },
+    {
+      "case_id": "memory-unknown",
+      "surface": "long_term_memory",
+      "expected_outcome": "unknown",
+      "observed_outcome": "unknown",
+      "passed": true,
+      "matched_signals": [
+        "unknown"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "abstain:unknown",
+        "Baron 4.2 abstained because the query requires unknown evidence: `fact not present in this repository`"
+      ],
+      "elapsed_ms": 0,
+      "fallback_used": true
+    },
+    {
+      "case_id": "retrieval-vietnamese",
+      "surface": "semantic_retrieval",
+      "expected_outcome": "answer",
+      "observed_outcome": "answer",
+      "passed": true,
+      "matched_signals": [
+        "semantic",
+        "citation"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "semantic:calibrated",
+        "citation=Projects/repo--b45a817d5302/Facts.md trust=verified provenance=Projects/repo--b45a817d5302/Facts.md#L8 excerpt=Tìm kiếm ngữ nghĩa memory phải có citation and current trust."
+      ],
+      "elapsed_ms": 4,
+      "fallback_used": false
+    },
+    {
+      "case_id": "retrieval-exact-path",
+      "surface": "semantic_retrieval",
+      "expected_outcome": "answer",
+      "observed_outcome": "answer",
+      "passed": true,
+      "matched_signals": [
+        "exact",
+        "path"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "exact:path",
+        "citation=crates/baron-core/src/semantic.rs:1 source_span=L1-L1:C4-C9",
+        "citation=crates/baron-core/src/semantic.rs:2 source_span=L2-L2:C4-C9"
+      ],
+      "elapsed_ms": 23,
+      "fallback_used": false
+    },
+    {
+      "case_id": "retrieval-negative",
+      "surface": "semantic_retrieval",
+      "expected_outcome": "unknown",
+      "observed_outcome": "unknown",
+      "passed": true,
+      "matched_signals": [
+        "abstain"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "abstain:unknown",
+        "Baron 4.2 abstained because the query requires unknown evidence: `unrelated quantum database that does not exist`"
+      ],
+      "elapsed_ms": 0,
+      "fallback_used": true
+    },
+    {
+      "case_id": "session-task-boundary",
+      "surface": "session_learning",
+      "expected_outcome": "candidate",
+      "observed_outcome": "candidate",
+      "passed": true,
+      "matched_signals": [
+        "task",
+        "evidence"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "task-segments:1",
+        "dedup:1",
+        "noise:0",
+        "candidate-only:true",
+        "evidence-spans:3"
+      ],
+      "elapsed_ms": 22,
+      "fallback_used": false
+    },
+    {
+      "case_id": "session-duplicate",
+      "surface": "session_learning",
+      "expected_outcome": "deduplicate",
+      "observed_outcome": "deduplicate",
+      "passed": true,
+      "matched_signals": [
+        "dedup"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "task-segments:1",
+        "dedup:1",
+        "noise:0",
+        "candidate-only:true",
+        "evidence-spans:3"
+      ],
+      "elapsed_ms": 28,
+      "fallback_used": false
+    },
+    {
+      "case_id": "session-poisoning",
+      "surface": "session_learning",
+      "expected_outcome": "quarantine",
+      "observed_outcome": "quarantine",
+      "passed": true,
+      "matched_signals": [
+        "poisoning",
+        "quarantine"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "task-segments:1",
+        "dedup:1",
+        "noise:0",
+        "candidate-only:true",
+        "evidence-spans:3",
+        "poisoning-quarantine"
+      ],
+      "elapsed_ms": 31,
+      "fallback_used": false
+    },
+    {
+      "case_id": "temporal-conflict",
+      "surface": "temporal_truth",
+      "expected_outcome": "conflict",
+      "observed_outcome": "conflict",
+      "passed": true,
+      "matched_signals": [
+        "current",
+        "superseded"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "current:7",
+        "superseded:0",
+        "contested:2"
+      ],
+      "elapsed_ms": 11,
+      "fallback_used": false
+    },
+    {
+      "case_id": "wiki-citation",
+      "surface": "wiki",
+      "expected_outcome": "answer",
+      "observed_outcome": "answer",
+      "passed": true,
+      "matched_signals": [
+        "citation",
+        "freshness"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "citation:docs/ARCHITECTURE.md#L5-L6",
+        "docs/ARCHITECTURE.md#L5-L6",
+        "semantic-confidence:0.823;channels:lexical,ngram",
+        "freshness:current",
+        "citation:docs/MEMORY.md#L1-L3",
+        "docs/MEMORY.md#L1-L3",
+        "semantic-confidence:0.565;channels:lexical,ngram",
+        "freshness:current",
+        "citation:docs/ARCHITECTURE.md#L1-L4",
+        "docs/ARCHITECTURE.md#L1-L4",
+        "semantic-confidence:0.605;channels:lexical,ngram",
+        "freshness:current"
+      ],
+      "elapsed_ms": 54,
+      "fallback_used": false
+    },
+    {
+      "case_id": "wiki-negative",
+      "surface": "wiki",
+      "expected_outcome": "unknown",
+      "observed_outcome": "unknown",
+      "passed": true,
+      "matched_signals": [
+        "unknown"
+      ],
+      "missing_signals": [],
+      "evidence": [],
+      "elapsed_ms": 0,
+      "fallback_used": true
+    },
+    {
+      "case_id": "codegraph-impact",
+      "surface": "codegraph",
+      "expected_outcome": "answer",
+      "observed_outcome": "answer",
+      "passed": true,
+      "matched_signals": [
+        "caller",
+        "callee",
+        "impact"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "source_span:crates/baron-core/src/semantic.rs:L2-L2:C4-C9",
+        "references -> callee@crates/baron-core/src/semantic.rs:L1-L1:C4-C9 [inferred]",
+        "calls -> callee@crates/baron-core/src/semantic.rs:L1-L1:C4-C9 [syntax-evidence]",
+        "v4 lexical/fuzzy symbol match; relations remain advisory until current source verification; calibrated score 6.947 with lexical/vector evidence fusion; callee-edge; impact-path; v42-directional-edge-contract",
+        "source_span:crates/baron-core/src/semantic.rs:L1-L1:C4-C9",
+        "references <- caller@crates/baron-core/src/semantic.rs:L2-L2:C4-C9 [inferred]",
+        "calls <- caller@crates/baron-core/src/semantic.rs:L2-L2:C4-C9 [syntax-evidence]",
+        "v4 lexical/fuzzy symbol match; relations remain advisory until current source verification; calibrated score 6.947 with lexical/vector evidence fusion; caller-edge; impact-path; v42-directional-edge-contract"
+      ],
+      "elapsed_ms": 6,
+      "fallback_used": false
+    },
+    {
+      "case_id": "codegraph-direction",
+      "surface": "codegraph",
+      "expected_outcome": "answer",
+      "observed_outcome": "answer",
+      "passed": true,
+      "matched_signals": [
+        "direction",
+        "source_span"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "source_span:crates/baron-core/src/semantic.rs:L2-L2:C4-C9",
+        "references -> callee@crates/baron-core/src/semantic.rs:L1-L1:C4-C9 [inferred]",
+        "calls -> callee@crates/baron-core/src/semantic.rs:L1-L1:C4-C9 [syntax-evidence]",
+        "v4 lexical/fuzzy symbol match; relations remain advisory until current source verification; calibrated score 8.641 with lexical/vector evidence fusion; callee-edge; impact-path; v42-directional-edge-contract",
+        "source_span:crates/baron-core/src/semantic.rs:L1-L1:C4-C9",
+        "references <- caller@crates/baron-core/src/semantic.rs:L2-L2:C4-C9 [inferred]",
+        "calls <- caller@crates/baron-core/src/semantic.rs:L2-L2:C4-C9 [syntax-evidence]",
+        "v4 lexical/fuzzy symbol match; relations remain advisory until current source verification; calibrated score 7.894 with lexical/vector evidence fusion; caller-edge; impact-path; v42-directional-edge-contract"
+      ],
+      "elapsed_ms": 7,
+      "fallback_used": false
+    },
+    {
+      "case_id": "codegraph-dynamic",
+      "surface": "codegraph",
+      "expected_outcome": "unknown",
+      "observed_outcome": "unknown",
+      "passed": true,
+      "matched_signals": [
+        "inferred",
+        "unknown"
+      ],
+      "missing_signals": [],
+      "evidence": [
+        "inferred:unknown"
+      ],
+      "elapsed_ms": 0,
+      "fallback_used": true
+    }
+  ],
+  "score": 100,
+  "passed_cases": 14,
+  "hard_failures": [],
+  "fallback_cases": 4,
+  "promotion_ready": false,
+  "development_fixture": true,
+  "development_fixture_root": "C:\\Users\\tytyb\\AppData\\Local\\Temp\\baron-42-development-19852-1786676822488669800"
+}

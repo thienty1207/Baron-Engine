@@ -12,7 +12,7 @@ use crate::control_plane::validate_control_plane;
 use crate::domain_language::{read_domain_language, render_domain_language_context};
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
-use crate::intelligence::select_resume_brief_v41;
+use crate::intelligence::{experimental_generation_enabled, select_resume_brief_runtime};
 use crate::intelligence41::{build_grounded_handoff, render_grounded_handoff};
 use crate::knowledge::render_resume_brief;
 use crate::memory::{analyze_memory_consolidation, build_memory_index};
@@ -66,15 +66,24 @@ pub fn compile_context_for_task(
         || std::env::var_os("BARON_CODEX_SESSIONS_ROOT").is_some()
         || std::env::var_os("BARON_CLAUDE_SESSIONS_ROOT").is_some()
     {
-        import_sessions(repo_path, &vault, 5)?;
+        import_sessions(
+            repo_path,
+            &vault,
+            if experimental_generation_enabled() {
+                usize::MAX
+            } else {
+                5
+            },
+        )?;
     }
     build_memory_index(&vault)?;
     index_session_replay(&vault)?;
     let memory_brief = compact_memory_brief_for_task(&vault, task)?;
-    let (intelligence_generation, resume_brief) = select_resume_brief_v41(&vault, task, 4_800)?;
+    let (intelligence_generation, resume_brief) = select_resume_brief_runtime(&vault, task, 4_800)?;
     let grounded_handoff = if matches!(
         intelligence_generation,
         crate::intelligence::EngineGeneration::Candidate41
+            | crate::intelligence::EngineGeneration::Candidate42
     ) {
         build_grounded_handoff(&vault, task, 4_800).ok()
     } else {

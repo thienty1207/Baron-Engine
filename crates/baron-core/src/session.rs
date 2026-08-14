@@ -12,11 +12,11 @@ use sha2::{Digest, Sha256};
 
 use crate::vault::VaultContext;
 
-const MAX_FILES_CHECKED: usize = 100;
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionImportReport {
     pub roots_checked: usize,
+    #[serde(default)]
+    pub files_discovered: usize,
     pub files_checked: usize,
     pub imported: usize,
     pub deduplicated: usize,
@@ -24,6 +24,20 @@ pub struct SessionImportReport {
     pub skipped_noise: usize,
     pub learning_candidates: usize,
     pub learning_error: Option<String>,
+    #[serde(default)]
+    pub learning_v42_candidates: usize,
+    #[serde(default)]
+    pub learning_v42_quarantined: usize,
+    #[serde(default)]
+    pub learning_v42_error: Option<String>,
+    #[serde(default)]
+    pub learning_v42_path: Option<PathBuf>,
+    #[serde(default)]
+    pub skipped_read_errors: usize,
+    #[serde(default)]
+    pub invalid_records: usize,
+    #[serde(default)]
+    pub omissions: Vec<String>,
     pub state_path: PathBuf,
 }
 
@@ -64,12 +78,11 @@ pub fn import_sessions(
         .project_root
         .join("Artifacts/session-import-state.json");
     let mut state = load_state(&state_path);
-    let max_files = MAX_FILES_CHECKED.min(import_limit.saturating_mul(4).max(20));
-    let mut sources = discover_sources(&roots, max_files);
+    let mut sources = discover_sources(&roots);
     sources.sort_by_key(|source| Reverse(source.modified));
-    sources.truncate(MAX_FILES_CHECKED);
     let mut report = SessionImportReport {
         roots_checked: roots.len(),
+        files_discovered: sources.len(),
         files_checked: 0,
         imported: 0,
         deduplicated: 0,
@@ -77,6 +90,13 @@ pub fn import_sessions(
         skipped_noise: 0,
         learning_candidates: 0,
         learning_error: None,
+        learning_v42_candidates: 0,
+        learning_v42_quarantined: 0,
+        learning_v42_error: None,
+        learning_v42_path: None,
+        skipped_read_errors: 0,
+        invalid_records: 0,
+        omissions: Vec::new(),
         state_path: state_path.clone(),
     };
 
@@ -87,7 +107,15 @@ pub fn import_sessions(
         report.files_checked += 1;
         let content = match fs::read_to_string(&source.path) {
             Ok(content) => content,
-            Err(_) => continue,
+            Err(error) => {
+                report.skipped_read_errors += 1;
+                report.omissions.push(format!(
+                    "{}:read-error:{}",
+                    normalize_path(&source.path),
+                    error
+                ));
+                continue;
+            }
         };
         let content_hash = hash(&content);
         let source_key = normalize_path(&source.path);
@@ -100,11 +128,25 @@ pub fn import_sessions(
             continue;
         }
 
-        let records = parse_records(&content);
-        if !records
-            .iter()
-            .any(|record| value_matches_repo(record, &repo_root))
-        {
+        let (records, invalid_records) = parse_records(&content);
+        report.invalid_records = report.invalid_records.saturating_add(invalid_records);
+        // A session header (cwd/repo/project metadata) establishes the
+        // project for the following user/assistant records. We do not accept
+        // an unrelated file merely because one string somewhere mentions the
+        // repository; a new header closes the active segment.
+        let mut active_repo_segment = false;
+        let mut matching_records = Vec::new();
+        for record in &records {
+            if value_matches_repo(record, &repo_root) {
+                active_repo_segment = true;
+                matching_records.push(record.clone());
+            } else if is_session_context_record(record) {
+                active_repo_segment = false;
+            } else if active_repo_segment {
+                matching_records.push(record.clone());
+            }
+        }
+        if matching_records.is_empty() {
             report.skipped_unmatched += 1;
             state.sources.insert(
                 source_key,
@@ -116,7 +158,7 @@ pub fn import_sessions(
             );
             continue;
         }
-        let messages = extract_messages(&records);
+        let messages = extract_messages(&matching_records);
         if messages.is_empty() {
             report.skipped_noise += 1;
             state.sources.insert(
@@ -151,6 +193,16 @@ pub fn import_sessions(
     match crate::intelligence41::learn_session_candidates(vault) {
         Ok(learning) => report.learning_candidates = learning.candidates.len(),
         Err(error) => report.learning_error = Some(error.to_string()),
+    }
+    report.omissions.sort();
+    report.omissions.dedup();
+    match crate::intelligence42::learn_session_candidates_v42(vault) {
+        Ok(learning) => {
+            report.learning_v42_candidates = learning.candidates.len();
+            report.learning_v42_quarantined = learning.quarantined;
+            report.learning_v42_path = Some(PathBuf::from(learning.output_path));
+        }
+        Err(error) => report.learning_v42_error = Some(error.to_string()),
     }
     Ok(report)
 }
@@ -207,21 +259,16 @@ fn discover_roots() -> Vec<(PathBuf, &'static str)> {
         .collect()
 }
 
-fn discover_sources(roots: &[(PathBuf, &'static str)], max_files: usize) -> Vec<SessionSource> {
+fn discover_sources(roots: &[(PathBuf, &'static str)]) -> Vec<SessionSource> {
     let mut sources = Vec::new();
     for (root, adapter) in roots {
-        collect_sources(root, adapter, max_files, &mut sources);
+        collect_sources(root, adapter, &mut sources);
     }
     sources
 }
 
-fn collect_sources(
-    root: &Path,
-    adapter: &'static str,
-    max_files: usize,
-    sources: &mut Vec<SessionSource>,
-) {
-    if !root.exists() || sources.len() >= max_files {
+fn collect_sources(root: &Path, adapter: &'static str, sources: &mut Vec<SessionSource>) {
+    if !root.exists() {
         return;
     }
     let Ok(entries) = fs::read_dir(root) else {
@@ -237,15 +284,12 @@ fn collect_sources(
         )
     });
     for entry in entries {
-        if sources.len() >= max_files {
-            break;
-        }
         let path = entry.path();
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
         if file_type.is_dir() {
-            collect_sources(&path, adapter, max_files, sources);
+            collect_sources(&path, adapter, sources);
         } else if matches!(
             path.extension().and_then(|value| value.to_str()),
             Some("jsonl" | "log" | "json")
@@ -263,11 +307,16 @@ fn collect_sources(
     }
 }
 
-fn parse_records(content: &str) -> Vec<Value> {
-    content
-        .lines()
-        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-        .collect()
+fn parse_records(content: &str) -> (Vec<Value>, usize) {
+    let mut records = Vec::new();
+    let mut invalid = 0usize;
+    for line in content.lines().filter(|line| !line.trim().is_empty()) {
+        match serde_json::from_str::<Value>(line) {
+            Ok(value) => records.push(value),
+            Err(_) => invalid = invalid.saturating_add(1),
+        }
+    }
+    (records, invalid)
 }
 
 fn value_matches_repo(value: &Value, repo_root: &Path) -> bool {
@@ -287,6 +336,22 @@ fn value_matches_repo(value: &Value, repo_root: &Path) -> bool {
                 candidate == repo || candidate.starts_with(&format!("{repo}/"))
             })
     })
+}
+
+fn is_session_context_record(value: &Value) -> bool {
+    let record_type = value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_lowercase();
+    record_type.contains("session")
+        || value.get("cwd").is_some()
+        || value.get("repo").is_some()
+        || value.get("project").is_some()
+        || value.pointer("/payload/cwd").is_some()
+        || value.pointer("/payload/repo").is_some()
+        || value.pointer("/message/cwd").is_some()
+        || value.pointer("/message/repo").is_some()
 }
 
 fn extract_messages(records: &[Value]) -> Vec<(String, String)> {

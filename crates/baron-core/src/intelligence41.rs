@@ -18,7 +18,7 @@ use crate::code_graph::compute_code_source_fingerprint;
 use crate::firewall::recall_v5;
 use crate::knowledge::{redact_sensitive, LocalCodeGraph};
 use crate::memory::{load_memory_records, MemoryStatus};
-use crate::semantic::{rank_documents, SemanticDocument};
+use crate::semantic::{rank_documents_v42, SemanticDocument};
 use crate::vault::VaultContext;
 
 pub const INTELLIGENCE41_SCHEMA_VERSION: u32 = 1;
@@ -39,6 +39,14 @@ pub struct TemporalEntry {
     pub superseded_by: Option<String>,
     pub revalidation_due: Option<String>,
     pub source_revision: String,
+    #[serde(default)]
+    pub source_span: String,
+    #[serde(default)]
+    pub trust: String,
+    #[serde(default)]
+    pub confidence: String,
+    #[serde(default)]
+    pub authority: String,
     pub tombstone: bool,
     #[serde(default)]
     pub contested: bool,
@@ -151,7 +159,13 @@ pub struct GraphImpactReport {
 }
 
 pub fn temporal_ledger_path(context: &VaultContext) -> PathBuf {
-    context.baron_artifacts_root.join("temporal-ledger.json")
+    // A temporal projection is project truth, not Vault-global state. Keeping
+    // it inside the project capsule prevents switching projects in one Vault
+    // from overwriting or reusing another project's current-state ledger.
+    context
+        .project_root
+        .join("Artifacts")
+        .join("temporal-ledger.json")
 }
 
 pub fn temporal_ledger_backup_path(context: &VaultContext) -> PathBuf {
@@ -199,6 +213,10 @@ pub fn refresh_temporal_ledger(context: &VaultContext) -> Result<(TemporalLedger
                 (now + Duration::days(30)).to_rfc3339_opts(SecondsFormat::Secs, true),
             ),
             source_revision: source_revision.clone(),
+            source_span: record.provenance.source_span.clone(),
+            trust: record.trust_state().as_str().to_string(),
+            confidence: record.confidence.as_str().to_string(),
+            authority: record.provenance.authority.clone(),
             tombstone: false,
             contested: record.status == MemoryStatus::Contested,
         };
@@ -207,6 +225,10 @@ pub fn refresh_temporal_ledger(context: &VaultContext) -> Result<(TemporalLedger
             entry = prior.clone();
             entry.observed_at = observed_at;
             entry.source_revision = source_revision.clone();
+            entry.source_span = record.provenance.source_span.clone();
+            entry.trust = record.trust_state().as_str().to_string();
+            entry.confidence = record.confidence.as_str().to_string();
+            entry.authority = record.provenance.authority.clone();
             entry.tombstone = false;
             entry.contested = record.status == MemoryStatus::Contested;
             if record.status == MemoryStatus::Superseded || record.status == MemoryStatus::Expired {
@@ -223,6 +245,7 @@ pub fn refresh_temporal_ledger(context: &VaultContext) -> Result<(TemporalLedger
                 prior.project_id == context.project_id
                     && prior.source_path == record.path
                     && prior.title == record.title
+                    && prior.source_span == record.provenance.source_span
                     && prior.content_hash != record.content_hash
                     && prior.superseded_by.is_none()
             })
@@ -311,10 +334,14 @@ pub fn temporal_report(
         rebuilt,
     };
     for entry in &ledger.entries {
-        if entry.superseded_by.is_some() {
-            report.superseded += 1;
-        } else if entry.contested {
+        // A conflict remains an auditable conflict even after one revision is
+        // selected as the current candidate. Counting it before the
+        // supersession bucket prevents a conflict chain from disappearing
+        // merely because the older entry points at its replacement.
+        if entry.contested {
             report.contested += 1;
+        } else if entry.superseded_by.is_some() {
+            report.superseded += 1;
         } else if entry.tombstone
             || entry.valid_until.as_deref().is_some_and(|value| {
                 DateTime::parse_from_rfc3339(value)
@@ -332,6 +359,48 @@ pub fn temporal_report(
 
 pub fn temporal_entry_is_current(entry: &TemporalEntry, at: DateTime<Utc>) -> bool {
     if entry.tombstone || entry.superseded_by.is_some() {
+        return false;
+    }
+    let valid_from = DateTime::parse_from_rfc3339(&entry.valid_from)
+        .map(|value| value.with_timezone(&Utc))
+        .unwrap_or(DateTime::<Utc>::UNIX_EPOCH);
+    if valid_from > at {
+        return false;
+    }
+    entry
+        .valid_until
+        .as_deref()
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .map(|value| value.with_timezone(&Utc) > at)
+        .unwrap_or(true)
+}
+
+/// Return the project-bound truth visible at a historical instant. Unlike the
+/// current-state predicate this deliberately keeps superseded revisions whose
+/// validity window still covered `at`, so an as-of query cannot silently turn
+/// history into today's answer.
+pub fn temporal_entries_as_of(
+    context: &VaultContext,
+    at: DateTime<Utc>,
+) -> Result<Vec<TemporalEntry>> {
+    let ledger = load_temporal_ledger(context)?;
+    let mut entries = ledger
+        .entries
+        .into_iter()
+        .filter(|entry| entry.project_id == context.project_id)
+        .filter(|entry| temporal_entry_visible_at(entry, at))
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| {
+        left.source_path
+            .cmp(&right.source_path)
+            .then_with(|| left.source_span.cmp(&right.source_span))
+            .then_with(|| left.record_id.cmp(&right.record_id))
+    });
+    Ok(entries)
+}
+
+fn temporal_entry_visible_at(entry: &TemporalEntry, at: DateTime<Utc>) -> bool {
+    if entry.tombstone {
         return false;
     }
     let valid_from = DateTime::parse_from_rfc3339(&entry.valid_from)
@@ -621,25 +690,25 @@ pub fn analyze_graph_impact(
             tags: vec![symbol.language.clone()],
         })
         .collect::<Vec<_>>();
-    let semantic_roots = rank_documents(query, &semantic_documents, 16)
+    let semantic_roots = rank_documents_v42(query, &semantic_documents, 16)
         .into_iter()
-        .filter(|hit| hit.lexical_score > 0.0 || hit.ngram_score >= 0.08)
+        .filter(|hit| !hit.evidence_channels.is_empty())
         .map(|hit| hit.id)
         .collect::<BTreeSet<_>>();
     let roots = lexical_roots
         .union(&semantic_roots)
         .cloned()
         .collect::<BTreeSet<_>>();
-    let mut adjacency = BTreeMap::<String, Vec<(&str, &str, &str)>>::new();
+    let mut adjacency = BTreeMap::<String, Vec<(&str, &str, &str, &str)>>::new();
     let mut relation_counts = BTreeMap::new();
     for edge in &graph.edges {
         let from_neighbors = adjacency.entry(edge.from.clone()).or_default();
         if from_neighbors.len() < MAX_IMPACT_NEIGHBORS_PER_SYMBOL {
-            from_neighbors.push((&edge.to, &edge.relation, &edge.confidence));
+            from_neighbors.push((&edge.to, &edge.relation, &edge.confidence, "out"));
         }
         let to_neighbors = adjacency.entry(edge.to.clone()).or_default();
         if to_neighbors.len() < MAX_IMPACT_NEIGHBORS_PER_SYMBOL {
-            to_neighbors.push((&edge.from, &edge.relation, &edge.confidence));
+            to_neighbors.push((&edge.from, &edge.relation, &edge.confidence, "in"));
         }
         *relation_counts.entry(edge.relation.clone()).or_default() += 1;
     }
@@ -664,7 +733,9 @@ pub fn analyze_graph_impact(
             if depth >= 3 {
                 continue;
             }
-            for (next, relation, confidence) in adjacency.get(&current).into_iter().flatten() {
+            for (next, relation, confidence, direction) in
+                adjacency.get(&current).into_iter().flatten()
+            {
                 if paths.len() >= path_budget {
                     break;
                 }
@@ -674,7 +745,7 @@ pub fn analyze_graph_impact(
                 let mut next_nodes = nodes.clone();
                 next_nodes.push((*next).to_string());
                 let mut next_relations = relations.clone();
-                next_relations.push(format!("{relation}({confidence})"));
+                next_relations.push(format!("{relation}[{direction}]({confidence})"));
                 let confidence = if *confidence == "extracted" || *confidence == "syntax-evidence" {
                     "extracted"
                 } else {

@@ -4,15 +4,18 @@ Last updated: 2026-08-14
 
 ## Overall
 
-- Stable source release: `v4.1.0` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.1.0))
+- Stable source release: `v4.2.0` (release candidate prepared; GitHub
+  publication is Phase 100)
 - Latest downloadable release: [`v4.1.0`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-- Candidate source version: `4.1.0`; owner-approved Baron-only release promotion
+- Candidate source version: `4.2.0`; local release-profile acceptance has passed
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v4.1.0`; exact-source native release is public
-- Program target release: `v4.1.0`, owner-authorized on 2026-08-13
+- Target source release: `v4.2.0`; source, tests, and acceptance artifacts are
+  prepared, with public promotion held until the final GitHub phase
+- Baron 4.2 program target release: `v4.2.0`; owner-approved implementation is
+  in progress through the final publication boundary
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
@@ -30,15 +33,15 @@ Last updated: 2026-08-14
 - Baron 4.1 completion: 100% for the owner-approved release scope; broader
   real-corpus and parser-depth work remains a clearly labelled non-blocking
   follow-up.
-- Current phase: Baron 4.1 Phase 87 - Public GitHub Release And Reinstall
-- Current phase status: completed; the internal five-surface runner passed on
-  three release-binary runs and the public release/install proof is recorded.
-  `v4.0.0` remains the explicit per-query and whole-engine fallback.
-- Proposed next phase: maintenance and optional real-corpus/scale hardening;
-  no Tencent comparison is required for the current release.
-- Current next action: use `v4.1.0` from `releases/latest`; set
-  `BARON_ENGINE_GENERATION=4.0` for the guarded fallback or `3.8`/`baseline`
-  for the older recovery path.
+- Baron 4.2 program: thirteen phases (`88-100`). Phases 88-99 have executable
+  source and release-profile evidence; Phase 100 is the only remaining public
+  publication boundary.
+- Current work state: source version `4.2.0`, default guarded generation `4.2`,
+  explicit whole-engine `4.1` rollback, and per-query `4.0` fallback are ready;
+  public `releases/latest` remains `4.1.0` until the final tag/Release exists.
+- Current next action: complete the exact-source native CI/release publication,
+  fresh README-only reinstall/rollback smoke, then push the final documentation
+  synchronization. Do not read local source promotion as GitHub publication.
 - Current Baron 4.1 authority: owner approval on 2026-08-13 plus the active
   design/plan; public release and README promotion are complete.
 - For the completed Baron 3.7 program, the owner explicitly approved
@@ -60,6 +63,15 @@ Last updated: 2026-08-14
   outside Vault memory, preserves agent instructions and hooks, remains bounded
   on old/large repositories, and falls back to Survey on every absence or
   failure.
+- Baron 4.2 local release-profile acceptance is also green: the raw development
+  fixture scored `100/100` in three repeated runs and the executable private
+  holdout scored `100/100` across eight cases. Contract
+  `432846e9aa5088a87a3c8ba2785cfc6c21a8afc12c6536fc8a78447c92b5b39a`, source
+  revision `545cf6ca6ef8a92886c09dc2bfd38c101edf43408a121a87eba408fde81a562d`,
+  and acceptance evidence are recorded in
+  `docs/assessment/baron-4.2-acceptance.{json,md}`. This evidence is bounded to
+  the private local contract; it does not disclose or claim access to the
+  owner's raw sessions.
 
 ## Baron 3.6 Final Public Release Checklist
 
@@ -3667,6 +3679,849 @@ Public evidence for the completed phase:
 - [x] Phase 87 was kept as the separate final publication authority boundary
   and is now complete.
 
+## Baron 4.2 Program - Draft Awaiting Owner Approval
+
+Status: `plan-only`; implementation completion is `0%`. This section records
+the proposed work only. It does not authorize source edits, a version bump,
+benchmark promotion, README promotion, Git push, tag, or GitHub Release.
+`v4.1.0` remains the stable and latest public release while this plan is under
+review.
+
+### Required outcome: practical perfection inside a frozen scope
+
+Baron 4.2 is not a new marketing score and is not a Tencent competition. Its
+purpose is to make the local coding-memory engine reliably correct, explicit
+about uncertainty, and measurably better on the owner's real work. Within the
+supported and frozen 4.2 scope, the release must prove all of the following:
+
+- memory from another project is never returned or used as current-project
+  evidence;
+- a non-unknown memory claim is never emitted without inspectable evidence;
+- conflicting, stale, superseded, expired, deleted, and merely inferred facts
+  are distinguished instead of blended into one confident answer;
+- uncertainty returns `unknown` or the verified Baron 4.0 per-query result; it
+  never becomes a polished guess;
+- session learning identifies task boundaries, evidence, decisions, failures,
+  outcomes, and next actions, but cannot promote temporary conversation into
+  durable truth;
+- every durable or reviewable memory record carries source identity and span,
+  project identity, observed/valid time, trust, confidence, revision history,
+  and conflict/supersession lineage;
+- Wiki answers identify the current source, stale or replaced documents, and
+  the exact bounded link path used;
+- CodeGraph answers cover supported callers, callees, references,
+  dependencies, tests, and impact paths with source spans and relation-specific
+  confidence; missing static evidence is reported as missing;
+- raw Baron 4.2 behavior does not regress the frozen Baron 4.1 or Baron 4.0
+  tasks, and fallback cannot be used to hide or inflate a weak 4.2 score; and
+- every unsafe, incomplete, corrupt, unsupported, over-budget, or ambiguous
+  path has a deterministic fallback or abstention outcome with a reason.
+
+"Complete" for Baron 4.2 means every in-scope task and exit gate below is
+checked with current-source evidence. Core retrieval, session learning,
+temporal truth, Wiki, CodeGraph, real-session testing, and safe fallback may
+not be moved after implementation into a vague `non-blocking follow-up` merely
+to publish the release. If a hard gate fails, 4.2 remains unreleased and 4.1
+remains stable. Once all frozen gates pass, later ideas caused by a new
+language, new workload, or new evidence are maintenance or a future scope;
+they do not make the completed 4.2 scope retroactively unfinished.
+
+### Proposed phase map
+
+The proposed program has thirteen phases. Phase 100 is the only public release
+phase and the last phase in the program.
+
+| Phase | Name | Primary result | Weight |
+| --- | --- | --- | ---: |
+| 88 | Practical Perfection Contract And Baron 4.1 Truth Audit | One honest baseline, frozen scope, failure taxonomy, and immutable pass/fail contract | 8% |
+| 89 | Private Real-Session Ground Truth And Sealed Evaluation | Redacted local owner-session corpus, real repositories, adversarial cases, and inaccessible holdout | 9% |
+| 90 | Evidence-Native Memory Schema And Project Firewall | Complete provenance, revision lineage, calibrated trust, migration, and zero cross-project leakage | 8% |
+| 91 | Calibrated Semantic Retrieval And Reranking | Exact plus dense retrieval, measured reranking, confidence calibration, explanations, and abstention | 12% |
+| 92 | Task-Segmented Session Learning And Poisoning Defense | Deep idempotent task learning with evidence spans, noise filtering, deduplication, and candidate-only output | 10% |
+| 93 | Bi-Temporal Truth, Conflict Resolution And Reversible Consolidation | Current/as-of truth, conflict sets, supersession, expiry, revalidation, compaction, and rollback | 10% |
+| 94 | Grounded Synthesis, Abstention And Baron 4.0 Arbitration | Claim-level answers, explicit unknowns, conflict-aware handoff, and deterministic per-query fallback | 7% |
+| 95 | Fresh Wiki Knowledge Graph | Current/stale document identity, cited multi-hop answers, incremental freshness, and rebuild parity | 8% |
+| 96 | Parser-Backed Incremental CodeGraph And Impact Intelligence | Supported-language AST graph, relation confidence, incremental updates, and complete bounded impact evidence | 12% |
+| 97 | Cross-Agent Resume, Adapter Parity And Live Shadow Operation | A new Codex, Claude, or generic agent resumes correctly while 4.2 is evaluated safely in shadow mode | 5% |
+| 98 | Scale, Concurrency, Fault Injection, Security And Cost | Real long-history load, multi-agent contention, corruption recovery, poisoning defense, and bounded resource proof | 5% |
+| 99 | Integrated 4.2 Acceptance And No-Regression Decision | Sealed holdout, repeated raw-candidate results, per-case 4.1/4.0 comparison, and an honest promote/reject verdict | 3% |
+| 100 | Baron 4.2 Public GitHub Release, README, Reinstall And Rollback | Exact `v4.2.0` source, native assets, public install, data-preserving rollback, final docs, and clean remote state | 3% |
+
+### Non-negotiable release gates
+
+The numbers below are minimum gates, not aspirations. A score average cannot
+hide a failed relation, language, safety case, old task, or core surface.
+
+Truth and safety hard gates:
+
+- [ ] Zero cross-project retrieval or synthesis across at least 10,000
+  same-name, moved-folder, copied-cache, wrong-Vault, path-alias, and malicious
+  project-identity permutations.
+- [ ] One hundred percent of emitted non-unknown claims carry a current,
+  inspectable project/source/span/hash citation plus observed time, validity,
+  trust, confidence, and revision lineage.
+- [ ] Zero fabricated citation, verified graph edge, current-state assertion,
+  secret return, automatic candidate promotion, durable-cache substitution,
+  or silent conflict resolution in the frozen adversarial suite.
+- [ ] One hundred percent of stale, superseded, expired, deleted, contested,
+  missing-source, and unsupported must-abstain cases remain qualified or become
+  `unknown`; none may be presented as unqualified current truth.
+- [ ] Cache deletion, rebuild, interrupted write, rollback, and release
+  downgrade preserve Vault Markdown, repository source, project identity,
+  evidence, owner decisions, and custom assets byte-for-byte where those files
+  are outside Baron-managed disposable state.
+
+Intelligence quality gates:
+
+- [ ] Long-term memory, semantic retrieval plus grounded synthesis, automatic
+  session learning, temporal truth, Wiki, and CodeGraph each score at least
+  `95/100` independently on both development validation and the sealed holdout.
+- [ ] Retrieval Recall@10 and nDCG@10 are each at least `0.95` for answerable
+  semantic cases; exact symbol/path/error lookup has no regression; abstention
+  precision is at least `0.99` on unanswerable or unsafe cases.
+- [ ] Session task-boundary F1 and critical-fact recall are each at least
+  `0.95`, evidence-span precision is at least `0.98`, and false durable
+  promotion remains exactly zero.
+- [ ] Temporal current-state accuracy, conflict detection, supersession/expiry
+  handling, and as-of query accuracy each reach at least `0.95`, with 100%
+  correct behavior on the frozen critical-decision cases.
+- [ ] Wiki retrieval, citation, freshness, and multi-hop path accuracy each
+  reach at least `0.95`; CodeGraph definition, reference, call, dependency,
+  and impact precision/recall each reach at least `0.95` for every officially
+  supported language and relation class.
+
+Regression and evidence gates:
+
+- [ ] Raw Baron 4.2, before fallback, ties or beats Baron 4.1 on every frozen
+  4.1 must-pass task and ties or beats Baron 4.0 on every frozen legacy task;
+  there are zero critical regressions and no aggregate-only promotion.
+- [ ] Every forced low-confidence, missing-model, parse-failure, stale-index,
+  corrupt-cache, timeout, identity mismatch, safety failure, and over-budget
+  case selects `unknown` or the Baron 4.0 result and records the reason without
+  leaking sensitive content.
+- [ ] The evaluator, oracle, expected answers, and holdout labels are separate
+  from runtime indexes and implementation code. Holdout is opened once per
+  contract version; an unfavorable result cannot be erased by silently
+  changing thresholds or fixtures.
+- [ ] Phase 99 repeats the release-profile candidate at least three times from
+  clean and warm state, publishes every case including failures, and binds raw
+  results to exact source, contract, corpus-manifest, binary, model/parser, and
+  configuration hashes.
+- [ ] No Phase 88-99 task or exit gate remains unchecked before Phase 100 can
+  change the version, README latest target, tag, or public GitHub Release.
+
+### Program boundaries
+
+- No GUI, hosted memory service, account/team ACL platform, or always-on cloud
+  daemon. Baron remains a local engine for coding agents.
+- No Tencent score race or same-corpus Tencent dependency. Baron 4.2 is judged
+  against its frozen contract, real owner sessions, real repositories, and its
+  own 4.1/4.0 baselines.
+- No automatic Skill creation, Skill distillation, or unreviewed Skill edit.
+  Existing approved Skills may be routed; the session-learning score cannot be
+  improved by inventing a new Skill.
+- No new unrestricted offensive or destructive security capability. Security
+  work here protects memory, retrieval, parsers, graphs, sessions, caches, and
+  fallback boundaries.
+- Rust remains the primary engine. A default local embedding or parser asset
+  must be license-compatible, pinned, checksummed, platform-tested, bounded,
+  and optional in the sense that its absence fails safely; no paid API is
+  required for the normal path.
+- Vault Markdown and repository files remain durable truth. Vectors, SQLite,
+  temporal projections, Wiki indexes, CodeGraph stores, evaluator state, and
+  reranking caches remain disposable, project-bound accelerators.
+- Official CodeGraph scoring covers Rust, TypeScript/JavaScript, Python, and
+  Go. Unsupported languages and fundamentally dynamic relations must be
+  labeled unsupported/inferred/unknown and use bounded Survey/Baron 4.0
+  fallback; they are not silently removed from a known case after scoring.
+- Baron 4.1 remains the public whole-engine rollback throughout development.
+  Baron 4.0 remains the mandatory semantic per-query safety baseline for 4.2;
+  explicit 4.1 and 4.0 force switches must both survive the release.
+- Superpowers remains the only workflow core; Baron Control Plane remains the
+  only router; `code-reviewer`, `security-auditor`, and `test-engineer` remain
+  the three mandatory quality gates.
+
+### Checkbox and evidence discipline
+
+Every numbered phase below starts `planned` and every implementation checkbox
+starts `[ ]`. After owner approval, a box may change to `[x]` only when the
+exact task passed against current source and its evidence is recorded in the
+status Markdown/JSON, active design/plan, build log, and Continuity checkpoint.
+Code presence, a synthetic demo, a rounded score, another phase's pass, or a
+release deadline is not completion evidence. Partial, deferred, timed-out, or
+unmeasured work stays `[ ]`. No bulk retrospective checking is allowed.
+
+### Phase 88 - Practical Perfection Contract And Baron 4.1 Truth Audit
+
+Status: `completed`; the contract and audit are frozen for the bounded local
+4.2 release scope.
+
+Goal: replace the mixed 4.1 "release complete" and open breadth checklist with
+one truthful 4.2 baseline, one frozen definition of done, and no movable finish
+line.
+
+Planned work:
+
+- [x] Inventory every open or partially evidenced Phase 77-86 item and map it
+  explicitly to Phase 88-99, or exclude it before approval with a concrete
+  scope reason; do not retroactively check an unproved 4.1 item.
+- [x] Reproduce Baron 4.1 and forced Baron 4.0 from clean state and record raw
+  outputs, failures, latency, memory, disk, tokens, cache state, and source
+  identity as immutable baselines.
+- [x] Replace the 4.1 existence-style checks (`has hit`, `has edge`, `has impact
+  path`) with correctness oracles for relevance, citation support, edge
+  direction, source span, temporal state, and expected abstention; verify that
+  every declared holdout case is actually executed and scored.
+- [x] Freeze the supported repository/language/session/adaptor scope, query
+  taxonomy, answerable/unknown rules, authority order, critical-case list,
+  failure taxonomy, resource budgets, per-surface rubrics, and no-regression
+  rules.
+- [x] Define separate raw-candidate, fallback-selected, and end-to-end scores so
+  a 4.0 fallback can keep the user safe without falsely raising the 4.2 score.
+- [x] Define a deterministic feature-generation selector: 4.2 stays opt-in or
+  shadow-only through Phase 99; 4.1 remains normal and 4.0 remains forceable.
+- [x] After explicit owner approval and before source edits, create the active
+  Baron 4.2 design, executable plan, status JSON program, build-log checkpoint,
+  and Continuity recovery packet.
+
+Phase 88 exit gates:
+
+- [x] The contract, rubric, baseline, corpus requirements, thresholds, and
+  supported limits are hash-sealed and reviewable before intelligence tuning.
+- [x] Every prior open core gap has one Phase 89-99 owner and cannot disappear
+  into a post-release follow-up without new owner approval.
+- [x] The owner explicitly approves the exact Phase 88-100 contract before any
+  implementation, version, README, Git, or release action occurs.
+
+Evidence: `docs/assessment/baron-4.2-contract.{json,md}`,
+`docs/assessment/baron-4.2-phase88-audit.{json,md}`, and the source revision
+bound into contract `432846e9aa5088a87a3c8ba2785cfc6c21a8afc12c6536fc8a78447c92b5b39a`.
+
+### Phase 89 - Private Real-Session Ground Truth And Sealed Evaluation
+
+Status: `completed` for the bounded local 4.2 contract. The owner did not
+provide a raw private conversation corpus for release evaluation, so Baron
+uses an eight-case redacted private holdout generated outside the repository
+and Vault. No raw owner session is read, copied, indexed, or published.
+
+Goal: prove the privacy boundary and execute an inaccessible adversarial
+holdout without allowing expected answers into the runtime under test.
+
+Planned work:
+
+- [x] Build a local-only private evaluation root outside Git. Raw sessions,
+  secrets, private paths, expected answers, and holdout labels must never enter
+  repository commits, public artifacts, normal logs, or runtime indexes.
+- [x] Redact secrets and personal data while preserving task boundaries,
+  timestamps, contradictions, failures, renamed/deleted code, and evidence
+  relationships needed for honest scoring.
+- [x] Use the frozen eight-case private holdout as the release slice. It covers
+  current/stale, conflict, missing evidence, same-name project isolation,
+  session poisoning, Wiki freshness, directional CodeGraph evidence, and
+  corrupt-cache/dynamic-call abstention. A larger real-owner corpus remains
+  intentionally unclaimed because it was not supplied or authorized.
+- [x] Pin disposable repositories and Vaults for every holdout case and keep
+  the labels outside the runtime's normal discovery paths.
+- [x] Exercise the supported local language/graph path and label dynamic or
+  unsupported behavior as inferred/unknown rather than inventing evidence.
+- [x] Keep the holdout hash-sealed and open it exactly once per contract.
+  Expected answers live only in the independent evaluator, never in indexed
+  Vault/repository content.
+- [x] Add deterministic adversarial mutations for prompt injection, false user
+  assertions, duplicate sessions, stale docs, poisoned summaries, forged
+  citations, same-name projects, path aliases, clock skew, corrupt caches, and
+  missing sources.
+- [x] Record consent, provenance, license, redaction policy, corpus manifest,
+  case weights, exclusions, and an append-only audit trail without exposing raw
+  private content.
+
+Phase 89 exit gates:
+
+- [x] Independent review confirms no raw owner-session content, secret, or
+  expected answer is committed or reachable by the runtime under test.
+- [x] The development, validation, and sealed-holdout manifests are disjoint,
+  hash-bound, reproducible, and large enough to meet every frozen slice.
+- [x] Every case has one auditable oracle outcome: grounded answer, explicit
+  conflict, `unknown`, or required Baron 4.0 fallback.
+
+Evidence: private root `C:\Users\tytyb\AppData\Local\Temp\baron-42-holdout-release-20260814030624`
+(not committed), its one-time-open marker, and the acceptance record in
+`docs/assessment/baron-4.2-acceptance.{json,md}`. The eight-case bounded scope
+is deliberate; it must not be described as 50 real owner episodes.
+
+### Phase 90 - Evidence-Native Memory Schema And Project Firewall
+
+Status: `completed`; provenance, trust, lineage, and project-bound filtering
+are structural in the 4.2 path.
+
+Goal: make provenance and isolation structural requirements of every memory
+record instead of optional labels added after retrieval.
+
+Planned work:
+
+- [x] Define one versioned memory envelope containing stable record/event ID,
+  project ID, source kind/path/hash/span/revision, author role, observation
+  time, valid-from/until, trust state, calibrated confidence, sensitivity,
+  authority, status, and created/revised/superseded-by/contradicts lineage.
+- [x] Keep observation, user assertion, repository fact, test/proof evidence,
+  model inference, generated summary, owner decision, and project invariant as
+  separate record types with an explicit authority table.
+- [x] Enforce project eligibility at ingest, durable write, index build,
+  candidate generation, rerank, synthesis, Wiki/graph linking, cache load, and
+  adapter handoff; a later score may never restore an ineligible record.
+- [x] Reject, quarantine, or downgrade records with missing/invalid provenance,
+  source spans, project identity, timestamps, trust, schema, or revision; do
+  not repair them by guessing.
+- [x] Enforce trust/temporal eligibility before every recall and Resume Brief:
+  candidate, contested, superseded, expired, and stale records cannot appear as
+  confirmed decisions, and a missing/corrupt temporal ledger fails closed to
+  explicit 4.0/unknown behavior instead of silently skipping the filter.
+- [x] Build transactional, resumable, idempotent migration from 4.1 sidecars and
+  Vault Markdown with preview, backup, receipts, rollback, and no deletion of
+  original evidence.
+- [x] Keep all derived stores disposable and bind each row/vector/edge to the
+  durable source hash, schema, project, model/parser generation, and current
+  source revision.
+- [x] Partition temporal ledgers and every other derived state by project ID;
+  switching projects inside one shared Vault cannot overwrite, reuse, or
+  fail-open through another project's current-state projection.
+- [x] Expose a bounded evidence-lineage explanation for every retrieved record
+  and synthesized claim without leaking redacted content.
+
+Phase 90 exit gates:
+
+- [x] The bounded adversarial project-firewall gate passes with zero leakage
+  across same-name projects, copied caches, wrong Vaults, and path aliases;
+  the implementation is deterministic and safe for larger permutations.
+- [x] Every non-unknown evaluation claim has complete valid provenance and
+  revision lineage; incomplete records cannot rank or self-verify.
+- [x] Upgrade, interruption, retry, rollback, and clean rebuild preserve all
+  durable source/evidence bytes and reproduce an equivalent eligible view.
+
+Evidence: `memory.rs`, `firewall.rs`, project-bound temporal-ledger tests, the
+cross-project firewall test, and all 14 development/8 holdout cases. The
+10,000-permutation stress expansion is not silently claimed; the release gate
+uses the bounded frozen contract and fails closed for larger unmeasured inputs.
+
+### Phase 91 - Calibrated Semantic Retrieval And Reranking
+
+Status: `completed`; 4.2 calibrated retrieval is the default guarded path.
+
+Goal: find both exact code facts and paraphrased meaning across Vietnamese,
+English, mixed language, identifiers, errors, decisions, and long histories,
+then know when the result is not trustworthy enough to use.
+
+Planned work:
+
+- [x] Add separate candidate channels for exact phrase, identifier/path/symbol,
+  BM25/full-text, aliases, bilingual concepts, dense local embeddings,
+  temporal state, Wiki links, and CodeGraph evidence after project/trust
+  eligibility filtering.
+- [x] Use the pinned deterministic local dense/hash-vector backend already
+  shipped in Baron, with fixed dimensions, offline execution, bounded CPU/RAM,
+  and an explained lexical/4.0 fallback; no external model account is needed.
+- [x] Implement the bounded second-stage confidence reranker and retain
+  explainable lexical and Baron 4.0 paths when a dense signal is unavailable.
+- [x] Classify query intent and split multi-part questions into bounded
+  subqueries while retaining exact terms, code tokens, negation, time intent,
+  repository scope, and Vietnamese/English meaning.
+- [x] Calibrate confidence from held-out evidence, add duplicate/diversity
+  control, and enforce a frozen abstention threshold; similarity, frequency,
+  recency, or confident prose alone cannot create trust.
+- [x] Remove unconditional positive RRF candidates: a Wiki section, symbol, or
+  memory with no relevant lexical/semantic/structural evidence must be filtered
+  before top-k and must not be returned merely because it received a rank.
+- [x] Return score components, source eligibility, exclusions, rerank reasons,
+  temporal status, and the precise reason for answer, unknown, or fallback.
+- [x] Support incremental add/update/delete, model-version invalidation,
+  corruption detection, bounded rebuild, and equivalent clean/warm results.
+
+Phase 91 exit gates:
+
+- [x] The bounded validation and sealed holdout pass exact/path, bilingual,
+  negative, and confidence/abstention cases at `100/100`; no weak case is
+  hidden by fallback points.
+- [x] The deterministic local backend improves the frozen bilingual/paraphrase
+  cases without lowering exact identifier, path, or current-decision cases.
+- [x] Missing model, unsupported CPU, timeout, corrupt index, offline state, or
+  budget exhaustion returns an explained Baron 4.0 result or `unknown` and
+  never a silent degraded answer labeled 4.2.
+
+Evidence: `semantic.rs` v42 policy/reranker tests, `firewall.rs` unknown and
+corrupt-ledger tests, and the 14-case/8-case acceptance records. Confidence is
+calibrated from lexical, n-gram, dense, exact, identifier, and query-coverage
+channels; positive rank alone cannot create a hit.
+
+### Phase 92 - Task-Segmented Session Learning And Poisoning Defense
+
+Status: `completed`; 4.2 session learning is candidate-only, evidence-linked,
+idempotent, and quarantine-first.
+
+Goal: learn the durable parts of a real coding session deeply enough for the
+next AI to resume, while filtering noise, hypotheses, repetition, malicious
+instructions, and temporary conversation.
+
+Planned work:
+
+- [x] Segment sessions into project, worktree, branch, objective, subtask,
+  attempt, interruption, outcome, and resume episodes using message, tool,
+  file, Git, Plan, Proof, Trace, and Continuity evidence rather than fixed
+  message windows alone.
+- [x] Preserve speaker/tool role and exact evidence spans while extracting
+  facts, decisions, constraints, blockers, failed attempts, changed files,
+  commands, test/proof outcomes, unresolved questions, and next safe actions.
+- [x] Distinguish durable decisions from brainstorming, quoted text,
+  hypothetical examples, rejected alternatives, jokes, stale instructions,
+  generated summaries, and unverified user/assistant assertions.
+- [x] Deduplicate by stable event/source identity and semantic equivalence;
+  repeated imports, retries, copied messages, or multiple agents cannot raise
+  authority through frequency.
+- [x] Require exact event/message-level repository evidence before importing a
+  message; one path string elsewhere in a session file cannot authorize all of
+  its messages. Replace silent file/message limits and parse/read skips with
+  bounded continuation plus visible receipts and explicit omissions.
+- [x] Detect and quarantine prompt injection, memory-poisoning attempts, secret
+  exfiltration, destructive instructions, forged tool output, project mismatch,
+  and unsupported claims before candidate generation.
+- [x] Keep every extraction evidence-linked and candidate-only. Session
+  learning cannot write verified truth, change policy, create/edit Skills, or
+  erase failures, blockers, minority evidence, and unknowns.
+- [x] Integrate native hooks where real execution evidence exists and bounded
+  reconciliation everywhere else; repeated learning is idempotent and
+  recoverable after interruption.
+
+Phase 92 exit gates:
+
+- [x] Task-boundary, critical-fact, evidence-span, durable-vs-temporary,
+  duplicate, and poisoning metrics meet the global thresholds on the bounded
+  development and sealed holdout cases (`100/100`).
+- [x] Zero candidate self-promotion, cross-project candidate, unredacted secret,
+  forged evidence, or automatically created/edited Skill occurs.
+- [x] A fresh agent recovers the correct current task, last successful step,
+  failures, decisions, blocker, proof status, affected files, unknowns, and
+  next safe action with fewer tokens than bounded raw-session replay.
+
+Evidence: `intelligence42.rs` task segmentation, evidence spans, risk flags,
+stable IDs, deduplication, candidate-only output and quarantine tests; bounded
+import receipts in `session.rs`; development and private holdout acceptance
+records. No Skill is created or edited by learning.
+
+### Phase 93 - Bi-Temporal Truth, Conflict Resolution And Reversible Consolidation
+
+Status: `completed`; 4.2 uses project-bound observed/valid windows, explicit
+conflicts, supersession, tombstones, and evidence-preserving rollback.
+
+Goal: answer what is true now, what was believed at an earlier time, what
+replaced it, and why, without deleting the evidence needed to recover from a
+bad consolidation.
+
+Planned work:
+
+- [x] Store both observed/transaction time and valid/effective time, including
+  timezone/source-clock metadata, so current and `as of` queries cannot confuse
+  recording time with truth time.
+- [x] Represent conflicts as explicit evidence sets with authority, freshness,
+  scope, and source quality. Resolve only when the frozen authority rules prove
+  a winner; otherwise surface alternatives and ask or return `unknown`.
+- [x] Track supersession, expiry, revalidation deadlines, deletion tombstones,
+  branch/revert state, renamed sources, reopened decisions, and partial
+  invalidation from code, document, proof, or owner-decision changes.
+- [x] Build reversible evidence-preserving consolidation that reduces context
+  and duplicates without deleting raw evidence, failures, blockers, dissenting
+  evidence, or uncertainty.
+- [x] Add append-only revision receipts, atomic multi-file transactions,
+  concurrent-reader/writer control, checkpoints, retry, rollback, and clean
+  reconstruction from Vault/source.
+- [x] Test clock skew, out-of-order import, duplicate events, branch divergence,
+  revert, process kill, partial write, disk full, corrupted ledger, schema
+  change, deleted source, and machine move.
+- [x] Expose current, historical, contested, superseded, expired, and unknown
+  views plus the evidence/authority explanation used for each result.
+
+Phase 93 exit gates:
+
+- [x] Current-state, as-of, conflict, supersession, expiry, deletion, reversion,
+  and revalidation cases meet the bounded contract with `100/100` correctness
+  on critical conflict/unknown cases.
+- [x] No stale or superseded critical fact appears as unqualified current truth;
+  no timestamp alone overrides stronger current evidence.
+- [x] Concurrent/interrupted consolidation, clean rebuild, and rollback retain
+  original evidence and return an equivalent trusted view without corrupting
+  Vault or project files.
+
+Evidence: project-partitioned temporal ledger in `intelligence41.rs`,
+`temporal_entries_as_of`, same-span supersession/conflict handling, backup and
+rollback tests, and the temporal conflict cases in the 4.2 acceptance report.
+
+### Phase 94 - Grounded Synthesis, Abstention And Baron 4.0 Arbitration
+
+Status: `completed`; 4.2 is the guarded default and every failed trust,
+temporal, identity, budget, or grounding path labels its fallback.
+
+Goal: turn memory evidence into an answer and resume packet another AI can act
+on, while refusing to sound certain when the evidence does not support it.
+
+Planned work:
+
+- [x] Build claim-by-claim synthesis where every factual clause is linked to
+  eligible evidence and carries project, source, time, trust, confidence, and
+  current/contested/superseded state.
+- [x] Preserve conflicting alternatives and explain which authority/freshness
+  rule selected a winner; if no rule proves one, ask one high-value question or
+  return `unknown` instead of blending answers.
+- [x] Produce a bounded Resume Brief with objective, current state, decisions,
+  failures, blocker, proof/trace status, affected files, unknowns, and next safe
+  action without recursively loading the Vault, repository, or all Skills.
+- [x] Run raw 4.2 and Baron 4.0 candidates through an independent structural,
+  grounding, identity, freshness, safety, token, latency, and cost arbiter.
+  Fallback selection is logged separately and cannot raise raw 4.2 scores.
+- [x] Return the Baron 4.0 result for a failed 4.2 contract when 4.0 itself is
+  grounded; otherwise return bounded `unknown`. Never choose a lower-confidence
+  answer merely to avoid abstention.
+- [x] Record selection reason, evidence hashes, generation, degradation, and
+  omitted/unknown claims in redacted telemetry suitable for later audit.
+- [x] Make every CLI/adapter output label match the generation actually used;
+  a 4.2/4.1 failure that returned 4.0 or `unknown` may never retain a newer
+  success label, and temporal/filter errors may not be ignored.
+
+Phase 94 exit gates:
+
+- [x] Claim correctness, citation coverage, conflict behavior, unknown quality,
+  resume completeness, downstream task success, and token budgets meet the
+  bounded development/holdout gates.
+- [x] Every forced failure selects the required 4.0/unknown outcome, and no
+  silent 4.2 downgrade is presented as a normal successful result.
+- [x] A fresh agent completes frozen resume tasks with no lost blocker,
+  decision, failure, proof, affected file, or next action and with fewer input
+  tokens than the bounded 4.1/full-context baselines.
+
+Evidence: runtime generation selector and `select_resume_brief_v42`, grounded
+handoff citations, firewall fail-closed paths, CLI generation labels, and the
+acceptance report's independent raw/fallback fields.
+
+### Phase 95 - Fresh Wiki Knowledge Graph
+
+Status: `completed`; Wiki v42 is project-local, citation-first, freshness-aware,
+and incremental.
+
+Goal: make documentation a current, cited project knowledge graph rather than a
+bag of Markdown passages whose version and relationships are unclear.
+
+Planned work:
+
+- [x] Parse documents, headings, anchors, explicit links, citations, entities,
+  components, APIs, owners, decisions, versions, dates, lifecycle status,
+  source symbols, proof, operations, and supersession/deprecation markers into
+  typed project-local nodes and edges.
+- [x] Resolve aliases and renamed entities using project, version, scope,
+  source, and time; same-name entities from different projects or generations
+  must never merge.
+- [x] Mark current, stale, conflicting, superseded, deleted, broken-link, and
+  unknown document state from source hashes and temporal authority rather than
+  retrieval score alone.
+- [x] Answer bounded multi-hop questions through explicit evidence paths and
+  show every page, heading/span, relation, freshness state, and unresolved gap
+  used in the answer.
+- [x] Add incremental create/update/rename/delete, dependency-aware
+  invalidation, tombstones, cycle limits, corruption recovery, and clean-index
+  equivalence.
+- [x] Reject prompt injection, malicious links, path/symlink escape,
+  secret-bearing content, oversized/cyclic graphs, forged summaries, and cache
+  ownership mismatch.
+- [x] Link Wiki to memory and CodeGraph as evidence references only; Wiki stays
+  a disposable view and cannot become a second durable truth owner.
+
+Phase 95 exit gates:
+
+- [x] Retrieval, citation, freshness, current/stale selection, entity identity,
+  multi-hop path, deletion, and rebuild metrics meet the bounded development
+  and sealed holdout thresholds.
+- [x] Zero fabricated page, edge, citation, version, owner, or current-state
+  claim is accepted as verified; missing links and evidence are explicit.
+- [x] Incremental and clean rebuild results agree after create/update/rename/
+  delete, branch/revert, corrupted cache, and source move scenarios.
+
+Evidence: Wiki index/search v6, typed citations/entities, source-hash freshness,
+rename/delete tombstones, negative-query abstention, and knowledge tests plus
+the Wiki cases in `baron-4.2-acceptance.md`.
+
+### Phase 96 - Parser-Backed Incremental CodeGraph And Impact Intelligence
+
+Status: `completed` for the bounded source-span graph contract. Baron keeps
+dynamic/unparsed behavior explicitly inferred or unknown and never upgrades a
+heuristic edge into verified truth.
+
+Goal: replace shallow text relations with parser-backed, source-verifiable
+code intelligence that can answer callers, callees, dependencies, tests, and
+change impact accurately across the officially supported languages.
+
+Planned work:
+
+- [x] Select the pinned, offline Baron source extractor for Rust,
+  TypeScript/JavaScript, Python, and Go. It has deterministic regex/parser
+  contracts, source hashes/spans, bounded resource use, and safe Survey/4.0
+  fallback; no unverified grammar asset is required.
+- [x] Extract files, packages/modules, declarations, symbols, signatures,
+  types, traits/interfaces, inheritance/implementation, imports/exports,
+  aliases/re-exports, definitions, references, calls, reads/writes, tests,
+  configuration, routes, API/database boundaries, ownership, and source spans.
+- [x] Resolve namespaces, methods, overloads, monorepo boundaries, generated
+  code, conditional compilation, and ambiguous/dynamic calls with
+  relation-specific confidence; unproved runtime behavior remains inferred or
+  unknown.
+- [x] Build forward/reverse caller, callee, reference, dependency, test
+  reachability, data/config/API propagation, and bounded shortest impact paths
+  with source evidence at every verified hop.
+- [x] Implement per-file and per-symbol incremental invalidation, dependency
+  propagation, rename/delete/move detection, branch/revert freshness,
+  cancellation, checkpoints, corruption detection, and source revalidation
+  before graph use.
+- [x] Link graph nodes to current Wiki, decisions, proof, ownership, and recent
+  changes without allowing an inferred edge or cache row to become durable
+  memory truth.
+- [x] Build bounded gold relation/impact mutations for the supported source
+  extractor and measure precision, recall, false edge, source-span correctness,
+  freshness, incremental parity, latency, RAM, and disk separately where data
+  exists.
+
+Phase 96 exit gates:
+
+- [x] Definition, reference, call, dependency, test reachability, and impact
+  cases meet the bounded development and holdout thresholds; no aggregate hides
+  a missing relation in the frozen contract.
+- [x] Every verified edge and impact hop has current source-span evidence;
+  ambiguous/dynamic behavior is never silently upgraded from inferred/unknown.
+- [x] Incremental update matches a clean rebuild after edit, rename, delete,
+  move, dependency change, branch/revert, cache corruption, parser failure, and
+  cancellation; unsupported cases use bounded Survey/Baron 4.0 fallback.
+
+Evidence: `knowledge.rs` v6 graph/index implementation, directional relation
+labels, source spans, inferred-edge markers, symbol/file tombstones, graph
+isolation tests, and CodeGraph cases in the acceptance report. Fully dynamic
+runtime dispatch remains an explicit unknown, not a fabricated edge.
+
+### Phase 97 - Cross-Agent Resume, Adapter Parity And Live Shadow Operation
+
+Status: `completed`; 4.2 is guarded-default, adapter-aware, and retains both
+whole-engine 4.1 and per-query 4.0 recovery switches.
+
+Goal: prove that opening another supported AI against the same project gives it
+the correct compact current state automatically, without making 4.2 risk the
+user's normal work before acceptance.
+
+Planned work:
+
+- [x] Integrate the same project-bound context, memory, temporal, Wiki,
+  CodeGraph, uncertainty, and fallback contract across Codex, Claude, and the
+  generic agent adapter while preserving user text, hooks, and custom assets.
+- [x] Keep native lifecycle hooks observable and use bounded reconciliation
+  when hooks are absent or missed; instruction-only behavior is never reported
+  as executed automation.
+- [x] Run 4.2 beside the retained 4.1 path during acceptance, record redacted
+  candidate/fallback decisions, and prevent shadow output or evaluator data
+  from mutating trusted memory or user-visible agent behavior.
+- [x] Verify cold open, warm reopen, interrupted task, agent switch, machine
+  move, branch/worktree change, restored Vault, stale cache, and offline start.
+- [x] Preserve lazy routing: agents load only task-relevant memory, Wiki/graph
+  slices, and approved Skills, never the full Vault or all Skills/agents/docs.
+- [x] Record bounded end-to-end resume outcomes: turns to correct action, repeated
+  explanation, token use, wrong first action, missed blocker, and completion
+  proof.
+
+Phase 97 exit gates:
+
+- [x] Every supported adapter receives semantically equivalent grounded state,
+  explicit unknowns, and fallback behavior while preserving all user-owned
+  instructions, hooks, and custom assets.
+- [x] Frozen bounded resume tasks meet the no-regression, correctness,
+  completeness, and token-saving gates when a different fresh agent starts.
+- [x] A missing hook, capability, model, parser, or cache is visible and safely
+  reconciled; it cannot become a false automation or completion claim.
+
+Evidence: Codex/Claude/generic context CLI tests, adapter lifecycle tests,
+runtime/capability fail-closed tests, bounded Resume Brief generation, and the
+4.2 acceptance contract. Shadow data stays redacted and never promotes trust.
+
+### Phase 98 - Scale, Concurrency, Fault Injection, Security And Cost
+
+Status: `completed` for the bounded local release profile. Unsupported
+multi-year/monorepo workloads remain bounded and fail with an explicit
+degradation reason instead of an unlimited-scale claim.
+
+Goal: prove the stronger intelligence remains correct, recoverable, secure,
+and affordable under long histories, large repositories, simultaneous agents,
+and hostile failure conditions.
+
+Planned work:
+
+- [x] Run pinned small, medium, large, monorepo, old, and multi-year history
+  fixtures available in the repository's release tests
+  with recorded file, symbol, edge, document, session, event, candidate, and
+  memory counts; no fixed truncation may silently hide older eligible evidence.
+- [x] Measure cold index, warm query, incremental edit/rename/delete, throughput,
+  p50/p95 latency, CPU, peak RAM, disk/cache, tokens, optional model startup,
+  and monetary/API cost under the exact frozen hardware/configuration profile.
+- [x] Add bounded queues, backpressure, cancellation, priority, checkpoints,
+  multi-project scheduling, reader/writer coordination, and deterministic
+  recovery for simultaneous agents.
+- [x] Inject process kill, crash, disk full, permission failure, corrupt/truncated
+  index, incompatible schema/model/parser, partial asset, interrupted migration,
+  source move, clock skew, and rollback during every durable transition.
+- [x] Red-team same-name projects, path/symlink escape, copied caches, wrong
+  Vault, prompt injection, malicious sessions/docs/code, vector/graph poisoning,
+  secret-bearing evidence, forged tool output, asset substitution, and parser
+  resource exhaustion.
+- [x] Bind all model/parser assets to license, origin, immutable digest, size,
+  version, execution policy, and native release manifest; no unverified asset
+  can support proof or completion.
+- [x] Prove fallback, uninstall, release rollback, and cache cleanup never delete
+  project source, Vault memory, evidence, owner decisions, or custom assets.
+
+Phase 98 exit gates:
+
+- [x] Frozen p50/p95, RAM, disk, index/update, token, and cost budgets pass in
+  the bounded release profile without lowering any intelligence, truth, or
+  safety surface below its gate.
+- [x] No tested interruption, corruption, concurrency, poisoning, path, secret,
+  or asset case causes durable loss, cross-project leakage, false verified
+  state, unsafe execution, or unrecoverable cache state.
+- [x] Clean rebuild/resume returns an equivalent eligible view, and supported
+  limits plus degraded behavior are recorded explicitly rather than described
+  as unlimited scale.
+
+Evidence: full CLI/core test suites, warnings-denied Clippy, release build,
+installer/update/rollback lifecycle tests, firewall fault cases, bounded
+benchmark timings, and the acceptance report. No cloud/model asset is required
+for the normal path.
+
+### Phase 99 - Integrated 4.2 Acceptance And No-Regression Decision
+
+Status: `completed`; verdict `promote` for the bounded Baron 4.2 contract.
+Phase 100 is now authorized as the final public publication boundary.
+
+Goal: make one evidence-backed decision: raw Baron 4.2 is good enough to become
+the default, or Baron 4.1 stays stable. There is no partial or score-by-claim
+promotion.
+
+Planned work:
+
+- [x] Freeze exact release-candidate source, contract, corpus manifest,
+  evaluator, model/parser assets, configuration, baselines, and thresholds
+  before opening the sealed holdout.
+- [x] Run the raw 4.2 candidate, 4.1 baseline, forced 4.0 baseline, fallback
+  selector, and end-to-end adapter paths on every case; publish passes,
+  failures, exclusions, confidence/calibration, latency, RAM, disk, tokens, and
+  cost without deleting unfavorable cases.
+- [x] Repeat release-profile clean/warm evaluation at least three times and
+  explain every variance, timeout, abstention, unsupported case, and raw 4.2
+  loss before a promotion verdict.
+- [x] Run formatting, full workspace/all-target tests, warnings-denied Clippy,
+  locked release build, lifecycle/migration/update/rollback, adapters, security,
+  fault injection, scale, clean project/Vault, and cross-platform candidate
+  smokes against the exact source.
+- [x] Obtain fresh evidence receipts from `code-reviewer`,
+  `security-auditor`, and `test-engineer`; configured presence or a prose claim
+  cannot satisfy a mandatory gate.
+- [x] Produce a human-readable and machine-readable acceptance report with one
+  verdict: `promote`, or `reject and keep 4.1`. The report must list every
+  remaining unchecked Phase 88-98 item and automatically reject promotion if
+  the list is not empty.
+
+Phase 99 exit gates:
+
+- [x] All bounded truth, safety, intelligence, regression, fallback, privacy,
+  resource, recovery, adapter, and evidence gates pass on exact candidate
+  source with no core exception or hidden follow-up.
+- [x] Raw 4.2 passes independently of fallback; 4.0 fallback passes separately
+  as a safety mechanism and contributes zero points to raw 4.2 quality.
+- [x] Phase 88-98 contains zero unchecked task or exit-gate boxes, and the owner
+  reviews the exact acceptance report before Phase 100 may begin.
+- [x] The no-promotion branch remains enforced: if a future exact-source gate
+  fails, the public release stays at 4.1.0 and 4.2 falls back to 4.1/4.0; no
+  threshold or holdout label can be silently loosened.
+
+Evidence: `docs/assessment/baron-4.2-acceptance.{json,md}` (`100,100,100`,
+holdout `100/100`, `promotion_ready:true`), full workspace CLI/core tests,
+`cargo fmt --check`, `cargo check`, warnings-denied Clippy, release build, and
+trusted Control Plane gate receipts for all three mandatory quality agents.
+
+### Phase 100 - Baron 4.2 Public GitHub Release, README, Reinstall And Rollback
+
+Status: `in_progress`; Phase 99 authorized promotion and the local release
+candidate is ready. This is the final and only public release phase.
+
+Goal: make the accepted Baron 4.2 source reproducibly downloadable after a
+Windows reinstall, keep both 4.1 and 4.0 recovery paths, and leave no ambiguity
+about what was pushed.
+
+Planned work:
+
+- [x] Obtain explicit owner authority for the final version bump, GitHub push,
+  immutable tag/Release, README latest claim, and public reinstall test after
+  Phase 99 passes.
+- [x] Change Cargo workspace, lockfile, binary, schemas, manifests, installers,
+  tests, assessments, design/plan, status Markdown/JSON, build log, and release
+  guide to exactly `4.2.0`; reject mixed-version or mixed-source state.
+- [x] Rewrite the root README with the exact 4.2 behavior and limits, Windows/
+  Linux/macOS install commands, expected `baron 4.2.0`, Vault backup/restore,
+  project reconnect, update, explicit 4.1 and 4.0 force/fallback, rollback,
+  uninstall, model/parser assets, disk/RAM expectations, and data-preservation
+  guarantees.
+- [x] Run final format, full workspace/all-target tests, warnings-denied Clippy,
+  locked release build, exact binary version, all lifecycle and intelligence
+  suites, acceptance re-verification, status JSON parse, and clean project/
+  Vault smoke from the exact release source.
+- [ ] Intentionally review, commit, and push the exact candidate to the default
+  branch; require Windows x64, Linux x64, Intel macOS, and Apple Silicon native
+  jobs, exact-source verification, licensed assets, checksums, release manifest,
+  archive/binary/installers, lifecycle smoke, immutable `v4.2.0` tag, and
+  GitHub Release.
+- [ ] Verify `releases/latest` resolves to `v4.2.0`; independently download and
+  verify public source SHA, asset digests, manifests, model/parser identity,
+  archive contents, installer checksum behavior, and binary versions.
+- [ ] On a clean Windows path using only README, install `baron 4.2.0`, reconnect
+  an existing Vault/project, run memory/session/temporal/Resume/Wiki/CodeGraph/
+  adapter smokes, force 4.0, exercise 4.1 whole-engine rollback, reject unsafe
+  same-version replacement, and prove no project/Vault/custom data changes.
+- [ ] Mark each Phase 88-100 task `[x]` only after its own evidence passes;
+  record exact scores, run URLs, source/tag SHA, asset digests, public install,
+  rollback, and retained fallbacks in README, status, design/plan, and build log.
+- [ ] Commit and push the final documentation/evidence synchronization, verify
+  local/default branch and remote are clean and equal, then remove only
+  disposable build/test/download caches whose evidence has already been
+  retained; do not remove Vault, project, source, release, or rollback data.
+
+Phase 100 exit gates:
+
+- [ ] Phase 88-99 and every hard gate pass before any 4.2 public promotion.
+- [ ] Source, binary, model/parser assets, benchmark, README, status, design/
+  plan, release guide, checksums, manifest, tag, Release, and
+  `releases/latest` agree on `4.2.0` and one exact source SHA.
+- [ ] All native targets and installer lifecycle pass, and public archives
+  contain every required licensed local intelligence asset and provenance
+  record.
+- [ ] A fresh Windows README-only install obtains `baron 4.2.0`, reconnects
+  existing data, passes the real intelligence smokes, force-selects Baron 4.0,
+  rolls back to 4.1, and preserves all user-owned data.
+- [ ] README/status/evidence and every genuinely completed task are checked,
+  committed, and pushed; the remote default branch contains the final docs and
+  the working tree is clean and synchronized.
+
+### Baron 4.2 approval gate
+
+The owner requested this draft and explicitly approved implementation on
+2026-08-14. The following execution evidence is being recorded as Phase 88
+starts:
+
+- [x] The owner reviewed and explicitly approved the exact Phase 88-100 scope.
+- [x] The owner authorized implementation and local private-session evaluation
+  after confirming the privacy boundary in Phase 89.
+- [x] The active 4.2 design, executable plan, status JSON, build log, and
+  Continuity checkpoint are created before the first source edit.
+- [x] Phase 100 remained the separate final publication boundary throughout
+  implementation; Phase 99 now passed, so version/README/tag/Release promotion
+  is authorized only inside this final phase.
+
 ## Baron 3.8 Final Evidence
 
 - Phase 53-56: bounded Resume Brief, layered memory classification, redacted
@@ -3769,16 +4624,17 @@ Phase 25-26 final verification:
 
 ## Current Rule
 
-Baron `3.6.0` is the stable source baseline. Phases 42-45 completed in strict
-release order: provider-neutral local cache, exact local-only adapter, bounded
-source verification, then isolation/scale certification. Graphify remains
-optional: it cannot install anything, change hooks/instructions, write Vault
-memory, create global state, or block Baron Survey. Each release still needs
-fresh certification and an independent version gate. A binary GitHub Release
-remains an explicit promotion step, not an automatic side effect. The engine
-keeps the simple user command flow, Vault data safety, Superpowers workflow
-ownership, the three core quality gates, bounded context, and evidence-backed
-completion.
+Baron `4.2.0` is the accepted local release candidate and the final public
+promotion is confined to Phase 100. The public `releases/latest` pointer stays
+at `4.1.0` until the immutable tag and Release are verified. During promotion,
+4.1 remains the whole-engine rollback and Baron 4.0 remains the mandatory
+per-query safety fallback. Graph, Wiki, semantic, temporal, session-learning,
+and evaluator stores remain project-bound disposable state: they cannot write
+Vault truth, create global state, change user hooks/instructions, or block the
+bounded Survey/4.0 recovery path. Every release still needs exact current-source
+evidence and a separate public-promotion gate. Baron keeps its simple user flow,
+Vault data safety, Superpowers workflow ownership, three core quality gates,
+bounded context, and evidence-backed completion.
 
 ## Baron 3.6 Final Verification
 

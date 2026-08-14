@@ -4,12 +4,12 @@ Baron is a Rust-first memory and harness engine for coding agents. It turns an
 existing repository into an agent-ready workspace for Codex, Claude, and other
 agent tools while keeping the normal user flow small.
 
-Current source version: `4.1.0`.
-Current public release: [`v4.1.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.1.0).
+Current source version: `4.2.0`.
+Current public release: [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0).
 
 > **Download check:** install only from
 > [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-> and confirm that `baron --version` prints `baron 4.1.0`. If it prints an older
+> and confirm that `baron --version` prints `baron 4.2.0`. If it prints an older
 > version, stop and refresh the
 > [Releases page](https://github.com/thienty1207/Baron-Engine/releases).
 
@@ -30,10 +30,10 @@ session replay, safe runtime policy, and strict skill/agent routing. Superpowers
 remains the workflow core, and the mandatory quality gates remain
 `code-reviewer`, `security-auditor`, and `test-engineer`.
 
-## What Baron 4.1 Adds
+## What Baron 4.2 Adds
 
-Baron 4.1 is the local intelligence release built on Baron's 4.0 safety
-boundary:
+Baron 4.2 is the evidence-first intelligence release built on the 4.1
+project firewall and the 4.0 recovery path:
 
 - **Long-term memory:** L0 evidence through L3 project invariants are labelled
   separately from trust (`candidate`, `verified`, `contested`, `superseded`,
@@ -44,19 +44,26 @@ boundary:
   Resume Brief with current work, decisions, proof, blockers, unknowns,
   affected files, and the next safe action. Sources and stale/contested labels
   remain visible.
-- **Semantic retrieval fusion:** Vietnamese and English concepts are expanded
-  and ranked with deterministic lexical/vector/RRF evidence without allowing
-  similarity to bypass the project firewall.
-- **Session learning:** imported sessions produce redacted, evidence-linked
-  L0-L3 candidates with deduplication, quarantine, and review-only promotion;
-  Baron never silently creates a Skill from a conversation.
-- **Temporal memory:** facts and decisions carry active, superseded, contested,
-  backup, and rollback state so stale context is not treated as current truth.
-- **Wiki:** Markdown structure, citations, freshness, and explicit links are
-  indexed locally. Queries can follow a bounded two-hop link path without
-  loading the whole documentation tree into the prompt.
+- **Calibrated semantic retrieval:** exact/path, lexical, bilingual n-gram,
+  local dense, temporal, Wiki, and CodeGraph channels are reranked only after
+  project/trust eligibility. Low-confidence or negative queries abstain with a
+  reason; a semantic score can never manufacture evidence.
+- **Deep session learning:** sessions are split into task segments, noisy and
+  duplicate events are removed, evidence spans and source hashes are retained,
+  and prompt injection, destructive commands, secrets, forged output, and
+  project mismatch are quarantined. All learned items remain candidate-only;
+  Baron never creates a Skill from a conversation.
+- **Bi-temporal truth:** facts and decisions carry observed/valid time,
+  source-span lineage, supersession, expiry, conflict sets, tombstones,
+  revalidation, backup, and rollback state. An as-of view never rewrites
+  history into today's truth.
+- **Wiki:** Markdown structure, citations, entities, typed links, freshness,
+  and deletion/rename tombstones are indexed locally. Queries can follow a
+  bounded two-hop link path without loading the whole documentation tree into
+  the prompt.
 - **CodeGraph:** the default local graph covers Rust, TypeScript, JavaScript,
-  Python, and Go symbols, imports, references, calls, and source spans. The
+  Python, and Go symbols, imports, references, calls, tests, source spans,
+  directional relation confidence, impact paths, and deletion tombstones. The
   graph is project-isolated, disposable, and rebuilt from source when stale.
 - **Bounded impact analysis:** Wiki and CodeGraph queries return source-linked,
   bounded results with relation and impact evidence instead of injecting the
@@ -66,16 +73,17 @@ boundary:
   Offensive or destructive requests, missing authorization, scope mismatch,
   path escape, and network escape fail closed. Baron does not execute samples or
   download security tools automatically.
-- **Safe fallback:** 4.1 is the normal guarded path. If a 4.1 build, cache,
-  project identity, or structural check fails, Baron falls back to the proven
-  4.0 result. Set `BARON_ENGINE_GENERATION=4.0` to force that fallback, or
-  `BARON_ENGINE_GENERATION=3.8` (or `baseline`) for the older recovery path.
+- **Safe fallback:** 4.2 is the normal guarded path. A failed trust, temporal,
+  cache, parser, identity, budget, or grounding gate returns `unknown` or the
+  Baron 4.0 result for that query. Set `BARON_ENGINE_GENERATION=4.1` for the
+  verified whole-engine 4.1 rollback, or `BARON_ENGINE_GENERATION=4.0` for
+  the guarded per-query baseline. `3.8`/`baseline` remains the older recovery
+  switch.
 
-The 4.1 surfaces are local and deterministic; no paid embedding account,
+The 4.2 surfaces are local and deterministic; no paid embedding account,
 network request, or model service is required for normal indexing and recall.
 Optional providers remain lazy and degrade to the bounded local path.
-Tencent comparison is optional diagnostic evidence and is not a Baron 4.1
-release requirement.
+Tencent comparison is not a Baron release gate.
 
 ## Quick Start
 
@@ -97,7 +105,7 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
 baron --version
 ```
 
-The expected output is `baron 4.1.0`. The installers verify SHA-256 checksums
+The expected output is `baron 4.2.0`. The installers verify SHA-256 checksums
 and the staged binary version before replacing an existing Baron executable.
 
 ### 2. Set the Vault
@@ -143,6 +151,21 @@ never overwrites project source, Vault Markdown, custom skills, or custom
 agents. On Windows, a verified binary replacement may finish after the current
 process exits; open a new terminal before checking the version.
 
+### Verify the 4.2 intelligence path
+
+The normal commands use 4.2. To inspect the release gate without exposing
+private sessions, run the local correctness contract:
+
+```powershell
+baron intelligence benchmark42 . --vault "D:\work\AgentMemory"
+```
+
+For a private owner-supplied holdout, keep the holdout directory outside the
+repository and Vault, then pass it explicitly with `--holdout`. The runner
+opens a holdout once, records hashes and every case, and never copies labels
+into the Vault. `BARON_ENGINE_GENERATION=4.1` selects the whole-engine
+rollback; `BARON_ENGINE_GENERATION=4.0` selects the legacy per-query fallback.
+
 ## Reinstall Windows safely
 
 Before reinstalling Windows, copy these two things somewhere safe:
@@ -153,7 +176,7 @@ Before reinstalling Windows, copy these two things somewhere safe:
 After Windows is installed again, restore those folders and run:
 
 1. the Windows install block above and confirm `baron --version` prints
-   `baron 4.1.0`;
+   `baron 4.2.0`;
 2. `baron setup --vault "D:\work\AgentMemory"`;
 3. `baron update` inside each restored Baron project.
 
@@ -182,10 +205,16 @@ proof gates, trace output, and adapter flows.
 
 ## Public Proof
 
-- [Baron 4.1 benchmark](docs/assessment/baron-4.1-benchmark.md) records the
-  five local intelligence surfaces, bounded resource gates, and the optional
-  external-comparison status. Baron 4.1 promotion is based on the Baron-only
-  contract; Tencent is not used as a release blocker.
+- [Baron 4.2 benchmark](docs/assessment/baron-4.2-benchmark.md) records the
+  correctness contract, calibrated retrieval, task-segmented session learning,
+  temporal conflict handling, Wiki citations, CodeGraph direction, and raw
+  fallback behavior. The raw candidate score never counts a fallback result.
+- [Baron 4.2 acceptance](docs/assessment/baron-4.2-acceptance.json) records
+  three reproducible release-profile runs and the private sealed holdout
+  result. Holdout labels stay outside Git and runtime indexes.
+- [Baron 4.1 benchmark](docs/assessment/baron-4.1-benchmark.md) remains the
+  whole-engine rollback evidence; Baron 4.0 remains the per-query recovery
+  evidence.
 - [Baron 4.1 Phase 86 acceptance](docs/assessment/baron-4.1-phase86-runner.md)
   records repeated release-binary runs, project isolation, and the exact
   internal acceptance result.
@@ -202,7 +231,7 @@ proof gates, trace output, and adapter flows.
 
 The historical [Baron 3 public certification](docs/assessment/baron-3-public-certification.md)
 and prior release records remain available for audit; they do not change the
-current `v4.1.0` install target.
+current `v4.2.0` install target.
 
 ## Source of truth and safety
 
