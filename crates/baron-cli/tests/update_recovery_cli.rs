@@ -99,19 +99,20 @@ fn patched_unix_upgrade_binary(source: &Path, destination: &Path, from: &str, to
         if bytes[index..index + needle.len()] != *needle {
             continue;
         }
-        // ELF binaries carry ABI version strings such as `GCC_4.2.0`. Only
-        // rewrite a package-version token, never a token embedded in an
-        // identifier, so the loader's symbol-version contract stays intact.
-        if index > 0 && (bytes[index - 1].is_ascii_alphanumeric() || bytes[index - 1] == b'_') {
+        // ELF binaries carry ABI version strings such as `GCC_4.2.0`. Rewrite
+        // every non-ABI occurrence so Clap/help/version strings all agree, but
+        // never touch a loader symbol-version token.
+        let is_abi_version = (index >= 4 && &bytes[index - 4..index] == b"GCC_")
+            || (index >= 6 && &bytes[index - 6..index] == b"GLIBC_");
+        if is_abi_version {
             continue;
         }
         bytes[index..index + replacement.len()].copy_from_slice(replacement);
         replacements += 1;
-        break;
     }
     assert!(
-        replacements == 1,
-        "Unix test binary must contain one safe package-version token"
+        replacements > 0,
+        "Unix test binary must contain a safe package-version token"
     );
     fs::write(destination, bytes).unwrap();
     fs::set_permissions(destination, fs::metadata(source).unwrap().permissions()).unwrap();
