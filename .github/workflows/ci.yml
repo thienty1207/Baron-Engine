@@ -61,12 +61,7 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
           if [[ "$status" -ne 0 ]]; then
-            while IFS= read -r line; do
-              echo "::error title=Native test failure::$line"
-            done < <(grep -E '^(error(:|\[)|warning:|test .* FAILED|failures:|----)' native-test.log || true)
-            tail_summary="$(tail -n 120 native-test.log | tr '\r\n' ' ')"
-            echo "::error title=Native test tail::$tail_summary"
-            failure_summary="$(grep -A 24 -B 4 -E 'stdout ----|stderr ----|panicked at|assertion' native-test.log | tr '\r\n' ' ')"
+            failure_summary="$(grep -A 24 -B 4 -E 'stdout ----|stderr ----|panicked at|assertion' native-test.log | tr '\r\n' ' ' | head -c 6000)"
             echo "::error title=Native test failure detail::$failure_summary"
           fi
           exit "$status"
