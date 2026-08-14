@@ -60,6 +60,7 @@ fn snapshot(root: &Path, excluded: Option<&Path>) -> BTreeMap<PathBuf, Vec<u8>> 
     files
 }
 
+#[cfg(target_os = "windows")]
 fn patched_upgrade_binary(source: &Path, destination: &Path, from: &str, to: &str) {
     assert_eq!(
         from.len(),
