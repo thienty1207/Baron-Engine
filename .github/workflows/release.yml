@@ -90,7 +90,25 @@ jobs:
           path: release-native-test.log
           if-no-files-found: warn
       - name: Verify Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [[ "$status" -ne 0 ]]; then
+            clippy_summary="$(grep -E 'warning:|error:| --> |help:' clippy.log | tr '\r\n' ' ' | head -c 6000)"
+            echo "::error title=Clippy failure detail::$clippy_summary"
+          fi
+          exit "$status"
+      - name: Upload Clippy log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-clippy-log
+          path: clippy.log
+          if-no-files-found: warn
 
   build-native:
     name: Build ${{ matrix.target }}
