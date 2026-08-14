@@ -64,9 +64,8 @@ jobs:
             while IFS= read -r line; do
               echo "::error title=Native test failure::$line"
             done < <(grep -E '^(error(:|\[)|warning:|test .* FAILED|failures:|----)' native-test.log || true)
-            while IFS= read -r line; do
-              echo "::error title=Native test tail::$line"
-            done < <(tail -n 80 native-test.log || true)
+            tail_summary="$(tail -n 120 native-test.log | tr '\r\n' ' ')"
+            echo "::error title=Native test tail::$tail_summary"
           fi
           exit "$status"
       - name: Upload native test log
