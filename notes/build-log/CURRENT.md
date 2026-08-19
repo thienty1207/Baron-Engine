@@ -40,9 +40,10 @@
   Reasonix use the same project ID, Vault, memory, Wiki, CodeGraph, plan,
   proof, trace, and continuity history; no `4.3` engine change is in scope.
 - Windows policy note: the old personal WDAC supplemental exception remains
-  hash-bound to the old unsigned `4.2.0` binary. Install `v4.2.1` first, then
-  run the new helper as Administrator if Windows blocks the new hash; do not
-  broaden the policy or disable Device Guard.
+  hash-bound to the old unsigned `4.2.0` binary. If Windows blocks the staged
+  `4.2.1` binary during installation, run the new helper as Administrator
+  first; it allows only the public hash above and does not require the binary
+  to be installed yet. Do not broaden the policy or disable Device Guard.
 - Safe next action: normal `4.2.1` maintenance. Keep Codex and Reasonix on the
   shared project/Vault brain and use the new helper only for the exact public
   binary hash.
