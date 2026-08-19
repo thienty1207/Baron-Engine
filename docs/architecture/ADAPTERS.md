@@ -72,6 +72,8 @@ Command:
 ```bash
 baron init --reasonix
 baron context --reasonix
+baron --reasonix
+baron --codex
 baron adapter status
 baron adapter switch --to reasonix
 ```
@@ -83,6 +85,11 @@ Outputs:
 - `.reasonix/commands/baron-status.md`
 - `.reasonix/settings.json` with shared-Vault lifecycle hooks when the file is
   absent or already Baron-managed
+
+For an already initialized project, `baron --reasonix` and `baron --codex` are
+the normal daily switch shortcuts. They resolve the project from the current
+working directory, keep the long diagnostic commands available but out of the
+normal path, and install only Baron-managed adapter assets.
 
 Reasonix is a frontend adapter, not a second memory engine. It uses the same
 `.baron/project.toml` project ID, `.baron/local.toml` Vault route, Vault

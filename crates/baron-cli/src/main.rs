@@ -114,6 +114,15 @@ use clap::{Parser, Subcommand, ValueEnum};
 #[derive(Debug, Parser)]
 #[command(name = "baron", about = "Baron Engine", version)]
 struct Cli {
+    /// Switch the active adapter for the Baron project in the current folder.
+    /// These root shortcuts intentionally keep the detailed `adapter` command
+    /// available for diagnostics and scripts without making it part of the
+    /// normal daily workflow.
+    #[arg(long, conflicts_with = "reasonix")]
+    codex: bool,
+    /// Switch the active adapter for the Baron project in the current folder.
+    #[arg(long, conflicts_with = "codex")]
+    reasonix: bool,
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -1057,7 +1066,22 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
-    match cli.command {
+    let Cli {
+        codex,
+        reasonix,
+        command,
+    } = cli;
+    if codex || reasonix {
+        if command.is_some() {
+            bail!("Use `baron --codex` or `baron --reasonix` by itself; detailed commands remain under `baron adapter`.");
+        }
+        return run_adapter_shortcut(if reasonix {
+            AdapterKind::Reasonix
+        } else {
+            AdapterKind::Codex
+        });
+    }
+    match command {
         Some(Commands::Authority { command }) => match command {
             AuthorityCommands::Classify { request, json } => {
                 let decision = classify_request(&request);
@@ -4028,6 +4052,59 @@ fn resolve_command_vault(vault: Option<PathBuf>, repo_root: &PathBuf) -> Result<
 fn configured_repo(repo_path: Option<PathBuf>) -> Result<PathBuf> {
     let start = repo_path.unwrap_or(std::env::current_dir()?);
     find_project_root(start)
+}
+
+fn run_adapter_shortcut(target_kind: AdapterKind) -> Result<()> {
+    let repo_root = configured_repo(None)?;
+    let before = load_project_config(&repo_root)?;
+    let previous = active_adapter(&before)
+        .map(adapter_kind_name)
+        .unwrap_or("unknown");
+    let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
+    let shared_context = require_coherent_execution_state(&repo_root, &vault_path)?;
+    let updated = set_active_adapter(&repo_root, target_kind)?;
+    let report = install_adapter(&repo_root, agent_adapter(target_kind))?;
+    record_lifecycle_event(
+        &shared_context,
+        hook_adapter_for_repo(&repo_root),
+        AutomationEvent::Checkpoint,
+    )?;
+    println!("# Baron Adapter Shortcut\n");
+    println!("- Project: `{}`", updated.project_id);
+    println!(
+        "- Active adapter: `{}` (was `{previous}`)",
+        adapter_kind_name(target_kind)
+    );
+    println!("- Shared Vault: `{}`", vault_path.display());
+    println!(
+        "- Registered adapters: {}",
+        updated
+            .adapters
+            .iter()
+            .map(|adapter| adapter_kind_name(*adapter))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!("- Managed files: {}", report.managed_files.len());
+    println!(
+        "- Preserved existing paths: {}",
+        if report.preserved_paths.is_empty() {
+            "none".to_string()
+        } else {
+            report.preserved_paths.join(", ")
+        }
+    );
+    println!(
+        "- Conflicts requiring review: {}",
+        if report.conflicts.is_empty() {
+            "none".to_string()
+        } else {
+            report.conflicts.join(", ")
+        }
+    );
+    println!("- Brain/history: shared; no new Vault namespace was created.");
+    println!("- Next: restart the selected agent from this project root.");
+    Ok(())
 }
 
 fn execution_context(

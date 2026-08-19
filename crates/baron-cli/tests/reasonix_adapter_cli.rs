@@ -66,6 +66,73 @@ fn reasonix_init_and_switch_keep_one_project_and_vault_identity() {
 }
 
 #[test]
+fn root_adapter_shortcuts_switch_without_the_long_subcommand() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "init",
+            repo.to_str().unwrap(),
+            "--codex",
+            "--fullstack",
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .arg("--reasonix")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Baron Adapter Shortcut"))
+        .stdout(predicate::str::contains("Active adapter: `reasonix`"))
+        .stdout(predicate::str::contains("Brain/history: shared"));
+
+    let after_reasonix = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(after_reasonix.contains("active_adapter = \"reasonix\""));
+    assert!(after_reasonix.contains("codex"));
+    assert!(after_reasonix.contains("reasonix"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .arg("--codex")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Active adapter: `codex`"));
+
+    let after_codex = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(after_codex.contains("active_adapter = \"codex\""));
+    assert!(after_codex.contains("project_id = \""));
+    assert!(repo.join("REASONIX.md").is_file());
+    assert!(repo.join(".reasonix/settings.json").is_file());
+}
+
+#[test]
+fn root_adapter_shortcuts_are_visible_and_mutually_exclusive() {
+    Command::cargo_bin("baron")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--codex"))
+        .stdout(predicate::str::contains("--reasonix"));
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["--codex", "--reasonix"])
+        .assert()
+        .failure();
+}
+
+#[test]
 fn reasonix_switch_dry_run_does_not_write_existing_contract() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

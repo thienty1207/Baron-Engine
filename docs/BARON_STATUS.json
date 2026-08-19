@@ -11,7 +11,7 @@
   "programTargetRelease": "4.2.0",
   "programCompletionPercent": 100,
   "remainingPhaseCount": 0,
-  "currentPhase": "baron-reasonix-adapter-phase-107",
+  "currentPhase": "baron-reasonix-adapter-phase-108",
   "currentPhaseStatus": "completed",
   "nextAction": "Normal 4.2.0 maintenance; the Reasonix adapter is published on origin/main and origin/agent/baron-4-0 without a 4.3 bump.",
   "maintenanceTrack": {
@@ -19,12 +19,12 @@
     "status": "completed",
     "releaseLine": "4.2.0",
     "versionBump": false,
-    "phaseRange": "101-107",
-    "phaseCount": 7,
+    "phaseRange": "101-108",
+    "phaseCount": 8,
     "completionPercent": 100,
-    "currentPhase": "Phase 107 Reasonix adapter final verification and GitHub publication (completed)",
-    "nextAction": "Normal 4.2.0 maintenance; no 4.3 release is created for this adapter-only track.",
-    "finalPublicationPhase": 107,
+    "currentPhase": "Phase 108 root adapter shortcut UX (completed)",
+    "nextAction": "Normal 4.2.0 maintenance; use baron --reasonix or baron --codex for daily switching; no 4.3 release is created.",
+    "finalPublicationPhase": 108,
     "noEngineChange": true
   },
   "buildConfidence": "Baron 4.2 local release-profile acceptance passed three raw runs at 100/100 and an executable private eight-case holdout at 100/100. Hosted CI and immutable Release promotion passed on all four native targets; fresh public install, checksums, 4.0 fallback, and 4.1 rollback smoke passed.",
@@ -1554,6 +1554,15 @@
         "targetReleaseWeightPercent": 0,
         "completionPercent": 100,
         "requiredProof": ["format/tests/Clippy/release smoke", "every completed task marked x", "intended commit pushed and remote/worktree verified clean", "no v4.3.0 tag or Release"]
+      },
+      {
+        "id": 108,
+        "name": "Root Adapter Shortcut UX",
+        "status": "completed",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["baron --reasonix and --codex shortcuts", "shared project/Vault switch tests", "README/command surface updated", "no version bump"]
       }
   ],
   "decisions20260724": [

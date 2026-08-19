@@ -58,6 +58,12 @@ engine.
 - [x] Do not create a `4.3.0` tag or Release; publish the adapter-only change on
     the existing `4.2.0` source line.
 
+- [x] Phase 108: root adapter shortcut UX on the 4.2.0 maintenance line
+- [x] Add `baron --reasonix` and `baron --codex` shortcuts that resolve the
+    current project, switch the active adapter, and preserve the shared brain.
+- [x] Keep `baron adapter status/switch` as the explicit diagnostic/script API
+    and verify both shortcut directions without a version bump.
+
 ## Stop conditions
 
 - Any project/Vault identity mismatch stops the switch before writes.

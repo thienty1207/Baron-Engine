@@ -155,20 +155,22 @@ Supported focus flags include `--frontend`, `--backend`, `--fullstack`,
 
 Reasonix is a maintenance adapter on the 4.2.0 engine. It changes the agent
 surface only: the project ID, Vault, memory, session history, Wiki, and
-CodeGraph stay shared with Codex and Claude. Register another adapter once,
-then switch the active surface when useful:
+CodeGraph stay shared with Codex and Claude. Register another adapter once.
+For daily switching, Baron finds the current project from the working
+directory and keeps the long adapter commands out of the normal workflow:
 
 ```powershell
 baron init --codex --fullstack
 baron init --reasonix
-baron adapter status
-baron adapter switch --to reasonix
-baron adapter switch --to codex
+baron --reasonix
+baron --codex
 ```
 
-Preview a switch without writing project config or adapter files:
+The explicit diagnostics/preview commands remain available when a script or
+troubleshooting session needs them:
 
 ```powershell
+baron adapter status
 baron adapter switch --to reasonix --dry-run
 ```
 

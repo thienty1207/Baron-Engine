@@ -75,13 +75,20 @@ managed assets, ambiguous edits stage for review, and custom assets/Vault
 memory remain outside its write set. AI agents use local-only automation
 reconciliation and cannot authorize a download or runtime replacement.
 
-## Phase 101-107: Reasonix adapter maintenance on 4.2.0
+## Phase 101-108: Reasonix adapter maintenance on 4.2.0
 
 ```bash
+baron --reasonix
+baron --codex
 baron adapter status [repo-path]
 baron adapter switch --to <codex|claude|agent|reasonix> [repo-path]
 baron adapter switch --to reasonix [repo-path] --dry-run
 ```
+
+The root `--reasonix` and `--codex` shortcuts resolve the configured project
+from the current folder, switch only the active adapter, install missing
+Baron-managed adapter assets, and keep the project ID/Vault namespace shared.
+The explicit `adapter` subcommands remain the diagnostic and scripting API.
 
 The Reasonix adapter is a frontend compatibility track only. It keeps the
 existing project ID, Vault path, Vault Markdown, memory index, session journal,

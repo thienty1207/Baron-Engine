@@ -41,12 +41,14 @@ Last updated: 2026-08-19
 - Current next action: normal maintenance. The exact-source native CI/release
   publication, fresh README-only install, checksum verification, 4.0 fallback,
   and 4.1 rollback smoke are complete.
-- Reasonix adapter track: seven maintenance phases (`101-107`) are complete
+- Reasonix adapter track: eight maintenance phases (`101-108`) are complete
   against the existing `4.2.0` source line. This track adds only a first-class
   DeepSeek-Reasonix adapter, shared-brain switching, preservation/conflict
   checks, tests, and documentation; it does not create `4.3` or change the
   intelligence engine.
-- Reasonix track current action: normal `4.2.0` maintenance. Adapter commit
+- Reasonix track current action: normal `4.2.0` maintenance. Root shortcuts
+  `baron --reasonix` and `baron --codex` now provide the daily switch path.
+  Adapter commit
   [`bd6a5a0`](https://github.com/thienty1207/Baron-Engine/commit/bd6a5a08da5ebda0b743dc542b17d36f6094427a) and closure commit
   [`e6312f2`](https://github.com/thienty1207/Baron-Engine/commit/e6312f265b12de54125f606476939a7e0905458d) are present on both
   `origin/agent/baron-4-0` and `origin/main`; no `4.3` tag or Release was made.
@@ -4625,6 +4627,18 @@ present on the remote `main` and `agent/baron-4-0` refs.
   the worktree clean.
 - [x] Do not create a `v4.3.0` tag or Release; this remains an adapter-only
   change on the `4.2.0` source line.
+
+### Phase 108 - Root adapter shortcut UX
+
+Status: `complete`; daily adapter switching is available from the project root
+without remembering the diagnostic subcommand and path arguments.
+
+- [x] Add `baron --reasonix` and `baron --codex` root shortcuts.
+- [x] Resolve the configured project from the current folder, switch the active
+  adapter, install missing managed assets, and retain the shared project/Vault
+  namespace.
+- [x] Keep `baron adapter status/switch` as the explicit diagnostics and
+  scripting API; verify both shortcut directions and keep version `4.2.0`.
 
 ## Baron 3.8 Final Evidence
 

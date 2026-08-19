@@ -9,7 +9,7 @@
   `docs/superpowers/specs/2026-08-19-reasonix-adapter-design.md`.
 - Active plan:
   `docs/superpowers/plans/2026-08-19-reasonix-adapter-program.md`.
-- Current phase: Phase 107 complete; Phases 101-107 are checked in the
+- Current phase: Phase 108 complete; Phases 101-108 are checked in the
   plan/status dashboard.
 - Proof status: adapter lifecycle 27/27, core all-targets, focused Reasonix
   CLI 3/3, formatter check, workspace Clippy, locked release build, and
@@ -26,6 +26,11 @@
 - Safe next action: normal `4.2.0` maintenance. Keep the shared-brain
   Reasonix/Codex adapter path and preserve-first conflict policy; do not create
   a 4.3 tag or Release for this adapter track.
+- Phase 108 UX proof: root `baron --reasonix` and `baron --codex` shortcuts
+  resolve the current project, switch the active adapter, preserve the shared
+  project/Vault namespace, and keep `baron adapter status/switch` for explicit
+  diagnostics. Focused CLI shortcut tests passed `5/5`; CLI Clippy and format
+  checks passed; source version remains `4.2.0`.
 - Retry condition: any conflict, identity mismatch, or unrelated worktree
   change must be preserved and recorded before continuing.
 
