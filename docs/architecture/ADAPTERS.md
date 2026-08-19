@@ -91,7 +91,8 @@ the normal daily switch shortcuts. They resolve the project from the current
 working directory, keep the long diagnostic commands available but out of the
 normal path, and install only Baron-managed adapter assets.
 
-Reasonix is a frontend adapter, not a second memory engine. It uses the same
+Reasonix is a frontend adapter, not a second memory engine. It is included in
+the Baron 4.2.1 patch release and uses the same
 `.baron/project.toml` project ID, `.baron/local.toml` Vault route, Vault
 Markdown, session journal, Wiki, and CodeGraph as Codex and Claude. Adapter
 provenance is recorded on shared lifecycle entries so history remains

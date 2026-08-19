@@ -75,7 +75,7 @@ managed assets, ambiguous edits stage for review, and custom assets/Vault
 memory remain outside its write set. AI agents use local-only automation
 reconciliation and cannot authorize a download or runtime replacement.
 
-## Phase 101-108: Reasonix adapter maintenance on 4.2.0
+## Phase 101-108: Reasonix adapter maintenance, packaged in 4.2.1
 
 ```bash
 baron --reasonix
@@ -96,7 +96,7 @@ Wiki, and CodeGraph shared with the other adapters; the active adapter is
 routing metadata, not a new memory namespace. Installation is preserve-first:
 unmarked user-owned Reasonix files are left unchanged and listed as conflicts.
 This track does not change the engine or create a Baron `4.3` release; the
-public/source version remains `4.2.0`.
+adapter is distributed in the patch release `4.2.1`.
 
 ## Phase 5
 

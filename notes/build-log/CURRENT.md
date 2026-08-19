@@ -1,5 +1,41 @@
 # Current Build Note
 
+## Baron 4.2.1 Patch Release Checkpoint (2026-08-19)
+
+- The installed immutable `v4.2.0` artifact predates the already-merged
+  Reasonix adapter commits. That is a packaging/version-boundary defect, not
+  an intelligence-engine defect: the source checkout has the adapter, while
+  the public binary still reports `4.2.0` and cannot expose the Reasonix flags.
+- Owner requested `4.2.1`. Active design:
+  `docs/superpowers/specs/2026-08-19-baron-4-2-1-patch-release.md`.
+- Active plan:
+  `docs/superpowers/plans/2026-08-19-baron-4-2-1-patch-release.md`.
+- Current phase: Phases 109-110 are complete; Phase 111 (verification and
+  binary proof) is in progress. Phase 112 remains gated on the immutable
+  GitHub release workflow.
+- Proof status: `cargo fmt --all`, workspace check, workspace library tests
+  (`40/40`), warnings-denied Clippy, locked release build, release identity/
+  metadata tests, focused Reasonix CLI tests (`5/5`), and direct release-binary
+  smoke all passed. The local release binary reports `baron 4.2.1`, exposes
+  both `baron --reasonix` and `baron init --reasonix`, and its local unsigned
+  Windows SHA-256 is
+  `97975CF1B0B0DDB07B92A7A7C7814D79B830E01577C2541E128A073D61204541`.
+- Full local integration sweep caveat: five executable targets could not be
+  treated as product failures in this Windows environment. Three were blocked
+  by the personal WDAC policy (unsigned test binaries) and two installer tests
+  failed because `Microsoft.PowerShell.Archive` could not autoload. The hosted
+  native release workflow must provide the clean four-platform proof.
+- Trace status: the patch must preserve the shared-brain invariant. Codex and
+  Reasonix use the same project ID, Vault, memory, Wiki, CodeGraph, plan,
+  proof, trace, and continuity history; no `4.3` engine change is in scope.
+- Windows policy note: the existing personal WDAC supplemental exception is
+  hash-bound to the old unsigned `4.2.0` binary. A new `4.2.1` hash must be
+  recorded after the release; do not broaden the policy or disable Device
+  Guard.
+- Safe next action: commit the verified patch, push the exact source to
+  `origin/main`, then publish `v4.2.1` and wait for the hosted native matrix
+  and immutable release workflow.
+
 ## Baron Reasonix Adapter Track Checkpoint (2026-08-19)
 
 - Owner approved an adapter-only Reasonix compatibility track; Baron source

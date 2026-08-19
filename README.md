@@ -6,12 +6,12 @@ Reasonix, and other agent tools while keeping the normal user flow small. All
 adapters use the same Baron brain: one project identity, Vault, memory, and
 session history.
 
-Current source version: `4.2.0`.
-Current public release: [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0).
+Current source version: `4.2.1`.
+Current public release: [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1).
 
 > **Download check:** install only from
 > [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-> and confirm that `baron --version` prints `baron 4.2.0`. If it prints an older
+> and confirm that `baron --version` prints `baron 4.2.1`. If it prints an older
 > version, stop and refresh the
 > [Releases page](https://github.com/thienty1207/Baron-Engine/releases).
 
@@ -107,17 +107,16 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
 baron --version
 ```
 
-The expected output is `baron 4.2.0`. The installers verify SHA-256 checksums
+The expected output is `baron 4.2.1`. The installers verify SHA-256 checksums
 and the staged binary version before replacing an existing Baron executable.
 
-The verified public release is [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0),
-source/tag commit `af42a2d3fcf37f315c6a24c5cebbef59ee6a4bc0`. Its native CI and
-release gates passed on Windows x64, Linux x64, Intel macOS, and Apple Silicon;
-the Release includes the archives, raw update candidates, both installers,
-`release-manifest.json`, and `SHA256SUMS`. Baron 4.1 remains the whole-engine
-rollback path and Baron 4.0 remains the explicit safe fallback. The passing
-verification records are [CI run 31771633229](https://github.com/thienty1207/Baron-Engine/actions/runs/31771633229)
-and [release run 31771646989](https://github.com/thienty1207/Baron-Engine/actions/runs/31771646989).
+The `v4.2.1` package is the adapter-packaging patch for the already verified
+Baron 4.2 engine. Its native CI and release gates cover Windows x64, Linux
+x64, Intel macOS, and Apple Silicon; the immutable Release includes the
+archives, raw update candidates, both installers, `release-manifest.json`,
+and `SHA256SUMS`. Baron 4.1 remains the whole-engine rollback path and Baron
+4.0 remains the explicit safe fallback. The final CI and release run links are
+recorded in [Build status](docs/BARON_STATUS.md) after promotion.
 
 ### 2. Set the Vault
 
@@ -153,7 +152,8 @@ Supported focus flags include `--frontend`, `--backend`, `--fullstack`,
 
 ### Switch between agent tools without splitting memory
 
-Reasonix is a maintenance adapter on the 4.2.0 engine. It changes the agent
+Reasonix is a maintenance adapter on the 4.2 engine, packaged in the 4.2.1
+release. It changes the agent
 surface only: the project ID, Vault, memory, session history, Wiki, and
 CodeGraph stay shared with Codex and Claude. Register another adapter once.
 For daily switching, Baron finds the current project from the working
@@ -176,8 +176,8 @@ baron adapter switch --to reasonix --dry-run
 
 Reasonix installation is preserve-first. Existing unmarked `REASONIX.md`,
 `.reasonix/settings.json`, and command files are never silently overwritten;
-Baron reports preserved paths and conflicts for review. The source/public
-engine version remains `4.2.0`; this adapter track does not create a `v4.3`
+Baron reports preserved paths and conflicts for review. The intelligence engine
+remains the Baron 4.2 engine; this patch release does not create a `v4.3`
 release or change the memory engine.
 
 ### 4. Update later
@@ -217,7 +217,7 @@ Before reinstalling Windows, copy these two things somewhere safe:
 After Windows is installed again, restore those folders and run:
 
 1. the Windows install block above and confirm `baron --version` prints
-   `baron 4.2.0`;
+   `baron 4.2.1`;
 2. `baron setup --vault "D:\work\AgentMemory"`;
 3. `baron update` inside each restored Baron project.
 
@@ -272,7 +272,7 @@ proof gates, trace output, and adapter flows.
 
 The historical [Baron 3 public certification](docs/assessment/baron-3-public-certification.md)
 and prior release records remain available for audit; they do not change the
-current `v4.2.0` install target.
+current `v4.2.1` install target.
 
 ## Source of truth and safety
 

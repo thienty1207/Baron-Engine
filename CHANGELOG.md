@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.2.1 - 2026-08-19
+
+Baron 4.2.1 is the adapter-packaging patch release. It contains the
+Reasonix implementation that landed after the original 4.2.0 tag, so a fresh
+install now has the same CLI surface documented by the source and README:
+
+- `baron init --reasonix` and `baron --reasonix` are present in the released
+  binary;
+- Reasonix and Codex keep one project identity, Vault, memory, Wiki, CodeGraph,
+  continuity ledger, and session history;
+- adapter installation remains preserve-first for user-owned Reasonix files;
+- the intelligence engine, 4.1 rollback, 4.0 fallback, and existing project
+  data are unchanged;
+- release metadata, installers, checksums, and README now point to `v4.2.1`.
+
 ## 4.2.0 - 2026-08-14
 
 Baron 4.2 makes memory answers evidence-first and measurable:
