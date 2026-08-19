@@ -193,7 +193,7 @@ fn context_requires_exactly_one_target_unless_why_is_used() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "Choose one context target: --codex, --claude, or --agent.",
+            "Choose one context target: --codex, --claude, --agent, or --reasonix.",
         ));
 
     Command::cargo_bin("baron")
@@ -209,6 +209,6 @@ fn context_requires_exactly_one_target_unless_why_is_used() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "Choose only one context target: --codex, --claude, or --agent.",
+            "Choose only one context target: --codex, --claude, --agent, or --reasonix.",
         ));
 }

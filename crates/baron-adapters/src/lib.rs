@@ -18,6 +18,7 @@ pub enum AgentAdapter {
     Codex,
     Claude,
     Generic,
+    Reasonix,
 }
 
 impl AgentAdapter {
@@ -26,6 +27,7 @@ impl AgentAdapter {
             AgentAdapter::Codex => "--codex",
             AgentAdapter::Claude => "--claude",
             AgentAdapter::Generic => "--agent",
+            AgentAdapter::Reasonix => "--reasonix",
         }
     }
 }
@@ -87,6 +89,15 @@ pub fn shadow_preview(adapter: AgentAdapter) -> ShadowPreview {
             directories: vec![".baron".to_string()],
             message: "Generic adapter would install portable Markdown and JSON context contracts.".to_string(),
         },
+        AgentAdapter::Reasonix => ShadowPreview {
+            adapter: "reasonix".to_string(),
+            files: vec![
+                "REASONIX.md".to_string(),
+                ".reasonix/settings.json".to_string(),
+            ],
+            directories: vec![".reasonix/commands".to_string()],
+            message: "Reasonix adapter would install shared-brain startup guidance and bounded Reasonix command assets.".to_string(),
+        },
     }
 }
 
@@ -99,6 +110,7 @@ mod tests {
         assert_eq!(AgentAdapter::Codex.flag(), "--codex");
         assert_eq!(AgentAdapter::Claude.flag(), "--claude");
         assert_eq!(AgentAdapter::Generic.flag(), "--agent");
+        assert_eq!(AgentAdapter::Reasonix.flag(), "--reasonix");
     }
 
     #[test]

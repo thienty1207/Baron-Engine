@@ -3,9 +3,9 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use baron_core::config::{
-    find_project_root, initialize_project, initialize_project_with_options, load_project_config,
-    resolve_vault_path_for_repo, set_project_platform, setup_machine_vault, AdapterKind,
-    ProjectPlatform,
+    active_adapter, find_project_root, initialize_project, initialize_project_with_options,
+    load_project_config, resolve_vault_path_for_repo, set_active_adapter, set_project_platform,
+    setup_machine_vault, AdapterKind, ProjectPlatform,
 };
 use tempfile::tempdir;
 
@@ -24,6 +24,7 @@ fn initialize_creates_shared_and_local_config() {
     assert_eq!(config.schema_version, 4);
     assert!(!config.project_id.is_empty());
     assert_eq!(config.adapters, vec![AdapterKind::Codex]);
+    assert_eq!(config.active_adapter, Some(AdapterKind::Codex));
     assert!(config.automation.context);
     assert!(repo.join(".baron/project.toml").exists());
     assert!(repo.join(".baron/local.toml").exists());
@@ -148,6 +149,29 @@ fn repeated_initialize_registers_multiple_adapters_without_duplicates() {
     assert_eq!(
         config.adapters,
         vec![AdapterKind::Codex, AdapterKind::Claude]
+    );
+    assert_eq!(active_adapter(&config), Some(AdapterKind::Codex));
+}
+
+#[test]
+fn switching_adapters_preserves_project_identity_and_shared_vault() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    let codex = initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let switched = set_active_adapter(&repo, AdapterKind::Reasonix).unwrap();
+
+    assert_eq!(switched.project_id, codex.project_id);
+    assert_eq!(switched.active_adapter, Some(AdapterKind::Reasonix));
+    assert_eq!(
+        switched.adapters,
+        vec![AdapterKind::Codex, AdapterKind::Reasonix]
+    );
+    assert_eq!(
+        resolve_vault_path_for_repo(None, &repo).unwrap(),
+        vault.canonicalize().unwrap_or(vault)
     );
 }
 

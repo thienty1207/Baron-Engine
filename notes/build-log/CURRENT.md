@@ -1,5 +1,32 @@
 # Current Build Note
 
+## Baron Reasonix Adapter Track Checkpoint (2026-08-19)
+
+- Owner approved an adapter-only Reasonix compatibility track; Baron source
+  and public version remain `4.2.0`. No intelligence engine or 4.3 bump is in
+  scope.
+- Active design:
+  `docs/superpowers/specs/2026-08-19-reasonix-adapter-design.md`.
+- Active plan:
+  `docs/superpowers/plans/2026-08-19-reasonix-adapter-program.md`.
+- Current phase: Phase 107 in progress; Phases 101-106 are implemented and
+  checked in the plan/status dashboard.
+- Proof status: adapter lifecycle 27/27, core all-targets, focused Reasonix
+  CLI 3/3, format check, workspace Clippy, locked release build, and release
+  `baron 4.2.0` smoke passed. The broader CLI suite has two unrelated Windows
+  installer failures because `Microsoft.PowerShell.Archive` cannot autoload in
+  this environment; the Reasonix tests themselves pass.
+- Trace status: switch smoke recorded a shared checkpoint journal entry with
+  adapter provenance; final publication trace remains open until push/remote
+  verification.
+- Shared-brain invariant: Codex and Reasonix must keep the same project ID,
+  Vault, memory, Wiki, CodeGraph, plan, proof, trace, and continuity history.
+- Safe next action: run the final diff/version/status audit, commit only the
+  adapter/docs changes, push the current branch, and verify remote CI/clean
+  worktree without creating a 4.3 tag or Release.
+- Retry condition: any conflict, identity mismatch, or unrelated worktree
+  change must be preserved and recorded before continuing.
+
 ## Baron 4.2 Final Public Release Checkpoint (2026-08-14)
 
 - Owner approved the thirteen-phase Baron 4.2 program (Phases 88-100) and

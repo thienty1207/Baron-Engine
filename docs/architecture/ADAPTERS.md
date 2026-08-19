@@ -65,6 +65,34 @@ Outputs:
 - optional JSON context bundle
 - portable core skills and quality-agent contracts under `.baron/core`
 
+### DeepSeek Reasonix
+
+Command:
+
+```bash
+baron init --reasonix
+baron context --reasonix
+baron adapter status
+baron adapter switch --to reasonix
+```
+
+Outputs:
+
+- `REASONIX.md` with a Baron-managed startup block
+- `.reasonix/commands/baron-context.md`
+- `.reasonix/commands/baron-status.md`
+- `.reasonix/settings.json` with shared-Vault lifecycle hooks when the file is
+  absent or already Baron-managed
+
+Reasonix is a frontend adapter, not a second memory engine. It uses the same
+`.baron/project.toml` project ID, `.baron/local.toml` Vault route, Vault
+Markdown, session journal, Wiki, and CodeGraph as Codex and Claude. Adapter
+provenance is recorded on shared lifecycle entries so history remains
+auditable without creating a Reasonix-only namespace. `baron adapter switch`
+changes only the active adapter and installs missing Baron-owned surfaces.
+Unmarked user files are preserved and reported as conflicts; they are never
+silently overwritten.
+
 ## Adapter Rule
 
 Adapters must not fork Baron behavior. They only translate Baron behavior.
@@ -100,8 +128,9 @@ linked-document hints; CodeGraph hits carry source spans, imports, and advisory
 reference/call relations. Security and reverse-analysis guidance stays lazy
 and is routed by Baron Control Plane, never loaded for ordinary coding.
 
-Codex and Claude hooks record SessionStart, prompt, edit checkpoint, and Stop
-events. SessionStart injects bounded context. Stop reconciliation blocks one
+Codex, Claude, and Reasonix hooks record supported session-start, prompt, and
+stop events in the same project journal. SessionStart injects bounded context.
+Stop reconciliation blocks one
 premature completion attempt when active work lacks proof or a passing trace,
 then avoids a hook loop. Project hook trust remains controlled by the agent
 tool; Baron reports observed events instead of assuming hooks executed.

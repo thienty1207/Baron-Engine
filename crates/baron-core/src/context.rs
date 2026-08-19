@@ -34,6 +34,7 @@ pub enum ContextTarget {
     Codex,
     Claude,
     Generic,
+    Reasonix,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -711,6 +712,7 @@ impl ContextTarget {
             ContextTarget::Codex => AdapterKind::Codex,
             ContextTarget::Claude => AdapterKind::Claude,
             ContextTarget::Generic => AdapterKind::Generic,
+            ContextTarget::Reasonix => AdapterKind::Reasonix,
         }
     }
 
@@ -719,6 +721,7 @@ impl ContextTarget {
             ContextTarget::Codex => "codex",
             ContextTarget::Claude => "claude",
             ContextTarget::Generic => "agent",
+            ContextTarget::Reasonix => "reasonix",
         }
     }
 
@@ -727,6 +730,7 @@ impl ContextTarget {
             ContextTarget::Codex => "Codex",
             ContextTarget::Claude => "Claude",
             ContextTarget::Generic => "Generic Agent",
+            ContextTarget::Reasonix => "DeepSeek Reasonix",
         }
     }
 
@@ -740,6 +744,9 @@ impl ContextTarget {
             }
             ContextTarget::Generic => {
                 "For generic agents: use portable Markdown/JSON context and do not assume tool-specific hooks."
+            }
+            ContextTarget::Reasonix => {
+                "For DeepSeek Reasonix: treat REASONIX.md and the shared Baron Vault/context as the workspace contract; adapter-local runtime state is not durable memory."
             }
         }
     }

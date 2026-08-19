@@ -66,6 +66,38 @@ fn repeated_checkpoint_events_are_throttled() {
 }
 
 #[test]
+fn reasonix_hooks_write_to_the_same_project_journal() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Reasonix, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+
+    let response = handle_hook(
+        &repo,
+        &context,
+        HookAdapter::Reasonix,
+        AutomationEvent::Prompt,
+        r#"{"session_id":"reasonix-1","prompt":"shared brain"}"#,
+    )
+    .unwrap();
+    let journal = fs::read_to_string(
+        context
+            .project_root
+            .join("Artifacts/automation-journal.jsonl"),
+    )
+    .unwrap();
+
+    assert!(response.contains("continue"));
+    assert!(journal.contains("\"adapter\":\"reasonix\""));
+    assert!(context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl")
+        .starts_with(&context.project_root));
+}
+
+#[test]
 fn stop_reconciliation_blocks_once_when_active_work_lacks_evidence() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

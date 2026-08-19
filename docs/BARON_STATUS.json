@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-08-14",
+  "lastUpdated": "2026-08-19",
   "stableRelease": "4.2.0",
   "downloadableRelease": "4.2.0",
   "candidateSourceVersion": "4.2.0",
@@ -11,9 +11,22 @@
   "programTargetRelease": "4.2.0",
   "programCompletionPercent": 100,
   "remainingPhaseCount": 0,
-  "currentPhase": "baron-4-2-phase-100-public-release",
-  "currentPhaseStatus": "completed",
-  "nextAction": "Normal maintenance; keep 4.1 whole-engine rollback and 4.0 per-query fallback available.",
+  "currentPhase": "baron-reasonix-adapter-phase-107",
+  "currentPhaseStatus": "in_progress",
+  "nextAction": "Complete final verification, commit/push the adapter-only change, and verify the remote worktree without a 4.3 bump.",
+  "maintenanceTrack": {
+    "name": "Baron Reasonix Adapter Compatibility",
+    "status": "in_progress",
+    "releaseLine": "4.2.0",
+    "versionBump": false,
+    "phaseRange": "101-107",
+    "phaseCount": 7,
+    "completionPercent": 86,
+    "currentPhase": "Phase 107 Reasonix adapter final verification and GitHub publication",
+    "nextAction": "Complete the final format/test/release smoke evidence, then push and verify the adapter-only commit.",
+    "finalPublicationPhase": 107,
+    "noEngineChange": true
+  },
   "buildConfidence": "Baron 4.2 local release-profile acceptance passed three raw runs at 100/100 and an executable private eight-case holdout at 100/100. Hosted CI and immutable Release promotion passed on all four native targets; fresh public install, checksums, 4.0 fallback, and 4.1 rollback smoke passed.",
   "openFollowUpCount": 4,
   "openFollowUps": [
@@ -1478,6 +1491,69 @@
         "targetReleaseWeightPercent": 3,
         "completionPercent": 100,
         "requiredProof": ["exact 4.2.0 source and README", "native matrix/checksums/immutable Release", "fresh install and 4.1/4.0 rollback"]
+      },
+      {
+        "id": 101,
+        "name": "Reasonix Shared-Brain Adapter Identity",
+        "status": "completed",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["Reasonix enum/CLI/config/context/automation mapping", "backward-compatible active_adapter", "shared project ID and Vault tests"]
+      },
+      {
+        "id": 102,
+        "name": "Reasonix Native Assets And Commands",
+        "status": "completed",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["managed REASONIX.md", "bounded .reasonix command assets", "correct reasonix context and lifecycle commands"]
+      },
+      {
+        "id": 103,
+        "name": "Reasonix Non-Destructive Install And Update",
+        "status": "completed",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["unmarked user files preserved", "managed baseline update", "ambiguous conflict refuses overwrite"]
+      },
+      {
+        "id": 104,
+        "name": "Shared-Brain Adapter Switch And Rollback",
+        "status": "completed",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["adapter status/switch CLI", "shared adapter-switch event", "Codex -> Reasonix -> Codex continuity"]
+      },
+      {
+        "id": 105,
+        "name": "Reasonix Compatibility And Preservation Tests",
+        "status": "completed",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["core/CLI/adapter tests", "GoGetSomeFoodFerris-shaped read-only fixture", "malformed settings and identity mismatch gates"]
+      },
+      {
+        "id": 106,
+        "name": "Reasonix Documentation And 4.2.0 Truth Sync",
+        "status": "completed",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["README/command surface/adapter architecture updated", "status/build log synchronized", "no 4.3 version claim"]
+      },
+      {
+        "id": 107,
+        "name": "Reasonix Adapter Final Verification And GitHub Publication",
+        "status": "in_progress",
+        "release": "4.2.0-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 0,
+        "requiredProof": ["format/tests/Clippy/release smoke", "every completed task marked x", "intended commit pushed and remote/worktree verified clean", "no v4.3.0 tag or Release"]
       }
   ],
   "decisions20260724": [

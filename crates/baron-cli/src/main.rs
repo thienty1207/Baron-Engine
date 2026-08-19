@@ -38,9 +38,9 @@ use baron_core::code_graph::{
     CodeGraphProvider, GraphFreshness, QueryLimits, SourceVerification,
 };
 use baron_core::config::{
-    find_project_root, initialize_project, initialize_project_with_options, load_project_config,
-    resolve_vault_path_for_repo, set_project_platform, setup_machine_vault, AdapterKind,
-    ProjectPlatform,
+    active_adapter, find_project_root, initialize_project, initialize_project_with_options,
+    load_project_config, resolve_vault_path_for_repo, set_active_adapter, set_project_platform,
+    setup_machine_vault, AdapterKind, ProjectPlatform,
 };
 use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
 use baron_core::continuity::{
@@ -146,6 +146,8 @@ enum Commands {
         #[arg(long = "agent")]
         agent: bool,
         #[arg(long)]
+        reasonix: bool,
+        #[arg(long)]
         shadow: bool,
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -179,6 +181,8 @@ enum Commands {
         #[arg(long = "agent", hide = true)]
         agent: bool,
         #[arg(long, hide = true)]
+        reasonix: bool,
+        #[arg(long, hide = true)]
         dry_run: bool,
         #[arg(long, hide = true, requires = "dry_run")]
         installed: bool,
@@ -202,6 +206,10 @@ enum Commands {
         parent_pid: Option<u32>,
         #[arg(long, hide = true)]
         transaction: Option<PathBuf>,
+    },
+    Adapter {
+        #[command(subcommand)]
+        command: AdapterCommands,
     },
     #[command(hide = true)]
     Authority {
@@ -244,6 +252,8 @@ enum Commands {
         claude: bool,
         #[arg(long = "agent")]
         agent: bool,
+        #[arg(long)]
+        reasonix: bool,
         #[arg(long)]
         why: bool,
         #[arg(long)]
@@ -339,6 +349,20 @@ enum AuthorityCommands {
         request: String,
         #[arg(long)]
         json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AdapterCommands {
+    Status {
+        repo_path: Option<PathBuf>,
+    },
+    Switch {
+        #[arg(long = "to", value_enum)]
+        to: AdapterArg,
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -988,6 +1012,7 @@ enum AdapterArg {
     Codex,
     Claude,
     Agent,
+    Reasonix,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -1062,6 +1087,122 @@ fn run() -> Result<()> {
             println!("- Machine config: `~/.baron/config.toml`");
             println!("- Next: run `baron init --codex --fullstack` inside a project folder.");
         }
+        Some(Commands::Adapter { command }) => match command {
+            AdapterCommands::Status { repo_path } => {
+                let repo_root = configured_repo(repo_path)?;
+                let config = load_project_config(&repo_root)?;
+                let vault_path = resolve_vault_path_for_repo(None, &repo_root).ok();
+                println!("# Baron Adapter Status\n");
+                println!("- Project: `{}`", config.project_id);
+                println!(
+                    "- Active adapter: `{}`",
+                    active_adapter(&config)
+                        .map(adapter_kind_name)
+                        .unwrap_or("unknown")
+                );
+                println!(
+                    "- Registered adapters: {}",
+                    if config.adapters.is_empty() {
+                        "none".to_string()
+                    } else {
+                        config
+                            .adapters
+                            .iter()
+                            .map(|adapter| format!("`{}`", adapter_kind_name(*adapter)))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    }
+                );
+                println!(
+                    "- Shared Vault: `{}`",
+                    vault_path
+                        .as_deref()
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_else(
+                            || "unresolved (pass --vault to a context command)".to_string()
+                        )
+                );
+                println!("- Memory/history namespace: `project_id + shared Vault` (adapter does not fork it)");
+            }
+            AdapterCommands::Switch {
+                to,
+                repo_path,
+                dry_run,
+            } => {
+                let repo_root = configured_repo(repo_path)?;
+                let target_kind: AdapterKind = to.into();
+                let target = agent_adapter(target_kind);
+                let config = load_project_config(&repo_root)?;
+                let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
+                let shared_context = require_coherent_execution_state(&repo_root, &vault_path)?;
+                let payloads = managed_payloads_for_adapter(target)?;
+                if dry_run {
+                    println!("# Baron Adapter Switch Preview\n");
+                    println!("- Project: `{}`", config.project_id);
+                    println!(
+                        "- Current adapter: `{}`",
+                        active_adapter(&config)
+                            .map(adapter_kind_name)
+                            .unwrap_or("unknown")
+                    );
+                    println!("- Target adapter: `{}`", adapter_kind_name(target_kind));
+                    println!("- Shared Vault unchanged: `{}`", vault_path.display());
+                    println!("- Files considered: {}", payloads.len());
+                    for payload in payloads {
+                        let path = repo_root.join(&payload.relative_path);
+                        println!(
+                            "  - `{}`: {}",
+                            payload.relative_path.display(),
+                            if path.exists() {
+                                "preserve/reconcile existing"
+                            } else {
+                                "create"
+                            }
+                        );
+                    }
+                    println!("- No project config or adapter files were written.");
+                } else {
+                    let updated = set_active_adapter(&repo_root, target_kind)?;
+                    let report = install_adapter(&repo_root, target)?;
+                    record_lifecycle_event(
+                        &shared_context,
+                        hook_adapter_for_repo(&repo_root),
+                        AutomationEvent::Checkpoint,
+                    )?;
+                    println!("# Baron Adapter Switch\n");
+                    println!("- Project: `{}`", updated.project_id);
+                    println!("- Active adapter: `{}`", adapter_kind_name(target_kind));
+                    println!("- Shared Vault: `{}`", vault_path.display());
+                    println!(
+                        "- Registered adapters: {}",
+                        updated
+                            .adapters
+                            .iter()
+                            .map(|adapter| adapter_kind_name(*adapter))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                    println!("- Managed files: {}", report.managed_files.len());
+                    println!(
+                        "- Preserved existing paths: {}",
+                        if report.preserved_paths.is_empty() {
+                            "none".to_string()
+                        } else {
+                            report.preserved_paths.join(", ")
+                        }
+                    );
+                    println!(
+                        "- Conflicts requiring review: {}",
+                        if report.conflicts.is_empty() {
+                            "none".to_string()
+                        } else {
+                            report.conflicts.join(", ")
+                        }
+                    );
+                    println!("- Brain/history: shared with Codex/Claude; no new Vault namespace was created.");
+                }
+            }
+        },
         Some(Commands::WorkShape {
             task,
             repo_path,
@@ -1101,6 +1242,7 @@ fn run() -> Result<()> {
             codex,
             claude,
             agent,
+            reasonix,
             shadow,
             vault,
             frontend,
@@ -1114,7 +1256,7 @@ fn run() -> Result<()> {
             cloud,
             unknown,
         }) => {
-            let adapter = selected_adapter(codex, claude, agent)?;
+            let adapter = selected_adapter(codex, claude, agent, reasonix)?;
             let platform = parse_platform(
                 frontend,
                 backend,
@@ -1130,7 +1272,7 @@ fn run() -> Result<()> {
             let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
             if shadow {
                 let adapter = adapter.context(
-                    "Choose exactly one adapter for shadow init: --codex, --claude, or --agent",
+                    "Choose exactly one adapter for shadow init: --codex, --claude, --agent, or --reasonix",
                 )?;
                 print!("{}", shadow_preview(adapter).to_markdown());
             } else if let Some(adapter) = adapter {
@@ -1162,6 +1304,22 @@ fn run() -> Result<()> {
                 );
                 println!("- Managed files: {}", report.managed_files.len());
                 println!(
+                    "- Preserved existing paths: {}",
+                    if report.preserved_paths.is_empty() {
+                        "none".to_string()
+                    } else {
+                        report.preserved_paths.join(", ")
+                    }
+                );
+                println!(
+                    "- Conflicts requiring review: {}",
+                    if report.conflicts.is_empty() {
+                        "none".to_string()
+                    } else {
+                        report.conflicts.join(", ")
+                    }
+                );
+                println!(
                     "- Extension platforms: {}",
                     platform_list(&config.platform_extensions)
                 );
@@ -1185,7 +1343,7 @@ fn run() -> Result<()> {
                 println!("- Adapter files were not changed.");
             } else {
                 bail!(
-                    "Choose an adapter (--codex, --claude, --agent), a platform (--fullstack, --backend, --frontend, --mobile, --desktop, --tool, --library, --data, --cloud), or both."
+                    "Choose an adapter (--codex, --claude, --agent, --reasonix), a platform (--fullstack, --backend, --frontend, --mobile, --desktop, --tool, --library, --data, --cloud), or both."
                 );
             }
         }
@@ -1194,6 +1352,7 @@ fn run() -> Result<()> {
             codex,
             claude,
             agent,
+            reasonix,
             dry_run,
             installed,
             verify_candidate,
@@ -1210,7 +1369,7 @@ fn run() -> Result<()> {
             let start = repo_path.unwrap_or(std::env::current_dir()?);
             let repo_root = find_project_root(&start)?;
             let config = load_project_config(&repo_root)?;
-            let requested = selected_adapter(codex, claude, agent)?;
+            let requested = selected_adapter(codex, claude, agent, reasonix)?;
             let adapters = match requested {
                 Some(adapter) => {
                     let kind = adapter_kind(adapter);
@@ -2313,6 +2472,7 @@ fn run() -> Result<()> {
             codex,
             claude,
             agent,
+            reasonix,
             why,
             task,
             vault,
@@ -2321,10 +2481,10 @@ fn run() -> Result<()> {
             let vault_path = resolve_command_vault(vault, &repo_path)?;
             let default = load_project_config(&repo_path)
                 .ok()
-                .and_then(|config| config.adapters.first().copied())
+                .and_then(|config| active_adapter(&config))
                 .map(agent_adapter)
                 .map(context_target);
-            let target = parse_context_target(codex, claude, agent, why, default)?;
+            let target = parse_context_target(codex, claude, agent, reasonix, why, default)?;
             let vault_context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             if why {
                 print!("{}", compile_context_why(repo_path, vault_path, target)?);
@@ -3337,10 +3497,7 @@ fn run() -> Result<()> {
                     &vault,
                     &note,
                     adapter_kind_name(
-                        load_project_config(&repo_root)?
-                            .adapters
-                            .first()
-                            .copied()
+                        active_adapter(&load_project_config(&repo_root)?)
                             .unwrap_or(AdapterKind::Generic),
                     ),
                 )?;
@@ -3511,10 +3668,7 @@ fn resolve_capability_adapter(
     if let Some(adapter) = requested {
         return Ok(adapter.into());
     }
-    load_project_config(repo_root)?
-        .adapters
-        .first()
-        .copied()
+    active_adapter(&load_project_config(repo_root)?)
         .context("No registered adapter is available for capability checks")
 }
 
@@ -3661,6 +3815,7 @@ fn adapter_kind_name(adapter: AdapterKind) -> &'static str {
         AdapterKind::Codex => "codex",
         AdapterKind::Claude => "claude",
         AdapterKind::Generic => "agent",
+        AdapterKind::Reasonix => "reasonix",
     }
 }
 
@@ -3691,27 +3846,35 @@ fn parse_context_target(
     codex: bool,
     claude: bool,
     agent: bool,
+    reasonix: bool,
     allow_default: bool,
     default: Option<ContextTarget>,
 ) -> Result<ContextTarget> {
-    match (codex as u8) + (claude as u8) + (agent as u8) {
+    match (codex as u8) + (claude as u8) + (agent as u8) + (reasonix as u8) {
         1 if codex => Ok(ContextTarget::Codex),
         1 if claude => Ok(ContextTarget::Claude),
         1 if agent => Ok(ContextTarget::Generic),
+        1 if reasonix => Ok(ContextTarget::Reasonix),
         0 if allow_default => Ok(default.unwrap_or(ContextTarget::Generic)),
         0 if default.is_some() => Ok(default.expect("checked above")),
-        0 => bail!("Choose one context target: --codex, --claude, or --agent."),
-        _ => bail!("Choose only one context target: --codex, --claude, or --agent."),
+        0 => bail!("Choose one context target: --codex, --claude, --agent, or --reasonix."),
+        _ => bail!("Choose only one context target: --codex, --claude, --agent, or --reasonix."),
     }
 }
 
-fn selected_adapter(codex: bool, claude: bool, agent: bool) -> Result<Option<AgentAdapter>> {
-    match (codex as u8) + (claude as u8) + (agent as u8) {
+fn selected_adapter(
+    codex: bool,
+    claude: bool,
+    agent: bool,
+    reasonix: bool,
+) -> Result<Option<AgentAdapter>> {
+    match (codex as u8) + (claude as u8) + (agent as u8) + (reasonix as u8) {
         1 if codex => Ok(Some(AgentAdapter::Codex)),
         1 if claude => Ok(Some(AgentAdapter::Claude)),
         1 if agent => Ok(Some(AgentAdapter::Generic)),
+        1 if reasonix => Ok(Some(AgentAdapter::Reasonix)),
         0 => Ok(None),
-        _ => bail!("Choose only one adapter: --codex, --claude, or --agent."),
+        _ => bail!("Choose only one adapter: --codex, --claude, --agent, or --reasonix."),
     }
 }
 
@@ -3771,6 +3934,7 @@ fn adapter_kind(adapter: AgentAdapter) -> AdapterKind {
         AgentAdapter::Codex => AdapterKind::Codex,
         AgentAdapter::Claude => AdapterKind::Claude,
         AgentAdapter::Generic => AdapterKind::Generic,
+        AgentAdapter::Reasonix => AdapterKind::Reasonix,
     }
 }
 
@@ -3779,6 +3943,7 @@ fn agent_adapter(adapter: AdapterKind) -> AgentAdapter {
         AdapterKind::Codex => AgentAdapter::Codex,
         AdapterKind::Claude => AgentAdapter::Claude,
         AdapterKind::Generic => AgentAdapter::Generic,
+        AdapterKind::Reasonix => AgentAdapter::Reasonix,
     }
 }
 
@@ -3787,6 +3952,7 @@ fn context_target(adapter: AgentAdapter) -> ContextTarget {
         AgentAdapter::Codex => ContextTarget::Codex,
         AgentAdapter::Claude => ContextTarget::Claude,
         AgentAdapter::Generic => ContextTarget::Generic,
+        AgentAdapter::Reasonix => ContextTarget::Reasonix,
     }
 }
 
@@ -3795,6 +3961,7 @@ fn adapter_name(adapter: AgentAdapter) -> &'static str {
         AgentAdapter::Codex => "codex",
         AgentAdapter::Claude => "claude",
         AgentAdapter::Generic => "agent",
+        AgentAdapter::Reasonix => "reasonix",
     }
 }
 
@@ -3805,6 +3972,7 @@ fn candidate_adapter_flags(adapters: &[String]) -> Result<Vec<OsString>> {
             "codex" => "--codex",
             "claude" => "--claude",
             "agent" => "--agent",
+            "reasonix" => "--reasonix",
             _ => bail!("Baron update transaction contains an unsupported adapter: {adapter}"),
         };
         flags.push(OsString::from(flag));
@@ -4018,11 +4186,13 @@ fn coherent_or_bootstrap_context(
 fn hook_adapter_for_repo(repo_root: &std::path::Path) -> HookAdapter {
     match load_project_config(repo_root)
         .ok()
-        .and_then(|config| config.adapters.first().copied())
+        .and_then(|config| active_adapter(&config))
     {
         Some(AdapterKind::Codex) => HookAdapter::Codex,
         Some(AdapterKind::Claude) => HookAdapter::Claude,
-        Some(AdapterKind::Generic) | None => HookAdapter::Agent,
+        Some(AdapterKind::Generic) => HookAdapter::Agent,
+        Some(AdapterKind::Reasonix) => HookAdapter::Reasonix,
+        None => HookAdapter::Agent,
     }
 }
 
@@ -4066,6 +4236,7 @@ impl From<AdapterArg> for AdapterKind {
             AdapterArg::Codex => AdapterKind::Codex,
             AdapterArg::Claude => AdapterKind::Claude,
             AdapterArg::Agent => AdapterKind::Generic,
+            AdapterArg::Reasonix => AdapterKind::Reasonix,
         }
     }
 }
@@ -4076,6 +4247,7 @@ impl From<AdapterArg> for HookAdapter {
             AdapterArg::Codex => HookAdapter::Codex,
             AdapterArg::Claude => HookAdapter::Claude,
             AdapterArg::Agent => HookAdapter::Agent,
+            AdapterArg::Reasonix => HookAdapter::Reasonix,
         }
     }
 }

@@ -1,8 +1,10 @@
 # Baron Engine
 
 Baron is a Rust-first memory and harness engine for coding agents. It turns an
-existing repository into an agent-ready workspace for Codex, Claude, and other
-agent tools while keeping the normal user flow small.
+existing repository into an agent-ready workspace for Codex, Claude, DeepSeek
+Reasonix, and other agent tools while keeping the normal user flow small. All
+adapters use the same Baron brain: one project identity, Vault, memory, and
+session history.
 
 Current source version: `4.2.0`.
 Current public release: [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0).
@@ -143,10 +145,38 @@ Stand inside the project and choose the agent surface plus project focus:
 baron init --codex --fullstack
 baron init --claude --backend
 baron init --agent --tool
+baron init --reasonix --fullstack
 ```
 
 Supported focus flags include `--frontend`, `--backend`, `--fullstack`,
 `--mobile`, `--desktop`, `--tool`, `--library`, `--data`, and `--cloud`.
+
+### Switch between agent tools without splitting memory
+
+Reasonix is a maintenance adapter on the 4.2.0 engine. It changes the agent
+surface only: the project ID, Vault, memory, session history, Wiki, and
+CodeGraph stay shared with Codex and Claude. Register another adapter once,
+then switch the active surface when useful:
+
+```powershell
+baron init --codex --fullstack
+baron init --reasonix
+baron adapter status
+baron adapter switch --to reasonix
+baron adapter switch --to codex
+```
+
+Preview a switch without writing project config or adapter files:
+
+```powershell
+baron adapter switch --to reasonix --dry-run
+```
+
+Reasonix installation is preserve-first. Existing unmarked `REASONIX.md`,
+`.reasonix/settings.json`, and command files are never silently overwritten;
+Baron reports preserved paths and conflicts for review. The source/public
+engine version remains `4.2.0`; this adapter track does not create a `v4.3`
+release or change the memory engine.
 
 ### 4. Update later
 

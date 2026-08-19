@@ -29,6 +29,94 @@ fn collect_text_files(root: &Path, files: &mut Vec<PathBuf>) {
 }
 
 #[test]
+fn reasonix_adapter_installs_shared_brain_assets_without_engine_assets() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+
+    let report = install_adapter(repo, AgentAdapter::Reasonix).unwrap();
+
+    assert_eq!(report.adapter, "reasonix");
+    assert!(report.conflicts.is_empty());
+    assert!(repo.join("REASONIX.md").is_file());
+    assert!(repo.join("REASONIX.md").exists());
+    assert!(repo.join(".reasonix/commands/baron-context.md").is_file());
+    assert!(repo.join(".reasonix/commands/baron-status.md").is_file());
+    assert!(repo.join(".reasonix/settings.json").is_file());
+    assert!(fs::read_to_string(repo.join("REASONIX.md"))
+        .unwrap()
+        .contains("BARON:MANAGED:START"));
+    let context = fs::read_to_string(repo.join(".reasonix/commands/baron-context.md")).unwrap();
+    assert!(context.contains("baron context --reasonix"));
+    let settings: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(repo.join(".reasonix/settings.json")).unwrap())
+            .unwrap();
+    assert_eq!(settings["_baron"]["adapter"], "reasonix");
+    assert!(settings["hooks"]["SessionStart"][0]["command"]
+        .as_str()
+        .unwrap()
+        .contains("--adapter reasonix"));
+}
+
+#[test]
+fn reasonix_adapter_preserves_unmarked_user_files_and_reports_conflicts() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    write(
+        repo.join("REASONIX.md").as_path(),
+        "# User Reasonix contract\n",
+    );
+    write(
+        repo.join(".reasonix/settings.json").as_path(),
+        "{\"hooks\":{\"SessionStart\":[]}}\n",
+    );
+    write(
+        repo.join(".reasonix/commands/baron-context.md").as_path(),
+        "# User context command\n",
+    );
+    let before_contract = fs::read_to_string(repo.join("REASONIX.md")).unwrap();
+    let before_settings = fs::read_to_string(repo.join(".reasonix/settings.json")).unwrap();
+    let before_command =
+        fs::read_to_string(repo.join(".reasonix/commands/baron-context.md")).unwrap();
+
+    let report = install_adapter(repo, AgentAdapter::Reasonix).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(repo.join("REASONIX.md")).unwrap(),
+        before_contract
+    );
+    assert_eq!(
+        fs::read_to_string(repo.join(".reasonix/settings.json")).unwrap(),
+        before_settings
+    );
+    assert_eq!(
+        fs::read_to_string(repo.join(".reasonix/commands/baron-context.md")).unwrap(),
+        before_command
+    );
+    assert!(report.preserved_paths.len() >= 3);
+    assert!(report.conflicts.len() >= 3);
+    assert!(repo.join(".reasonix/commands/baron-status.md").is_file());
+}
+
+#[test]
+fn reasonix_adapter_preserves_malformed_settings_without_replacing_them() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    let malformed = "{ not-json\n";
+    write(repo.join(".reasonix/settings.json").as_path(), malformed);
+
+    let report = install_adapter(repo, AgentAdapter::Reasonix).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(repo.join(".reasonix/settings.json")).unwrap(),
+        malformed
+    );
+    assert!(report
+        .conflicts
+        .iter()
+        .any(|path| path.ends_with(".reasonix/settings.json")));
+}
+
+#[test]
 fn assets_core_is_the_only_bundled_runtime_source() {
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

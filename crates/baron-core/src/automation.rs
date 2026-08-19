@@ -34,6 +34,7 @@ pub enum HookAdapter {
     Codex,
     Claude,
     Agent,
+    Reasonix,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,6 +104,7 @@ pub fn handle_hook(
                     HookAdapter::Codex => ContextTarget::Codex,
                     HookAdapter::Claude => ContextTarget::Claude,
                     HookAdapter::Agent => ContextTarget::Generic,
+                    HookAdapter::Reasonix => ContextTarget::Reasonix,
                 },
             )?;
             Ok(serde_json::to_string(&json!({
@@ -307,6 +309,7 @@ fn adapter_name(adapter: HookAdapter) -> &'static str {
         HookAdapter::Codex => "codex",
         HookAdapter::Claude => "claude",
         HookAdapter::Agent => "agent",
+        HookAdapter::Reasonix => "reasonix",
     }
 }
 

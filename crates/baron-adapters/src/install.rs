@@ -18,6 +18,10 @@ pub struct InstallReport {
     pub adapter: String,
     pub managed_files: Vec<String>,
     pub preserved_custom_assets: bool,
+    #[serde(default)]
+    pub preserved_paths: Vec<String>,
+    #[serde(default)]
+    pub conflicts: Vec<String>,
 }
 
 pub fn install_adapter(
@@ -29,6 +33,7 @@ pub fn install_adapter(
         AgentAdapter::Codex => install_codex(repo_root),
         AgentAdapter::Claude => install_claude(repo_root),
         AgentAdapter::Generic => install_generic(repo_root),
+        AgentAdapter::Reasonix => install_reasonix(repo_root),
     }?;
     let payloads = managed_payloads_for_adapter(adapter)?;
     ensure_managed_baseline(repo_root, &payloads, env!("CARGO_PKG_VERSION"))?;
@@ -173,6 +178,35 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
                 &routing_block(&agents_index()),
             ),
         ],
+        AgentAdapter::Reasonix => vec![
+            payload(
+                &adapter_name,
+                "REASONIX.md",
+                ManagedMergeKind::MarkerBlock,
+                &managed_block(&startup_contract("DeepSeek Reasonix", "reasonix")),
+            ),
+            payload(
+                &adapter_name,
+                ".reasonix/commands/baron-context.md",
+                ManagedMergeKind::FullText,
+                &reasonix_context_command(),
+            ),
+            payload(
+                &adapter_name,
+                ".reasonix/commands/baron-status.md",
+                ManagedMergeKind::FullText,
+                &reasonix_status_command(),
+            ),
+            payload(
+                &adapter_name,
+                ".reasonix/settings.json",
+                ManagedMergeKind::JsonOwnedEntries,
+                &managed_content_for_kind(
+                    &reasonix_hooks_document()?,
+                    ManagedMergeKind::JsonOwnedEntries,
+                )?,
+            ),
+        ],
     };
 
     match adapter {
@@ -212,6 +246,7 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
                 &mut payloads,
             )?;
         }
+        AgentAdapter::Reasonix => {}
     }
 
     Ok(payloads)
@@ -297,6 +332,7 @@ fn adapter_name(adapter: AgentAdapter) -> &'static str {
         AgentAdapter::Codex => "codex",
         AgentAdapter::Claude => "claude",
         AgentAdapter::Generic => "agent",
+        AgentAdapter::Reasonix => "reasonix",
     }
 }
 
@@ -327,6 +363,40 @@ fn generic_context_json() -> Result<String> {
         "automatic": true,
         "sourceOfTruth": ["repository", "vault-markdown"]
     }))?)
+}
+
+fn reasonix_context_command() -> String {
+    "# Baron Context\n\nRun `baron capability check --adapter reasonix`, `baron runtime check --adapter reasonix`, `baron autopilot status`, and then `baron context --reasonix`. Use the shared Baron Vault for durable memory; Reasonix-local state is only an adapter surface. For architecture, dependency, impact, entrypoint, ownership, call-flow, refactor, or cross-module work, run task context first and verify selected source files before treating graph hints as proof.\n".to_string()
+}
+
+fn reasonix_status_command() -> String {
+    "# Baron Status\n\nRun `baron adapter status`, `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score. Switch adapters with `baron adapter switch --to <codex|claude|agent|reasonix>`; the project ID, Vault, memory, and history remain shared.\n".to_string()
+}
+
+fn reasonix_hooks_document() -> Result<String> {
+    Ok(format!(
+        "{}\n",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "_baron": {"managed": true, "adapter": "reasonix"},
+            "hooks": {
+                "SessionStart": [{
+                    "command": "baron automation hook session-start --adapter reasonix",
+                    "description": "Load shared Baron context",
+                    "timeout": 15000
+                }],
+                "UserPromptSubmit": [{
+                    "command": "baron automation hook prompt --adapter reasonix",
+                    "description": "Record the submitted task in the shared Vault",
+                    "timeout": 5000
+                }],
+                "Stop": [{
+                    "command": "baron automation hook stop --adapter reasonix",
+                    "description": "Persist the shared handoff without inferring completion",
+                    "timeout": 5000
+                }]
+            }
+        }))?
+    ))
 }
 
 fn claude_agent_content(name: &str, instructions: &str) -> String {
@@ -510,6 +580,177 @@ fn install_generic(repo: &Path) -> Result<InstallReport> {
     ))
 }
 
+fn install_reasonix(repo: &Path) -> Result<InstallReport> {
+    let mut preserved_paths = Vec::new();
+    let mut conflicts = Vec::new();
+
+    install_reasonix_contract(
+        &repo.join("REASONIX.md"),
+        &startup_contract("DeepSeek Reasonix", "reasonix"),
+        &mut preserved_paths,
+        &mut conflicts,
+    )?;
+    install_reasonix_file(
+        &repo.join(".reasonix/commands/baron-context.md"),
+        &reasonix_context_command(),
+        &mut preserved_paths,
+        &mut conflicts,
+    )?;
+    install_reasonix_file(
+        &repo.join(".reasonix/commands/baron-status.md"),
+        &reasonix_status_command(),
+        &mut preserved_paths,
+        &mut conflicts,
+    )?;
+    install_reasonix_settings(
+        &repo.join(".reasonix/settings.json"),
+        &mut preserved_paths,
+        &mut conflicts,
+    )?;
+
+    Ok(report_with_details(
+        "reasonix",
+        &[
+            "REASONIX.md",
+            ".reasonix/commands/baron-context.md",
+            ".reasonix/commands/baron-status.md",
+            ".reasonix/settings.json",
+        ],
+        preserved_paths,
+        conflicts,
+    ))
+}
+
+fn install_reasonix_contract(
+    path: &Path,
+    body: &str,
+    preserved_paths: &mut Vec<String>,
+    conflicts: &mut Vec<String>,
+) -> Result<()> {
+    if !path.exists() {
+        upsert_managed_block(path, body)?;
+        return Ok(());
+    }
+    let existing = fs::read_to_string(path)
+        .with_context(|| format!("Could not read existing {}", path.display()))?;
+    if existing.contains("BARON:MANAGED:START") && existing.contains("BARON:MANAGED:END") {
+        upsert_managed_block(path, body)?;
+    } else {
+        let relative = path.to_string_lossy().replace('\\', "/");
+        preserved_paths.push(relative.clone());
+        conflicts.push(relative);
+    }
+    Ok(())
+}
+
+fn install_reasonix_file(
+    path: &Path,
+    content: &str,
+    preserved_paths: &mut Vec<String>,
+    conflicts: &mut Vec<String>,
+) -> Result<()> {
+    if !path.exists() {
+        write_managed_file(path, content)?;
+        return Ok(());
+    }
+    let existing = fs::read_to_string(path)
+        .with_context(|| format!("Could not read existing {}", path.display()))?;
+    if existing == content {
+        return Ok(());
+    }
+    let relative = path.to_string_lossy().replace('\\', "/");
+    preserved_paths.push(relative.clone());
+    conflicts.push(relative);
+    Ok(())
+}
+
+fn install_reasonix_settings(
+    path: &Path,
+    preserved_paths: &mut Vec<String>,
+    conflicts: &mut Vec<String>,
+) -> Result<()> {
+    if !path.exists() {
+        write_managed_file(path, &reasonix_hooks_document()?)?;
+        return Ok(());
+    }
+    let existing = fs::read_to_string(path)
+        .with_context(|| format!("Could not read existing {}", path.display()))?;
+    let mut root: serde_json::Value = match serde_json::from_str(&existing) {
+        Ok(value) => value,
+        Err(_) => {
+            let relative = path.to_string_lossy().replace('\\', "/");
+            preserved_paths.push(relative.clone());
+            conflicts.push(relative);
+            return Ok(());
+        }
+    };
+    let managed = root
+        .get("_baron")
+        .and_then(|value| value.get("managed"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    if !managed {
+        let relative = path.to_string_lossy().replace('\\', "/");
+        preserved_paths.push(relative.clone());
+        conflicts.push(relative);
+        return Ok(());
+    }
+    let root_object = root
+        .as_object_mut()
+        .context("Reasonix settings must be a JSON object")?;
+    root_object.insert(
+        "_baron".to_string(),
+        serde_json::json!({"managed": true, "adapter": "reasonix"}),
+    );
+    let hooks = root_object
+        .entry("hooks")
+        .or_insert_with(|| serde_json::json!({}));
+    if !hooks.is_object() {
+        *hooks = serde_json::json!({});
+    }
+    let hooks_object = hooks
+        .as_object_mut()
+        .context("Reasonix hook registry must be a JSON object")?;
+    for (event, command, description, timeout) in [
+        (
+            "SessionStart",
+            "session-start",
+            "Load shared Baron context",
+            15000,
+        ),
+        (
+            "UserPromptSubmit",
+            "prompt",
+            "Record the submitted task in the shared Vault",
+            5000,
+        ),
+        (
+            "Stop",
+            "stop",
+            "Persist the shared handoff without inferring completion",
+            5000,
+        ),
+    ] {
+        let entries = hooks_object
+            .entry(event.to_string())
+            .or_insert_with(|| serde_json::json!([]));
+        if !entries.is_array() {
+            *entries = serde_json::json!([]);
+        }
+        let entries = entries
+            .as_array_mut()
+            .context("Reasonix hook event must contain an array")?;
+        entries.retain(|entry| !entry.to_string().contains("baron automation hook"));
+        entries.push(serde_json::json!({
+            "command": format!("baron automation hook {command} --adapter reasonix"),
+            "description": description,
+            "timeout": timeout
+        }));
+    }
+    write_managed_file(path, &format!("{}\n", serde_json::to_string_pretty(&root)?))?;
+    Ok(())
+}
+
 fn startup_contract(agent: &str, adapter: &str) -> String {
     format!(
         "# Baron Automatic Agent Contract\n\n\
@@ -678,10 +919,21 @@ fn write_claude_agents(repo: &Path) -> Result<()> {
 }
 
 fn report(adapter: &str, files: &[&str]) -> InstallReport {
+    report_with_details(adapter, files, Vec::new(), Vec::new())
+}
+
+fn report_with_details(
+    adapter: &str,
+    files: &[&str],
+    preserved_paths: Vec<String>,
+    conflicts: Vec<String>,
+) -> InstallReport {
     InstallReport {
         adapter: adapter.to_string(),
         managed_files: files.iter().map(|value| value.to_string()).collect(),
         preserved_custom_assets: true,
+        preserved_paths,
+        conflicts,
     }
 }
 

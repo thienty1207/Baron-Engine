@@ -1417,6 +1417,7 @@ mod tests {
             platform: None,
             platform_extensions: Vec::new(),
             adapters: vec![AdapterKind::Codex],
+            active_adapter: None,
             automation: AutomationConfig::default(),
         }
     }

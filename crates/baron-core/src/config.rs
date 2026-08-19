@@ -18,6 +18,7 @@ pub enum AdapterKind {
     Codex,
     Claude,
     Generic,
+    Reasonix,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +56,8 @@ pub struct ProjectConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub platform_extensions: Vec<ProjectPlatform>,
     pub adapters: Vec<AdapterKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_adapter: Option<AdapterKind>,
     pub automation: AutomationConfig,
 }
 
@@ -110,6 +113,7 @@ pub fn initialize_project_with_options(
             platform: None,
             platform_extensions: Vec::new(),
             adapters: Vec::new(),
+            active_adapter: None,
             automation: AutomationConfig::default(),
         }
     };
@@ -124,6 +128,7 @@ pub fn initialize_project_with_options(
         if !config.adapters.contains(&adapter) {
             config.adapters.push(adapter);
         }
+        config.active_adapter = Some(adapter);
     }
     atomic_write(&project_path, &toml::to_string_pretty(&config)?)?;
 
@@ -146,6 +151,30 @@ pub fn set_project_platform(
     let mut config = load_project_config(&repo_root)?;
     config.schema_version = PROJECT_SCHEMA_VERSION;
     reconcile_platform(&mut config, platform);
+    atomic_write(
+        &repo_root.join(PROJECT_CONFIG_PATH),
+        &toml::to_string_pretty(&config)?,
+    )?;
+    Ok(config)
+}
+
+pub fn active_adapter(config: &ProjectConfig) -> Option<AdapterKind> {
+    config
+        .active_adapter
+        .or_else(|| config.adapters.first().copied())
+}
+
+pub fn set_active_adapter(
+    repo_path: impl AsRef<Path>,
+    adapter: AdapterKind,
+) -> Result<ProjectConfig> {
+    let repo_root = find_project_root(repo_path)?;
+    let mut config = load_project_config(&repo_root)?;
+    if !config.adapters.contains(&adapter) {
+        config.adapters.push(adapter);
+    }
+    config.active_adapter = Some(adapter);
+    config.schema_version = PROJECT_SCHEMA_VERSION;
     atomic_write(
         &repo_root.join(PROJECT_CONFIG_PATH),
         &toml::to_string_pretty(&config)?,
@@ -206,7 +235,7 @@ pub fn find_project_root(start_path: impl AsRef<Path>) -> Result<PathBuf> {
         current = directory.parent().map(Path::to_path_buf);
     }
     bail!(
-        "Baron project config not found. Run `baron init <repo-path> --codex|--claude|--agent --vault <vault-path>` first."
+        "Baron project config not found. Run `baron init <repo-path> --codex|--claude|--agent|--reasonix --vault <vault-path>` first."
     )
 }
 

@@ -10,6 +10,7 @@ baron survey [repo-path] --json
 baron init [repo-path] --codex --shadow
 baron init [repo-path] --claude --shadow
 baron init [repo-path] --agent --shadow
+baron init [repo-path] --reasonix --shadow
 ```
 
 ## Phase 2
@@ -34,6 +35,7 @@ clearly instead of guessing.
 baron context [repo-path] --codex --vault <vault-path>
 baron context [repo-path] --claude --vault <vault-path>
 baron context [repo-path] --agent --vault <vault-path>
+baron context [repo-path] --reasonix --vault <vault-path>
 baron context [repo-path] --codex --task "<task>" --vault <vault-path>
 baron context [repo-path] --why --vault <vault-path>
 ```
@@ -59,6 +61,7 @@ baron init --library
 baron init --data
 baron init --cloud
 baron init --codex --fullstack
+baron init --reasonix
 baron update [repo-path]
 ```
 
@@ -71,6 +74,22 @@ human-authorized verified release transaction: the candidate process renders
 managed assets, ambiguous edits stage for review, and custom assets/Vault
 memory remain outside its write set. AI agents use local-only automation
 reconciliation and cannot authorize a download or runtime replacement.
+
+## Phase 101-107: Reasonix adapter maintenance on 4.2.0
+
+```bash
+baron adapter status [repo-path]
+baron adapter switch --to <codex|claude|agent|reasonix> [repo-path]
+baron adapter switch --to reasonix [repo-path] --dry-run
+```
+
+The Reasonix adapter is a frontend compatibility track only. It keeps the
+existing project ID, Vault path, Vault Markdown, memory index, session journal,
+Wiki, and CodeGraph shared with the other adapters; the active adapter is
+routing metadata, not a new memory namespace. Installation is preserve-first:
+unmarked user-owned Reasonix files are left unchanged and listed as conflicts.
+This track does not change the engine or create a Baron `4.3` release; the
+public/source version remains `4.2.0`.
 
 ## Phase 5
 
@@ -114,9 +133,9 @@ plan, harness, proof, and trace files are excluded from that evidence.
 ## Phase 7
 
 ```bash
-baron capability register "<capability>" [repo-path] --name <provider> --kind <cli|binary|mcp|skill|http|agent-adapter> [--required] [--command <command>] [--scan <target>] [--adapter <codex|claude|agent>]... --description "<description>"
-baron capability check [capability] [repo-path] [--adapter <codex|claude|agent>] [--json]
-baron capability list [repo-path] [--adapter <codex|claude|agent>] [--json]
+baron capability register "<capability>" [repo-path] --name <provider> --kind <cli|binary|mcp|skill|http|agent-adapter> [--required] [--command <command>] [--scan <target>] [--adapter <codex|claude|agent|reasonix>]... --description "<description>"
+baron capability check [capability] [repo-path] [--adapter <codex|claude|agent|reasonix>] [--json]
+baron capability list [repo-path] [--adapter <codex|claude|agent|reasonix>] [--json]
 baron capability remove "<capability>" [repo-path] --name <provider>
 baron proof record "<verification>" [repo-path] --capability-evidence "<capability>|<provider>|<result summary>"
 ```
@@ -159,7 +178,7 @@ or replace the Baron executable.
 ```bash
 baron automation status [repo-path]
 baron automation reconcile [repo-path]
-baron automation hook <session-start|prompt|checkpoint|context-compiled|plan-started|harness-started|proof-recorded|trace-scored|stop> [repo-path] --adapter <codex|claude|agent>
+baron automation hook <session-start|prompt|checkpoint|context-compiled|plan-started|harness-started|proof-recorded|trace-scored|stop> [repo-path] --adapter <codex|claude|agent|reasonix>
 ```
 
 `automation hook` is the adapter-facing native entrypoint and reads the hook
@@ -170,7 +189,7 @@ payload from stdin. Normal users do not run it manually.
 ```bash
 baron memory import-sessions [repo-path] --vault <vault-path>
 baron recall "<query>" [repo-path] --vault <vault-path>
-baron context [repo-path] --task "<task>" --codex|--claude|--agent --vault <vault-path>
+baron context [repo-path] --task "<task>" --codex|--claude|--agent|--reasonix --vault <vault-path>
 ```
 
 Context automatically imports a bounded batch for initialized projects.
@@ -318,7 +337,7 @@ uncertain learning separate from trusted facts until approved.
 ## Phase 22
 
 ```bash
-baron runtime check [repo-path] [--adapter <codex|claude|agent>] [--json]
+baron runtime check [repo-path] [--adapter <codex|claude|agent|reasonix>] [--json]
 ```
 
 This command is hidden from top-level help and is meant for AI automation and

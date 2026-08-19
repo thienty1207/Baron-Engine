@@ -1,6 +1,6 @@
 # Baron Build Status
 
-Last updated: 2026-08-14
+Last updated: 2026-08-19
 
 ## Overall
 
@@ -41,6 +41,13 @@ Last updated: 2026-08-14
 - Current next action: normal maintenance. The exact-source native CI/release
   publication, fresh README-only install, checksum verification, 4.0 fallback,
   and 4.1 rollback smoke are complete.
+- Reasonix adapter track: seven maintenance phases (`101-107`) are planned
+  against the existing `4.2.0` source line. This track adds only a first-class
+  DeepSeek-Reasonix adapter, shared-brain switching, preservation/conflict
+  checks, tests, and documentation; it does not create `4.3` or change the
+  intelligence engine.
+- Reasonix track current action: Phase 107 — complete final verification,
+  commit/push the adapter-only change, and verify the remote worktree.
 - Current Baron 4.1 authority: owner approval on 2026-08-13 plus the active
   design/plan; public release and README promotion are complete.
 - For the completed Baron 3.7 program, the owner explicitly approved
@@ -4538,6 +4545,80 @@ starts:
 - [x] Phase 100 remained the separate final publication boundary throughout
   implementation; Phase 99 now passed, so version/README/tag/Release promotion
   is authorized only inside this final phase.
+
+## Baron Reasonix Adapter Compatibility Track (No 4.3)
+
+This is the owner-approved seven-phase adapter maintenance plan. The source and
+public release remain `4.2.0`; no intelligence engine, generation selector,
+Vault schema, or fallback behavior is being changed.
+
+### Phase 101 - Shared-brain adapter identity
+
+Status: `complete`; source and CLI mappings are implemented without changing
+the 4.2.0 intelligence engine.
+
+- [x] Add `reasonix` to the core adapter/config/CLI/capability/context and
+  automation mappings.
+- [x] Add a backward-compatible `active_adapter`; switching must not change
+  project ID, Vault, memory, Wiki, CodeGraph, plan, proof, trace, or continuity.
+- [x] Add red/green tests for one shared history with adapter provenance.
+
+### Phase 102 - Native Reasonix assets
+
+Status: `complete`; native payloads and Reasonix command routing are present.
+
+- [x] Add managed `REASONIX.md` and `.reasonix/commands` payloads.
+- [x] Route Reasonix startup/context/status instructions through
+  `--adapter reasonix` and `--reasonix`.
+- [x] Preserve existing Codex/Claude/generic files and custom instructions.
+
+### Phase 103 - Non-destructive install and update
+
+Status: `complete`; preserve-first install and managed baselines are wired.
+
+- [x] Preserve unmarked user `REASONIX.md`, settings, hooks, and bridge files.
+- [x] Update only unchanged Baron-managed blocks/baselines.
+- [x] Report malformed or ambiguous conflicts without writing over user data.
+
+### Phase 104 - Switch and rollback lifecycle
+
+Status: `complete`; status/switch commands keep the common project/Vault
+namespace and record adapter provenance in the shared journal.
+
+- [x] Add `baron adapter status` and `baron adapter switch --to <adapter>`.
+- [x] Checkpoint and record a shared adapter-switch event before activation.
+- [x] Prove Codex -> Reasonix -> Codex reads the same Vault history.
+
+### Phase 105 - Tests and GoGetSomeFoodFerris compatibility fixture
+
+Status: `complete`; focused adapter/core/CLI tests passed, including the
+preservation, malformed-settings, shared-Vault, and identity-mismatch gates.
+
+- [x] Add adapter/config/context/automation/CLI and preservation tests.
+- [x] Add a read-only fixture matching the existing Codex-plus-user-Reasonix
+  project shape; never mutate the user's project during the Baron test.
+- [x] Verify malformed settings and identity mismatch stop before writes.
+
+### Phase 106 - Documentation and release truth
+
+Status: `complete`; README, command surface, adapter architecture, status JSON,
+and build log describe the shared-brain Reasonix workflow on 4.2.0.
+
+- [x] Update README, command surface, adapter architecture, status JSON, and
+  build log with the shared-brain switch workflow.
+- [x] Keep every version/install claim at `4.2.0`; do not add a 4.3 claim.
+
+### Phase 107 - Final verification and GitHub publication
+
+Status: `in_progress`; local verification is blocked by Windows Application
+Control on Rust proc-macro DLLs, so CI verification and publication remain.
+
+- [ ] Run format, full tests, Clippy, locked release build, CLI/adapter smoke,
+  shared-Vault switch, conflict/preservation, and docs/status checks.
+- [ ] Mark every finished task `[x]`, commit only the intended adapter/docs
+  files, push GitHub, verify the remote commit, and leave the worktree clean.
+- [x] Do not create a `v4.3.0` tag or Release; this remains an adapter-only
+  change on the `4.2.0` source line.
 
 ## Baron 3.8 Final Evidence
 

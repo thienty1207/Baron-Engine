@@ -101,6 +101,9 @@ fn adapter_context_headings_are_distinct() {
     assert!(compile_context(&repo, &vault, ContextTarget::Generic)
         .unwrap()
         .contains("For generic agents"));
+    assert!(compile_context(&repo, &vault, ContextTarget::Reasonix)
+        .unwrap()
+        .contains("For DeepSeek Reasonix"));
 }
 
 #[test]

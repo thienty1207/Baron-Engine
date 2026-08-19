@@ -631,10 +631,8 @@ pub fn render_runtime_policy_summary(
 }
 
 pub fn default_adapter(repo_root: impl AsRef<Path>) -> Result<AdapterKind> {
-    load_project_config(repo_root)?
-        .adapters
-        .first()
-        .copied()
+    let config = load_project_config(repo_root)?;
+    crate::config::active_adapter(&config)
         .context("No registered adapter is available for capability evaluation")
 }
 
@@ -1048,6 +1046,7 @@ fn adapter_name(adapter: AdapterKind) -> &'static str {
         AdapterKind::Codex => "codex",
         AdapterKind::Claude => "claude",
         AdapterKind::Generic => "agent",
+        AdapterKind::Reasonix => "reasonix",
     }
 }
 
