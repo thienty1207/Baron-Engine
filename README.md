@@ -110,13 +110,14 @@ baron --version
 The expected output is `baron 4.2.1`. The installers verify SHA-256 checksums
 and the staged binary version before replacing an existing Baron executable.
 
-The `v4.2.1` package is the adapter-packaging patch for the already verified
-Baron 4.2 engine. Its native CI and release gates cover Windows x64, Linux
-x64, Intel macOS, and Apple Silicon; the immutable Release includes the
-archives, raw update candidates, both installers, `release-manifest.json`,
-and `SHA256SUMS`. Baron 4.1 remains the whole-engine rollback path and Baron
-4.0 remains the explicit safe fallback. The final CI and release run links are
-recorded in [Build status](docs/BARON_STATUS.md) after promotion.
+The verified public release is [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1),
+source/tag commit `2cfe7614b42331584f27987982635507fe788054`. Its native CI and
+release gates passed on Windows x64, Linux x64, Intel macOS, and Apple Silicon;
+the immutable Release includes the archives, raw update candidates, both
+installers, `release-manifest.json`, and `SHA256SUMS`. Baron 4.1 remains the
+whole-engine rollback path and Baron 4.0 remains the explicit safe fallback.
+The passing verification records are [CI run 32224005767](https://github.com/thienty1207/Baron-Engine/actions/runs/32224005767)
+and [release run 32224022284](https://github.com/thienty1207/Baron-Engine/actions/runs/32224022284).
 
 ### 2. Set the Vault
 

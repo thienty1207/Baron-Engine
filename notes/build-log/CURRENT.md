@@ -10,9 +10,8 @@
   `docs/superpowers/specs/2026-08-19-baron-4-2-1-patch-release.md`.
 - Active plan:
   `docs/superpowers/plans/2026-08-19-baron-4-2-1-patch-release.md`.
-- Current phase: Phases 109-110 are complete; Phase 111 (verification and
-  binary proof) is in progress. Phase 112 remains gated on the immutable
-  GitHub release workflow.
+- Current phase: Phases 109-112 are complete. Phase 112 published the
+  immutable GitHub Release and closed the handoff.
 - Proof status: `cargo fmt --all`, workspace check, workspace library tests
   (`40/40`), warnings-denied Clippy, locked release build, release identity/
   metadata tests, focused Reasonix CLI tests (`5/5`), and direct release-binary
@@ -23,18 +22,30 @@
 - Full local integration sweep caveat: five executable targets could not be
   treated as product failures in this Windows environment. Three were blocked
   by the personal WDAC policy (unsigned test binaries) and two installer tests
-  failed because `Microsoft.PowerShell.Archive` could not autoload. The hosted
-  native release workflow must provide the clean four-platform proof.
+  failed because `Microsoft.PowerShell.Archive` could not autoload. Hosted
+  native CI subsequently provided the clean four-platform proof.
+- Hosted proof: CI run `32224005767` passed format/Clippy and native tests on
+  Windows x64, Linux x64, Intel macOS, and Apple Silicon. Release run
+  `32224022284` passed exact-source verification, all four native release
+  builds, checksums, manifest, installer lifecycle, and immutable promotion.
+  `releases/latest` is now `v4.2.1`.
+- Public install proof: the downloaded Windows raw candidate reports
+  `baron 4.2.1`, exposes `baron --reasonix` and `baron init --reasonix`, and
+  SHA-256 `21F4C84009E38951959F04EC1FADA20EE964661C261103849F0EEA23AC2CE942`
+  matches the public `SHA256SUMS`. The new local helper
+  `C:\Users\tytyb\Enable-Baron-4.2.1-Reasonix.ps1` and its narrowly scoped
+  supplemental policy target this hash; deployment still requires an
+  Administrator terminal.
 - Trace status: the patch must preserve the shared-brain invariant. Codex and
   Reasonix use the same project ID, Vault, memory, Wiki, CodeGraph, plan,
   proof, trace, and continuity history; no `4.3` engine change is in scope.
-- Windows policy note: the existing personal WDAC supplemental exception is
-  hash-bound to the old unsigned `4.2.0` binary. A new `4.2.1` hash must be
-  recorded after the release; do not broaden the policy or disable Device
-  Guard.
-- Safe next action: commit the verified patch, push the exact source to
-  `origin/main`, then publish `v4.2.1` and wait for the hosted native matrix
-  and immutable release workflow.
+- Windows policy note: the old personal WDAC supplemental exception remains
+  hash-bound to the old unsigned `4.2.0` binary. Install `v4.2.1` first, then
+  run the new helper as Administrator if Windows blocks the new hash; do not
+  broaden the policy or disable Device Guard.
+- Safe next action: normal `4.2.1` maintenance. Keep Codex and Reasonix on the
+  shared project/Vault brain and use the new helper only for the exact public
+  binary hash.
 
 ## Baron Reasonix Adapter Track Checkpoint (2026-08-19)
 

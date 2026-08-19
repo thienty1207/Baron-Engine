@@ -4,16 +4,16 @@ Last updated: 2026-08-19
 
 ## Overall
 
-- Stable source release: `v4.2.1` (candidate source; [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0) remains the prior public Release)
-- Latest downloadable release: [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/latest) until the `v4.2.1` tag and native release workflow pass
-- Candidate source version: `4.2.1`; the source/docs package is ready and public
-  promotion is pending local gates and the immutable release workflow
+- Stable source release: `v4.2.1` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1); [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0) is the prior engine Release)
+- Latest downloadable release: [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/latest)
+- Candidate source version: `4.2.1`; immutable public Release, checksums,
+  native matrix, installer smoke, and Reasonix command-surface proof have passed
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
 - Target source release: `v4.2.1`; source, tests, native assets, checksums, and
-  public install evidence must agree before promotion
+  public install evidence agree
 - Baron 4.2 program target release: `v4.2.0`; Phases 88-100 are complete and the
   engine remains unchanged by the `4.2.1` adapter-packaging patch
 - Baron 3.4 completion: 100%
@@ -37,15 +37,14 @@ Last updated: 2026-08-19
   verified public release boundary and is no longer open.
 - Current work state: source version `4.2.1`, default guarded generation `4.2`,
   explicit whole-engine `4.1` rollback, and per-query `4.0` fallback are ready;
-  the public `releases/latest` pointer remains `4.2.0` until Phase 112 closes.
-- Current next action: finish the 4.2.1 local verification gate, publish the
-  exact source on `origin/main`, push `v4.2.1`, and verify the native Release
-  and fresh installer before calling the patch complete.
-- Baron 4.2.1 patch track: four phases (`109-112`). Phases 109-110 (release
-  identity and status/docs/build log) are complete; Phase 111 (verification and
-  binary proof) is in progress. The patch packages the already-implemented DeepSeek-Reasonix
-  adapter and root shortcuts; it does not create `4.3` or change the
-  intelligence engine.
+  public `releases/latest` resolves to `4.2.1`.
+- Current next action: normal `4.2.1` maintenance. The exact-source native
+  CI/release publication, fresh installer, checksum verification, and
+  Reasonix command-surface smoke are complete.
+- Baron 4.2.1 patch track: four phases (`109-112`), all complete. Phase 112
+  closed the immutable GitHub Release and handoff. The patch packages the
+  already-implemented DeepSeek-Reasonix adapter and root shortcuts; it does
+  not create `4.3` or change the intelligence engine.
 - Reasonix adapter track: eight maintenance phases (`101-108`) remain the
   historical implementation record. Their source commits are now being
   packaged in the `4.2.1` patch so an installed binary actually exposes
@@ -60,6 +59,17 @@ Last updated: 2026-08-19
   three unsigned test executables were blocked by the personal WDAC policy and
   two installer tests cannot autoload `Microsoft.PowerShell.Archive`; hosted
   native CI remains the release gate for those surfaces.
+- Baron 4.2.1 public release evidence: source/tag commit
+  `2cfe7614b42331584f27987982635507fe788054`; CI
+  [`32224005767`](https://github.com/thienty1207/Baron-Engine/actions/runs/32224005767)
+  and Release
+  [`32224022284`](https://github.com/thienty1207/Baron-Engine/actions/runs/32224022284)
+  passed exact-source verification, Clippy, the full native matrix, checksums,
+  `release-manifest.json`, installer lifecycle, and immutable promotion. A
+  fresh public `releases/latest` installer reported `baron 4.2.1` and exposed
+  both Reasonix entry points. The public Windows raw binary SHA-256 is
+  `21F4C84009E38951959F04EC1FADA20EE964661C261103849F0EEA23AC2CE942`, matching
+  `SHA256SUMS`.
 - Current Baron 4.1 authority: owner approval on 2026-08-13 plus the active
   design/plan; public release and README promotion are complete.
 - For the completed Baron 3.7 program, the owner explicitly approved

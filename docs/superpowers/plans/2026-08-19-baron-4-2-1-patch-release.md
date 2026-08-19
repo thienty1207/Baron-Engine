@@ -14,19 +14,19 @@ it does not create Baron 4.3 or change the intelligence engine.
     current downloadable release.
   - [x] Record that 4.2.0 remains the prior engine release and 4.2.1 is the
     adapter-packaging patch.
-- [ ] Phase 111: verification and binary proof
+- [x] Phase 111: verification and binary proof
   - [x] Run format, workspace check/library tests, Clippy, locked release
     build, CLI help, Reasonix adapter tests, and release identity/metadata
-    verification. The remaining full integration exceptions are recorded in
-    `docs/BARON_STATUS.md` and are delegated to hosted native CI.
+    verification. The five local environment-only exceptions are recorded in
+    `docs/BARON_STATUS.md`; hosted native CI confirmed the clean matrix.
   - [x] Prove the release binary reports `baron 4.2.1` and exposes both
     `baron --reasonix` and `baron init --reasonix`.
   - [x] Record the local Windows release-binary SHA-256 hash for the narrowly
     scoped WDAC exception; the public raw asset hash will be recorded after
     GitHub promotion.
-- [ ] Phase 112: immutable GitHub publication and handoff
-  - [ ] Commit and push the exact source to `origin/main`.
-  - [ ] Push `v4.2.1` only after local gates pass; let the immutable release
+- [x] Phase 112: immutable GitHub publication and handoff
+  - [x] Commit and push the exact source to `origin/main`.
+  - [x] Push `v4.2.1` only after local gates pass; let the immutable release
     workflow build all native assets and installers.
-  - [ ] Verify `releases/latest`, README install output, checksums, and the
+  - [x] Verify `releases/latest`, README install output, checksums, and the
     final release URL; mark every task `[x]`.
