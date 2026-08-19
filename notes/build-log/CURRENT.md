@@ -9,21 +9,22 @@
   `docs/superpowers/specs/2026-08-19-reasonix-adapter-design.md`.
 - Active plan:
   `docs/superpowers/plans/2026-08-19-reasonix-adapter-program.md`.
-- Current phase: Phase 107 in progress; Phases 101-106 are implemented and
-  checked in the plan/status dashboard.
+- Current phase: Phase 107 complete; Phases 101-107 are checked in the
+  plan/status dashboard.
 - Proof status: adapter lifecycle 27/27, core all-targets, focused Reasonix
-  CLI 3/3, format check, workspace Clippy, locked release build, and release
-  `baron 4.2.0` smoke passed. The broader CLI suite has two unrelated Windows
-  installer failures because `Microsoft.PowerShell.Archive` cannot autoload in
-  this environment; the Reasonix tests themselves pass.
+  CLI 3/3, formatter check, workspace Clippy, locked release build, and
+  release `baron 4.2.0` smoke passed. The broader CLI suite has two unrelated
+  Windows installer failures because `Microsoft.PowerShell.Archive` cannot
+  autoload in this environment; the Reasonix tests themselves pass.
 - Trace status: switch smoke recorded a shared checkpoint journal entry with
-  adapter provenance; final publication trace remains open until push/remote
-  verification.
+  adapter provenance. Commit `bd6a5a08da5ebda0b743dc542b17d36f6094427a` was
+  pushed and verified on both `origin/agent/baron-4-0` and `origin/main`; the
+  worktree is clean.
 - Shared-brain invariant: Codex and Reasonix must keep the same project ID,
   Vault, memory, Wiki, CodeGraph, plan, proof, trace, and continuity history.
-- Safe next action: run the final diff/version/status audit, commit only the
-  adapter/docs changes, push the current branch, and verify remote CI/clean
-  worktree without creating a 4.3 tag or Release.
+- Safe next action: normal `4.2.0` maintenance. Keep the shared-brain
+  Reasonix/Codex adapter path and preserve-first conflict policy; do not create
+  a 4.3 tag or Release for this adapter track.
 - Retry condition: any conflict, identity mismatch, or unrelated worktree
   change must be preserved and recorded before continuing.
 

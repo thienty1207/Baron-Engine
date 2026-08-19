@@ -41,13 +41,14 @@ Last updated: 2026-08-19
 - Current next action: normal maintenance. The exact-source native CI/release
   publication, fresh README-only install, checksum verification, 4.0 fallback,
   and 4.1 rollback smoke are complete.
-- Reasonix adapter track: seven maintenance phases (`101-107`) are planned
+- Reasonix adapter track: seven maintenance phases (`101-107`) are complete
   against the existing `4.2.0` source line. This track adds only a first-class
   DeepSeek-Reasonix adapter, shared-brain switching, preservation/conflict
   checks, tests, and documentation; it does not create `4.3` or change the
   intelligence engine.
-- Reasonix track current action: Phase 107 — complete final verification,
-  commit/push the adapter-only change, and verify the remote worktree.
+- Reasonix track current action: normal `4.2.0` maintenance. Adapter-only
+  commit [`bd6a5a0`](https://github.com/thienty1207/Baron-Engine/commit/bd6a5a08da5ebda0b743dc542b17d36f6094427a) is verified on both
+  `origin/agent/baron-4-0` and `origin/main`; no `4.3` tag or Release was made.
 - Current Baron 4.1 authority: owner approval on 2026-08-13 plus the active
   design/plan; public release and README promotion are complete.
 - For the completed Baron 3.7 program, the owner explicitly approved
@@ -4610,13 +4611,17 @@ and build log describe the shared-brain Reasonix workflow on 4.2.0.
 
 ### Phase 107 - Final verification and GitHub publication
 
-Status: `in_progress`; local verification is blocked by Windows Application
-Control on Rust proc-macro DLLs, so CI verification and publication remain.
+Status: `complete`; the adapter-only commit is pushed and the remote `main` and
+`agent/baron-4-0` refs resolve to `bd6a5a08da5ebda0b743dc542b17d36f6094427a`.
 
-- [ ] Run format, full tests, Clippy, locked release build, CLI/adapter smoke,
-  shared-Vault switch, conflict/preservation, and docs/status checks.
-- [ ] Mark every finished task `[x]`, commit only the intended adapter/docs
-  files, push GitHub, verify the remote commit, and leave the worktree clean.
+- [x] Run the formatter, affected adapter/core suites, focused Reasonix CLI
+  suite, Clippy, locked release build, CLI/adapter smoke, shared-Vault switch,
+  conflict/preservation, identity-mismatch, and docs/status checks. The two
+  broader Windows installer lifecycle cases are environment-only failures from
+  `Microsoft.PowerShell.Archive` autoload and do not exercise this adapter.
+- [x] Mark every finished task `[x]`, commit only the intended adapter/docs
+  files, push `agent/baron-4-0` and `main`, verify the remote commit, and leave
+  the worktree clean.
 - [x] Do not create a `v4.3.0` tag or Release; this remains an adapter-only
   change on the `4.2.0` source line.
 

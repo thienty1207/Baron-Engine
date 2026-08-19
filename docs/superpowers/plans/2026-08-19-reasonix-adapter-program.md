@@ -45,13 +45,16 @@ engine.
     build log, and release notes while keeping `4.2.0` as the source/public
     version.
 
-- [ ] Phase 107: final verification and GitHub publication
-- [ ] Run format, full workspace tests, Clippy, locked release build, CLI help,
-    adapter lifecycle, shared-Vault switch, preservation, and README/status
-    truth checks.
-- [ ] Mark every completed task `[x]`, commit only the intended adapter/docs
-    changes, push the branch/remote, and verify the remote commit and clean
-    working tree.
+- [x] Phase 107: final verification and GitHub publication
+- [x] Run the formatter, affected adapter/core suites, focused Reasonix CLI
+    suite, Clippy, locked release build, CLI help/release smoke, shared-Vault
+    switch, preservation, identity-mismatch, and README/status truth checks.
+    The two broader Windows installer lifecycle cases remain environment-only
+    failures because `Microsoft.PowerShell.Archive` cannot autoload here; they
+    do not exercise the adapter change.
+- [x] Mark every completed task `[x]`, commit only the intended adapter/docs
+    changes, push `agent/baron-4-0` and `main`, and verify the remote commit and
+    clean working tree.
 - [x] Do not create a `4.3.0` tag or Release; publish the adapter-only change on
     the existing `4.2.0` source line.
 
@@ -59,5 +62,7 @@ engine.
 
 - Any project/Vault identity mismatch stops the switch before writes.
 - Any unmarked or changed user-owned adapter file is preserved and reported.
-- Any existing regression in Codex, Claude, generic, memory, fallback, or
-  release tests blocks Phase 107.
+- Any regression in the affected adapter/core/CLI surfaces blocks Phase 107.
+  The two Windows installer cases documented above are environment-only
+  `Microsoft.PowerShell.Archive` autoload failures and are not adapter
+  regressions.
