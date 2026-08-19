@@ -46,8 +46,9 @@ Last updated: 2026-08-19
   DeepSeek-Reasonix adapter, shared-brain switching, preservation/conflict
   checks, tests, and documentation; it does not create `4.3` or change the
   intelligence engine.
-- Reasonix track current action: normal `4.2.0` maintenance. Adapter-only
-  commit [`bd6a5a0`](https://github.com/thienty1207/Baron-Engine/commit/bd6a5a08da5ebda0b743dc542b17d36f6094427a) is verified on both
+- Reasonix track current action: normal `4.2.0` maintenance. Adapter commit
+  [`bd6a5a0`](https://github.com/thienty1207/Baron-Engine/commit/bd6a5a08da5ebda0b743dc542b17d36f6094427a) and closure commit
+  [`e6312f2`](https://github.com/thienty1207/Baron-Engine/commit/e6312f265b12de54125f606476939a7e0905458d) are present on both
   `origin/agent/baron-4-0` and `origin/main`; no `4.3` tag or Release was made.
 - Current Baron 4.1 authority: owner approval on 2026-08-13 plus the active
   design/plan; public release and README promotion are complete.
@@ -4611,8 +4612,8 @@ and build log describe the shared-brain Reasonix workflow on 4.2.0.
 
 ### Phase 107 - Final verification and GitHub publication
 
-Status: `complete`; the adapter-only commit is pushed and the remote `main` and
-`agent/baron-4-0` refs resolve to `bd6a5a08da5ebda0b743dc542b17d36f6094427a`.
+Status: `complete`; the adapter-only implementation and closure commits are
+present on the remote `main` and `agent/baron-4-0` refs.
 
 - [x] Run the formatter, affected adapter/core suites, focused Reasonix CLI
   suite, Clippy, locked release build, CLI/adapter smoke, shared-Vault switch,

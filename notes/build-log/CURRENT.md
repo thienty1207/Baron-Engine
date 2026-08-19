@@ -17,9 +17,10 @@
   Windows installer failures because `Microsoft.PowerShell.Archive` cannot
   autoload in this environment; the Reasonix tests themselves pass.
 - Trace status: switch smoke recorded a shared checkpoint journal entry with
-  adapter provenance. Commit `bd6a5a08da5ebda0b743dc542b17d36f6094427a` was
-  pushed and verified on both `origin/agent/baron-4-0` and `origin/main`; the
-  worktree is clean.
+  adapter provenance. Adapter commit `bd6a5a08da5ebda0b743dc542b17d36f6094427a`
+  and closure commit `e6312f265b12de54125f606476939a7e0905458d` were pushed
+  and verified on both `origin/agent/baron-4-0` and `origin/main`; the worktree
+  is clean.
 - Shared-brain invariant: Codex and Reasonix must keep the same project ID,
   Vault, memory, Wiki, CodeGraph, plan, proof, trace, and continuity history.
 - Safe next action: normal `4.2.0` maintenance. Keep the shared-brain
