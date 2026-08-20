@@ -11,9 +11,9 @@
   "programTargetRelease": "4.2.1",
   "programCompletionPercent": 100,
   "remainingPhaseCount": 0,
-  "currentPhase": "baron-4-2-1-patch-phase-112",
+  "currentPhase": "baron-multi-agent-core-parity-phase-117",
   "currentPhaseStatus": "completed",
-  "nextAction": "Normal 4.2.1 maintenance; public releases/latest, checksums, installer smoke, and Reasonix command-surface proof are complete.",
+  "nextAction": "Normal 4.2.1 maintenance; Codex, Claude, Reasonix, and generic adapters now materialize the same Baron core while preserving native bridges and user files.",
   "maintenanceTrack": {
     "name": "Baron Reasonix Adapter Compatibility",
     "status": "completed",
@@ -40,12 +40,27 @@
     "finalPublicationPhase": 112,
     "noEngineChange": true
   },
+  "coreParityTrack": {
+    "name": "Baron Multi-Agent Core Parity",
+    "status": "completed",
+    "releaseLine": "4.2.1-maintenance",
+    "versionBump": false,
+    "phaseRange": "113-117",
+    "phaseCount": 5,
+    "completionPercent": 100,
+    "currentPhase": "Phase 117 multi-agent parity documentation and handoff (completed)",
+    "nextAction": "Normal 4.2.1 maintenance; preserve the shared core and native adapter bridges.",
+    "finalPublicationPhase": 117,
+    "noEngineChange": true,
+    "sharedCoreSource": "assets/core",
+    "design": "docs/superpowers/specs/2026-08-20-multi-agent-core-parity-design.md",
+    "plan": "docs/superpowers/plans/2026-08-20-multi-agent-core-parity.md"
+  },
   "buildConfidence": "Baron 4.2 local release-profile acceptance passed three raw runs at 100/100 and an executable private eight-case holdout at 100/100. Baron 4.2.1 hosted CI and immutable Release promotion passed exact-source verification, Clippy, all four native targets, fresh public install, checksums, Reasonix entry points, 4.0 fallback, and 4.1 rollback smoke.",
-  "openFollowUpCount": 4,
+  "openFollowUpCount": 3,
   "openFollowUps": [
     "real-repository and large-corpus scale budgets",
     "durable temporal compaction and rollback",
-    "full cross-adapter parity and lifecycle stress",
     "dynamic authorized lab execution (disabled by design)"
   ],
   "activeProgram": {
@@ -1576,6 +1591,51 @@
         "targetReleaseWeightPercent": 0,
         "completionPercent": 100,
         "requiredProof": ["baron --reasonix and --codex shortcuts", "shared project/Vault switch tests", "README/command surface updated", "no version bump"]
+      },
+      {
+        "id": 113,
+        "name": "Shared Multi-Agent Core Inventory Contract",
+        "status": "completed",
+        "release": "4.2.1-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["assets/core source-of-truth contract", "identical skill and agent payload inventory", "adapter-specific bridge boundary"]
+      },
+      {
+        "id": 114,
+        "name": "Full Reasonix Core Materialization",
+        "status": "completed",
+        "release": "4.2.1-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["Reasonix skill and agent views", "root/skill/agent indexes", "same startup workflow and quality-gate contract"]
+      },
+      {
+        "id": 115,
+        "name": "Safe Cross-Adapter Reconciliation And Switching",
+        "status": "completed",
+        "release": "4.2.1-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["missing asset restoration", "changed/unmarked conflict preservation", "shared project ID and Vault switch"]
+      },
+      {
+        "id": 116,
+        "name": "Cross-Adapter Core Parity And Regression Proof",
+        "status": "completed",
+        "release": "4.2.1-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["Codex/Reasonix content parity", "round-trip switch preservation", "existing engine/core/CLI/release suites"]
+      },
+      {
+        "id": 117,
+        "name": "Multi-Agent Parity Documentation And Handoff",
+        "status": "completed",
+        "release": "4.2.1-maintenance",
+        "targetReleaseWeightPercent": 0,
+        "completionPercent": 100,
+        "requiredProof": ["README/architecture/status/build-log sync", "all tasks marked x", "version remains 4.2.1 and no unapproved publication"]
       }
   ],
   "decisions20260724": [

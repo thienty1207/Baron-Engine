@@ -81,6 +81,9 @@ baron adapter switch --to reasonix
 Outputs:
 
 - `REASONIX.md` with a Baron-managed startup block
+- `.reasonix/INDEX.md` with the shared-core entry contract
+- `.reasonix/skills/INDEX.md` and the complete Baron-managed skill tree
+- `.reasonix/agents/INDEX.md` and the three core plus optional agent contracts
 - `.reasonix/commands/baron-context.md`
 - `.reasonix/commands/baron-status.md`
 - `.reasonix/settings.json` with shared-Vault lifecycle hooks when the file is
@@ -91,8 +94,10 @@ the normal daily switch shortcuts. They resolve the project from the current
 working directory, keep the long diagnostic commands available but out of the
 normal path, and install only Baron-managed adapter assets.
 
-Reasonix is a frontend adapter, not a second memory engine. It is included in
-the Baron 4.2.1 patch release and uses the same
+Reasonix is an adapter view over the same Baron core, not a second memory
+engine. It uses the same embedded `assets/core` skill/agent source as Codex,
+Claude, and generic agents. It is included in the Baron 4.2.2 patch release
+and uses the same
 `.baron/project.toml` project ID, `.baron/local.toml` Vault route, Vault
 Markdown, session journal, Wiki, and CodeGraph as Codex and Claude. Adapter
 provenance is recorded on shared lifecycle entries so history remains
@@ -100,6 +105,12 @@ auditable without creating a Reasonix-only namespace. `baron adapter switch`
 changes only the active adapter and installs missing Baron-owned surfaces.
 Unmarked user files are preserved and reported as conflicts; they are never
 silently overwritten.
+
+Every adapter materializes a native view of the same Baron-managed skills,
+quality agents, routing indexes, startup contract, and evidence rules. The
+native paths differ because the agent tools differ; the workflow and engine
+ownership do not. Reasonix reads its narrow indexes after
+`baron control-plane route` and must not recursively load the whole tree.
 
 ## Adapter Rule
 

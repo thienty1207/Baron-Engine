@@ -150,7 +150,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v4.2.1-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v4.2.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -162,13 +162,13 @@ Download one native archive and `SHA256SUMS` into the same directory.
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 4.2.1 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 4.2.2 -SourceDirectory D:\baron-release
 ```
 
 Linux or macOS:
 
 ```bash
-sh ./install.sh --version 4.2.1 --source-dir /path/to/baron-release
+sh ./install.sh --version 4.2.2 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -185,14 +185,14 @@ full workspace tests and Clippy, then builds and smokes every native target.
 The final promotion job assembles all four archives and runs:
 
 ```bash
-  baron release metadata release-assets --release-version 4.2.1 --source-revision <40-character-git-sha>
-  baron release verify release-assets --expected-version 4.2.1 --expected-source-revision <40-character-git-sha>
+  baron release metadata release-assets --release-version 4.2.2 --source-revision <40-character-git-sha>
+  baron release verify release-assets --expected-version 4.2.2 --expected-source-revision <40-character-git-sha>
 ```
 
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
 
-Before promoting a `v4.2.1` release, also run:
+Before promoting a `v4.2.2` release, also run:
 
 ```bash
 baron certify run <repo-path> --vault <vault-path> --profile release
@@ -210,8 +210,8 @@ version tag; GitHub Actions then starts the release workflow automatically:
 ```bash
 git push origin main
 git rev-parse HEAD
-git tag -a v4.2.1 <40-character-git-sha> -m "Baron 4.2.1"
-git push origin refs/tags/v4.2.1
+git tag -a v4.2.2 <40-character-git-sha> -m "Baron 4.2.2"
+git push origin refs/tags/v4.2.2
 ```
 
 The `Baron Release` workflow refuses an existing tag or Release, builds the
@@ -219,7 +219,7 @@ native archives from that exact SHA, verifies checksums and installer lifecycle,
 and then creates the immutable GitHub Release. Only the final promotion job has
 repository write permission. When the workflow finishes,
 `https://github.com/thienty1207/Baron-Engine/releases/latest` should point at
-`v4.2.1`.
+`v4.2.2`.
 
 Public smoke after the workflow:
 

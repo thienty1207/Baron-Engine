@@ -93,10 +93,15 @@ pub fn shadow_preview(adapter: AgentAdapter) -> ShadowPreview {
             adapter: "reasonix".to_string(),
             files: vec![
                 "REASONIX.md".to_string(),
+                ".reasonix/INDEX.md".to_string(),
                 ".reasonix/settings.json".to_string(),
             ],
-            directories: vec![".reasonix/commands".to_string()],
-            message: "Reasonix adapter would install shared-brain startup guidance and bounded Reasonix command assets.".to_string(),
+            directories: vec![
+                ".reasonix/commands".to_string(),
+                ".reasonix/skills".to_string(),
+                ".reasonix/agents".to_string(),
+            ],
+            message: "Reasonix adapter would install the shared Baron skill/agent core plus native commands, settings, and startup guidance.".to_string(),
         },
     }
 }

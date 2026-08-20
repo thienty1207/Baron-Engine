@@ -50,6 +50,15 @@ fn reasonix_init_and_switch_keep_one_project_and_vault_identity() {
     assert!(after.contains("active_adapter = \"reasonix\""));
     assert!(after.contains("reasonix"));
     assert!(repo.join("REASONIX.md").is_file());
+    assert!(repo.join(".reasonix/INDEX.md").is_file());
+    assert!(repo.join(".reasonix/skills/INDEX.md").is_file());
+    assert!(repo.join(".reasonix/agents/INDEX.md").is_file());
+    assert!(repo.join(".reasonix/skills/superpowers/SKILL.md").is_file());
+    assert!(repo.join(".reasonix/agents/code-reviewer.toml").is_file());
+    assert!(repo
+        .join(".reasonix/agents/security-auditor.toml")
+        .is_file());
+    assert!(repo.join(".reasonix/agents/test-engineer.toml").is_file());
     assert!(repo.join(".reasonix/settings.json").is_file());
 
     Command::cargo_bin("baron")
@@ -63,6 +72,73 @@ fn reasonix_init_and_switch_keep_one_project_and_vault_identity() {
         .stdout(predicate::str::contains(
             vault.to_string_lossy().to_string(),
         ));
+}
+
+#[test]
+fn every_adapter_round_trip_preserves_one_project_and_shared_vault() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "init",
+            repo.to_str().unwrap(),
+            "--codex",
+            "--vault",
+            vault.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let project_path = repo.join(".baron/project.toml");
+    let local_path = repo.join(".baron/local.toml");
+    let project_before = fs::read_to_string(&project_path).unwrap();
+    let project_id = project_before
+        .lines()
+        .find_map(|line| line.strip_prefix("project_id = \""))
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap()
+        .to_string();
+
+    for (adapter, stored_kind) in [
+        ("reasonix", "reasonix"),
+        ("claude", "claude"),
+        ("agent", "generic"),
+        ("codex", "codex"),
+    ] {
+        Command::cargo_bin("baron")
+            .unwrap()
+            .current_dir(&repo)
+            .args(["adapter", "switch", "--to", adapter])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Brain/history: shared"));
+
+        let config = fs::read_to_string(&project_path).unwrap();
+        assert!(
+            config.contains(&format!("project_id = \"{project_id}\"")),
+            "switching to {adapter} must retain the project identity"
+        );
+        assert!(
+            config.contains(&format!("active_adapter = \"{stored_kind}\"")),
+            "switching to {adapter} must update only the active adapter"
+        );
+        let local = fs::read_to_string(&local_path).unwrap();
+        assert!(
+            local.contains(&vault.to_string_lossy().to_string()),
+            "switching to {adapter} must retain the same Vault path"
+        );
+    }
+
+    assert!(repo.join(".reasonix/skills/superpowers/SKILL.md").is_file());
+    assert!(repo.join(".claude/skills/superpowers/SKILL.md").is_file());
+    assert!(repo
+        .join(".baron/core/skills/superpowers/SKILL.md")
+        .is_file());
+    assert!(repo.join(".codex/skills/superpowers/SKILL.md").is_file());
 }
 
 #[test]
@@ -112,6 +188,10 @@ fn root_adapter_shortcuts_switch_without_the_long_subcommand() {
     assert!(after_codex.contains("active_adapter = \"codex\""));
     assert!(after_codex.contains("project_id = \""));
     assert!(repo.join("REASONIX.md").is_file());
+    assert!(repo.join(".reasonix/skills/superpowers/SKILL.md").is_file());
+    assert!(repo
+        .join(".reasonix/agents/security-auditor.toml")
+        .is_file());
     assert!(repo.join(".reasonix/settings.json").is_file());
 }
 

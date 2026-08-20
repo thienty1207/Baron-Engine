@@ -1,6 +1,6 @@
 # Baron Build Status
 
-Last updated: 2026-08-19
+Last updated: 2026-08-20
 
 ## Overall
 
@@ -38,9 +38,10 @@ Last updated: 2026-08-19
 - Current work state: source version `4.2.1`, default guarded generation `4.2`,
   explicit whole-engine `4.1` rollback, and per-query `4.0` fallback are ready;
   public `releases/latest` resolves to `4.2.1`.
-- Current next action: normal `4.2.1` maintenance. The exact-source native
-  CI/release publication, fresh installer, checksum verification, and
-  Reasonix command-surface smoke are complete.
+- Current next action: normal `4.2.1` maintenance. The multi-agent core parity
+  correction is complete: Reasonix now receives the same Baron-managed skills,
+  agents, indexes, workflow, and evidence contract as Codex without changing
+  the shared engine or Vault.
 - Baron 4.2.1 patch track: four phases (`109-112`), all complete. Phase 112
   closed the immutable GitHub Release and handoff. The patch packages the
   already-implemented DeepSeek-Reasonix adapter and root shortcuts; it does
@@ -49,9 +50,12 @@ Last updated: 2026-08-19
   historical implementation record. Their source commits are now being
   packaged in the `4.2.1` patch so an installed binary actually exposes
   `baron --reasonix` and `baron init --reasonix`.
+- Reasonix/core parity track: five maintenance phases (`113-117`) are complete.
+  This corrected the adapter boundary; it did not create `4.3` or change Baron
+  intelligence, memory, fallback, project identity, or Vault.
 - Baron 4.2.1 candidate proof: `cargo fmt --all`, workspace check, workspace
   library tests (`40/40`), warnings-denied Clippy, locked release build,
-  release metadata/identity tests, focused Reasonix CLI tests (`5/5`), and
+  release metadata/identity tests, focused Reasonix CLI tests (`6/6`), and
   direct release-binary smoke passed. The local unsigned Windows release
   binary reports `baron 4.2.1`, exposes both Reasonix entry points, and has
   SHA-256 `97975CF1B0B0DDB07B92A7A7C7814D79B830E01577C2541E128A073D61204541`.
@@ -4658,6 +4662,68 @@ without remembering the diagnostic subcommand and path arguments.
 - [x] Keep `baron adapter status/switch` as the explicit diagnostics and
   scripting API; verify both shortcut directions and keep version `4.2.0`.
 
+## Baron Multi-Agent Core Parity Track (4.2.1 maintenance)
+
+This track repairs an adapter-boundary gap found after the Reasonix packaging
+patch. Baron core, Vault, memory, Wiki, CodeGraph, proof, trace, and continuity
+remain shared. The fix makes every adapter materialize the same embedded
+`assets/core` skills and agents while preserving native bridge paths and user
+files.
+
+### Phase 113 - Shared core inventory contract
+
+Status: `complete`; the source-of-truth and payload rule are centralized around
+`assets/core`.
+
+- [x] Centralize the shared skill/agent inventory for adapter payloads.
+- [x] Keep native bridge and hook formats adapter-specific without creating a
+  second engine or asset owner.
+
+### Phase 114 - Full Reasonix core materialization
+
+Status: `complete`; Reasonix now materializes the complete Baron-managed
+skill/agent views and indexes.
+
+- [x] Install `.reasonix/INDEX.md`, `.reasonix/skills/**`, and
+  `.reasonix/agents/**` from the embedded Baron core.
+- [x] Route Reasonix startup/context/status through the same workflow, quality
+  gates, routing, proof, trace, continuity, and autopilot contract as Codex.
+- [x] Preserve existing Reasonix bridge, settings, hooks, and user files.
+
+### Phase 115 - Safe reconciliation and switching
+
+Status: `complete`; managed-baseline and adapter-switch proof passed after core
+materialization.
+
+- [x] Add the Reasonix core view to managed payloads and update reconciliation.
+- [x] Restore missing managed assets, but preserve changed/unmarked assets and
+  report conflicts.
+- [x] Keep Codex, Claude, generic, and Reasonix files available with one
+  project ID and one Vault.
+
+### Phase 116 - Parity and regression proof
+
+Status: `complete`; content, routing, switch, preservation, and regression
+gates passed; parity was not accepted from file presence alone.
+
+- [x] Prove Codex and Reasonix have identical embedded skill/agent inventories,
+  indexes, and mandatory quality-agent contracts.
+- [x] Prove Codex -> Reasonix -> Claude -> Generic -> Codex switching preserves
+  custom files, project identity, and shared history.
+- [x] Run existing adapter, core, CLI, memory, fallback, and release suites.
+  Four Windows environment-only gates remain blocked by PowerShell archive
+  autoload or WDAC policy; no parity-related gate failed.
+
+### Phase 117 - Durable documentation and handoff
+
+Status: `complete`; exact command evidence is recorded in the plan and build
+log.
+
+- [x] Update README, adapter architecture, status JSON, and build log.
+- [x] Mark every finished task `[x]` and record the exact proof.
+- [x] Keep source/public version `4.2.1`; no GitHub publication or release
+  promotion is implied by this local implementation request.
+
 ## Baron 3.8 Final Evidence
 
 - Phase 53-56: bounded Resume Brief, layered memory classification, redacted
@@ -4713,6 +4779,10 @@ Phase 25-26 final verification:
 - Memory model: `docs/architecture/MEMORY_MODEL.md`
 - Context compiler: `docs/architecture/CONTEXT_COMPILER.md`
 - Adapter model: `docs/architecture/ADAPTERS.md`
+- Multi-agent core parity design:
+  `docs/superpowers/specs/2026-08-20-multi-agent-core-parity-design.md`
+- Multi-agent core parity plan:
+  `docs/superpowers/plans/2026-08-20-multi-agent-core-parity.md`
 - Capability registry: `docs/architecture/CAPABILITY_REGISTRY.md`
 - Phase 4-5 design: `docs/superpowers/specs/2026-06-14-agent-adapters-execution-engine-design.md`
 - Phase 6-8 roadmap decision log: `notes/build-log/2026-06-15-phase-6-8-roadmap.md`

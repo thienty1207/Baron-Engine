@@ -6,12 +6,12 @@ Reasonix, and other agent tools while keeping the normal user flow small. All
 adapters use the same Baron brain: one project identity, Vault, memory, and
 session history.
 
-Current source version: `4.2.1`.
-Current public release: [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1).
+Current source version: `4.2.2`.
+Current public release: [`v4.2.2`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2).
 
 > **Download check:** install only from
 > [`releases/latest`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-> and confirm that `baron --version` prints `baron 4.2.1`. If it prints an older
+> and confirm that `baron --version` prints `baron 4.2.2`. If it prints an older
 > version, stop and refresh the
 > [Releases page](https://github.com/thienty1207/Baron-Engine/releases).
 
@@ -107,17 +107,16 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
 baron --version
 ```
 
-The expected output is `baron 4.2.1`. The installers verify SHA-256 checksums
+The expected output is `baron 4.2.2`. The installers verify SHA-256 checksums
 and the staged binary version before replacing an existing Baron executable.
 
-The verified public release is [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1),
-source/tag commit `2cfe7614b42331584f27987982635507fe788054`. Its native CI and
-release gates passed on Windows x64, Linux x64, Intel macOS, and Apple Silicon;
-the immutable Release includes the archives, raw update candidates, both
-installers, `release-manifest.json`, and `SHA256SUMS`. Baron 4.1 remains the
-whole-engine rollback path and Baron 4.0 remains the explicit safe fallback.
-The passing verification records are [CI run 32224005767](https://github.com/thienty1207/Baron-Engine/actions/runs/32224005767)
-and [release run 32224022284](https://github.com/thienty1207/Baron-Engine/actions/runs/32224022284).
+The verified public release is [`v4.2.2`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2).
+Its native CI and release gates pass on Windows x64, Linux x64, Intel macOS,
+and Apple Silicon; the immutable Release includes the archives, raw update
+candidates, both installers, `release-manifest.json`, and `SHA256SUMS`. Baron
+4.1 remains the whole-engine rollback path and Baron 4.0 remains the explicit
+safe fallback. The exact source commit and workflow evidence are recorded in
+the current [build status](docs/BARON_STATUS.md).
 
 ### 2. Set the Vault
 
@@ -153,7 +152,7 @@ Supported focus flags include `--frontend`, `--backend`, `--fullstack`,
 
 ### Switch between agent tools without splitting memory
 
-Reasonix is a maintenance adapter on the 4.2 engine, packaged in the 4.2.1
+Reasonix is a maintenance adapter on the 4.2 engine, packaged in the 4.2.2
 release. It changes the agent
 surface only: the project ID, Vault, memory, session history, Wiki, and
 CodeGraph stay shared with Codex and Claude. Register another adapter once.
@@ -175,11 +174,20 @@ baron adapter status
 baron adapter switch --to reasonix --dry-run
 ```
 
+Reasonix receives the same Baron-managed core as Codex: the complete embedded
+skill tree, the three mandatory quality agents plus optional agent contracts,
+and their routing indexes are materialized under `.reasonix/skills` and
+`.reasonix/agents`. Only the bridge files and hook format are Reasonix-specific;
+the engine, project ID, Vault, memory, session history, Wiki, CodeGraph, plan,
+proof, trace, and continuity state remain shared.
+
 Reasonix installation is preserve-first. Existing unmarked `REASONIX.md`,
-`.reasonix/settings.json`, and command files are never silently overwritten;
-Baron reports preserved paths and conflicts for review. The intelligence engine
-remains the Baron 4.2 engine; this patch release does not create a `v4.3`
-release or change the memory engine.
+`.reasonix/INDEX.md`, skill/agent files, settings, and command files are never
+silently overwritten; Baron reports preserved paths and conflicts for review.
+Missing Baron-managed core assets can be restored by `baron --reasonix` or the
+normal Baron local-reconciliation flow. The intelligence engine remains the Baron 4.2
+engine; this maintenance correction is published as `4.2.2` and does not create
+a `v4.3` release or change the memory engine.
 
 ### 4. Update later
 
@@ -218,7 +226,7 @@ Before reinstalling Windows, copy these two things somewhere safe:
 After Windows is installed again, restore those folders and run:
 
 1. the Windows install block above and confirm `baron --version` prints
-   `baron 4.2.1`;
+  `baron 4.2.2`;
 2. `baron setup --vault "D:\work\AgentMemory"`;
 3. `baron update` inside each restored Baron project.
 
@@ -273,7 +281,7 @@ proof gates, trace output, and adapter flows.
 
 The historical [Baron 3 public certification](docs/assessment/baron-3-public-certification.md)
 and prior release records remain available for audit; they do not change the
-current `v4.2.1` install target.
+current `v4.2.2` install target.
 
 ## Source of truth and safety
 

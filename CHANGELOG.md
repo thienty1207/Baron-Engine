@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.2.2 - 2026-08-20
+
+Baron 4.2.2 publishes the completed multi-agent core parity correction:
+
+- DeepSeek Reasonix now materializes the same embedded Baron skill and agent
+  core as Codex, with native Reasonix commands/settings/hooks kept separate;
+- Codex, Reasonix, Claude, and generic adapters share one project ID, Vault,
+  memory, Wiki, CodeGraph, plan, proof, trace, continuity, and session history;
+- missing Baron assets are reconciled safely while changed and custom user files
+  remain preserved and conflicts are reported;
+- cross-adapter round-trip, preservation, parity, README, and release tests are
+  included in the public patch release.
+
 ## 4.2.1 - 2026-08-19
 
 Baron 4.2.1 is the adapter-packaging patch release. It contains the

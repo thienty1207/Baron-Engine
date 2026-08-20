@@ -187,6 +187,24 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
             ),
             payload(
                 &adapter_name,
+                ".reasonix/INDEX.md",
+                ManagedMergeKind::FullText,
+                &reasonix_index(),
+            ),
+            payload(
+                &adapter_name,
+                ".reasonix/skills/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&skills_index(".reasonix/skills")),
+            ),
+            payload(
+                &adapter_name,
+                ".reasonix/agents/INDEX.md",
+                ManagedMergeKind::RoutingBlock,
+                &routing_block(&agents_index()),
+            ),
+            payload(
+                &adapter_name,
                 ".reasonix/commands/baron-context.md",
                 ManagedMergeKind::FullText,
                 &reasonix_context_command(),
@@ -246,7 +264,20 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
                 &mut payloads,
             )?;
         }
-        AgentAdapter::Reasonix => {}
+        AgentAdapter::Reasonix => {
+            collect_embedded_asset_payloads(
+                "skills",
+                Path::new(".reasonix/skills"),
+                &adapter_name,
+                &mut payloads,
+            )?;
+            collect_embedded_asset_payloads(
+                "agents",
+                Path::new(".reasonix/agents"),
+                &adapter_name,
+                &mut payloads,
+            )?;
+        }
     }
 
     Ok(payloads)
@@ -366,11 +397,11 @@ fn generic_context_json() -> Result<String> {
 }
 
 fn reasonix_context_command() -> String {
-    "# Baron Context\n\nRun `baron capability check --adapter reasonix`, `baron runtime check --adapter reasonix`, `baron autopilot status`, and then `baron context --reasonix`. Use the shared Baron Vault for durable memory; Reasonix-local state is only an adapter surface. For architecture, dependency, impact, entrypoint, ownership, call-flow, refactor, or cross-module work, run task context first and verify selected source files before treating graph hints as proof.\n".to_string()
+    "# Baron Context\n\nRun `baron capability check --adapter reasonix`, `baron runtime check --adapter reasonix`, `baron autopilot status`, and then `baron context --reasonix`. Use the shared Baron Vault for durable memory; Reasonix-local state is only an adapter surface. Read `.reasonix/INDEX.md`, then use `baron control-plane route \"<task>\"` and read only the selected entries from `.reasonix/skills/INDEX.md` and `.reasonix/agents/INDEX.md`; do not recursively load the full tree. For architecture, dependency, impact, entrypoint, ownership, call-flow, refactor, or cross-module work, run task context first and verify selected source files before treating graph hints as proof.\n".to_string()
 }
 
 fn reasonix_status_command() -> String {
-    "# Baron Status\n\nRun `baron adapter status`, `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score. Switch adapters with `baron adapter switch --to <codex|claude|agent|reasonix>`; the project ID, Vault, memory, and history remain shared.\n".to_string()
+    "# Baron Status\n\nRun `baron adapter status`, `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score. The Reasonix skill and agent views under `.reasonix/skills` and `.reasonix/agents` are materialized from the same embedded Baron core as Codex; route them narrowly instead of loading everything. Switch adapters with `baron adapter switch --to <codex|claude|agent|reasonix>`; the project ID, Vault, memory, and history remain shared.\n".to_string()
 }
 
 fn reasonix_hooks_document() -> Result<String> {
@@ -591,6 +622,31 @@ fn install_reasonix(repo: &Path) -> Result<InstallReport> {
         &mut conflicts,
     )?;
     install_reasonix_file(
+        &repo.join(".reasonix/INDEX.md"),
+        &reasonix_index(),
+        &mut preserved_paths,
+        &mut conflicts,
+    )?;
+    install_reasonix_routing_file(
+        &repo.join(".reasonix/skills/INDEX.md"),
+        &skills_index(".reasonix/skills"),
+    )?;
+    install_reasonix_routing_file(&repo.join(".reasonix/agents/INDEX.md"), &agents_index())?;
+    write_asset_subtree_preserving(
+        "skills",
+        &repo.join(".reasonix/skills"),
+        repo,
+        &mut preserved_paths,
+        &mut conflicts,
+    )?;
+    write_asset_subtree_preserving(
+        "agents",
+        &repo.join(".reasonix/agents"),
+        repo,
+        &mut preserved_paths,
+        &mut conflicts,
+    )?;
+    install_reasonix_file(
         &repo.join(".reasonix/commands/baron-context.md"),
         &reasonix_context_command(),
         &mut preserved_paths,
@@ -612,6 +668,9 @@ fn install_reasonix(repo: &Path) -> Result<InstallReport> {
         "reasonix",
         &[
             "REASONIX.md",
+            ".reasonix/INDEX.md",
+            ".reasonix/skills/INDEX.md",
+            ".reasonix/agents/INDEX.md",
             ".reasonix/commands/baron-context.md",
             ".reasonix/commands/baron-status.md",
             ".reasonix/settings.json",
@@ -619,6 +678,84 @@ fn install_reasonix(repo: &Path) -> Result<InstallReport> {
         preserved_paths,
         conflicts,
     ))
+}
+
+fn install_reasonix_routing_file(path: &Path, content: &str) -> Result<()> {
+    upsert_routing_block(
+        path,
+        content,
+        "## Custom Reasonix Routing",
+        "Register project-specific Reasonix routing below without replacing Baron core gates.",
+    )
+}
+
+fn write_asset_subtree_preserving(
+    source: &str,
+    destination: &Path,
+    repo_root: &Path,
+    preserved_paths: &mut Vec<String>,
+    conflicts: &mut Vec<String>,
+) -> Result<()> {
+    let directory = CORE_ASSETS
+        .get_dir(source)
+        .with_context(|| format!("Embedded Baron asset directory missing: {source}"))?;
+    write_directory_preserving(
+        directory,
+        destination,
+        repo_root,
+        preserved_paths,
+        conflicts,
+    )
+}
+
+fn write_directory_preserving(
+    directory: &Dir<'_>,
+    destination: &Path,
+    repo_root: &Path,
+    preserved_paths: &mut Vec<String>,
+    conflicts: &mut Vec<String>,
+) -> Result<()> {
+    fs::create_dir_all(destination)?;
+    for file in directory.files() {
+        let relative = file
+            .path()
+            .strip_prefix(directory.path())
+            .unwrap_or(file.path());
+        let path = destination.join(relative);
+        if path.exists() {
+            let unchanged = path.is_file() && fs::read(&path)? == file.contents();
+            if !unchanged {
+                let relative = path
+                    .strip_prefix(repo_root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                preserved_paths.push(relative.clone());
+                conflicts.push(relative);
+            }
+        } else {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&path, file.contents())
+                .with_context(|| format!("Could not write {}", path.display()))?;
+            apply_embedded_mode(&path, file.contents())?;
+        }
+    }
+    for child in directory.dirs() {
+        let relative = child
+            .path()
+            .strip_prefix(directory.path())
+            .unwrap_or(child.path());
+        write_directory_preserving(
+            child,
+            &destination.join(relative),
+            repo_root,
+            preserved_paths,
+            conflicts,
+        )?;
+    }
+    Ok(())
 }
 
 fn install_reasonix_contract(
@@ -796,6 +933,10 @@ fn codex_index() -> String {
     "# Baron Codex Workspace\n\n\
 Start with root `AGENTS.md`. Read `.codex/skills/INDEX.md` and `.codex/agents/INDEX.md` for narrow routing. Superpowers is the workflow core; domain skills and quality agents are routed only when relevant.\n"
         .to_string()
+}
+
+fn reasonix_index() -> String {
+    "# Baron Reasonix Workspace\n\nStart with `REASONIX.md`. Read `.reasonix/skills/INDEX.md` and `.reasonix/agents/INDEX.md` only after `baron control-plane route \"<task>\"` selects a relevant capability. Reasonix is an adapter over the shared Baron core: use the same project ID, Vault, memory, Wiki, CodeGraph, plan, proof, trace, continuity, and autopilot state as every other adapter.\n".to_string()
 }
 
 fn skills_index(root: &str) -> String {

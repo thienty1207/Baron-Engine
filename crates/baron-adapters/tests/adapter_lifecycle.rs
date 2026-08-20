@@ -1,7 +1,10 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use baron_adapters::{install_adapter, AgentAdapter};
+use baron_adapters::{
+    install_adapter, managed_payloads_for_adapter, reconcile_installed_managed_assets, AgentAdapter,
+};
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
@@ -29,7 +32,7 @@ fn collect_text_files(root: &Path, files: &mut Vec<PathBuf>) {
 }
 
 #[test]
-fn reasonix_adapter_installs_shared_brain_assets_without_engine_assets() {
+fn reasonix_adapter_installs_the_complete_shared_core() {
     let temp = tempdir().unwrap();
     let repo = temp.path();
 
@@ -39,6 +42,24 @@ fn reasonix_adapter_installs_shared_brain_assets_without_engine_assets() {
     assert!(report.conflicts.is_empty());
     assert!(repo.join("REASONIX.md").is_file());
     assert!(repo.join("REASONIX.md").exists());
+    assert!(repo.join(".reasonix/INDEX.md").is_file());
+    assert!(repo.join(".reasonix/skills/INDEX.md").is_file());
+    assert!(repo.join(".reasonix/agents/INDEX.md").is_file());
+    assert!(repo.join(".reasonix/skills/superpowers/SKILL.md").is_file());
+    assert!(repo
+        .join(".reasonix/skills/frontend-design/SKILL.md")
+        .is_file());
+    assert!(repo
+        .join(".reasonix/skills/vibe-security-scan/SKILL.md")
+        .is_file());
+    for agent in [
+        "code-reviewer.toml",
+        "security-auditor.toml",
+        "test-engineer.toml",
+        "web-performance-auditor.toml",
+    ] {
+        assert!(repo.join(".reasonix/agents").join(agent).is_file());
+    }
     assert!(repo.join(".reasonix/commands/baron-context.md").is_file());
     assert!(repo.join(".reasonix/commands/baron-status.md").is_file());
     assert!(repo.join(".reasonix/settings.json").is_file());
@@ -47,6 +68,8 @@ fn reasonix_adapter_installs_shared_brain_assets_without_engine_assets() {
         .contains("BARON:MANAGED:START"));
     let context = fs::read_to_string(repo.join(".reasonix/commands/baron-context.md")).unwrap();
     assert!(context.contains("baron context --reasonix"));
+    assert!(context.contains(".reasonix/skills/INDEX.md"));
+    assert!(context.contains(".reasonix/agents/INDEX.md"));
     let settings: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(repo.join(".reasonix/settings.json")).unwrap())
             .unwrap();
@@ -55,6 +78,87 @@ fn reasonix_adapter_installs_shared_brain_assets_without_engine_assets() {
         .as_str()
         .unwrap()
         .contains("--adapter reasonix"));
+}
+
+#[test]
+fn codex_and_reasonix_have_identical_embedded_core_inventory() {
+    fn core_inventory(adapter: AgentAdapter, prefix: &str) -> BTreeMap<String, String> {
+        managed_payloads_for_adapter(adapter)
+            .unwrap()
+            .into_iter()
+            .filter_map(|payload| {
+                let relative = payload.relative_path.to_string_lossy().replace('\\', "/");
+                let suffix = relative.strip_prefix(prefix)?;
+                Some((suffix.to_string(), payload.content))
+            })
+            .collect()
+    }
+
+    let codex = core_inventory(AgentAdapter::Codex, ".codex/");
+    let reasonix = core_inventory(AgentAdapter::Reasonix, ".reasonix/");
+    let codex_assets = codex
+        .into_iter()
+        .filter(|(path, _)| {
+            (path.starts_with("skills/") || path.starts_with("agents/"))
+                && !path.ends_with("INDEX.md")
+        })
+        .collect::<BTreeMap<_, _>>();
+    let reasonix_assets = reasonix
+        .into_iter()
+        .filter(|(path, _)| {
+            (path.starts_with("skills/") || path.starts_with("agents/"))
+                && !path.ends_with("INDEX.md")
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    assert_eq!(reasonix_assets, codex_assets);
+}
+
+#[test]
+fn reasonix_install_preserves_changed_core_assets_and_reports_conflicts() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    write(
+        repo.join(".reasonix/skills/superpowers/SKILL.md").as_path(),
+        "# User-owned Reasonix skill\n",
+    );
+    let before = fs::read_to_string(repo.join(".reasonix/skills/superpowers/SKILL.md")).unwrap();
+
+    let report = install_adapter(repo, AgentAdapter::Reasonix).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(repo.join(".reasonix/skills/superpowers/SKILL.md")).unwrap(),
+        before
+    );
+    assert!(report
+        .conflicts
+        .iter()
+        .any(|path| path.ends_with(".reasonix/skills/superpowers/SKILL.md")));
+    assert!(repo
+        .join(".reasonix/skills/frontend-design/SKILL.md")
+        .is_file());
+}
+
+#[test]
+fn reasonix_reconcile_restores_a_missing_shared_core_asset() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_adapter(repo, AgentAdapter::Reasonix).unwrap();
+    let missing = repo.join(".reasonix/agents/security-auditor.toml");
+    fs::remove_file(&missing).unwrap();
+
+    let report = reconcile_installed_managed_assets(
+        repo,
+        &managed_payloads_for_adapter(AgentAdapter::Reasonix).unwrap(),
+        env!("CARGO_PKG_VERSION"),
+    )
+    .unwrap();
+
+    assert!(report
+        .applied_paths
+        .iter()
+        .any(|path| path.ends_with(".reasonix/agents/security-auditor.toml")));
+    assert!(missing.is_file());
 }
 
 #[test]
@@ -181,6 +285,7 @@ fn assets_core_is_the_only_bundled_runtime_source() {
         AgentAdapter::Codex,
         AgentAdapter::Claude,
         AgentAdapter::Generic,
+        AgentAdapter::Reasonix,
     ] {
         install_adapter(repo, adapter).unwrap();
     }
@@ -188,6 +293,7 @@ fn assets_core_is_the_only_bundled_runtime_source() {
         repo.join(".codex"),
         repo.join(".claude"),
         repo.join(".baron/core"),
+        repo.join(".reasonix"),
     ] {
         assert!(root.join("skills/superpowers/SKILL.md").is_file());
         assert!(
@@ -316,6 +422,7 @@ fn frontend_design_is_local_deep_and_has_one_routing_owner() {
         AgentAdapter::Codex,
         AgentAdapter::Claude,
         AgentAdapter::Generic,
+        AgentAdapter::Reasonix,
     ] {
         install_adapter(repo, adapter).unwrap();
     }
@@ -324,6 +431,7 @@ fn frontend_design_is_local_deep_and_has_one_routing_owner() {
         repo.join(".codex/skills"),
         repo.join(".claude/skills"),
         repo.join(".baron/core/skills"),
+        repo.join(".reasonix/skills"),
     ] {
         let frontend = root.join("frontend-design");
         let operational_paths = [
@@ -374,6 +482,7 @@ fn api_interface_design_has_local_deep_module_guidance_without_duplicate_skills(
         AgentAdapter::Codex,
         AgentAdapter::Claude,
         AgentAdapter::Generic,
+        AgentAdapter::Reasonix,
     ] {
         install_adapter(repo, adapter).unwrap();
     }
@@ -382,6 +491,7 @@ fn api_interface_design_has_local_deep_module_guidance_without_duplicate_skills(
         repo.join(".codex/skills"),
         repo.join(".claude/skills"),
         repo.join(".baron/core/skills"),
+        repo.join(".reasonix/skills"),
     ] {
         let skill = root.join("api-and-interface-design");
         let operational_paths = [
@@ -454,10 +564,12 @@ fn superpowers_core_is_pinned_to_v6_2_and_installs_the_complete_workflow() {
     install_adapter(repo, AgentAdapter::Codex).unwrap();
     install_adapter(repo, AgentAdapter::Claude).unwrap();
     install_adapter(repo, AgentAdapter::Generic).unwrap();
+    install_adapter(repo, AgentAdapter::Reasonix).unwrap();
     for root in [
         repo.join(".codex/skills/superpowers"),
         repo.join(".claude/skills/superpowers"),
         repo.join(".baron/core/skills/superpowers"),
+        repo.join(".reasonix/skills/superpowers"),
     ] {
         let provenance: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(root.join("UPSTREAM.json")).unwrap()).unwrap();
@@ -998,11 +1110,13 @@ fn every_adapter_automatically_refreshes_capabilities_without_claiming_execution
     install_adapter(&repo, AgentAdapter::Codex).unwrap();
     install_adapter(&repo, AgentAdapter::Claude).unwrap();
     install_adapter(&repo, AgentAdapter::Generic).unwrap();
+    install_adapter(&repo, AgentAdapter::Reasonix).unwrap();
 
     for (path, adapter) in [
         ("AGENTS.md", "codex"),
         ("CLAUDE.md", "claude"),
         ("AGENT.md", "agent"),
+        ("REASONIX.md", "reasonix"),
     ] {
         let content = fs::read_to_string(repo.join(path)).unwrap();
         assert!(
@@ -1057,8 +1171,9 @@ fn every_adapter_enforces_intent_clarity_and_actionable_recovery() {
     install_adapter(&repo, AgentAdapter::Codex).unwrap();
     install_adapter(&repo, AgentAdapter::Claude).unwrap();
     install_adapter(&repo, AgentAdapter::Generic).unwrap();
+    install_adapter(&repo, AgentAdapter::Reasonix).unwrap();
 
-    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md", "REASONIX.md"] {
         let content = fs::read_to_string(repo.join(path)).unwrap();
         assert!(
             content.contains(
@@ -1093,11 +1208,12 @@ fn every_adapter_automates_platform_architecture_and_review_closure() {
         AgentAdapter::Codex,
         AgentAdapter::Claude,
         AgentAdapter::Generic,
+        AgentAdapter::Reasonix,
     ] {
         install_adapter(&repo, adapter).unwrap();
     }
 
-    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md", "REASONIX.md"] {
         let content = fs::read_to_string(repo.join(path)).unwrap();
         assert!(
             content.contains("docs/baron/platform/PROJECT_PROFILE.md"),
@@ -1128,11 +1244,12 @@ fn every_adapter_classifies_request_authority_before_durable_writes() {
         AgentAdapter::Codex,
         AgentAdapter::Claude,
         AgentAdapter::Generic,
+        AgentAdapter::Reasonix,
     ] {
         install_adapter(&repo, adapter).unwrap();
     }
 
-    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md", "REASONIX.md"] {
         let content = fs::read_to_string(repo.join(path)).unwrap();
         assert!(
             content.contains("baron authority classify"),
@@ -1172,8 +1289,9 @@ fn generated_indexes_define_strict_contract_fields_and_control_plane_startup() {
     install_adapter(&repo, AgentAdapter::Codex).unwrap();
     install_adapter(&repo, AgentAdapter::Claude).unwrap();
     install_adapter(&repo, AgentAdapter::Generic).unwrap();
+    install_adapter(&repo, AgentAdapter::Reasonix).unwrap();
 
-    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md"] {
+    for path in ["AGENTS.md", "CLAUDE.md", "AGENT.md", "REASONIX.md"] {
         let content = fs::read_to_string(repo.join(path)).unwrap();
         assert!(
             content.contains("baron control-plane route"),
@@ -1192,6 +1310,8 @@ fn generated_indexes_define_strict_contract_fields_and_control_plane_startup() {
         ".codex/agents/INDEX.md",
         ".claude/agents/INDEX.md",
         ".baron/core/agents/INDEX.md",
+        ".reasonix/skills/INDEX.md",
+        ".reasonix/agents/INDEX.md",
     ] {
         let content = fs::read_to_string(repo.join(path)).unwrap();
         for required in ["Ownership", "Trigger", "Exclusion", "Evidence", "Conflicts"] {

@@ -703,3 +703,86 @@ outside its write set.
   workflow skills.
 - Baron 3.6 may use Graphify only as a local optional code map; it cannot own
   hooks, instructions, Vault memory, global context, or workflow state.
+
+## Multi-Agent Core Parity Checkpoint (2026-08-20)
+
+- User approval: explicit instruction to implement the original Baron contract:
+  one shared core for Codex, Claude, Reasonix, and generic agents.
+- Finding: `assets/core/` is embedded as the source of truth, but
+  `managed_payloads_for_adapter` and `install_reasonix` currently install only
+  Reasonix bridge/command/settings files; Codex receives the complete embedded
+  skills and agents. The existing test name
+  `reasonix_adapter_installs_shared_brain_assets_without_engine_assets` records
+  the incomplete behavior.
+- Proof status: baseline source is clean before this track; no parity
+  implementation proof exists yet.
+- Trace status: no completion trace for this track exists yet.
+- Affected files planned: `crates/baron-adapters/src/install.rs`, adapter
+  lifecycle tests, adapter architecture/README, status Markdown/JSON, and the
+  new parity design/plan.
+- Safe next action: implement Phase 113-115 with the existing managed-baseline
+  and preservation boundaries, then add RED/GREEN parity tests in Phase 116.
+- Retry condition: if a write or test fails, preserve the exact failing output,
+  affected paths, and next safe repair here before continuing.
+
+## Multi-Agent Core Parity Completion Checkpoint (2026-08-20)
+
+- Phase status: Phases 113-117 completed and every task is marked `[x]` in the
+  active plan and `docs/BARON_STATUS.md`.
+- Implementation: `managed_payloads_for_adapter` now gives Reasonix the same
+  embedded `assets/core` skill/agent inventory as Codex. Reasonix installs
+  `.reasonix/INDEX.md`, skill/agent indexes, the complete skill tree, and the
+  complete agent tree while retaining its native commands/settings/hooks bridge.
+- Preservation: initial Reasonix materialization writes only missing or byte-
+  identical core assets. Changed/unmarked core files are preserved and listed
+  as conflicts; routing files keep custom text through Baron routing markers.
+- Proof status: the full adapter target set passed (3 unit, 30 lifecycle, 15
+  planner, and 1 transaction test), Reasonix CLI 6/6 including the full
+  Codex -> Reasonix -> Claude -> Generic -> Codex round trip, public docs 9/9,
+  Clippy warnings-denied, locked release build, release `baron 4.2.1` smoke,
+  and an isolated Codex -> Reasonix core materialization smoke all passed.
+- Full workspace note: all relevant engine, memory, adapter, CLI, fallback,
+  and release tests passed. Four pre-existing Windows environment gates could
+  not execute: two PowerShell archive tests lack `Microsoft.PowerShell.Archive`,
+  one update-recovery candidate executable was blocked by WDAC, and one
+  `work_shape` test executable was blocked by WDAC. No parity-related test
+  failed; these gates remain explicitly environment-only.
+- Trace status: implementation trace is complete for the local maintenance
+  track; no GitHub publication or version bump was authorized or performed.
+- Safe next action: normal `4.2.1` maintenance. Future releases must preserve
+  the shared core contract and rerun the parity/preservation suite.
+
+## Multi-Agent Core Parity Handoff Checkpoint (2026-08-20)
+
+- Current task: hand off the completed shared-core correction for Codex,
+  Claude, Reasonix, and generic adapters.
+- Last checkpoint: the final CLI regression now covers the complete
+  Codex -> Reasonix -> Claude -> Generic -> Codex round trip; the generic CLI
+  spelling `agent` correctly persists as the internal `generic` adapter kind.
+- Proof status: latest `cargo fmt --all -- --check`, public-trust docs 9/9,
+  warnings-denied Clippy, and Reasonix adapter CLI 6/6 passed. The isolated
+  release smoke remains `baron 4.2.1` with the complete Reasonix core view.
+- Trace status: complete for this local maintenance track. No source release,
+  global install, GitHub push, or tag was performed.
+- Resume point: future work starts in normal `4.2.1` maintenance; rerun the
+  parity/preservation suite before changing any adapter payload boundary.
+
+## Baron 4.2.2 Release Checkpoint (2026-08-20)
+
+- User approval: publish the completed multi-agent core parity correction as
+  Baron `4.2.2` on GitHub.
+- Current task: bump release identity and current public metadata, run the
+  release gates, then push `origin/main` and tag `v4.2.2`.
+- Last successful step: Reasonix parity implementation and the complete
+  four-adapter round-trip test passed on the `4.2.2` source line.
+- Proof status: Phase 118 and 119 local proof passed: adapter target set,
+  Reasonix CLI 6/6, public docs 9/9, format, Clippy, locked release build,
+  release metadata fixture, and isolated `baron 4.2.2` parity smoke. The full
+  workspace sweep passed all engine, memory, adapter, CLI, fallback, and
+  release tests; two installer lifecycle tests remain blocked only because
+  this Windows PowerShell cannot load `Microsoft.PowerShell.Archive`.
+- Trace status: release trace pending; no source, project, or Vault data may
+  be rewritten outside the intended release files.
+- Safe next action: inspect the complete release diff, commit only the intended
+  `4.2.2` files, push `origin/main`, and publish/tag `v4.2.2` only after the
+  staged scope is confirmed.

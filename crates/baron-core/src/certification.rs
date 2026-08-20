@@ -17,7 +17,7 @@ use crate::{
     capability::{default_adapter, runtime_backend_report},
 };
 
-const TARGET_RELEASE: &str = "4.2.1";
+const TARGET_RELEASE: &str = "4.2.2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
