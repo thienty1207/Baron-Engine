@@ -4,21 +4,24 @@ Last updated: 2026-08-20
 
 ## Current Focus
 
-- Active phase: Baron multi-agent core parity (Reasonix/Codex/Claude/generic)
+- Active phase: normal Baron 4.2.2 maintenance after public patch release
 - Status: `completed`
 - Design: `docs/superpowers/specs/2026-08-20-multi-agent-core-parity-design.md`
 - Plan: `docs/superpowers/plans/2026-08-20-multi-agent-core-parity.md`
-- Next action: normal `4.2.1` maintenance; preserve the shared core contract
+- Next action: normal `4.2.2` maintenance; preserve the shared core contract
   and rerun the cross-adapter parity/preservation suite for future changes.
 
 ## Current Release Track
 
 - Active phase: Baron 4.2.2 public patch release
-- Status: `in_progress`
+- Status: `completed`
 - Design: `docs/superpowers/specs/2026-08-20-baron-4-2-2-release-design.md`
 - Plan: `docs/superpowers/plans/2026-08-20-baron-4-2-2-release.md`
-- Next action: bump current release metadata, run release gates, then publish
-  the exact source commit and tag `v4.2.2`.
+- Next action: normal `4.2.2` maintenance; no release phase remains open.
+
+- Final commit: `80f4daa13e15b2aafb53bbefe0f54454130fcaba`.
+- Final tag: `v4.2.2`; CI run `32347122499` and Release run `32347138548`
+  passed; `releases/latest` resolves to `v4.2.2` with 12 assets.
 
 - Previous completed phase: Baron 3.6 final public release
 - Previous status: `completed`

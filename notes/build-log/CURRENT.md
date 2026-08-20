@@ -786,3 +786,29 @@ outside its write set.
 - Safe next action: inspect the complete release diff, commit only the intended
   `4.2.2` files, push `origin/main`, and publish/tag `v4.2.2` only after the
   staged scope is confirmed.
+
+## Baron 4.2.2 Public Release Completion Checkpoint (2026-08-20)
+
+- Current task: close the authorized Baron 4.2.2 publication and leave a
+  reproducible install target for a future Windows reinstall.
+- Release source: commit
+  `80f4daa13e15b2aafb53bbefe0f54454130fcaba` is pushed to both
+  `origin/main` and `origin/agent/baron-4-0`; annotated tag `v4.2.2` points to
+  the same source.
+- Remote proof: Baron CI run
+  `32347122499` passed format/Clippy and all four native test jobs. Baron
+  Release run `32347138548` passed exact-source verification, the Windows,
+  Linux, Intel macOS, and Apple Silicon matrix, release metadata/checksums,
+  installer lifecycle, and immutable promotion.
+- Public proof: Release
+  `https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2` is not a
+  draft or prerelease, contains 12 assets, and `releases/latest` resolves to
+  `v4.2.2`. The Windows raw candidate SHA-256 is
+  `D26B0B7DF1708DC1669E7DAD215002A37929755E804AFE766B818B11A36E5A49`; the
+  Windows archive SHA-256 is
+  `B298E7007CC060C5AAD1B0B11AB4C618C461ABAC8473B81A5A1EE38029D55A4B`.
+- Version proof: hosted release assets and the local locked release binary
+  report `baron 4.2.2`. README, status Markdown/JSON, active plan, and this
+  build log now agree; Phases 118, 119, and 120 are all complete and checked.
+- Trace status: complete for this release. No project or Vault data was
+  rewritten. The next action is normal Baron 4.2.2 maintenance.

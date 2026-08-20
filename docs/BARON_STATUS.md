@@ -4,18 +4,19 @@ Last updated: 2026-08-20
 
 ## Overall
 
-- Stable source release: `v4.2.1` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1); [`v4.2.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.0) is the prior engine Release)
-- Latest downloadable release: [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-- Candidate source version: `4.2.1`; immutable public Release, checksums,
+- Stable source release: `v4.2.2` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2); [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1) is the prior adapter/parity Release)
+- Latest downloadable release: [`v4.2.2`](https://github.com/thienty1207/Baron-Engine/releases/latest)
+- Candidate source version: `4.2.2`; immutable public Release, checksums,
   native matrix, installer smoke, and Reasonix command-surface proof have passed
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v4.2.1`; source, tests, native assets, checksums, and
+- Target source release: `v4.2.2`; source, tests, native assets, checksums, and
   public install evidence agree
 - Baron 4.2 program target release: `v4.2.0`; Phases 88-100 are complete and the
-  engine remains unchanged by the `4.2.1` adapter-packaging patch
+  engine remains unchanged by the `4.2.1` adapter-packaging and `4.2.2`
+  parity-packaging patches
 - Baron 3.4 completion: 100%
 - Baron 3.5 completion: 100%
 - Baron 3.6 completion: 100%
@@ -35,10 +36,10 @@ Last updated: 2026-08-20
   follow-up.
 - Baron 4.2 program: thirteen phases (`88-100`), all complete. Phase 100 is the
   verified public release boundary and is no longer open.
-- Current work state: source version `4.2.1`, default guarded generation `4.2`,
+- Current work state: source version `4.2.2`, default guarded generation `4.2`,
   explicit whole-engine `4.1` rollback, and per-query `4.0` fallback are ready;
-  public `releases/latest` resolves to `4.2.1`.
-- Current next action: normal `4.2.1` maintenance. The multi-agent core parity
+  public `releases/latest` resolves to `4.2.2`.
+- Current next action: normal `4.2.2` maintenance. The multi-agent core parity
   correction is complete: Reasonix now receives the same Baron-managed skills,
   agents, indexes, workflow, and evidence contract as Codex without changing
   the shared engine or Vault.
@@ -46,13 +47,25 @@ Last updated: 2026-08-20
   closed the immutable GitHub Release and handoff. The patch packages the
   already-implemented DeepSeek-Reasonix adapter and root shortcuts; it does
   not create `4.3` or change the intelligence engine.
+- Baron 4.2.2 public patch track: three phases (`118-120`), all complete. Phase
+  120 closed the immutable GitHub Release and final handoff for the shared-core
+  parity correction; it does not create `4.3` or change the memory engine.
 - Reasonix adapter track: eight maintenance phases (`101-108`) remain the
-  historical implementation record. Their source commits are now being
-  packaged in the `4.2.1` patch so an installed binary actually exposes
-  `baron --reasonix` and `baron init --reasonix`.
-- Reasonix/core parity track: five maintenance phases (`113-117`) are complete.
-  This corrected the adapter boundary; it did not create `4.3` or change Baron
-  intelligence, memory, fallback, project identity, or Vault.
+  historical implementation record. Their source commits were first packaged
+  in the `4.2.1` patch so an installed binary exposes `baron --reasonix` and
+  `baron init --reasonix`; the shared-core parity correction is published in
+  `4.2.2`.
+- Reasonix/core parity track: five implementation phases (`113-117`) are
+  complete and published in `v4.2.2`. This corrected the adapter boundary; it
+  did not create `4.3` or change Baron intelligence, memory, fallback, project
+  identity, or Vault.
+- Baron 4.2.2 candidate proof: `cargo fmt --all`, focused adapter/CLI/public-doc
+  suites, workspace check, warnings-denied Clippy, locked release build,
+  release metadata/identity tests, direct release-binary smoke, and the hosted
+  native matrix all passed. The public Windows raw release binary reports
+  `baron 4.2.2` and has SHA-256
+  `D26B0B7DF1708DC1669E7DAD215002A37929755E804AFE766B818B11A36E5A49`, matching
+  `SHA256SUMS`.
 - Baron 4.2.1 candidate proof: `cargo fmt --all`, workspace check, workspace
   library tests (`40/40`), warnings-denied Clippy, locked release build,
   release metadata/identity tests, focused Reasonix CLI tests (`6/6`), and
@@ -74,6 +87,17 @@ Last updated: 2026-08-20
   both Reasonix entry points. The public Windows raw binary SHA-256 is
   `21F4C84009E38951959F04EC1FADA20EE964661C261103849F0EEA23AC2CE942`, matching
   `SHA256SUMS`.
+- Baron 4.2.2 public release evidence: source/tag commit
+  `80f4daa13e15b2aafb53bbefe0f54454130fcaba`; Baron CI
+  [`32347122499`](https://github.com/thienty1207/Baron-Engine/actions/runs/32347122499)
+  and Baron Release
+  [`32347138548`](https://github.com/thienty1207/Baron-Engine/actions/runs/32347138548)
+  passed exact-source verification, format/Clippy, the full four-target native
+  matrix, checksums, `release-manifest.json`, installer lifecycle, and
+  immutable promotion. The public Release is
+  [`v4.2.2`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2)
+  with 12 assets; `releases/latest` resolves to `v4.2.2` and the public Windows
+  raw candidate checksum is `D26B0B7DF1708DC1669E7DAD215002A37929755E804AFE766B818B11A36E5A49`.
 - Current Baron 4.1 authority: owner approval on 2026-08-13 plus the active
   design/plan; public release and README promotion are complete.
 - For the completed Baron 3.7 program, the owner explicitly approved
@@ -4662,7 +4686,7 @@ without remembering the diagnostic subcommand and path arguments.
 - [x] Keep `baron adapter status/switch` as the explicit diagnostics and
   scripting API; verify both shortcut directions and keep version `4.2.0`.
 
-## Baron Multi-Agent Core Parity Track (4.2.1 maintenance)
+## Baron Multi-Agent Core Parity Track (published in 4.2.2)
 
 This track repairs an adapter-boundary gap found after the Reasonix packaging
 patch. Baron core, Vault, memory, Wiki, CodeGraph, proof, trace, and continuity
@@ -4721,8 +4745,58 @@ log.
 
 - [x] Update README, adapter architecture, status JSON, and build log.
 - [x] Mark every finished task `[x]` and record the exact proof.
-- [x] Keep source/public version `4.2.1`; no GitHub publication or release
-  promotion is implied by this local implementation request.
+- [x] Keep the implementation checkpoint on source line `4.2.1` until the
+  separately authorized `4.2.2` publication track; the later patch promotion
+  is recorded in Phases 118-120 below.
+
+## Baron 4.2.2 Public Release Track
+
+Status: `complete`; the owner authorized the patch release, and the exact
+source, native matrix, immutable GitHub Release, README, status, and handoff
+evidence are now public.
+
+### Phase 118 - Release identity and current metadata
+
+Status: `complete`.
+
+- [x] Bump the Cargo workspace, lockfile, certification target, and current
+  release identity to `4.2.2`.
+- [x] Add the changelog entry while preserving historical `4.2.1` evidence.
+- [x] Point README, release guidance, install checks, and adapter parity notes
+  at `v4.2.2`.
+
+### Phase 119 - Local release proof
+
+Status: `complete`.
+
+- [x] Run formatting, adapter parity, CLI, public-document, workspace,
+  warnings-denied Clippy, locked release-build, release metadata, and binary
+  smoke gates.
+- [x] Record the two Windows-only `Microsoft.PowerShell.Archive` lifecycle
+  blocks without weakening a production gate; all engine, memory, adapter,
+  CLI, fallback, and release checks passed locally.
+- [x] Confirm the Reasonix shared-core correction is packaged as a `4.2.2`
+  patch without changing the intelligence engine, Vault, or memory contract.
+
+### Phase 120 - Immutable GitHub publication and handoff
+
+Status: `complete`; no release work remains open.
+
+- [x] Stage only the intended source, parity, documentation, and release files;
+  commit `80f4daa13e15b2aafb53bbefe0f54454130fcaba`.
+- [x] Push the exact commit to `origin/main` and `agent/baron-4-0`; publish the
+  annotated tag `v4.2.2`.
+- [x] Baron CI run
+  [`32347122499`](https://github.com/thienty1207/Baron-Engine/actions/runs/32347122499)
+  passed on all four native targets.
+- [x] Baron Release run
+  [`32347138548`](https://github.com/thienty1207/Baron-Engine/actions/runs/32347138548)
+  passed exact-source checks, checksums, installers, and immutable promotion.
+- [x] Verify the public Release has 12 assets, `releases/latest` resolves to
+  `v4.2.2`, and the Windows raw candidate matches `SHA256SUMS` at
+  `D26B0B7DF1708DC1669E7DAD215002A37929755E804AFE766B818B11A36E5A49`.
+- [x] Synchronize README, `BARON_STATUS.md`, `BARON_STATUS.json`, the active
+  plan, and the build log; the next action is normal `4.2.2` maintenance.
 
 ## Baron 3.8 Final Evidence
 
