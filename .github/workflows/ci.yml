@@ -64,7 +64,11 @@ jobs:
         run: |
           set -o pipefail
           set +e
-          RUST_BACKTRACE=1 cargo test --workspace --all-targets --no-fail-fast 2>&1 | tee native-test.log
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            RUST_BACKTRACE=1 cargo test --workspace --all-targets --no-fail-fast -j 1 2>&1 | tee native-test.log
+          else
+            RUST_BACKTRACE=1 cargo test --workspace --all-targets --no-fail-fast 2>&1 | tee native-test.log
+          fi
           status=${PIPESTATUS[0]}
           set -e
           if [[ "$status" -ne 0 ]]; then
