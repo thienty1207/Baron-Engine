@@ -421,8 +421,8 @@ fn check_release_readiness(existing: &[CertificationCheck]) -> CertificationChec
     CertificationCheck {
         id: "release-readiness".to_string(),
         name: "Release readiness".to_string(),
-        passed: previous_checks_pass && SUPPORTED_RELEASE_TARGETS.len() == 4,
-        summary: "Release readiness requires all certification gates and the four native release targets.".to_string(),
+        passed: previous_checks_pass && SUPPORTED_RELEASE_TARGETS.len() == 2,
+        summary: "Release readiness requires all certification gates and the Windows x64 and Linux x64 release targets.".to_string(),
         details: vec![
             format!("Target release: {TARGET_RELEASE}"),
             format!("Native targets: {}", SUPPORTED_RELEASE_TARGETS.len()),

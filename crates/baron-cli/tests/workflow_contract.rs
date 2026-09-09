@@ -18,14 +18,16 @@ fn ci_covers_all_supported_native_platforms_and_quality_gates() {
         "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
         "windows-latest",
         "ubuntu-latest",
-        "macos-15-intel",
-        "macos-15",
         "cargo test --workspace --all-targets",
         "cargo fmt --all -- --check",
         "cargo clippy --workspace --all-targets -- -D warnings",
     ] {
         assert!(workflow.contains(required), "CI is missing {required}");
     }
+    assert!(
+        !workflow.contains("macos-"),
+        "CI release matrix intentionally targets Windows and Linux only"
+    );
 }
 
 #[test]
@@ -42,16 +44,16 @@ fn release_workflow_proves_an_exact_candidate_before_immutable_promotion() {
         "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
         "windows-latest",
         "ubuntu-latest",
-        "macos-15-intel",
-        "macos-15",
-        "baron release metadata",
         "baron release verify",
         "SHA256SUMS",
         "release-manifest.json",
         "release-manifest.sig",
-        "Validate protected release signing identity",
+        "Generate canonical unsigned metadata",
+        "Validate identity and sign metadata with protected seed",
+        ".github/scripts/generate_release_manifest.py",
         "base64 --decode",
         "openssl pkey",
+        "openssl pkeyutl -sign -rawin",
         "pinned.bin",
         "73a005a12cf79f1fa60612f0e359a13c83d2660806075b610b3d83f4f14c31b4",
         "installers/install.ps1",
@@ -73,6 +75,10 @@ fn release_workflow_proves_an_exact_candidate_before_immutable_promotion() {
     assert!(workflow.contains("push:"));
     assert!(workflow.contains("tags:\n      - \"v*\""));
     assert!(workflow.contains("workflow_dispatch:"));
+    assert!(
+        !workflow.contains("macos-"),
+        "release matrix intentionally targets Windows and Linux only"
+    );
     assert!(!workflow.contains("on:\n  tags:"));
     assert!(!workflow.contains("--clobber"));
     assert!(workflow.contains("contents: read"));

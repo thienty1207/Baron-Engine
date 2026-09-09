@@ -27,8 +27,6 @@ fn supported_targets_have_stable_native_archive_names() {
         vec![
             "baron-v3.2.0-x86_64-pc-windows-msvc.zip",
             "baron-v3.2.0-x86_64-unknown-linux-gnu.tar.gz",
-            "baron-v3.2.0-x86_64-apple-darwin.tar.gz",
-            "baron-v3.2.0-aarch64-apple-darwin.tar.gz",
         ]
     );
 }

@@ -4,11 +4,11 @@
 
 - Current task: complete the verified Baron Engine 5.0.0 release through the
   protected hosted signing workflow.
-- Last checkpoint: SEC-03 and SEC-04 are closed locally; the final native
-  Codex Security scan `450e2e04-14c0-40d5-985c-9579637e4a35` reported zero
-  findings without a snapshot-change warning. The clean release binary is
-  `baron.exe`, 17,495,040 bytes, SHA-256
-  `1701b98afb4974ae638b09fa6743d2b58b2306f405d5fde1ad3e0443a00f9baf`, and
+- Last checkpoint: SEC-03 and SEC-04 are closed locally; fresh native Codex
+  Security scan `729e1050-24f9-4a4c-88b5-d135b73a8629` reported zero
+  reportable findings on the repaired Windows/Linux snapshot. The clean
+  Windows release binary is `baron.exe`, 17,526,272 bytes, SHA-256
+  `6f9e1a32c42efd8f66d11d2a3b2238183fedf248f22b292ae2ac3f1ce3960d83`, and
   reports `baron 5.0.0`.
 - Proof status: the post-bump formatter, complete workspace test matrix,
   Clippy, release build, ignored release smoke, final-binary four-way init,

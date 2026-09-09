@@ -17,7 +17,8 @@ use crate::continuity::{
 };
 use crate::operation::{OperationContext, SupportedAdapter};
 use crate::prepare::{
-    prepare, task_id_for_request, PreparePacketV1, PrepareRequestV1, PREPARE_MAX_INPUT_BYTES,
+    operation_id_for_request, prepare, task_id_for_request, PreparePacketV1, PrepareRequestV1,
+    PREPARE_MAX_INPUT_BYTES,
 };
 use crate::proof::latest_proof;
 use crate::safe_io::{acquire_project_lock, append_text, read_bytes, read_text, replace_text};
@@ -248,7 +249,6 @@ pub fn handle_hook(
     } else {
         false
     };
-    let operation = supported_operation(adapter, session_id.clone(), request_id.clone());
     let request = PrepareRequestV1 {
         schema_version: payload
             .get("schema_version")
@@ -260,6 +260,26 @@ pub fn handle_hook(
         request_id: request_id.clone(),
     };
     let task_id = task_id_for_request(&vault.project_id, &request);
+    let operation_id = match adapter {
+        HookAdapter::Codex => Some(operation_id_for_request(
+            &vault.project_id,
+            SupportedAdapter::Codex,
+            &request,
+        )),
+        HookAdapter::Claude => Some(operation_id_for_request(
+            &vault.project_id,
+            SupportedAdapter::Claude,
+            &request,
+        )),
+        HookAdapter::Neutral => None,
+    };
+    let operation = supported_operation(adapter, session_id.clone(), request_id.clone())
+        .zip(operation_id)
+        .map(|(operation, operation_id)| {
+            operation
+                .with_task_id(task_id.clone())
+                .with_operation_id(operation_id)
+        });
     let event_kind = normalized_event_kind(event, stop_hook_active);
     let key = LifecycleEventKey {
         project_id: vault.project_id.clone(),
@@ -951,6 +971,8 @@ fn supported_operation(
         adapter,
         session_id,
         request_id,
+        task_id: None,
+        operation_id: None,
     })
 }
 

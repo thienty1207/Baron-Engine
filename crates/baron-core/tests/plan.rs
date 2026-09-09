@@ -8,8 +8,10 @@ use baron_core::execution_receipt::{
 };
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
+use baron_core::operation::{OperationContext, SupportedAdapter};
 use baron_core::plan::{
-    complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
+    complete_plan, interrupt_plan, plan_status, start_or_resume_plan,
+    start_or_resume_plan_for_operation, update_plan,
 };
 use baron_core::proof::record_proof_from_receipt_bound;
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
@@ -89,10 +91,10 @@ fn passing_gate_execution(
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
     let binding = ReceiptContext::new(
         "task-backend-login-security",
-        format!("operation-{agent}"),
+        "operation-proof",
         "codex",
-        "session-plan",
-        format!("request-{agent}"),
+        "session-proof",
+        "request-proof",
         format!("quality:{agent}"),
     );
     let receipt = execute_command_with_context(
@@ -254,7 +256,14 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         .unwrap();
     fs::write(repo.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
-    let plan = start_or_resume_plan(&repo, &context, "backend login security").unwrap();
+    let operation = OperationContext::new(SupportedAdapter::Codex)
+        .with_task_id("task-backend-login-security")
+        .with_operation_id("operation-proof")
+        .with_session_id("session-proof")
+        .with_request_id("request-proof");
+    let plan =
+        start_or_resume_plan_for_operation(&repo, &context, "backend login security", &operation)
+            .unwrap();
     confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
     let receipt = passing_execution(&repo);

@@ -5,8 +5,8 @@ use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::capability::{
-    evaluate_execution_evidence, load_capability_state, record_runtime_execution,
-    CapabilityExecutionEvidence,
+    evaluate_execution_evidence, evaluate_execution_evidence_for_operation, load_capability_state,
+    record_runtime_execution, CapabilityExecutionEvidence,
 };
 use crate::execution_receipt::{load_receipts, receipt_matches_context, ReceiptContext};
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
@@ -131,7 +131,7 @@ fn record_proof_internal(
         .join(&date)
         .join(format!("{id}.md"));
     let capability_gate = if let Some(operation) = operation {
-        evaluate_execution_evidence(repo_root, operation.adapter_kind(), capability_evidence)?
+        evaluate_execution_evidence_for_operation(repo_root, operation, capability_evidence)?
     } else if let Some(state) = load_capability_state(repo_root)? {
         let adapter = state
             .adapter

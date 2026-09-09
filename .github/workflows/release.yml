@@ -126,14 +126,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
             binary_suffix: ""
-          - runner: macos-15-intel
-            target: x86_64-apple-darwin
-            archive: tar.gz
-            binary_suffix: ""
-          - runner: macos-15
-            target: aarch64-apple-darwin
-            archive: tar.gz
-            binary_suffix: ""
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -187,11 +179,80 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  sign-release:
+    name: Authenticate release metadata
+    needs:
+      - verify-candidate
+      - build-native
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ needs.verify-candidate.outputs.source_sha }}
+          fetch-depth: 1
+      - name: Download native archives
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: baron-*
+          path: release-assets
+          merge-multiple: true
+      - name: Generate canonical unsigned metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/generate_release_manifest.py release-assets \
+            --version "${{ needs.verify-candidate.outputs.version }}" \
+            --source-revision "${{ needs.verify-candidate.outputs.source_sha }}"
+      - name: Validate identity and sign metadata with protected seed
+        shell: bash
+        env:
+          # The protected GitHub Actions secret is consumed only by OpenSSL;
+          # no Baron build output runs while the seed is present.
+          BARON_RELEASE_SIGNING_KEY: ${{ secrets.BARON_RELEASE_SIGNING_KEY }}
+          BARON_RELEASE_KEY_ID: baron-release-2026
+        run: |
+          set -euo pipefail
+          test "$BARON_RELEASE_KEY_ID" = "baron-release-2026"
+          test -n "$BARON_RELEASE_SIGNING_KEY"
+          umask 077
+          signing_dir="$RUNNER_TEMP/baron-release-signing"
+          rm -rf "$signing_dir"
+          mkdir -p "$signing_dir"
+          trap 'rm -rf "$signing_dir"' EXIT
+          printf '%s' "$BARON_RELEASE_SIGNING_KEY" | base64 --decode > "$signing_dir/seed.bin"
+          test "$(wc -c < "$signing_dir/seed.bin")" -eq 32
+          printf '%s' '302e020100300506032b657004220420' | xxd -r -p > "$signing_dir/seed.der"
+          cat "$signing_dir/seed.bin" >> "$signing_dir/seed.der"
+          openssl pkey -inform DER -in "$signing_dir/seed.der" -pubout -outform DER -out "$signing_dir/public.der" >/dev/null 2>&1
+          tail -c 32 "$signing_dir/public.der" > "$signing_dir/public.bin"
+          printf '%s' 'SBgrmtK5emhgD5e6UW664fXR3qogCjVPHtrxeVk2TcA=' | base64 --decode > "$signing_dir/pinned.bin"
+          cmp -s "$signing_dir/public.bin" "$signing_dir/pinned.bin"
+          fingerprint="$(sha256sum "$signing_dir/public.bin" | awk '{print $1}')"
+          test "$fingerprint" = "73a005a12cf79f1fa60612f0e359a13c83d2660806075b610b3d83f4f14c31b4"
+          printf 'baron-release-manifest-v1\0' > "$signing_dir/signed-bytes"
+          cat release-assets/release-manifest.json >> "$signing_dir/signed-bytes"
+          openssl pkeyutl -sign -rawin -inkey "$signing_dir/seed.der" \
+            -in "$signing_dir/signed-bytes" -out "$signing_dir/signature.bin" >/dev/null 2>&1
+          test "$(wc -c < "$signing_dir/signature.bin")" -eq 64
+          signature="$(xxd -p -c 256 "$signing_dir/signature.bin" | tr -d '\n')"
+          jq -cn --arg key_id "$BARON_RELEASE_KEY_ID" --arg signature "$signature" \
+            '{schema_version:1,key_id:$key_id,signature:$signature}' \
+            > release-assets/release-manifest.sig
+      - name: Upload authenticated release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signed-release-assets
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
     name: Verify and promote immutable release
     needs:
       - verify-candidate
-      - build-native
+      - sign-release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -200,50 +261,13 @@ jobs:
         with:
           ref: ${{ needs.verify-candidate.outputs.source_sha }}
           fetch-depth: 0
-      - name: Download native archives
+      - name: Download authenticated release assets
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: baron-*
+          name: signed-release-assets
           path: release-assets
-          merge-multiple: true
       - name: Build release verifier from approved source
         run: cargo build --release --locked -p baron-cli
-      - name: Validate protected release signing identity
-        shell: bash
-        env:
-          BARON_RELEASE_SIGNING_KEY: ${{ secrets.BARON_RELEASE_SIGNING_KEY }}
-          BARON_RELEASE_KEY_ID: baron-release-2026
-        run: |
-          set -euo pipefail
-          test "$BARON_RELEASE_KEY_ID" = "baron-release-2026"
-          test -n "$BARON_RELEASE_SIGNING_KEY"
-          umask 077
-          preflight="$RUNNER_TEMP/baron-release-signing-preflight"
-          rm -rf "$preflight"
-          mkdir -p "$preflight"
-          trap 'rm -rf "$preflight"' EXIT
-          printf '%s' "$BARON_RELEASE_SIGNING_KEY" | base64 --decode > "$preflight/seed.bin"
-          test "$(wc -c < "$preflight/seed.bin")" -eq 32
-          printf '%s' '302e020100300506032b657004220420' | xxd -r -p > "$preflight/seed.der"
-          cat "$preflight/seed.bin" >> "$preflight/seed.der"
-          openssl pkey -inform DER -in "$preflight/seed.der" -pubout -outform DER -out "$preflight/public.der" >/dev/null 2>&1
-          tail -c 32 "$preflight/public.der" > "$preflight/public.bin"
-          printf '%s' 'SBgrmtK5emhgD5e6UW664fXR3qogCjVPHtrxeVk2TcA=' | base64 --decode > "$preflight/pinned.bin"
-          cmp -s "$preflight/public.bin" "$preflight/pinned.bin"
-          fingerprint="$(sha256sum "$preflight/public.bin" | awk '{print $1}')"
-          test "$fingerprint" = "73a005a12cf79f1fa60612f0e359a13c83d2660806075b610b3d83f4f14c31b4"
-      - name: Generate checksums and exact-source manifest
-        env:
-          # The protected repository secret contains base64(raw 32-byte
-          # Ed25519 seed). It is injected only for this step and is never
-          # committed or written to workflow logs.
-          BARON_RELEASE_SIGNING_KEY: ${{ secrets.BARON_RELEASE_SIGNING_KEY }}
-          BARON_RELEASE_KEY_ID: baron-release-2026
-        run: |
-          test -n "$BARON_RELEASE_SIGNING_KEY"
-          ./target/release/baron release metadata release-assets \
-            --release-version "${{ needs.verify-candidate.outputs.version }}" \
-            --source-revision "${{ needs.verify-candidate.outputs.source_sha }}"
       - name: Verify assembled release identity and assets
         run: |
           test -f release-assets/SHA256SUMS

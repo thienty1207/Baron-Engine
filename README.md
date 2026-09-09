@@ -50,7 +50,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
 baron --version
 ```
 
-Linux or macOS:
+Linux:
 
 ```bash
 curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.sh | sh
@@ -61,6 +61,9 @@ The expected output is `baron 5.0.0`. Installers authenticate the detached
 release manifest, then verify the archive checksum
 and the staged binary version before replacing an existing executable. See the
 [release guide](docs/RELEASE.md) for rollback and offline installation.
+
+The v5.0.0 release publishes Windows x64 and Linux x64 artifacts. macOS is
+outside this release matrix.
 
 ### Set up the Vault
 

@@ -19,6 +19,14 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn powershell_command() -> ProcessCommand {
+    if let Some(path) = std::env::var_os("BARON_TEST_POWERSHELL") {
+        ProcessCommand::new(path)
+    } else {
+        ProcessCommand::new("powershell")
+    }
+}
+
 fn current_target() -> &'static str {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
@@ -28,13 +36,12 @@ fn current_target() -> &'static str {
     {
         "x86_64-unknown-linux-gnu"
     }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    #[cfg(not(any(
+        all(target_os = "windows", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "x86_64")
+    )))]
     {
-        "x86_64-apple-darwin"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        "aarch64-apple-darwin"
+        panic!("unsupported Baron lifecycle test target; v5 publishes Windows x64 and Linux x64")
     }
 }
 
@@ -60,7 +67,7 @@ fn package_current_binary(source_dir: &Path) -> PathBuf {
                 staged_binary.display().to_string().replace('\'', "''"),
                 archive.display().to_string().replace('\'', "''")
             );
-            let status = ProcessCommand::new("powershell")
+            let status = powershell_command()
                 .args(["-NoProfile", "-Command", &command])
                 .status()
                 .unwrap();
@@ -195,7 +202,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
 
     #[cfg(target_os = "windows")]
     let run = |action: &str| {
-        ProcessCommand::new("powershell")
+        powershell_command()
             .env("BARON_STATE_DIR", &state)
             .args([
                 "-NoProfile",
@@ -298,7 +305,7 @@ try {{
         version = CURRENT_VERSION,
     );
 
-    let output = ProcessCommand::new("powershell")
+    let output = powershell_command()
         .args([
             "-NoProfile",
             "-ExecutionPolicy",
@@ -341,7 +348,7 @@ fn powershell_installer_rejects_signature_tampering_before_touching_existing_bin
     )
     .unwrap();
 
-    let output = ProcessCommand::new("powershell")
+    let output = powershell_command()
         .env("BARON_STATE_DIR", &state)
         .args([
             "-NoProfile",
@@ -375,7 +382,7 @@ fn native_installer_rejects_unsafe_version_before_installing() {
     fs::create_dir_all(&source).unwrap();
 
     #[cfg(target_os = "windows")]
-    let output = ProcessCommand::new("powershell")
+    let output = powershell_command()
         .env("BARON_STATE_DIR", &state)
         .args([
             "-NoProfile",

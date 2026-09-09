@@ -35,7 +35,7 @@ fn hidden_release_commands_generate_and_verify_metadata() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Release metadata generated"))
-        .stdout(predicate::str::contains("Artifacts: 4"));
+        .stdout(predicate::str::contains("Artifacts: 2"));
 
     Command::cargo_bin("baron")
         .unwrap()

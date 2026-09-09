@@ -91,6 +91,10 @@ pub struct OperationContext {
     pub session_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
 }
 
 impl OperationContext {
@@ -99,6 +103,8 @@ impl OperationContext {
             adapter,
             session_id: None,
             request_id: None,
+            task_id: None,
+            operation_id: None,
         }
     }
 
@@ -109,6 +115,16 @@ impl OperationContext {
 
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         self.request_id = Some(request_id.into());
+        self
+    }
+
+    pub fn with_task_id(mut self, task_id: impl Into<String>) -> Self {
+        self.task_id = Some(task_id.into());
+        self
+    }
+
+    pub fn with_operation_id(mut self, operation_id: impl Into<String>) -> Self {
+        self.operation_id = Some(operation_id.into());
         self
     }
 

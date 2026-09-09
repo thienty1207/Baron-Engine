@@ -357,16 +357,22 @@ fn structured_execution_evidence_satisfies_present_required_capability() {
     let proof = record_proof_with_capabilities_for_operation(
         &repo,
         &context,
-        &OperationContext::new(SupportedAdapter::Codex),
+        &OperationContext::new(SupportedAdapter::Codex)
+            .with_task_id(binding.task_id.clone())
+            .with_operation_id(binding.operation_id.clone())
+            .with_session_id(binding.session_id.clone())
+            .with_request_id(binding.request_id.clone()),
         "README text verified",
         &[CapabilityExecutionEvidence {
             capability: "source-control".to_string(),
             provider: "git-cli".to_string(),
             summary: "git status completed and repository state was inspected".to_string(),
             receipt_id: Some(receipt.receipt_id),
-            task_id: Some(binding.task_id),
-            operation_id: Some(binding.operation_id),
-            gate_kind: Some(binding.gate_kind),
+            task_id: Some(binding.task_id.clone()),
+            operation_id: Some(binding.operation_id.clone()),
+            gate_kind: Some(binding.gate_kind.clone()),
+            session_id: Some(binding.session_id.clone()),
+            request_id: Some(binding.request_id.clone()),
         }],
     )
     .unwrap();

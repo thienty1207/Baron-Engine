@@ -7,14 +7,14 @@ use sha2::{Digest, Sha256};
 
 use crate::authority::classify_request;
 use crate::autopilot::pending_approval_warning;
-use crate::capability::runtime_backend_report;
+use crate::capability::runtime_backend_report_for_operation;
 use crate::config::{
     find_project_root, load_project_config, resolve_vault_path_for_repo, ProjectPlatform,
 };
 use crate::context::compile_context_for_operation;
 use crate::continuity::continuity_status;
 use crate::control_plane::{
-    gate_evidence_status_strict, route_task_for_operation, validate_control_plane,
+    gate_evidence_status_strict_for_operation, route_task_for_operation, validate_control_plane,
 };
 use crate::harness::harness_status;
 use crate::intent::intent_status;
@@ -157,6 +157,8 @@ pub struct PreparePacketV1 {
     pub adapter: String,
     pub session_id: Option<String>,
     pub request_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
     pub task: PrepareTask,
     pub authority: PrepareAuthority,
     pub intent: PrepareIntent,
@@ -334,11 +336,6 @@ pub fn prepare(
     validate_request(&mut request)?;
     let adapter = SupportedAdapter::parse(adapter_input)
         .map_err(|error| PrepareError::unsupported_adapter(error.to_string()))?;
-    let operation = OperationContext {
-        adapter,
-        session_id: request.session_id.clone(),
-        request_id: request.request_id.clone(),
-    };
     let repo_root = find_project_root(repo_start).map_err(project_error)?;
     let config = load_project_config(&repo_root).map_err(project_error)?;
     if config.project_id.trim().is_empty() {
@@ -346,6 +343,15 @@ pub fn prepare(
             "Baron project state does not contain a project identity",
         ));
     }
+    let task_id = task_id_for_request(&config.project_id, &request);
+    let operation_id = operation_id_for_request(&config.project_id, adapter, &request);
+    let operation = OperationContext {
+        adapter,
+        session_id: request.session_id.clone(),
+        request_id: request.request_id.clone(),
+        task_id: Some(task_id.clone()),
+        operation_id: Some(operation_id.clone()),
+    };
     let vault_path =
         resolve_vault_path_for_repo(vault_override, &repo_root).map_err(project_error)?;
     let vault = ensure_vault(&vault_path, &repo_root).map_err(project_error)?;
@@ -370,12 +376,20 @@ pub fn prepare(
     let (context_text, context_truncated) =
         bounded(&context_text, PREPARE_MAX_OUTPUT_CONTEXT_CHARS);
 
-    let gate_status =
-        gate_evidence_status_strict(&repo_root, &route.mandatory_agents).map_err(project_error)?;
+    let gate_status = gate_evidence_status_strict_for_operation(
+        &repo_root,
+        &route.mandatory_agents,
+        &task_id,
+        &operation_id,
+        adapter.as_str(),
+        request.session_id.as_deref(),
+        request.request_id.as_deref(),
+    )
+    .map_err(project_error)?;
     let proof = latest_proof(&repo_root).map_err(project_error)?;
     let trace = latest_trace_score(&repo_root).map_err(project_error)?;
     let runtime =
-        runtime_backend_report(&repo_root, operation.adapter_kind()).map_err(project_error)?;
+        runtime_backend_report_for_operation(&repo_root, &operation).map_err(project_error)?;
 
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
@@ -444,7 +458,6 @@ pub fn prepare(
     }
 
     let task_text = bounded(&request.task, PREPARE_MAX_OUTPUT_CONTEXT_CHARS);
-    let task_id = task_id_for_request(&config.project_id, &request);
     let selected_skills = route
         .selected_skills
         .iter()
@@ -480,6 +493,7 @@ pub fn prepare(
         adapter: adapter.as_str().to_string(),
         session_id: request.session_id,
         request_id: request.request_id,
+        operation_id: Some(operation_id),
         task: PrepareTask {
             id: task_id,
             summary: task_summary(&request.task),
@@ -617,6 +631,39 @@ pub fn task_id_for_request(project_id: &str, request: &PrepareRequestV1) -> Stri
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     format!("task-{prefix}")
+}
+
+/// Computes the stable operation identity shared by Prepare and native hook
+/// bridges. It is deliberately distinct from task identity so receipts from a
+/// different operation cannot satisfy the current request's gates.
+pub fn operation_id_for_request(
+    project_id: &str,
+    adapter: SupportedAdapter,
+    request: &PrepareRequestV1,
+) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"baron-operation-v1");
+    digest.update([0]);
+    digest.update(project_id.as_bytes());
+    digest.update([0]);
+    digest.update(adapter.as_str().as_bytes());
+    digest.update([0]);
+    digest.update(request.task.as_bytes());
+    digest.update([0]);
+    if let Some(session_id) = &request.session_id {
+        digest.update(session_id.as_bytes());
+    }
+    digest.update([0]);
+    if let Some(request_id) = &request.request_id {
+        digest.update(request_id.as_bytes());
+    }
+    let digest = digest.finalize();
+    let prefix = digest
+        .iter()
+        .take(12)
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("operation-{prefix}")
 }
 
 fn task_summary(task: &str) -> String {

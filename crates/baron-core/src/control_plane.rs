@@ -1486,6 +1486,81 @@ pub fn gate_evidence_status_strict_for_scope(
         required_agents,
         None,
         Some((task_id.trim(), adapter.trim())),
+        None,
+        None,
+    )
+}
+
+/// Evaluate quality-gate receipts for the exact prepare request. A request
+/// without session/request correlation cannot authorize a current-operation
+/// receipt, so every required gate remains unsatisfied.
+pub fn gate_evidence_status_strict_for_request(
+    repo_root: impl AsRef<Path>,
+    required_agents: &[String],
+    task_id: &str,
+    adapter: &str,
+    session_id: Option<&str>,
+    request_id: Option<&str>,
+) -> Result<GateEvidenceStatus> {
+    let (Some(session_id), Some(request_id)) = (session_id, request_id) else {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    };
+    gate_evidence_status_strict_for_context_and_scope(
+        repo_root,
+        required_agents,
+        None,
+        None,
+        Some((
+            task_id.trim(),
+            adapter.trim(),
+            session_id.trim(),
+            request_id.trim(),
+        )),
+        None,
+    )
+}
+
+/// Evaluate quality-gate receipts for one exact Baron operation. Every
+/// required gate must reference a current receipt produced for the same task,
+/// operation, adapter, session, and request. A missing correlation identity
+/// fails closed because an unscoped receipt cannot authorize completion.
+pub fn gate_evidence_status_strict_for_operation(
+    repo_root: impl AsRef<Path>,
+    required_agents: &[String],
+    task_id: &str,
+    operation_id: &str,
+    adapter: &str,
+    session_id: Option<&str>,
+    request_id: Option<&str>,
+) -> Result<GateEvidenceStatus> {
+    let (Some(session_id), Some(request_id)) = (session_id, request_id) else {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    };
+    if operation_id.trim().is_empty() {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    }
+    gate_evidence_status_strict_for_context_and_scope(
+        repo_root,
+        required_agents,
+        None,
+        None,
+        None,
+        Some((
+            task_id.trim(),
+            adapter.trim(),
+            session_id.trim(),
+            request_id.trim(),
+            operation_id.trim(),
+        )),
     )
 }
 
@@ -1499,6 +1574,8 @@ pub fn gate_evidence_status_strict_for_context(
         required_agents,
         expected_context,
         None,
+        None,
+        None,
     )
 }
 
@@ -1507,6 +1584,8 @@ fn gate_evidence_status_strict_for_context_and_scope(
     required_agents: &[String],
     expected_context: Option<&GateReceiptBinding>,
     expected_scope: Option<(&str, &str)>,
+    expected_request: Option<(&str, &str, &str, &str)>,
+    expected_operation: Option<(&str, &str, &str, &str, &str)>,
 ) -> Result<GateEvidenceStatus> {
     let repo_root = repo_root.as_ref();
     let content =
@@ -1539,6 +1618,34 @@ fn gate_evidence_status_strict_for_context_and_scope(
                             .unwrap_or(false)
                             && receipt.task_id.as_deref() == Some(expected_task)
                             && receipt.adapter.as_deref() == Some(expected_adapter)
+                    } else if let Some((
+                        expected_task,
+                        expected_adapter,
+                        expected_session,
+                        expected_request,
+                    )) = expected_request
+                    {
+                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
+                            .unwrap_or(false)
+                            && receipt.task_id.as_deref() == Some(expected_task)
+                            && receipt.adapter.as_deref() == Some(expected_adapter)
+                            && receipt.session_id.as_deref() == Some(expected_session)
+                            && receipt.request_id.as_deref() == Some(expected_request)
+                    } else if let Some((
+                        expected_task,
+                        expected_adapter,
+                        expected_session,
+                        expected_request,
+                        expected_operation,
+                    )) = expected_operation
+                    {
+                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
+                            .unwrap_or(false)
+                            && receipt.task_id.as_deref() == Some(expected_task)
+                            && receipt.adapter.as_deref() == Some(expected_adapter)
+                            && receipt.session_id.as_deref() == Some(expected_session)
+                            && receipt.request_id.as_deref() == Some(expected_request)
+                            && receipt.operation_id.as_deref() == Some(expected_operation)
                     } else {
                         crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
                             .unwrap_or(false)

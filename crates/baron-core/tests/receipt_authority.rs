@@ -2,12 +2,14 @@ use std::fs;
 use std::time::Duration;
 
 use baron_core::capability::{
-    check_capabilities, evaluate_execution_evidence, register_provider,
-    CapabilityExecutionEvidence, CapabilityProvider, CheckOptions, ProviderKind, Requirement,
+    check_capabilities, evaluate_execution_evidence, evaluate_execution_evidence_for_operation,
+    register_provider, CapabilityExecutionEvidence, CapabilityProvider, CheckOptions, ProviderKind,
+    Requirement,
 };
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::control_plane::{
     gate_evidence_status_strict, gate_evidence_status_strict_for_context,
+    gate_evidence_status_strict_for_operation, gate_evidence_status_strict_for_request,
     gate_evidence_status_strict_for_scope, record_gate_evidence,
     record_gate_evidence_with_receipt_bound, GateReceiptBinding,
 };
@@ -15,6 +17,7 @@ use baron_core::execution_receipt::{
     execute_command_with_context, receipt_is_current_authority, ExecutionRequest, ReceiptContext,
     ReceiptProvenance,
 };
+use baron_core::operation::{OperationContext, SupportedAdapter};
 use baron_core::proof::{record_proof_from_receipt, record_proof_from_receipt_bound};
 use baron_core::vault::ensure_vault;
 use sha2::{Digest, Sha256};
@@ -228,9 +231,16 @@ fn capability_gate_requires_the_matching_current_receipt_identity() {
         task_id: Some(binding.task_id.clone()),
         operation_id: Some(binding.operation_id.clone()),
         gate_kind: Some(binding.gate_kind.clone()),
+        session_id: Some(binding.session_id.clone()),
+        request_id: Some(binding.request_id.clone()),
     };
+    let operation = OperationContext::new(SupportedAdapter::Codex)
+        .with_session_id(binding.session_id.clone())
+        .with_request_id(binding.request_id.clone())
+        .with_task_id(binding.task_id.clone())
+        .with_operation_id(binding.operation_id.clone());
     assert!(
-        evaluate_execution_evidence(&repo, AdapterKind::Codex, &[evidence])
+        evaluate_execution_evidence_for_operation(&repo, &operation, &[evidence])
             .unwrap()
             .passed
     );
@@ -252,9 +262,11 @@ fn capability_gate_requires_the_matching_current_receipt_identity() {
         task_id: Some(wrong_gate.task_id),
         operation_id: Some(wrong_gate.operation_id),
         gate_kind: Some(wrong_gate.gate_kind),
+        session_id: Some(wrong_gate.session_id),
+        request_id: Some(wrong_gate.request_id),
     };
     assert!(
-        !evaluate_execution_evidence(&repo, AdapterKind::Codex, &[wrong_evidence])
+        !evaluate_execution_evidence_for_operation(&repo, &operation, &[wrong_evidence])
             .unwrap()
             .passed
     );
@@ -262,6 +274,207 @@ fn capability_gate_requires_the_matching_current_receipt_identity() {
     let mut persisted = receipt;
     persisted.provenance = ReceiptProvenance::PersistedDiagnostic;
     assert!(!receipt_is_current_authority(&repo, &persisted).unwrap());
+}
+
+#[test]
+fn capability_receipt_cannot_cross_operation_session_or_request() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    register_provider(&repo, provider()).unwrap();
+    check_capabilities(
+        &repo,
+        CheckOptions {
+            adapter: AdapterKind::Codex,
+            capability: None,
+            allow_network: false,
+        },
+    )
+    .unwrap();
+    let receipt_context = ReceiptContext::new(
+        "task-a",
+        "operation-a",
+        "codex",
+        "session-a",
+        "request-a",
+        "capability_execution",
+    );
+    let receipt = execute_command_with_context(command(&repo), receipt_context.clone()).unwrap();
+    let evidence = CapabilityExecutionEvidence {
+        capability: "security-review".to_string(),
+        provider: "trusted-runner".to_string(),
+        summary: "security review command passed".to_string(),
+        receipt_id: Some(receipt.receipt_id),
+        task_id: Some(receipt_context.task_id.clone()),
+        operation_id: Some(receipt_context.operation_id.clone()),
+        gate_kind: Some(receipt_context.gate_kind.clone()),
+        session_id: Some(receipt_context.session_id.clone()),
+        request_id: Some(receipt_context.request_id.clone()),
+    };
+    let operation_a = OperationContext::new(SupportedAdapter::Codex)
+        .with_task_id("task-a")
+        .with_operation_id("operation-a")
+        .with_session_id("session-a")
+        .with_request_id("request-a");
+    assert!(
+        evaluate_execution_evidence_for_operation(
+            &repo,
+            &operation_a,
+            std::slice::from_ref(&evidence)
+        )
+        .unwrap()
+        .passed
+    );
+    for (task, operation, session, request) in [
+        ("task-b", "operation-a", "session-a", "request-a"),
+        ("task-a", "operation-b", "session-a", "request-a"),
+        ("task-a", "operation-a", "session-b", "request-a"),
+        ("task-a", "operation-a", "session-a", "request-b"),
+    ] {
+        let other = OperationContext::new(SupportedAdapter::Codex)
+            .with_task_id(task)
+            .with_operation_id(operation)
+            .with_session_id(session)
+            .with_request_id(request);
+        assert!(
+            !evaluate_execution_evidence_for_operation(
+                &repo,
+                &other,
+                std::slice::from_ref(&evidence),
+            )
+            .unwrap()
+            .passed,
+            "receipt should not satisfy {task}/{operation}/{session}/{request}"
+        );
+    }
+}
+
+#[test]
+fn prepare_gate_status_cannot_reuse_another_task_or_request_receipt() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let binding = GateReceiptBinding::new(
+        "task-a",
+        "operation-a",
+        "codex",
+        "session-a",
+        "request-a",
+        "quality:test-engineer",
+    );
+    let receipt = execute_command_with_context(command(&repo), binding.clone()).unwrap();
+    record_gate_evidence_with_receipt_bound(
+        &repo,
+        &context,
+        "test-engineer",
+        "tests passed for task a",
+        &receipt.receipt_id,
+        &binding,
+    )
+    .unwrap();
+
+    let required = ["test-engineer".to_string()];
+    assert!(
+        gate_evidence_status_strict_for_request(
+            &repo,
+            &required,
+            "task-a",
+            "codex",
+            Some("session-a"),
+            Some("request-a"),
+        )
+        .unwrap()
+        .passed
+    );
+    for (task, session, request) in [
+        ("task-b", "session-a", "request-a"),
+        ("task-a", "session-b", "request-a"),
+        ("task-a", "session-a", "request-b"),
+    ] {
+        assert!(
+            !gate_evidence_status_strict_for_request(
+                &repo,
+                &required,
+                task,
+                "codex",
+                Some(session),
+                Some(request),
+            )
+            .unwrap()
+            .passed
+        );
+    }
+    assert!(
+        !gate_evidence_status_strict_for_request(
+            &repo,
+            &required,
+            "task-a",
+            "codex",
+            None,
+            Some("request-a"),
+        )
+        .unwrap()
+        .passed
+    );
+}
+
+#[test]
+fn gate_status_cannot_reuse_a_receipt_from_another_operation() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let binding = GateReceiptBinding::new(
+        "task-a",
+        "operation-a",
+        "codex",
+        "session-a",
+        "request-a",
+        "quality:security-auditor",
+    );
+    let receipt = execute_command_with_context(command(&repo), binding.clone()).unwrap();
+    record_gate_evidence_with_receipt_bound(
+        &repo,
+        &context,
+        "security-auditor",
+        "security review passed for operation a",
+        &receipt.receipt_id,
+        &binding,
+    )
+    .unwrap();
+
+    let required = ["security-auditor".to_string()];
+    assert!(
+        gate_evidence_status_strict_for_operation(
+            &repo,
+            &required,
+            "task-a",
+            "operation-a",
+            "codex",
+            Some("session-a"),
+            Some("request-a"),
+        )
+        .unwrap()
+        .passed
+    );
+    assert!(
+        !gate_evidence_status_strict_for_operation(
+            &repo,
+            &required,
+            "task-a",
+            "operation-b",
+            "codex",
+            Some("session-a"),
+            Some("request-a"),
+        )
+        .unwrap()
+        .passed
+    );
 }
 
 #[test]

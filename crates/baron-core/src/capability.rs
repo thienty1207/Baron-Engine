@@ -10,7 +10,8 @@ use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 
 use crate::config::{load_project_config, AdapterKind, ConfiguredAdapter};
-use crate::execution_receipt::{load_receipts, receipt_is_current_authority};
+use crate::execution_receipt::{load_receipts, receipt_matches_context, ReceiptContext};
+use crate::operation::OperationContext;
 use crate::safe_io::{ensure_directory_chain, read_text, replace_text};
 
 const REGISTRY_PATH: &str = ".baron/capabilities.toml";
@@ -119,6 +120,10 @@ pub struct CapabilityExecutionEvidence {
     pub operation_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gate_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -396,6 +401,34 @@ pub fn evaluate_execution_evidence(
     adapter: AdapterKind,
     evidence: &[CapabilityExecutionEvidence],
 ) -> Result<CapabilityGate> {
+    // This adapter-only compatibility surface is diagnostic. It deliberately
+    // cannot turn receipt-backed evidence into gate authority because the
+    // caller has not supplied the current task/session/request identity.
+    evaluate_execution_evidence_internal(repo_root, adapter, None, evidence)
+}
+
+/// Evaluate capability evidence against the complete current operation. A
+/// receipt is authoritative only when task, operation, adapter, session,
+/// request, and capability gate kind all match this context.
+pub fn evaluate_execution_evidence_for_operation(
+    repo_root: impl AsRef<Path>,
+    operation: &OperationContext,
+    evidence: &[CapabilityExecutionEvidence],
+) -> Result<CapabilityGate> {
+    evaluate_execution_evidence_internal(
+        repo_root,
+        operation.adapter_kind(),
+        Some(operation),
+        evidence,
+    )
+}
+
+fn evaluate_execution_evidence_internal(
+    repo_root: impl AsRef<Path>,
+    adapter: AdapterKind,
+    operation: Option<&OperationContext>,
+    evidence: &[CapabilityExecutionEvidence],
+) -> Result<CapabilityGate> {
     let repo_root = repo_root.as_ref();
     let registry = load_registry(repo_root)?;
     let state = load_capability_state(repo_root)?;
@@ -440,19 +473,44 @@ pub fn evaluate_execution_evidence(
                     .unwrap_or(false)
                 && !item.summary.trim().is_empty()
                 && item.receipt_id.as_deref().is_some_and(|receipt_id| {
+                    let Some(operation) = operation else {
+                        return false;
+                    };
+                    let (
+                        Some(expected_task),
+                        Some(expected_operation),
+                        Some(expected_session),
+                        Some(expected_request),
+                    ) = (
+                        operation.task_id.as_deref(),
+                        operation.operation_id.as_deref(),
+                        operation.session_id.as_deref(),
+                        operation.request_id.as_deref(),
+                    )
+                    else {
+                        return false;
+                    };
+                    let binding = ReceiptContext::new(
+                        expected_task,
+                        expected_operation,
+                        adapter_name(adapter),
+                        expected_session,
+                        expected_request,
+                        "capability_execution",
+                    );
                     receipts
                         .iter()
                         .find(|receipt| receipt.receipt_id == receipt_id.trim())
                         .map(|receipt| {
-                            receipt_is_current_authority(repo_root, receipt).unwrap_or(false)
+                            receipt_matches_context(repo_root, receipt, &binding).unwrap_or(false)
                                 && receipt.capability
                                     == normalize_identifier(&item.capability).unwrap_or_default()
                                 && receipt.provider
                                     == normalize_identifier(&item.provider).unwrap_or_default()
-                                && receipt.adapter.as_deref() == Some(adapter_name(adapter))
-                                && item.task_id.as_deref() == receipt.task_id.as_deref()
-                                && item.operation_id.as_deref() == receipt.operation_id.as_deref()
-                                && item.gate_kind.as_deref() == receipt.gate_kind.as_deref()
+                                && item.task_id.as_deref() == Some(expected_task)
+                                && item.operation_id.as_deref() == Some(expected_operation)
+                                && item.session_id.as_deref() == Some(expected_session)
+                                && item.request_id.as_deref() == Some(expected_request)
                                 && item.gate_kind.as_deref() == Some("capability_execution")
                         })
                         .unwrap_or(false)
@@ -519,7 +577,29 @@ pub fn runtime_backend_report(
     repo_root: impl AsRef<Path>,
     adapter: AdapterKind,
 ) -> Result<RuntimeBackendReport> {
-    let repo_root = repo_root.as_ref();
+    runtime_backend_report_internal(repo_root.as_ref(), adapter, None)
+}
+
+/// Evaluate runtime requirements for one explicitly identified Baron
+/// operation. Provider presence remains diagnostic; execution evidence is
+/// authoritative only when the current receipt carries the exact task,
+/// operation, adapter, session, and request identity.
+pub fn runtime_backend_report_for_operation(
+    repo_root: impl AsRef<Path>,
+    operation: &OperationContext,
+) -> Result<RuntimeBackendReport> {
+    runtime_backend_report_internal(
+        repo_root.as_ref(),
+        operation.adapter_kind(),
+        Some(operation),
+    )
+}
+
+fn runtime_backend_report_internal(
+    repo_root: &Path,
+    adapter: AdapterKind,
+    operation: Option<&OperationContext>,
+) -> Result<RuntimeBackendReport> {
     let registry = load_registry(repo_root)?;
     let state = load_capability_state(repo_root)?;
     let matching_state = state
@@ -550,6 +630,7 @@ pub fn runtime_backend_report(
             &receipts,
             &provider.capability,
             &provider.name,
+            operation,
         ) {
             Presence::Present
         } else {
@@ -763,15 +844,36 @@ fn has_authoritative_execution_evidence(
     receipts: &[crate::execution_receipt::ExecutionReceipt],
     capability: &str,
     provider: &str,
+    operation: Option<&OperationContext>,
 ) -> bool {
     let capability = normalize_identifier(capability);
     let provider = normalize_identifier(provider);
+    let Some(operation) = operation else {
+        // Adapter-only reports are diagnostics. They intentionally cannot
+        // turn a required runtime capability green for an unscoped task.
+        return false;
+    };
+    let (Some(task_id), Some(operation_id), Some(session_id), Some(request_id)) = (
+        operation.task_id.as_deref(),
+        operation.operation_id.as_deref(),
+        operation.session_id.as_deref(),
+        operation.request_id.as_deref(),
+    ) else {
+        return false;
+    };
+    let context = ReceiptContext::new(
+        task_id,
+        operation_id,
+        operation.adapter.as_str(),
+        session_id,
+        request_id,
+        "capability_execution",
+    );
     receipts.iter().any(|receipt| {
-        receipt_is_current_authority(repo_root, receipt).unwrap_or(false)
+        receipt_matches_context(repo_root, receipt, &context).unwrap_or(false)
             && capability.as_deref() == Some(receipt.capability.as_str())
             && provider.as_deref() == Some(receipt.provider.as_str())
             && receipt.result == crate::execution_receipt::ExecutionResult::Passed
-            && receipt.gate_kind.as_deref() == Some("capability_execution")
     })
 }
 

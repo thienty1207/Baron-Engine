@@ -4094,6 +4094,8 @@ fn parse_capability_evidence(value: &str) -> Result<CapabilityExecutionEvidence>
         task_id: None,
         operation_id: None,
         gate_kind: None,
+        session_id: None,
+        request_id: None,
     })
 }
 

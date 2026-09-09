@@ -59,20 +59,12 @@ fi
 
 case "$(uname -s)" in
     Linux) os_target="unknown-linux-gnu" ;;
-    Darwin) os_target="apple-darwin" ;;
-    *) echo "Unsupported operating system: $(uname -s)" >&2; exit 1 ;;
+    *) echo "Baron v5 currently publishes Windows x64 and Linux x64 releases; unsupported operating system: $(uname -s)" >&2; exit 1 ;;
 esac
 
 case "$(uname -m)" in
     x86_64|amd64) architecture="x86_64" ;;
-    arm64|aarch64)
-        if [ "$os_target" != "apple-darwin" ]; then
-            echo "Baron does not currently publish Linux ARM64 releases." >&2
-            exit 1
-        fi
-        architecture="aarch64"
-        ;;
-    *) echo "Unsupported CPU architecture: $(uname -m)" >&2; exit 1 ;;
+    *) echo "Baron v5 currently publishes Linux x64 releases on Unix; unsupported CPU architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
 target="$architecture-$os_target"

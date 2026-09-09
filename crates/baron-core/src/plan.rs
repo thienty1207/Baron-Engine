@@ -4,7 +4,8 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
-use crate::control_plane::gate_evidence_status_strict_for_scope;
+use crate::control_plane::gate_evidence_status_strict_for_operation;
+use crate::operation::OperationContext;
 use crate::proof::{
     latest_proof, proof_has_current_receipt, proof_receipt_context, proof_satisfies_risk,
 };
@@ -22,15 +23,90 @@ pub struct PlanRecord {
     pub resumed: bool,
 }
 
+/// Identity captured when a plan is started from a concrete Baron operation.
+/// Legacy title-only plans remain readable, but medium/high-risk completion
+/// cannot authorize them without this complete binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanOperationBinding {
+    pub task_id: String,
+    pub operation_id: String,
+    pub adapter: String,
+    pub session_id: String,
+    pub request_id: String,
+}
+
+impl PlanOperationBinding {
+    fn from_operation(operation: &OperationContext) -> Result<Self> {
+        let (Some(task_id), Some(operation_id), Some(session_id), Some(request_id)) = (
+            operation.task_id.clone(),
+            operation.operation_id.clone(),
+            operation.session_id.clone(),
+            operation.request_id.clone(),
+        ) else {
+            bail!(
+                "plan operation binding requires task, operation, session, and request identities"
+            );
+        };
+        if task_id.trim().is_empty()
+            || operation_id.trim().is_empty()
+            || session_id.trim().is_empty()
+            || request_id.trim().is_empty()
+        {
+            bail!("plan operation binding requires non-empty identities");
+        }
+        Ok(Self {
+            task_id,
+            operation_id,
+            adapter: operation.adapter.as_str().to_string(),
+            session_id,
+            request_id,
+        })
+    }
+}
+
 pub fn start_or_resume_plan(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
     title: &str,
 ) -> Result<PlanRecord> {
-    let repo_root = repo_root.as_ref();
+    start_or_resume_plan_internal(repo_root.as_ref(), vault, title, None)
+}
+
+/// Start or resume a plan while persisting the exact operation identity that
+/// will be required by medium/high-risk completion. This is the operation-
+/// aware entry point used by trusted Baron integrations.
+pub fn start_or_resume_plan_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    title: &str,
+    operation: &OperationContext,
+) -> Result<PlanRecord> {
+    let binding = PlanOperationBinding::from_operation(operation)?;
+    start_or_resume_plan_internal(repo_root.as_ref(), vault, title, Some(&binding))
+}
+
+fn start_or_resume_plan_internal(
+    repo_root: &Path,
+    vault: &VaultContext,
+    title: &str,
+    binding: Option<&PlanOperationBinding>,
+) -> Result<PlanRecord> {
     let title = title.trim();
     if let Some(active) = active_plan(repo_root)? {
         if active.title.eq_ignore_ascii_case(title) && active.status != "completed" {
+            if let Some(requested) = binding {
+                match active.binding.as_ref() {
+                    Some(existing) if existing != requested => {
+                        bail!("Cannot resume plan `{title}` under a different operation identity");
+                    }
+                    None => {
+                        bail!(
+                            "Cannot authorize legacy unbound plan `{title}`; start a new identified operation"
+                        );
+                    }
+                    Some(_) => {}
+                }
+            }
             set_plan_state(&active.path, "in_progress", None)?;
             append_progress(&active.path, "Plan resumed.")?;
             mirror_plan(repo_root, vault, &active.path)?;
@@ -52,6 +128,7 @@ pub fn start_or_resume_plan(
                     plan_path: &active.path,
                     next_action: "continue from last known state",
                     verification: "not_run",
+                    binding: active.binding.as_ref(),
                 },
             )?;
             return Ok(PlanRecord {
@@ -70,7 +147,7 @@ pub fn start_or_resume_plan(
         .join(&date)
         .join(format!("{date}-{}.md", slugify(title)));
     let vault_path = vault_plan_path(repo_root, vault, &repo_path);
-    let content = plan_content(title, risk);
+    let content = plan_content(title, risk, binding);
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
     append_unique(
@@ -103,6 +180,7 @@ pub fn start_or_resume_plan(
             plan_path: &repo_path,
             next_action: "continue from current task scope",
             verification: "not_run",
+            binding,
         },
     )?;
     Ok(PlanRecord {
@@ -129,6 +207,7 @@ pub fn update_plan(repo_root: impl AsRef<Path>, vault: &VaultContext, note: &str
             plan_path: &active.path,
             next_action: note.trim(),
             verification: "not_run",
+            binding: active.binding.as_ref(),
         },
     )
 }
@@ -161,6 +240,7 @@ pub fn interrupt_plan(
             plan_path: &active.path,
             next_action: state.trim(),
             verification: "not_run",
+            binding: active.binding.as_ref(),
         },
     )
 }
@@ -194,11 +274,27 @@ pub fn complete_plan(
         ];
         let (_, proof_binding) = proof_receipt_context(&proof)?
             .context("Plan completion blocked: proof receipt binding is missing.")?;
-        let gate_status = gate_evidence_status_strict_for_scope(
+        let expected_binding = active.binding.as_ref().context(
+            "Plan completion blocked: active plan has no complete operation binding; restart it through an identified Baron operation.",
+        )?;
+        if proof_binding.task_id != expected_binding.task_id
+            || proof_binding.operation_id != expected_binding.operation_id
+            || proof_binding.adapter != expected_binding.adapter
+            || proof_binding.session_id != expected_binding.session_id
+            || proof_binding.request_id != expected_binding.request_id
+        {
+            bail!(
+                "Plan completion blocked: proof receipt identity does not match the active plan operation.",
+            );
+        }
+        let gate_status = gate_evidence_status_strict_for_operation(
             repo_root,
             &required_agents,
             &proof_binding.task_id,
+            &proof_binding.operation_id,
             &proof_binding.adapter,
+            Some(&proof_binding.session_id),
+            Some(&proof_binding.request_id),
         )?;
         if !gate_status.passed {
             bail!(
@@ -247,6 +343,7 @@ pub fn complete_plan(
             plan_path: &active.path,
             next_action: "start the next explicit task",
             verification: verification_summary.trim(),
+            binding: active.binding.as_ref(),
         },
     )
 }
@@ -301,6 +398,20 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
                     if !proof_satisfies_risk(&proof.summary, plan.risk) || !trusted {
                         issues.push("proof does not satisfy the plan risk".to_string());
                     }
+                    if plan.risk != RiskLane::Low {
+                        match (plan.binding.as_ref(), proof_receipt_context(&proof)?) {
+                            (Some(expected), Some((_, binding)))
+                                if binding.task_id == expected.task_id
+                                    && binding.operation_id == expected.operation_id
+                                    && binding.adapter == expected.adapter
+                                    && binding.session_id == expected.session_id
+                                    && binding.request_id == expected.request_id => {}
+                            _ => issues.push(
+                                "proof operation identity does not match the active plan"
+                                    .to_string(),
+                            ),
+                        }
+                    }
                 }
                 None => issues.push("proof is missing".to_string()),
             }
@@ -318,11 +429,14 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
                 let gates_passed = gate_scope
                     .as_ref()
                     .map(|(_, binding)| {
-                        gate_evidence_status_strict_for_scope(
+                        gate_evidence_status_strict_for_operation(
                             repo_root,
                             &required_agents,
                             &binding.task_id,
+                            &binding.operation_id,
                             &binding.adapter,
+                            Some(&binding.session_id),
+                            Some(&binding.request_id),
                         )
                         .map(|status| status.passed)
                     })
@@ -344,12 +458,27 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
 }
 
 fn write_current(repo_root: &Path, vault: &VaultContext, view: CurrentPlanView<'_>) -> Result<()> {
+    let task_id = view
+        .binding
+        .map(|binding| binding.task_id.clone())
+        .unwrap_or_else(|| format!("task-{}", slugify(view.title)));
+    let operation_identity = view
+        .binding
+        .map(|binding| {
+            format!(
+                "- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
+                binding.operation_id, binding.adapter, binding.session_id, binding.request_id
+            )
+        })
+        .unwrap_or_default();
     let content = format!(
         "# Current Baron Plan\n\n\
 - Title: {}\n\
 - Plan: `{}`\n\
 - Status: `{}`\n\
 - Risk: `{}`\n\
+- Task ID: `{}`\n\
+{}\
 - Verification: {}\n\
 - Next action: {}\n\
 - Updated: {}\n\n\
@@ -360,6 +489,8 @@ fn write_current(repo_root: &Path, vault: &VaultContext, view: CurrentPlanView<'
         normalize(view.plan_path, repo_root),
         view.status,
         view.risk.as_str(),
+        task_id,
+        operation_identity,
         view.verification,
         view.next_action,
         now()
@@ -395,11 +526,34 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
     } else {
         RiskLane::Medium
     };
+    let task_id = field(&content, "- Task ID: `")
+        .and_then(|value| value.strip_suffix('`').map(str::to_string));
+    let operation_id = field(&content, "- Operation ID: `")
+        .and_then(|value| value.strip_suffix('`').map(str::to_string));
+    let adapter = field(&content, "- Adapter: `")
+        .and_then(|value| value.strip_suffix('`').map(str::to_string));
+    let session_id = field(&content, "- Session ID: `")
+        .and_then(|value| value.strip_suffix('`').map(str::to_string));
+    let request_id = field(&content, "- Request ID: `")
+        .and_then(|value| value.strip_suffix('`').map(str::to_string));
+    let binding = match (task_id, operation_id, adapter, session_id, request_id) {
+        (Some(task_id), Some(operation_id), Some(adapter), Some(session_id), Some(request_id)) => {
+            Some(PlanOperationBinding {
+                task_id,
+                operation_id,
+                adapter,
+                session_id,
+                request_id,
+            })
+        }
+        _ => None,
+    };
     Ok(path.map(|path| ActivePlan {
         title,
         path,
         status,
         risk,
+        binding,
     }))
 }
 
@@ -464,13 +618,26 @@ fn vault_plan_path(repo_root: &Path, vault: &VaultContext, repo_path: &Path) -> 
     vault.project_root.join("Plans").join(relative)
 }
 
-fn plan_content(title: &str, risk: RiskLane) -> String {
+fn plan_content(title: &str, risk: RiskLane, binding: Option<&PlanOperationBinding>) -> String {
+    let task_id = binding
+        .map(|binding| binding.task_id.clone())
+        .unwrap_or_else(|| format!("task-{}", slugify(title)));
+    let operation_identity = binding
+        .map(|binding| {
+            format!(
+                "operation_id: {}\nadapter: {}\nsession_id: {}\nrequest_id: {}\n",
+                binding.operation_id, binding.adapter, binding.session_id, binding.request_id
+            )
+        })
+        .unwrap_or_default();
     format!(
         "---\n\
 type: baron-plan\n\
 title: {title}\n\
 status: in_progress\n\
 risk: {}\n\
+task_id: {task_id}\n\
+{operation_identity}\
 created: {}\n\
 updated: {}\n\
 verification: not_run\n\
@@ -628,6 +795,7 @@ struct ActivePlan {
     path: PathBuf,
     status: String,
     risk: RiskLane,
+    binding: Option<PlanOperationBinding>,
 }
 
 struct CurrentPlanView<'a> {
@@ -637,4 +805,5 @@ struct CurrentPlanView<'a> {
     plan_path: &'a Path,
     next_action: &'a str,
     verification: &'a str,
+    binding: Option<&'a PlanOperationBinding>,
 }

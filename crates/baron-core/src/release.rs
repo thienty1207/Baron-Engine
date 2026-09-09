@@ -66,7 +66,7 @@ impl ReleaseTarget {
     }
 }
 
-pub const SUPPORTED_RELEASE_TARGETS: [ReleaseTarget; 4] = [
+pub const SUPPORTED_RELEASE_TARGETS: [ReleaseTarget; 2] = [
     ReleaseTarget {
         triple: "x86_64-pc-windows-msvc",
         archive_kind: ArchiveKind::Zip,
@@ -74,16 +74,6 @@ pub const SUPPORTED_RELEASE_TARGETS: [ReleaseTarget; 4] = [
     },
     ReleaseTarget {
         triple: "x86_64-unknown-linux-gnu",
-        archive_kind: ArchiveKind::TarGz,
-        binary_name: "baron",
-    },
-    ReleaseTarget {
-        triple: "x86_64-apple-darwin",
-        archive_kind: ArchiveKind::TarGz,
-        binary_name: "baron",
-    },
-    ReleaseTarget {
-        triple: "aarch64-apple-darwin",
         archive_kind: ArchiveKind::TarGz,
         binary_name: "baron",
     },

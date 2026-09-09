@@ -56,14 +56,16 @@ the evidence.
   `BARON_RELEASE_SIGNING_KEY` base64 raw-seed contract and checks its derived
   production identity without exposing the seed.
 - Fresh native Codex Security scan
-  `450e2e04-14c0-40d5-985c-9579637e4a35` completed on the final versioned
-  snapshot with zero reportable findings and no snapshot-change warning. The
-  remote bootstrap-script self-authentication limitation is documented as an
-  explicit trust boundary.
+  `729e1050-24f9-4a4c-88b5-d135b73a8629` completed on the repaired
+  Windows/Linux snapshot with zero reportable findings. Medium follow-up
+  coverage remains for installer path-chain and persisted-receipt path
+  hardening; the remote bootstrap-script self-authentication limitation is
+  documented as an explicit trust boundary.
 - The complete post-bump workspace test matrix, formatter, Clippy with warnings
   denied, release build, final-binary smoke, diff checks, and retired-adapter
   guards pass with zero unexpected failures. TAC is unavailable on this host
-  and is reported separately. The 5.0.0 release candidate is uncommitted;
+  and is reported separately. macOS is intentionally excluded from the
+  release matrix. The 5.0.0 release candidate is uncommitted;
   hosted CI, tag, and GitHub Release remain pending.
 
 ## Release-blocker repair checkpoint

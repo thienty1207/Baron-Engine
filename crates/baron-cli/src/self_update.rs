@@ -277,6 +277,7 @@ pub enum RuntimeHandoff {
         candidate_path: PathBuf,
         installed_binary: PathBuf,
         backup_path: PathBuf,
+        expected_sha256: String,
     },
     WindowsDelayed {
         finalizer_path: PathBuf,
@@ -299,12 +300,8 @@ pub fn current_release_target() -> Result<&'static str> {
         Ok("x86_64-pc-windows-msvc")
     } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         Ok("x86_64-unknown-linux-gnu")
-    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-        Ok("x86_64-apple-darwin")
-    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-        Ok("aarch64-apple-darwin")
     } else {
-        bail!("This Baron build does not support self-update on the current target")
+        bail!("This Baron build does not publish self-update artifacts for the current target; supported targets are Windows x64 and Linux x64")
     }
 }
 
@@ -437,6 +434,7 @@ pub fn prepare_runtime_handoff(
             candidate_path,
             installed_binary: installed_binary.to_path_buf(),
             backup_path,
+            expected_sha256: candidate.sha256.clone(),
         })
     }
 }
@@ -447,10 +445,14 @@ pub fn activate_unix_handoff(handoff: &RuntimeHandoff) -> Result<()> {
         candidate_path,
         installed_binary,
         backup_path,
+        expected_sha256,
     } = handoff
     else {
         bail!("The provided runtime handoff is not an atomic Unix handoff");
     };
+    if !candidate_path.is_file() || sha256_file(candidate_path)? != *expected_sha256 {
+        bail!("Baron Unix activation candidate no longer matches its verified checksum");
+    }
     if let Some(parent) = installed_binary.parent() {
         fs::create_dir_all(parent)?;
     }

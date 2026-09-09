@@ -7,8 +7,6 @@ SQLite, Cargo, or a running server on the user's machine.
 
 - Windows x64
 - Linux x64
-- macOS Intel
-- macOS Apple Silicon
 
 Every GitHub Release contains the native archives, `SHA256SUMS`,
 `release-manifest.json`, `release-manifest.sig`, `install.ps1`, and
@@ -48,7 +46,7 @@ PowerShell session, so the next line works in the same copy-paste block:
 baron --version
 ```
 
-## Install On Linux Or macOS
+## Install On Linux
 
 ```bash
 curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.sh | sh
@@ -94,7 +92,7 @@ Invoke-WebRequest https://github.com/thienty1207/Baron-Engine/releases/latest/do
 & $installer -Action update
 ```
 
-Linux or macOS:
+Linux:
 
 ```bash
 curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.sh |
@@ -116,7 +114,7 @@ Invoke-WebRequest https://github.com/thienty1207/Baron-Engine/releases/latest/do
 & $installer -Action rollback
 ```
 
-Linux or macOS:
+Linux:
 
 ```bash
 curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.sh |
@@ -136,7 +134,7 @@ Invoke-WebRequest https://github.com/thienty1207/Baron-Engine/releases/latest/do
 & $installer -Action uninstall
 ```
 
-Linux or macOS:
+Linux:
 
 ```bash
 curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/install.sh |
@@ -173,7 +171,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v4.2.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v5.0.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -186,13 +184,13 @@ Download one native archive, `SHA256SUMS`, `release-manifest.json`, and
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 4.2.2 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 5.0.0 -SourceDirectory D:\baron-release
 ```
 
-Linux or macOS:
+Linux:
 
 ```bash
-sh ./install.sh --version 4.2.2 --source-dir /path/to/baron-release
+sh ./install.sh --version 5.0.0 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -205,12 +203,13 @@ the current `origin/main`. The tag-triggered path is the normal public path;
 manual `workflow_dispatch` remains available for an explicit source/version
 pair. Before promotion, the target tag and GitHub Release must not already
 exist. The workflow checks that the version matches Cargo, runs formatting, the
-full workspace tests and Clippy, then builds and smokes every native target.
-The final promotion job assembles all four archives and runs:
+full workspace tests and Clippy, then builds and smokes both supported native
+targets.
+The final promotion job assembles both supported native archives and runs:
 
 ```bash
-  baron release metadata release-assets --release-version 4.2.2 --source-revision <40-character-git-sha>
-  baron release verify release-assets --expected-version 4.2.2 --expected-source-revision <40-character-git-sha>
+  baron release metadata release-assets --release-version 5.0.0 --source-revision <40-character-git-sha>
+  baron release verify release-assets --expected-version 5.0.0 --expected-source-revision <40-character-git-sha>
 ```
 
 The metadata command requires `BARON_RELEASE_SIGNING_KEY`, a protected GitHub
@@ -224,7 +223,7 @@ binary.
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
 
-Before promoting a `v4.2.2` release, also run:
+Before promoting a `v5.0.0` release, also run:
 
 ```bash
 baron certify run <repo-path> --vault <vault-path> --profile release
@@ -242,8 +241,8 @@ version tag; GitHub Actions then starts the release workflow automatically:
 ```bash
 git push origin main
 git rev-parse HEAD
-git tag -a v4.2.2 <40-character-git-sha> -m "Baron 4.2.2"
-git push origin refs/tags/v4.2.2
+git tag -a v5.0.0 <40-character-git-sha> -m "Baron 5.0.0"
+git push origin refs/tags/v5.0.0
 ```
 
 The `Baron Release` workflow refuses an existing tag or Release, builds the
@@ -251,7 +250,7 @@ native archives from that exact SHA, verifies checksums and installer lifecycle,
 and then creates the immutable GitHub Release. Only the final promotion job has
 repository write permission. When the workflow finishes,
 `https://github.com/thienty1207/Baron-Engine/releases/latest` should point at
-`v4.2.2`.
+`v5.0.0`.
 
 Public smoke after the workflow:
 

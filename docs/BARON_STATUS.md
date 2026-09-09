@@ -6,7 +6,7 @@
 
 - Scope was limited to SEC-03 release metadata authenticity and SEC-04 proof /
   gate evidence authority; the product source is now Baron 5.0.0 and is ready
-  for hosted release staging.
+  for hosted release staging on Windows x64 and Linux x64.
 - SEC-03 is closed in the repaired source: release metadata is a compact,
   deterministic manifest signed with Ed25519; the compiled trust anchor is
   `baron-release-2026` with public-key fingerprint
@@ -21,9 +21,11 @@
   capability/gate summaries, child-agent text, Autopilot candidates, and
   persisted unkeyed receipts remain diagnostic.
 - Fresh Codex Security scan
-  `450e2e04-14c0-40d5-985c-9579637e4a35` completed against the final versioned
-  snapshot with zero reportable findings and no snapshot-change warning. The
-  remote bootstrap-script self-authentication limit is documented as an
+  `729e1050-24f9-4a4c-88b5-d135b73a8629` completed against the repaired
+  Windows/Linux snapshot with zero reportable findings. The scan records
+  medium follow-up coverage for installer path-chain and persisted-receipt path
+  hardening; neither weakens signed metadata verification or receipt authority.
+  The remote bootstrap-script self-authentication limit is documented as an
   explicit trust-boundary limitation; the trusted copy still authenticates
   release metadata and binaries before mutation.
 - Focused security tests, the complete post-bump workspace regression sweep,

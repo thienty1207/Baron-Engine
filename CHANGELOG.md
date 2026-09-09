@@ -104,5 +104,5 @@ Baron's first stable release combines:
 - active plans, Product Harness, proof, and trace quality gates
 - transactional Agent Bootstrap migration and rollback
 - capability-aware execution evidence
-- native Windows, Linux, Intel macOS, and Apple Silicon macOS release flow
+- native Windows x64 and Linux x64 release flow
 - checksum-verified install, update, rollback, and uninstall lifecycle
