@@ -19,6 +19,7 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+#[cfg(target_os = "windows")]
 fn powershell_command() -> ProcessCommand {
     if let Some(path) = std::env::var_os("BARON_TEST_POWERSHELL") {
         ProcessCommand::new(path)

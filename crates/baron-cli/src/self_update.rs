@@ -481,6 +481,7 @@ pub fn rollback_unix_handoff(handoff: &RuntimeHandoff) -> Result<()> {
         candidate_path,
         installed_binary,
         backup_path,
+        expected_sha256: _,
     } = handoff
     else {
         bail!("The provided runtime handoff is not an atomic Unix handoff");
