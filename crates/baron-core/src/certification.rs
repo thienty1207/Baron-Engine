@@ -14,10 +14,10 @@ use crate::survey::survey_repository;
 use crate::vault::{ensure_vault, VaultContext};
 use crate::{
     autopilot::autopilot_status,
-    capability::{default_adapter, runtime_backend_report},
+    capability::{registered_runtime_adapters, runtime_backend_report},
 };
 
-const TARGET_RELEASE: &str = "4.2.2";
+const TARGET_RELEASE: &str = "5.0.0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -373,17 +373,45 @@ fn check_autopilot_readiness(
 }
 
 fn check_runtime_backend_policy(repo_root: &Path) -> Result<CertificationCheck> {
-    let adapter = default_adapter(repo_root).unwrap_or(crate::config::AdapterKind::Generic);
-    let report = runtime_backend_report(repo_root, adapter)?;
+    let adapters = registered_runtime_adapters(repo_root)?;
+    let reports = adapters
+        .iter()
+        .map(|adapter| runtime_backend_report(repo_root, *adapter))
+        .collect::<Result<Vec<_>>>()?;
+    let passed = !reports.is_empty() && reports.iter().all(|report| report.passed);
+    let provider_count = reports
+        .iter()
+        .map(|report| report.providers.len())
+        .sum::<usize>();
+    let blocking_gaps = reports
+        .iter()
+        .flat_map(|report| report.blocking_gaps.iter().cloned())
+        .collect::<Vec<_>>();
+    let warnings = reports
+        .iter()
+        .flat_map(|report| report.warnings.iter().cloned())
+        .collect::<Vec<_>>();
     Ok(CertificationCheck {
         id: "runtime-backend-policy".to_string(),
         name: "Capability runtime backend policy".to_string(),
-        passed: report.passed,
+        passed,
         summary: "Runtime policy keeps provider presence separate from execution evidence and flags unsafe backends.".to_string(),
         details: vec![
-            format!("Providers checked: {}", report.providers.len()),
-            format!("Blocking gaps: {}", values_or_none(&report.blocking_gaps)),
-            format!("Warnings: {}", values_or_none(&report.warnings)),
+            format!(
+                "Adapters checked: {}",
+                if adapters.is_empty() {
+                    "none".to_string()
+                } else {
+                    adapters
+                        .iter()
+                        .map(|adapter| adapter_name(*adapter))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }
+            ),
+            format!("Providers checked: {provider_count}"),
+            format!("Blocking gaps: {}", values_or_none(&blocking_gaps)),
+            format!("Warnings: {}", values_or_none(&warnings)),
         ],
     })
 }
@@ -400,6 +428,13 @@ fn check_release_readiness(existing: &[CertificationCheck]) -> CertificationChec
             format!("Native targets: {}", SUPPORTED_RELEASE_TARGETS.len()),
             format!("Prior checks passed: {}", if previous_checks_pass { "yes" } else { "no" }),
         ],
+    }
+}
+
+fn adapter_name(adapter: crate::config::AdapterKind) -> &'static str {
+    match adapter {
+        crate::config::AdapterKind::Codex => "codex",
+        crate::config::AdapterKind::Claude => "claude",
     }
 }
 

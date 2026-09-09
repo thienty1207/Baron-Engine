@@ -26,7 +26,7 @@ fn all_platform_flags_generate_deep_profiles() {
             .args([
                 "init",
                 repo.to_str().unwrap(),
-                "--agent",
+                "--codex",
                 &format!("--{platform}"),
                 "--vault",
                 vault.to_str().unwrap(),
@@ -40,14 +40,14 @@ fn all_platform_flags_generate_deep_profiles() {
 }
 
 #[test]
-fn three_adapters_expand_fullstack_to_mobile_without_losing_custom_or_legacy_files() {
+fn codex_and_claude_expand_fullstack_to_mobile_without_losing_custom_or_legacy_files() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("legacy-product");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(repo.join("odd-layout")).unwrap();
     fs::write(repo.join("odd-layout/app.ts"), "legacy source").unwrap();
 
-    for adapter in ["codex", "claude", "agent"] {
+    for adapter in ["codex", "claude"] {
         let mut args = vec![
             "init",
             repo.to_str().unwrap(),
@@ -57,7 +57,7 @@ fn three_adapters_expand_fullstack_to_mobile_without_losing_custom_or_legacy_fil
         args.push(match adapter {
             "codex" => "--codex",
             "claude" => "--claude",
-            _ => "--agent",
+            _ => unreachable!("adapter fixture is explicitly Codex or Claude"),
         });
         if adapter == "codex" {
             args.push("--fullstack");
@@ -89,7 +89,6 @@ fn three_adapters_expand_fullstack_to_mobile_without_losing_custom_or_legacy_fil
     assert!(repo.join(".codex/skills/custom-domain/SKILL.md").exists());
     assert!(repo.join("AGENTS.md").exists());
     assert!(repo.join("CLAUDE.md").exists());
-    assert!(repo.join("AGENT.md").exists());
     Command::cargo_bin("baron")
         .unwrap()
         .args([

@@ -78,7 +78,7 @@ fn runtime_check_reports_unsafe_backend_policy() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["runtime", "check"])
+        .args(["runtime", "check", "--adapter", "codex"])
         .assert()
         .success()
         .stdout(predicate::str::contains("# Baron Runtime Backend Check"))

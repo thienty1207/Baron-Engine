@@ -7,6 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::risk::{classify_risk, RiskLane};
+use crate::safe_io::replace_text;
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -261,10 +262,7 @@ fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 fn field<'a>(content: &'a str, prefix: &str) -> Option<&'a str> {

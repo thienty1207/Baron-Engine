@@ -112,7 +112,10 @@ fn apply_installs_baron_imports_memory_and_retires_legacy_runtime() {
 
     assert!(repo.join(".baron/project.toml").exists());
     assert!(repo.join(".baron/local.toml").exists());
-    assert!(repo.join(".codex/skills/superpowers/SKILL.md").exists());
+    assert!(repo
+        .join(".baron/core/skills/superpowers/SKILL.md")
+        .exists());
+    assert!(!repo.join(".codex/skills/superpowers/SKILL.md").exists());
     assert!(repo.join(".codex/skills/rust-api/SKILL.md").exists());
     assert!(!repo.join("scripts/agent-memory.js").exists());
     assert!(!repo.join("vault.config.json").exists());

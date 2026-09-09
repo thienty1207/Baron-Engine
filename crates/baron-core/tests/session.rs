@@ -94,7 +94,7 @@ fn imports_matched_codex_and_claude_sessions_with_redaction_and_deduplication() 
 }
 
 #[test]
-fn context_automatically_imports_matched_sessions() {
+fn context_automatically_imports_sessions_without_promoting_stale_memory() {
     let _guard = ENV_LOCK.lock().unwrap();
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
@@ -125,7 +125,7 @@ fn context_automatically_imports_matched_sessions() {
     std::env::remove_var("BARON_CLAUDE_SESSIONS_ROOT");
 
     assert!(context.project_root.join("Sessions/Imported").exists());
-    assert!(output.contains("durable session decision"));
+    assert!(!output.contains("durable session decision"));
 }
 
 #[test]

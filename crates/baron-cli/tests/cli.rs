@@ -97,7 +97,7 @@ fn top_level_help_stays_focused_on_user_commands() {
         .success()
         .stdout(predicate::str::contains("--codex"))
         .stdout(predicate::str::contains("--claude"))
-        .stdout(predicate::str::contains("--agent"))
+        .stdout(predicate::str::contains("--agent").not())
         .stdout(predicate::str::contains("--fullstack"))
         .stdout(predicate::str::contains("--tool"));
 }
@@ -237,7 +237,7 @@ fn shadow_init_previews_codex_without_writing_files() {
         .success()
         .stdout(predicate::str::contains("# Shadow Init Preview"))
         .stdout(predicate::str::contains("AGENTS.md"))
-        .stdout(predicate::str::contains(".codex/skills"))
+        .stdout(predicate::str::contains(".agents/skills/baron-engine"))
         .stdout(predicate::str::contains("No files were written"));
 
     assert_eq!(before, list_files(temp.path()));
@@ -259,25 +259,9 @@ fn shadow_init_previews_claude_without_writing_files() {
         .assert()
         .success()
         .stdout(predicate::str::contains("CLAUDE.md"))
+        .stdout(predicate::str::contains(".claude/skills/baron-engine"))
+        .stdout(predicate::str::contains(".claude/agents"))
         .stdout(predicate::str::contains(".claude/commands"))
-        .stdout(predicate::str::contains("No files were written"));
-
-    assert_eq!(before, list_files(temp.path()));
-}
-
-#[test]
-fn shadow_init_previews_generic_agent_without_writing_files() {
-    let temp = fixture_repo();
-    let before = list_files(temp.path());
-
-    Command::cargo_bin("baron")
-        .unwrap()
-        .args(["init", temp.path().to_str().unwrap(), "--agent", "--shadow"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("AGENT.md"))
-        .stdout(predicate::str::contains("baron-context.md"))
-        .stdout(predicate::str::contains("baron-context.json"))
         .stdout(predicate::str::contains("No files were written"));
 
     assert_eq!(before, list_files(temp.path()));

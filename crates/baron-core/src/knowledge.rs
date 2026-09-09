@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 use crate::code_graph::compute_code_source_fingerprint;
 use crate::config::{load_project_config, PROJECT_SCHEMA_VERSION};
-use crate::firewall::{recall, recall_v5};
+use crate::firewall::{record_is_currently_trusted, trusted_recall_current};
 use crate::identity::project_id_for_path;
 use crate::memory::{MemoryConfidence, MemoryKind, MemoryRecord};
 use crate::semantic::{rank_documents_v42, SemanticDocument};
@@ -264,7 +264,7 @@ pub fn build_resume_brief(
     let recall_query = task
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("current work resume checkpoint");
-    let recalled = recall(context, recall_query, 12)?;
+    let recalled = trusted_recall_current(context, recall_query, 12)?;
     let current = |path: &str| read_bounded(&context.repo_root.join(path), 2_000);
     let plan = current("docs/baron/plans/CURRENT.md");
     let continuity = current("docs/baron/continuity/CURRENT.md");
@@ -306,7 +306,7 @@ pub fn build_resume_brief(
         .filter(|record| {
             record.project_id.as_deref() == Some(context.project_id.as_str())
                 && record.kind == MemoryKind::Decision
-                && record.confidence != MemoryConfidence::Candidate
+                && record_is_currently_trusted(record)
         })
         .take(8)
         .map(|record| record.excerpt.clone())
@@ -365,7 +365,7 @@ pub fn build_resume_brief_v4(
     let query = task
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("current work resume checkpoint");
-    let recalled = recall_v5(context, query, 12)?;
+    let recalled = trusted_recall_current(context, query, 12)?;
     brief.memory_hits = recalled
         .results
         .into_iter()

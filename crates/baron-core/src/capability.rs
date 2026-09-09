@@ -9,7 +9,9 @@ use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 
-use crate::config::{load_project_config, AdapterKind};
+use crate::config::{load_project_config, AdapterKind, ConfiguredAdapter};
+use crate::execution_receipt::{load_receipts, receipt_is_current_authority};
+use crate::safe_io::{ensure_directory_chain, read_text, replace_text};
 
 const REGISTRY_PATH: &str = ".baron/capabilities.toml";
 const STATE_PATH: &str = ".baron/cache/capability-state.json";
@@ -87,7 +89,7 @@ pub struct ProviderObservation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapabilityState {
     pub schema_version: u32,
-    pub adapter: AdapterKind,
+    pub adapter: ConfiguredAdapter,
     pub checked_at: String,
     pub observations: Vec<ProviderObservation>,
     pub required_gaps: Vec<String>,
@@ -101,11 +103,22 @@ pub struct CheckOptions {
     pub allow_network: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapabilityExecutionEvidence {
     pub capability: String,
     pub provider: String,
     pub summary: String,
+    /// Optional reference to a receipt produced by Baron's trusted runner.
+    /// Legacy summary-only entries remain readable diagnostics and can never
+    /// satisfy a required capability gate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,6 +152,10 @@ struct RuntimeExecutionEntry {
     capability: String,
     provider: String,
     summary: String,
+    #[serde(default)]
+    receipt_id: Option<String>,
+    #[serde(default)]
+    authority: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -287,7 +304,7 @@ pub fn check_capabilities(
     let (required_gaps, optional_gaps) = capability_gaps(&observations);
     let state = CapabilityState {
         schema_version: 1,
-        adapter: options.adapter,
+        adapter: ConfiguredAdapter::Supported(options.adapter),
         checked_at,
         observations,
         required_gaps,
@@ -317,7 +334,9 @@ pub fn render_capability_summary(
     let repo_root = repo_root.as_ref();
     let registry = load_registry(repo_root)?;
     let state = load_capability_state(repo_root)?;
-    let matching_state = state.as_ref().filter(|state| state.adapter == adapter);
+    let matching_state = state
+        .as_ref()
+        .filter(|state| state.adapter.supported() == Some(adapter));
     let mut output = String::new();
     output.push_str("## Capability Summary\n\n");
     output.push_str(&format!("- Adapter: `{}`\n", adapter_name(adapter)));
@@ -380,13 +399,16 @@ pub fn evaluate_execution_evidence(
     let repo_root = repo_root.as_ref();
     let registry = load_registry(repo_root)?;
     let state = load_capability_state(repo_root)?;
-    let matching_state = state.as_ref().filter(|state| state.adapter == adapter);
+    let matching_state = state
+        .as_ref()
+        .filter(|state| state.adapter.supported() == Some(adapter));
     let required_capabilities = registry
         .providers
         .iter()
         .filter(|provider| provider.requirement == Requirement::Required)
         .map(|provider| provider.capability.clone())
         .collect::<BTreeSet<_>>();
+    let receipts = load_receipts(repo_root)?;
     let mut gaps = Vec::new();
     for capability in required_capabilities {
         let present_providers = matching_state
@@ -417,6 +439,24 @@ pub fn evaluate_execution_evidence(
                     .map(|provider| present_providers.contains(provider))
                     .unwrap_or(false)
                 && !item.summary.trim().is_empty()
+                && item.receipt_id.as_deref().is_some_and(|receipt_id| {
+                    receipts
+                        .iter()
+                        .find(|receipt| receipt.receipt_id == receipt_id.trim())
+                        .map(|receipt| {
+                            receipt_is_current_authority(repo_root, receipt).unwrap_or(false)
+                                && receipt.capability
+                                    == normalize_identifier(&item.capability).unwrap_or_default()
+                                && receipt.provider
+                                    == normalize_identifier(&item.provider).unwrap_or_default()
+                                && receipt.adapter.as_deref() == Some(adapter_name(adapter))
+                                && item.task_id.as_deref() == receipt.task_id.as_deref()
+                                && item.operation_id.as_deref() == receipt.operation_id.as_deref()
+                                && item.gate_kind.as_deref() == receipt.gate_kind.as_deref()
+                                && item.gate_kind.as_deref() == Some("capability_execution")
+                        })
+                        .unwrap_or(false)
+                })
         });
         if !executed {
             gaps.push(format!("{capability} lacks execution evidence"));
@@ -445,9 +485,9 @@ pub fn record_runtime_execution(
     let repo_root = repo_root.as_ref();
     let path = repo_root.join(RUNTIME_EVIDENCE_PATH);
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_chain(parent)?;
     }
-    let mut content = fs::read_to_string(&path).unwrap_or_default();
+    let mut content = read_text(&path)?.unwrap_or_default();
     let mut written = 0;
     for item in evidence {
         let Some(capability) = normalize_identifier(&item.capability) else {
@@ -464,12 +504,14 @@ pub fn record_runtime_execution(
             capability,
             provider,
             summary: item.summary.trim().to_string(),
+            receipt_id: item.receipt_id.clone(),
+            authority: "diagnostic_attachment".to_string(),
         };
         content.push_str(&serde_json::to_string(&entry)?);
         content.push('\n');
         written += 1;
     }
-    fs::write(path, content)?;
+    replace_text(path, &content)?;
     Ok(written)
 }
 
@@ -480,8 +522,11 @@ pub fn runtime_backend_report(
     let repo_root = repo_root.as_ref();
     let registry = load_registry(repo_root)?;
     let state = load_capability_state(repo_root)?;
-    let matching_state = state.as_ref().filter(|state| state.adapter == adapter);
-    let runtime_evidence = load_runtime_execution(repo_root)?;
+    let matching_state = state
+        .as_ref()
+        .filter(|state| state.adapter.supported() == Some(adapter));
+    let _runtime_evidence = load_runtime_execution(repo_root)?;
+    let receipts = load_receipts(repo_root)?;
     let mut providers = Vec::new();
     let mut blocking_gaps = Vec::new();
     let mut warnings = Vec::new();
@@ -500,12 +545,16 @@ pub fn runtime_backend_report(
             .map(|observation| observation.evidence.clone())
             .unwrap_or_else(|| "presence check has not been run for this adapter".to_string());
         let safety = backend_safety(provider);
-        let execution_evidence =
-            if has_execution_evidence(&runtime_evidence, &provider.capability, &provider.name) {
-                Presence::Present
-            } else {
-                Presence::Missing
-            };
+        let execution_evidence = if has_authoritative_execution_evidence(
+            repo_root,
+            &receipts,
+            &provider.capability,
+            &provider.name,
+        ) {
+            Presence::Present
+        } else {
+            Presence::Missing
+        };
         let recommendation = backend_recommendation(provider, safety);
 
         if provider.requirement == Requirement::Required {
@@ -570,7 +619,7 @@ pub fn runtime_backend_report(
     }
     let mut recommendations = vec![
         "Prefer safe local commands, adapter-native tools, or read-only skill/MCP providers before network or destructive shells.".to_string(),
-        "Do not claim a tool-backed proof unless matching runtime execution evidence was recorded.".to_string(),
+        "Do not claim a tool-backed proof unless a matching current-operation execution receipt was produced by Baron.".to_string(),
     ];
     if registry.providers.is_empty() {
         recommendations.push(
@@ -630,10 +679,16 @@ pub fn render_runtime_policy_summary(
     Ok(output)
 }
 
-pub fn default_adapter(repo_root: impl AsRef<Path>) -> Result<AdapterKind> {
+/// Return registered supported adapters for diagnostic/reporting surfaces.
+/// Runtime correctness must receive an `OperationContext` instead of selecting
+/// one of these values implicitly.
+pub fn registered_runtime_adapters(repo_root: impl AsRef<Path>) -> Result<Vec<AdapterKind>> {
     let config = load_project_config(repo_root)?;
-    crate::config::active_adapter(&config)
-        .context("No registered adapter is available for capability evaluation")
+    Ok(config
+        .adapters
+        .into_iter()
+        .filter(|adapter| matches!(adapter, AdapterKind::Codex | AdapterKind::Claude))
+        .collect())
 }
 
 fn validate_provider(provider: &CapabilityProvider) -> Result<()> {
@@ -703,17 +758,20 @@ fn load_runtime_execution(repo_root: &Path) -> Result<Vec<RuntimeExecutionEntry>
     Ok(entries)
 }
 
-fn has_execution_evidence(
-    entries: &[RuntimeExecutionEntry],
+fn has_authoritative_execution_evidence(
+    repo_root: &Path,
+    receipts: &[crate::execution_receipt::ExecutionReceipt],
     capability: &str,
     provider: &str,
 ) -> bool {
-    entries.iter().any(|entry| {
-        normalize_identifier(&entry.capability).as_deref()
-            == normalize_identifier(capability).as_deref()
-            && normalize_identifier(&entry.provider).as_deref()
-                == normalize_identifier(provider).as_deref()
-            && !entry.summary.trim().is_empty()
+    let capability = normalize_identifier(capability);
+    let provider = normalize_identifier(provider);
+    receipts.iter().any(|receipt| {
+        receipt_is_current_authority(repo_root, receipt).unwrap_or(false)
+            && capability.as_deref() == Some(receipt.capability.as_str())
+            && provider.as_deref() == Some(receipt.provider.as_str())
+            && receipt.result == crate::execution_receipt::ExecutionResult::Passed
+            && receipt.gate_kind.as_deref() == Some("capability_execution")
     })
 }
 
@@ -796,14 +854,9 @@ fn save_state(repo_root: &Path, state: &CapabilityState) -> Result<()> {
 
 fn atomic_write(path: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_chain(parent)?;
     }
-    let temp = path.with_extension("baron-tmp");
-    fs::write(&temp, content).with_context(|| format!("Could not write {}", temp.display()))?;
-    if path.exists() {
-        fs::remove_file(path).with_context(|| format!("Could not replace {}", path.display()))?;
-    }
-    fs::rename(&temp, path).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 fn provider_compatible(provider: &CapabilityProvider, adapter: AdapterKind) -> bool {
@@ -1045,8 +1098,6 @@ fn adapter_name(adapter: AdapterKind) -> &'static str {
     match adapter {
         AdapterKind::Codex => "codex",
         AdapterKind::Claude => "claude",
-        AdapterKind::Generic => "agent",
-        AdapterKind::Reasonix => "reasonix",
     }
 }
 

@@ -1,70 +1,80 @@
 # Baron Context Compiler
 
-The Context Compiler is the read-only bridge between repository understanding,
-Vault memory, execution evidence, and an agent tool. It produces a bounded
-Markdown brief on stdout. It does not create or update adapter files.
+The Context Compiler is a read-only Core service that turns repository
+evidence, trusted memory, Task State, and a task request into a bounded brief
+for a native adapter. It does not create a second adapter brain or write host
+files.
 
-## Inputs
+## Structured inputs
 
-- repository path
-- Vault path from `--vault` or `BARON_VAULT`
-- one adapter target: Codex, Claude, or generic agent
-- optional task text
+The compiler receives an `OperationContext` through `PrepareRequestV1`:
 
-## Selection Order
+- repository path and stable project ID;
+- Vault routing and the current session/request identity;
+- explicit adapter identity (`codex` or `claude`);
+- task text, intent, constraints, profile, work shape, and risk;
+- current Task State and relevant prior proof or recovery evidence.
 
-1. Survey Engine Project Atlas
-2. bounded current execution state
-3. bounded current Product Harness state
-4. bounded proof and trace indexes
-5. current-project memory
-6. relevant approved global memory
-7. adapter-specific guidance
-8. explicit unknowns and skipped context
+The request is structured JSON or an equivalent native hook payload. Arbitrary
+task text is never placed inside a shell command. `control-plane prepare` is the
+high-level orchestration boundary; low-level context commands remain diagnostic
+interfaces.
 
-Weak cross-project memory, global candidates, full session history, and broad
-documentation bodies are not loaded into the compact bundle.
+## Trusted selection
 
-## Risk Guidance
+Core uses `TrustedRecallPolicy::Current` for every context-critical memory path.
+Selection is bounded and project-aware:
 
-When `--task` is provided, Baron classifies the task into a simple risk lane:
+1. project identity and repository survey;
+2. current Task State, intent, plan, recovery, and blockers;
+3. execution receipts, proof, trace, and Product Harness state;
+4. trusted current-project memory;
+5. relevant approved global memory;
+6. profile lens and route-selected Core skills and agents;
+7. optional Wiki, CodeGraph, and session-replay accelerators;
+8. explicit unknowns, warnings, and skipped-context diagnostics.
 
-- `low`: documentation, copy, and typo work
-- `medium`: normal implementation work
-- `high`: auth, permissions, tenant/RLS, payments, migration, security,
-  secrets, uploads, or data-loss work
-- `unknown`: no task was supplied and the survey found no clear risk signal
+Candidate, contested, superseded, expired, stale, and unrelated project records
+remain labelled or blocked. They cannot become current truth merely because a
+semantic score is high. Host-local memory is context only and cannot override
+Core intent, decisions, continuity, or recovery.
 
-Risk guidance does not prove safety. It tells the later workflow how strong the
-verification evidence should be.
+## Priority-aware context budget
 
-## Optional Code Map
+The compiler returns a `PreparePacketV1` with a bounded context section. It
+compresses or omits lower priorities before touching higher priorities:
 
-For architecture, dependency, impact, ownership, entrypoint, call-flow,
-cross-module, or refactor tasks, context may show a small `Optional Code Map`
-section. It never invokes Graphify and never waits for a graph refresh during
-normal session startup.
+| Tier | Content | Rule |
+| --- | --- | --- |
+| Tier 0 | project/task identity, intent, constraints, non-goals, current plan/work state, recovery, blockers, route, next action, mandatory proof/completion gates | never silently dropped |
+| Tier 1 | trusted decisions and memory, changed files, current source evidence, proof/trace, immediate action | retain when relevant |
+| Tier 2 | profile lens, bounded Wiki/CodeGraph excerpts, session replay | include when route-selected |
+| Tier 3 | low-priority diagnostics, capability reports, Autopilot candidate summary | compress or omit first |
 
-- a missing, stale, incompatible, or invalid map produces one short Survey
-  fallback diagnostic
-- a fresh cached answer is limited to eight hits and 2,400 characters
-- graph hits are navigation hints only; inferred hits always require source
-  review and extracted hits require current-file verification before they can
-  support proof, trace, or durable memory
-- the adapter automation contract may silently run the hidden code-map
-  refresh/query helpers after context identifies a matching need
+Task State is projected into Tier 0 so an interrupted task carries its original
+intent, constraints, plan, last successful step, failed/interrupted state,
+proof/trace state, affected files, blocker, and safe next action. The next
+session can resume from evidence without asking the user to restate it.
 
-## Bounded Output
+## Adapter projections
 
-- overall context is capped at 20,000 characters
-- execution-state excerpts are capped at 2,000 characters
-- lists such as commands, entrypoints, risks, and read-first files are capped
-- output records what was skipped so agents do not mistake omission for absence
+Codex and Claude receive the same semantic packet and only the selected
+canonical Core resources. Codex renders its result through `AGENTS.md` and the thin
+`.agents/skills/baron-engine` bridge. Claude renders it through `CLAUDE.md` and
+the thin `.claude/skills/baron-engine` bridge. Neither bridge loads the complete
+Core tree recursively or owns the task route.
 
-## Write Boundary
+## Optional accelerators and fallback
 
-The Context Compiler may create or refresh Vault scaffold/index artifacts
-through the Phase 2 memory engine. It does not write to the target repository.
-`baron init` owns first adapter generation. Local `baron automation reconcile`
-can repair only installed managed assets; human-run `baron update` verifies a
-release before it activates managed-project and runtime changes.
+Native hooks, session replay, Wiki, CodeGraph, capability probes, and cached
+summaries are optional accelerators. A missing, stale, malformed, untrusted, or
+timed-out accelerator produces a warning and the bounded Core fallback. Hook
+absence never becomes a claim that automation ran.
+
+## Write boundary
+
+Compilation may refresh disposable indexes through Core's memory service. Durable
+Task State, continuity, proof, and trace writes use the project/Vault transaction
+and lock rules. Adapter files are written only by initialization, reconciliation,
+or the preserve-first update transaction; user source and Vault Markdown remain
+outside that write set.

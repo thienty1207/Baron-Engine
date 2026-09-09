@@ -1,10 +1,10 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::identity::project_id_for_path;
+use crate::identity::{new_identity_binding, project_id_for_path};
+use crate::safe_io::{ensure_directory_chain, read_bytes, read_text_required, replace_text};
 use crate::vault::ensure_vault_root;
 use crate::vault::project_slug;
 
@@ -12,17 +12,89 @@ const PROJECT_CONFIG_PATH: &str = ".baron/project.toml";
 const LOCAL_CONFIG_PATH: &str = ".baron/local.toml";
 pub const PROJECT_SCHEMA_VERSION: u32 = 4;
 
+/// A supported Baron integration. Persisted compatibility values are decoded
+/// at the project-config boundary into `ConfiguredAdapter` and never enter
+/// this active runtime enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdapterKind {
     Codex,
     Claude,
-    Generic,
-    Reasonix,
+}
+
+impl AdapterKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::Claude => "claude",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "codex" => Some(Self::Codex),
+            "claude" => Some(Self::Claude),
+            _ => None,
+        }
+    }
+}
+
+/// Persisted adapter configuration is intentionally more tolerant than the
+/// active runtime. Unknown historical values are retained as opaque strings so
+/// old projects can be inspected and later initialized explicitly without
+/// guessing a replacement integration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfiguredAdapter {
+    Supported(AdapterKind),
+    UnsupportedLegacy(String),
+}
+
+impl Serialize for ConfiguredAdapter {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ConfiguredAdapter {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(Self::parse(value))
+    }
+}
+
+impl ConfiguredAdapter {
+    pub fn parse(value: impl Into<String>) -> Self {
+        let value = value.into();
+        AdapterKind::parse(&value)
+            .map(Self::Supported)
+            .unwrap_or(Self::UnsupportedLegacy(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Supported(adapter) => adapter.as_str(),
+            Self::UnsupportedLegacy(value) => value,
+        }
+    }
+
+    pub fn supported(&self) -> Option<AdapterKind> {
+        match self {
+            Self::Supported(adapter) => Some(*adapter),
+            Self::UnsupportedLegacy(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+// `Database` is an additive schema-4 value. Older binaries reject an unknown
+// value while loading instead of silently downgrading the configured profile.
 pub enum ProjectPlatform {
     Frontend,
     Backend,
@@ -32,6 +104,7 @@ pub enum ProjectPlatform {
     Tool,
     Library,
     Data,
+    Database,
     Cloud,
     Unknown,
 }
@@ -45,20 +118,111 @@ pub struct AutomationConfig {
     pub trace: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectConfig {
     pub schema_version: u32,
-    #[serde(default)]
     pub project_id: String,
+    pub identity_binding: String,
     pub project_slug: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub platform: Option<ProjectPlatform>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub platform_extensions: Vec<ProjectPlatform>,
     pub adapters: Vec<AdapterKind>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_adapter: Option<AdapterKind>,
     pub automation: AutomationConfig,
+    /// Opaque values retained from older project files. These fields are not
+    /// consulted by runtime operations or adapter selection.
+    pub legacy_adapters: Vec<String>,
+    pub legacy_active_adapter: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ProjectConfigWire {
+    schema_version: u32,
+    #[serde(default)]
+    project_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    identity_binding: String,
+    project_slug: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    platform: Option<ProjectPlatform>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    platform_extensions: Vec<ProjectPlatform>,
+    #[serde(default)]
+    adapters: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    active_adapter: Option<String>,
+    automation: AutomationConfig,
+}
+
+impl Serialize for ProjectConfig {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut adapters = self
+            .adapters
+            .iter()
+            .map(|adapter| adapter.as_str().to_string())
+            .collect::<Vec<_>>();
+        adapters.extend(self.legacy_adapters.iter().cloned());
+        ProjectConfigWire {
+            schema_version: self.schema_version,
+            project_id: self.project_id.clone(),
+            identity_binding: self.identity_binding.clone(),
+            project_slug: self.project_slug.clone(),
+            platform: self.platform,
+            platform_extensions: self.platform_extensions.clone(),
+            adapters,
+            active_adapter: self
+                .active_adapter
+                .map(AdapterKind::as_str)
+                .map(str::to_string)
+                .or_else(|| self.legacy_active_adapter.clone()),
+            automation: self.automation.clone(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ProjectConfig {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = ProjectConfigWire::deserialize(deserializer)?;
+        let mut adapters = Vec::new();
+        let mut legacy_adapters = Vec::new();
+        for value in wire.adapters {
+            match ConfiguredAdapter::parse(value) {
+                ConfiguredAdapter::Supported(adapter) => {
+                    if !adapters.contains(&adapter) {
+                        adapters.push(adapter);
+                    }
+                }
+                ConfiguredAdapter::UnsupportedLegacy(value) => legacy_adapters.push(value),
+            }
+        }
+        let (active_adapter, legacy_active_adapter) = match wire.active_adapter {
+            Some(value) => match ConfiguredAdapter::parse(value) {
+                ConfiguredAdapter::Supported(adapter) => (Some(adapter), None),
+                ConfiguredAdapter::UnsupportedLegacy(value) => (None, Some(value)),
+            },
+            None => (None, None),
+        };
+        Ok(Self {
+            schema_version: wire.schema_version,
+            project_id: wire.project_id,
+            identity_binding: wire.identity_binding,
+            project_slug: wire.project_slug,
+            platform: wire.platform,
+            platform_extensions: wire.platform_extensions,
+            adapters,
+            active_adapter,
+            automation: wire.automation,
+            legacy_adapters,
+            legacy_active_adapter,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,8 +263,12 @@ pub fn initialize_project_with_options(
 ) -> Result<ProjectConfig> {
     let repo_root = canonical_directory(repo_path.as_ref())?;
     let baron_root = repo_root.join(".baron");
-    fs::create_dir_all(&baron_root)
-        .with_context(|| format!("Could not create {}", baron_root.display()))?;
+    ensure_directory_chain(&baron_root).with_context(|| {
+        format!(
+            "Could not create safe Baron state directory: {}",
+            baron_root.display()
+        )
+    })?;
 
     let project_path = repo_root.join(PROJECT_CONFIG_PATH);
     let mut config = if project_path.exists() {
@@ -109,16 +277,22 @@ pub fn initialize_project_with_options(
         ProjectConfig {
             schema_version: PROJECT_SCHEMA_VERSION,
             project_id: project_id_for_path(&repo_root)?,
+            identity_binding: new_identity_binding()?,
             project_slug: project_slug(&repo_root),
             platform: None,
             platform_extensions: Vec::new(),
             adapters: Vec::new(),
             active_adapter: None,
             automation: AutomationConfig::default(),
+            legacy_adapters: Vec::new(),
+            legacy_active_adapter: None,
         }
     };
     if config.project_id.is_empty() {
         config.project_id = project_id_for_path(&repo_root)?;
+    }
+    if config.identity_binding.is_empty() {
+        config.identity_binding = new_identity_binding()?;
     }
     config.schema_version = PROJECT_SCHEMA_VERSION;
     if let Some(platform) = platform {
@@ -174,6 +348,7 @@ pub fn set_active_adapter(
         config.adapters.push(adapter);
     }
     config.active_adapter = Some(adapter);
+    config.legacy_active_adapter = None;
     config.schema_version = PROJECT_SCHEMA_VERSION;
     atomic_write(
         &repo_root.join(PROJECT_CONFIG_PATH),
@@ -207,14 +382,23 @@ fn reconcile_platform(config: &mut ProjectConfig, platform: ProjectPlatform) {
 pub fn load_project_config(repo_root: impl AsRef<Path>) -> Result<ProjectConfig> {
     let path = repo_root.as_ref().join(PROJECT_CONFIG_PATH);
     let content =
-        fs::read_to_string(&path).with_context(|| format!("Could not read {}", path.display()))?;
-    toml::from_str(&content).with_context(|| format!("Could not parse {}", path.display()))
+        read_text_required(&path).with_context(|| format!("Could not read {}", path.display()))?;
+    let config: ProjectConfig =
+        toml::from_str(&content).with_context(|| format!("Could not parse {}", path.display()))?;
+    if config.schema_version > PROJECT_SCHEMA_VERSION {
+        bail!(
+            "Unsupported Baron project schema {}; this runtime supports schema {} or older",
+            config.schema_version,
+            PROJECT_SCHEMA_VERSION
+        );
+    }
+    Ok(config)
 }
 
 pub fn load_local_config(repo_root: impl AsRef<Path>) -> Result<LocalConfig> {
     let path = repo_root.as_ref().join(LOCAL_CONFIG_PATH);
     let content =
-        fs::read_to_string(&path).with_context(|| format!("Could not read {}", path.display()))?;
+        read_text_required(&path).with_context(|| format!("Could not read {}", path.display()))?;
     toml::from_str(&content).with_context(|| format!("Could not parse {}", path.display()))
 }
 
@@ -229,13 +413,13 @@ pub fn find_project_root(start_path: impl AsRef<Path>) -> Result<PathBuf> {
         Some(canonical)
     };
     while let Some(directory) = current {
-        if directory.join(PROJECT_CONFIG_PATH).is_file() {
+        if read_bytes(directory.join(PROJECT_CONFIG_PATH))?.is_some() {
             return Ok(directory);
         }
         current = directory.parent().map(Path::to_path_buf);
     }
     bail!(
-        "Baron project config not found. Run `baron init <repo-path> --codex|--claude|--agent|--reasonix --vault <vault-path>` first."
+        "Baron project config not found. Run `baron init <repo-path> --codex|--claude --vault <vault-path>` first."
     )
 }
 
@@ -253,7 +437,7 @@ pub fn resolve_vault_path_for_repo(
     }
     if let Ok(repo_root) = find_project_root(start_path.as_ref()) {
         let local_path = repo_root.join(LOCAL_CONFIG_PATH);
-        if local_path.is_file() {
+        if read_bytes(&local_path)?.is_some() {
             let local = load_local_config(&repo_root).with_context(|| {
                 format!(
                     "No machine-local Vault configuration found. Provide --vault <path>, set BARON_VAULT, or restore {}.",
@@ -299,7 +483,7 @@ pub fn setup_machine_vault(vault_path: impl AsRef<Path>) -> Result<PathBuf> {
 pub fn load_machine_config() -> Result<MachineConfig> {
     let path = machine_config_path()?;
     let content =
-        fs::read_to_string(&path).with_context(|| format!("Could not read {}", path.display()))?;
+        read_text_required(&path).with_context(|| format!("Could not read {}", path.display()))?;
     toml::from_str(&content).with_context(|| format!("Could not parse {}", path.display()))
 }
 
@@ -317,20 +501,12 @@ pub fn machine_config_path() -> Result<PathBuf> {
 }
 
 fn write_if_missing(path: &Path, content: &str) -> Result<()> {
-    if path.exists() {
+    if read_bytes(path)?.is_some() {
         return Ok(());
     }
     atomic_write(path, content)
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let temp = path.with_extension("baron-tmp");
-    fs::write(&temp, content).with_context(|| format!("Could not write {}", temp.display()))?;
-    if path.exists() {
-        fs::remove_file(path).with_context(|| format!("Could not replace {}", path.display()))?;
-    }
-    fs::rename(&temp, path).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content)
 }

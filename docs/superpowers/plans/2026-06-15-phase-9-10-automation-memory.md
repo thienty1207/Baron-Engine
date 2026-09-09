@@ -157,5 +157,5 @@
 - Project identity migration occurs before memory schema migration.
 - Native hooks remain optional at runtime and report trust/availability instead of claiming execution.
 - Markdown remains the source of truth; SQLite and automation state remain rebuildable or diagnostic.
-- Generic agents remain supported without inventing a non-existent universal hook standard.
+- Codex and Claude remain supported without inventing a non-existent universal hook standard.
 - No local embedding model, API key, server, Python runtime, Zig runtime, or cloud dependency is mandatory.

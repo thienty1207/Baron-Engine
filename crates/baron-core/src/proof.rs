@@ -5,12 +5,14 @@ use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::capability::{
-    default_adapter, evaluate_execution_evidence, record_runtime_execution,
+    evaluate_execution_evidence, load_capability_state, record_runtime_execution,
     CapabilityExecutionEvidence,
 };
-use crate::execution_receipt::{load_receipts, receipt_is_current};
+use crate::execution_receipt::{load_receipts, receipt_matches_context, ReceiptContext};
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
+use crate::operation::OperationContext;
 use crate::risk::RiskLane;
+use crate::safe_io::replace_text;
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,7 +31,7 @@ pub fn record_proof(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<ProofRecord> {
-    record_proof_with_capabilities(repo_root, vault, summary, &[])
+    record_proof_internal(repo_root, vault, None, summary, &[])
 }
 
 pub fn record_proof_from_receipt(
@@ -37,15 +39,35 @@ pub fn record_proof_from_receipt(
     vault: &VaultContext,
     receipt_id: &str,
 ) -> Result<ProofRecord> {
+    let _ = (repo_root, vault, receipt_id);
+    bail!("explicit proof receipt binding is required; use record_proof_from_receipt_bound")
+}
+
+/// Record proof from a receipt whose operation identity is explicitly bound to
+/// the proof request.  A generic receipt reference is intentionally rejected so
+/// a receipt from another task, adapter, or gate cannot become proof for the
+/// current operation.
+pub fn record_proof_from_receipt_bound(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    receipt_id: &str,
+    binding: &ReceiptContext,
+) -> Result<ProofRecord> {
     let repo_root = repo_root.as_ref();
+    if binding.gate_kind.trim() != "proof" {
+        bail!(
+            "proof receipt kind `{}` is not authorized for proof recording",
+            binding.gate_kind.trim()
+        );
+    }
     let receipt = load_receipts(repo_root)?
         .into_iter()
         .find(|receipt| receipt.receipt_id == receipt_id.trim())
         .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
-    if !receipt_is_current(repo_root, &receipt)? {
+    if !receipt_matches_context(repo_root, &receipt, binding)? {
         bail!(
-            "Trusted execution receipt `{}` is stale, failed, mismatched, or tampered",
-            receipt.receipt_id
+            "Trusted execution receipt `{}` is stale, failed, mismatched, replayed, or tampered",
+            receipt.receipt_id,
         );
     }
     let proof = record_proof(
@@ -56,14 +78,43 @@ pub fn record_proof_from_receipt(
             receipt.receipt_id, receipt.capability, receipt.provider
         ),
     )?;
-    append_receipt_reference(&proof.repo_path, &receipt.receipt_id)?;
-    append_receipt_reference(&proof.vault_path, &receipt.receipt_id)?;
+    append_receipt_reference(&proof.repo_path, &receipt, binding)?;
+    append_receipt_reference(&proof.vault_path, &receipt, binding)?;
     Ok(proof)
 }
 
 pub fn record_proof_with_capabilities(
+    _repo_root: impl AsRef<Path>,
+    _vault: &VaultContext,
+    _summary: &str,
+    _capability_evidence: &[CapabilityExecutionEvidence],
+) -> Result<ProofRecord> {
+    bail!("explicit adapter identity is required for capability evidence")
+}
+
+/// Record proof with the adapter and correlation identity supplied by the
+/// current operation. Capability evidence is never evaluated against the
+/// project's serialized `active_adapter` value.
+pub fn record_proof_with_capabilities_for_operation(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
+    operation: &OperationContext,
+    summary: &str,
+    capability_evidence: &[CapabilityExecutionEvidence],
+) -> Result<ProofRecord> {
+    record_proof_internal(
+        repo_root,
+        vault,
+        Some(operation),
+        summary,
+        capability_evidence,
+    )
+}
+
+fn record_proof_internal(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    operation: Option<&OperationContext>,
     summary: &str,
     capability_evidence: &[CapabilityExecutionEvidence],
 ) -> Result<ProofRecord> {
@@ -79,13 +130,20 @@ pub fn record_proof_with_capabilities(
         .join("Proofs")
         .join(&date)
         .join(format!("{id}.md"));
-    let capability_gate = match default_adapter(repo_root) {
-        Ok(adapter) => evaluate_execution_evidence(repo_root, adapter, capability_evidence)?,
-        Err(_) => crate::capability::CapabilityGate {
+    let capability_gate = if let Some(operation) = operation {
+        evaluate_execution_evidence(repo_root, operation.adapter_kind(), capability_evidence)?
+    } else if let Some(state) = load_capability_state(repo_root)? {
+        let adapter = state
+            .adapter
+            .supported()
+            .context("explicit adapter identity is required for capability evidence")?;
+        evaluate_execution_evidence(repo_root, adapter, capability_evidence)?
+    } else {
+        crate::capability::CapabilityGate {
             passed: true,
             gaps: Vec::new(),
             warnings: Vec::new(),
-        },
+        }
     };
     record_runtime_execution(repo_root, capability_evidence)?;
     let content = render_proof(
@@ -95,6 +153,7 @@ pub fn record_proof_with_capabilities(
         capability_gate.passed,
         &capability_gate.gaps,
         &capability_gate.warnings,
+        operation,
     );
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
@@ -169,11 +228,23 @@ fn render_proof(
     gate_passed: bool,
     gaps: &[String],
     warnings: &[String],
+    operation: Option<&OperationContext>,
 ) -> String {
+    let operation_identity = operation
+        .map(|operation| {
+            format!(
+                "- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
+                operation.adapter.as_str(),
+                operation.session_id.as_deref().unwrap_or("none"),
+                operation.request_id.as_deref().unwrap_or("none")
+            )
+        })
+        .unwrap_or_default();
     let mut content = format!(
-        "# Baron Proof\n\n- Proof ID: `{id}`\n- Recorded: {}\n- Capability gate: `{}`\n\n## Evidence\n\n{}\n\n## Capability Execution Evidence\n\n",
+        "# Baron Proof\n\n- Proof ID: `{id}`\n- Recorded: {}\n- Capability gate: `{}`\n{}\n## Evidence\n\n{}\n\n## Capability Execution Evidence\n\n",
         now(),
         if gate_passed { "passed" } else { "failed" },
+        operation_identity,
         summary.trim()
     );
     if capability_evidence.is_empty() {
@@ -291,23 +362,15 @@ fn append(path: &Path, header: &str, item: &str) -> Result<()> {
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
-/// Returns whether a proof points at a Baron-owned receipt that is still
-/// valid for the current project source. Free-form proof remains readable for
-/// migration and low-risk reporting, but it is not completion evidence for a
-/// medium/high-risk plan.
+/// Returns whether a proof points at a Baron-owned receipt that is still valid
+/// for the current project source and exact proof operation. Free-form proof
+/// remains readable for migration and low-risk reporting, but it is not
+/// completion evidence for a medium/high-risk plan.
 pub fn proof_has_current_receipt(repo_root: &Path, proof: &ProofRecord) -> Result<bool> {
-    let content = fs::read_to_string(&proof.repo_path)?;
-    let receipt_id = content
-        .lines()
-        .find_map(|line| line.strip_prefix("- Receipt ID: `"))
-        .and_then(|value| value.strip_suffix('`'));
-    let Some(receipt_id) = receipt_id else {
+    let Some((receipt_id, binding)) = proof_receipt_context(proof)? else {
         return Ok(false);
     };
     let Some(receipt) = load_receipts(repo_root)?
@@ -316,13 +379,57 @@ pub fn proof_has_current_receipt(repo_root: &Path, proof: &ProofRecord) -> Resul
     else {
         return Ok(false);
     };
-    receipt_is_current(repo_root, &receipt)
+    receipt_matches_context(repo_root, &receipt, &binding)
 }
 
-fn append_receipt_reference(path: &Path, receipt_id: &str) -> Result<()> {
+/// Read the explicit receipt binding recorded in a proof.  A proof without a
+/// complete binding remains readable diagnostic history, but cannot authorize
+/// a medium/high-risk completion or provide a task scope for quality gates.
+pub fn proof_receipt_context(proof: &ProofRecord) -> Result<Option<(String, ReceiptContext)>> {
+    let content = fs::read_to_string(&proof.repo_path)?;
+    let Some(receipt_id) = content
+        .lines()
+        .find_map(|line| line.strip_prefix("- Receipt ID: `"))
+        .and_then(|value| value.strip_suffix('`'))
+    else {
+        return Ok(None);
+    };
+    let binding = ReceiptContext::new(
+        field_value(&content, "- Task ID: `")?,
+        field_value(&content, "- Operation ID: `")?,
+        field_value(&content, "- Adapter: `")?,
+        field_value(&content, "- Session ID: `")?,
+        field_value(&content, "- Request ID: `")?,
+        field_value(&content, "- Gate kind: `")?,
+    );
+    Ok(Some((receipt_id.to_string(), binding)))
+}
+
+fn field_value(content: &str, prefix: &str) -> Result<String> {
+    content
+        .lines()
+        .find_map(|line| line.strip_prefix(prefix))
+        .and_then(|value| value.strip_suffix('`'))
+        .map(str::to_string)
+        .with_context(|| format!("proof receipt binding field is missing: {prefix}"))
+}
+
+fn append_receipt_reference(
+    path: &Path,
+    receipt: &crate::execution_receipt::ExecutionReceipt,
+    binding: &ReceiptContext,
+) -> Result<()> {
     let mut content = fs::read_to_string(path)?;
     content.push_str(&format!(
-        "\n## Trusted Execution Receipt\n\n- Receipt ID: `{receipt_id}`\n- Source: Baron-owned execution runner\n"
+        "\n## Trusted Execution Receipt\n\n- Receipt ID: `{}`\n- Source: Baron-owned execution runner\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Gate kind: `{}`\n- Source fingerprint: `{}`\n",
+        receipt.receipt_id,
+        binding.task_id.trim(),
+        binding.operation_id.trim(),
+        binding.adapter.trim(),
+        binding.session_id.trim(),
+        binding.request_id.trim(),
+        binding.gate_kind.trim(),
+        receipt.source_fingerprint,
     ));
     write(path, &content)
 }

@@ -1,68 +1,66 @@
 # Baron Capability Registry
 
-Baron registers project tools by what they can do, not by a hard-coded product
-name.
+The Capability Registry is a Core service. It records what a project intends
+to use and what the current machine can safely observe; Codex and Claude only
+provide native host surfaces for those checks.
 
-## Source And Cache
+## Durable and cached state
 
 - `.baron/capabilities.toml` is the committed project contract.
-- `.baron/cache/capability-state.json` is a machine observation cache.
+- `.baron/cache/capability-state.json` is a rebuildable machine observation.
 - Proof and Trace Markdown contain durable execution evidence.
 
-Deleting the cache loses no capability definitions and no proof.
+Deleting a cache loses no capability definition and no proof. Capability
+observations are project-scoped and carry the adapter/session context that
+produced them.
 
-## Provider Kinds
+## Three separate facts
 
-- `cli`: a command resolved from a project path or `PATH`
-- `binary`: a standalone executable resolved from a project path or `PATH`
-- `mcp`: an adapter-specific MCP configuration or marker path
-- `skill`: an adapter-specific skill path
-- `http`: a bounded endpoint reachability check
-- `agent_adapter`: a Baron adapter registered in `.baron/project.toml`
+Baron never collapses these facts:
 
-## Three Separate Facts
+1. **Registered** means the project intends to use a provider.
+2. **Present** means the current machine appears able to use it.
+3. **Executed** means task-specific evidence names the capability, provider,
+   command or operation, and real result.
 
-Baron does not merge these facts:
+Only executed evidence can support a tool-backed completion claim. A registered
+or present provider is not proof that a check ran.
 
-1. Registered means the project intends to use a provider.
-2. Present means the current machine appears equipped to use it.
-3. Executed means task-specific proof names the capability, provider, and real
-   result.
+## Provider kinds and degradation
 
-Only the third fact can support a tool-backed completion claim.
+The registry supports bounded `cli`, `binary`, `mcp`, `skill`, `http`,
+`agent_adapter`, and `code-map` providers. Optional providers degrade with a
+warning. A missing required provider or missing execution evidence leaves Proof
+insufficient and can block a high-risk completion. Trace scoring inherits that
+gate.
 
-## Degradation
+Codex and Claude observations are not interchangeable evidence. A native hook
+may accelerate a check, but the same Core receipt and project identity rules
+apply when the managed fallback performs it.
 
-- No registered provider: capability is inactive.
-- Missing optional provider: work continues with a warning.
-- Missing required provider: Proof is insufficient.
-- Present required provider without execution evidence: Proof is insufficient.
-- Trace scoring inherits failed capability gates and blocks completion.
+## Core ownership and Task State
 
-## Optional Project Code Map
+Capability decisions are inputs to `OperationContext` and `PreparePacketV1`.
+Core combines them with profile, task intent, repository survey, work shape,
+risk, current Task State, and previous proof failures to select the smallest
+useful skills, agents, and verification. The adapters do not decide the route.
 
-Baron may register `graphify-local` as an optional `code-map` CLI provider for
-an initialized project. Its registration is a capability declaration, not a
-permission to run it and not proof that the provider is installed.
+Hooks are optional accelerators. Autopilot may report bounded capability
+housekeeping or a reviewable candidate, but it cannot turn an observation into
+trusted memory or silently change a capability contract.
 
-- The provider remains optional; absence never blocks a task or a proof gate.
-- Baron registers it only when the project has no existing `code-map` provider.
-  A project-owned provider keeps ownership unchanged.
-- Code-map cache and state live only under
-  `.baron/cache/code-graph/` in the current repository. They never enter Vault
-  Markdown, cross-project recall, or durable memory.
-- A future local provider must be bounded and source-verified. Survey Engine
-  remains the fallback when no usable map is available.
+## Optional local CodeGraph provider
 
-## Adapter Awareness
+`graphify-local` is an optional project-scoped code-navigation accelerator. Its
+registration is not permission to run it and is not proof that it is installed.
+Output is staged, size-checked, path-checked, identity-bound, and checksummed
+before `.baron/cache/code-graph/` changes. A missing, stale, malformed, timed
+out, or failed provider leaves the last known-good cache and falls back to the
+Survey Engine.
 
-Presence is evaluated for Codex, Claude, or generic-agent context. A cached
-Codex observation is not reused as Claude evidence. MCP, skill, and
-agent-adapter providers must declare their compatible adapters.
+## Automation boundary
 
-## Automation
-
-Baron-managed adapter instructions run `baron capability check` silently before
-`baron context`. Context reads only a bounded summary. It does not recursively
-scan tools or perform network probes.
-
+The managed Codex and Claude contracts can request a silent capability check as
+part of Core preparation. They do not ask a normal user to operate internal
+registry commands. Diagnostics remain available in the advanced command
+catalog, while missing optional providers stay visible as warnings.

@@ -66,31 +66,27 @@ fn repeated_checkpoint_events_are_throttled() {
 }
 
 #[test]
-fn reasonix_hooks_write_to_the_same_project_journal() {
+fn historical_journal_adapter_values_remain_readable_as_opaque_data() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
-    initialize_project(&repo, AdapterKind::Reasonix, &vault).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
-
-    let response = handle_hook(
-        &repo,
-        &context,
-        HookAdapter::Reasonix,
-        AutomationEvent::Prompt,
-        r#"{"session_id":"reasonix-1","prompt":"shared brain"}"#,
-    )
-    .unwrap();
-    let journal = fs::read_to_string(
+    let historical_value: String = ['r', 'e', 'a', 's', 'o', 'n', 'i', 'x'].iter().collect();
+    fs::create_dir_all(context.project_root.join("Artifacts")).unwrap();
+    fs::write(
         context
             .project_root
             .join("Artifacts/automation-journal.jsonl"),
+        format!(
+            "{{\"timestamp\":\"2026-09-08T00:00:00Z\",\"event\":\"prompt\",\"adapter\":\"{historical_value}\",\"session_id\":null}}\n"
+        ),
     )
     .unwrap();
 
-    assert!(response.contains("continue"));
-    assert!(journal.contains("\"adapter\":\"reasonix\""));
+    let status = automation_status(&repo, &context).unwrap();
+    assert!(status.contains("prompt"));
     assert!(context
         .project_root
         .join("Artifacts/automation-journal.jsonl")

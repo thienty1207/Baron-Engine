@@ -16,6 +16,9 @@ use baron_core::memory::build_memory_index;
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
+// Portability: context projection fixtures are cross-platform and use
+// deterministic temporary repositories and Vaults.
+
 fn write(path: &Path, content: &str) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -73,7 +76,7 @@ fn why_output_explains_loaded_and_skipped_context() {
     let context = ensure_vault(&vault, &repo).unwrap();
     build_memory_index(&context).unwrap();
 
-    let why = compile_context_why(&repo, &vault, ContextTarget::Generic).unwrap();
+    let why = compile_context_why(&repo, &vault, ContextTarget::Codex).unwrap();
 
     assert!(why.contains("# Context Selection Why"));
     assert!(why.contains("Loaded: repo survey"));
@@ -98,12 +101,6 @@ fn adapter_context_headings_are_distinct() {
     assert!(compile_context(&repo, &vault, ContextTarget::Claude)
         .unwrap()
         .contains("For Claude"));
-    assert!(compile_context(&repo, &vault, ContextTarget::Generic)
-        .unwrap()
-        .contains("For generic agents"));
-    assert!(compile_context(&repo, &vault, ContextTarget::Reasonix)
-        .unwrap()
-        .contains("For DeepSeek Reasonix"));
 }
 
 #[test]
@@ -195,7 +192,7 @@ fn context_loads_current_execution_state_without_loading_history() {
         "# Historical Plan\n\nThis body must not enter compact context.\n",
     );
 
-    let bundle = compile_context(&repo, &vault, ContextTarget::Generic).unwrap();
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
 
     assert!(bundle.contains("Status: in_progress"));
     assert!(bundle.contains("Next: verify context compiler"));
@@ -543,4 +540,32 @@ fn context_includes_bounded_control_plane_and_harness_improvement_summary() {
     assert!(bundle.contains("## Autopilot Learning And Resume"));
     assert!(bundle.contains("candidates are not facts until approved"));
     assert!(bundle.len() <= 20_000);
+}
+
+#[test]
+fn database_route_and_verification_survive_bounded_context_projection() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("database-context");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Codex),
+        &vault,
+        Some(ProjectPlatform::Database),
+    )
+    .unwrap();
+
+    let bundle = compile_context_for_task(
+        &repo,
+        &vault,
+        ContextTarget::Codex,
+        Some("review relational schema constraints"),
+    )
+    .unwrap();
+
+    assert!(bundle.contains("database-engineering"));
+    assert!(bundle.contains("schema-integrity"));
+    assert!(bundle.contains("work_shape="));
+    assert!(bundle.chars().count() <= 20_000);
 }

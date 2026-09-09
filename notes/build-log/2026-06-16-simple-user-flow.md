@@ -20,7 +20,7 @@ Survey, context, memory, plan, harness, proof, trace, control-plane, certificati
 
 - Added `baron setup --vault`, defaulting to the current folder when no path is passed.
 - Stored the machine Vault path in `~/.baron/config.toml`, or `BARON_HOME/config.toml` in tests.
-- Let `baron init --codex`, `baron init --claude`, and `baron init --agent` use the machine Vault after setup.
+- Let `baron init --codex` and `baron init --claude` use the machine Vault after setup.
 - Added project platform focus flags for frontend, backend, fullstack, mobile, desktop, tool, library, data, cloud, and unknown.
 - Supported shortcut init such as `baron init --codex --fullstack`.
 - Hid internal automation command groups from top-level help while keeping the commands callable.

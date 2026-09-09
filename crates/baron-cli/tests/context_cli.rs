@@ -22,7 +22,11 @@ fn list_files(root: &Path) -> BTreeSet<PathBuf> {
             if path.is_dir() {
                 visit(root, &path, files);
             } else {
-                files.insert(path.strip_prefix(root).unwrap().to_path_buf());
+                let relative = path.strip_prefix(root).unwrap();
+                if relative == Path::new(".baron/.baron-mutation.lock") {
+                    continue;
+                }
+                files.insert(relative.to_path_buf());
             }
         }
     }
@@ -81,7 +85,7 @@ fn context_codex_outputs_bounded_bundle_without_writing_repo_files() {
 }
 
 #[test]
-fn context_supports_claude_generic_and_why_modes() {
+fn context_supports_claude_and_why_modes() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
@@ -100,22 +104,6 @@ fn context_supports_claude_generic_and_why_modes() {
         .success()
         .stdout(predicate::str::contains("# Baron Context Bundle - Claude"))
         .stdout(predicate::str::contains("For Claude"));
-
-    Command::cargo_bin("baron")
-        .unwrap()
-        .args([
-            "context",
-            repo.to_str().unwrap(),
-            "--agent",
-            "--vault",
-            vault.to_str().unwrap(),
-        ])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains(
-            "# Baron Context Bundle - Generic Agent",
-        ))
-        .stdout(predicate::str::contains("For generic agents"));
 
     Command::cargo_bin("baron")
         .unwrap()
@@ -193,7 +181,7 @@ fn context_requires_exactly_one_target_unless_why_is_used() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "Choose one context target: --codex, --claude, --agent, or --reasonix.",
+            "Choose one context target: --codex or --claude.",
         ));
 
     Command::cargo_bin("baron")
@@ -209,6 +197,6 @@ fn context_requires_exactly_one_target_unless_why_is_used() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "Choose only one context target: --codex, --claude, --agent, or --reasonix.",
+            "Choose only one context target: --codex or --claude.",
         ));
 }

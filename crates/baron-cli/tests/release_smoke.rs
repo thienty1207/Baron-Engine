@@ -62,7 +62,9 @@ fn fresh_and_old_projects_preserve_user_owned_content() {
         .success();
 
     assert!(fresh.join("AGENTS.md").is_file());
-    assert!(fresh.join(".codex/skills/superpowers/SKILL.md").is_file());
+    assert!(fresh
+        .join(".baron/core/skills/superpowers/SKILL.md")
+        .is_file());
     assert!(fs::read_to_string(old.join("AGENTS.md"))
         .unwrap()
         .contains("Keep this."));
@@ -165,8 +167,10 @@ fn shared_vault_keeps_weak_cross_project_memory_out() {
     fs::create_dir_all(&beta).unwrap();
     write(&alpha.join("README.md"), "# Alpha\n");
     write(&beta.join("README.md"), "# Beta\n");
-    init(&alpha, &vault, "--agent");
-    init(&beta, &vault, "--agent");
+    init(&alpha, &vault, "--codex");
+    init(&alpha, &vault, "--claude");
+    init(&beta, &vault, "--codex");
+    init(&beta, &vault, "--claude");
 
     let alpha_context = vault_context_without_create(&vault, &alpha).unwrap();
     let beta_context = vault_context_without_create(&vault, &beta).unwrap();
@@ -206,7 +210,7 @@ fn shared_vault_keeps_weak_cross_project_memory_out() {
 }
 
 #[test]
-fn three_adapters_and_capability_degradation_work_together() {
+fn codex_and_claude_capability_degradation_work_together() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("multi-agent");
     let vault = temp.path().join("vault");
@@ -215,10 +219,8 @@ fn three_adapters_and_capability_degradation_work_together() {
 
     init(&repo, &vault, "--codex");
     init(&repo, &vault, "--claude");
-    init(&repo, &vault, "--agent");
     assert!(repo.join("AGENTS.md").is_file());
     assert!(repo.join("CLAUDE.md").is_file());
-    assert!(repo.join("AGENT.md").is_file());
 
     Command::cargo_bin("baron")
         .unwrap()

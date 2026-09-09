@@ -37,7 +37,6 @@ baron survey [repo-path]
 baron survey [repo-path] --json
 baron init [repo-path] --codex --shadow
 baron init [repo-path] --claude --shadow
-baron init [repo-path] --agent --shadow
 ```
 
 Deliverables:
@@ -95,7 +94,6 @@ Commands:
 ```bash
 baron context [repo-path] --codex --vault <vault-path>
 baron context [repo-path] --claude --vault <vault-path>
-baron context [repo-path] --agent --vault <vault-path>
 baron context [repo-path] --codex --task "<task>" --vault <vault-path>
 baron context [repo-path] --why --vault <vault-path>
 ```
@@ -111,7 +109,7 @@ Deliverables:
 Verification:
 
 - `cargo test`
-- Codex, Claude, and generic context smoke
+- Codex and Claude context smoke
 - task-risk smoke
 - context-selection `--why` smoke
 - `git diff --check`
@@ -127,24 +125,22 @@ Commands:
 ```bash
 baron init --codex
 baron init --claude
-baron init --agent
 baron update --codex
 baron update --claude
-baron update --agent
 ```
 
 Deliverables:
 
 - Codex adapter assets
 - Claude adapter assets
-- generic agent assets
+- opaque parsing for unsupported historical adapter values
 - safe update/merge behavior
 - user-owned content preservation
 
 Verification:
 
 - managed-block and custom-asset preservation tests
-- Codex, Claude, and generic adapter tests
+- Codex and Claude adapter tests
 - multi-adapter init/update CLI tests
 - nested-directory automatic config smoke
 

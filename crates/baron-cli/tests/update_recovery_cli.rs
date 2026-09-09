@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
 use baron_core::release::{
-    supported_release_target, write_release_metadata, SUPPORTED_RELEASE_TARGETS,
+    supported_release_target, write_release_metadata_with_signing_key, SUPPORTED_RELEASE_TARGETS,
 };
 use predicates::prelude::*;
 use semver::Version;
@@ -42,6 +42,12 @@ fn snapshot(root: &Path, excluded: Option<&Path>) -> BTreeMap<PathBuf, Vec<u8>> 
         for entry in entries {
             let path = entry.path();
             if excluded.is_some_and(|skip| path.starts_with(skip)) {
+                continue;
+            }
+            if path
+                .strip_prefix(root)
+                .is_ok_and(|relative| relative == Path::new(".baron/.baron-mutation.lock"))
+            {
                 continue;
             }
             if path.is_dir() {
@@ -169,7 +175,14 @@ fn write_upgrade_fixture(
             fs::write(candidate, format!("other-target:{}", target.triple)).unwrap();
         }
     }
-    write_release_metadata(release, version, SOURCE_REVISION).unwrap();
+    write_release_metadata_with_signing_key(
+        release,
+        version,
+        SOURCE_REVISION,
+        "baron-debug-test-key",
+        &[7_u8; 32],
+    )
+    .unwrap();
 }
 
 fn transaction_state(repo: &Path) -> PathBuf {

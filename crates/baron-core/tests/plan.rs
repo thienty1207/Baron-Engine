@@ -2,14 +2,16 @@ use std::fs;
 use std::process::Command;
 use std::time::Duration;
 
-use baron_core::control_plane::record_gate_evidence_with_receipt;
-use baron_core::execution_receipt::{execute_command, ExecutionRequest};
+use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
+use baron_core::execution_receipt::{
+    execute_command_with_context, ExecutionRequest, ReceiptContext,
+};
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
-use baron_core::proof::record_proof_from_receipt;
+use baron_core::proof::record_proof_from_receipt_bound;
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -53,15 +55,59 @@ fn passing_execution(repo: &std::path::Path) -> baron_core::execution_receipt::E
     let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
     #[cfg(not(windows))]
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
-    execute_command(ExecutionRequest {
-        capability: "security-authorization".to_string(),
-        provider: "test-runner".to_string(),
-        executable: executable.to_string(),
-        arguments,
-        working_directory: repo.to_path_buf(),
-        timeout: Duration::from_secs(5),
-    })
+    execute_command_with_context(
+        ExecutionRequest {
+            capability: "security-authorization".to_string(),
+            provider: "test-runner".to_string(),
+            executable: executable.to_string(),
+            arguments,
+            working_directory: repo.to_path_buf(),
+            timeout: Duration::from_secs(5),
+        },
+        ReceiptContext::new(
+            "task-backend-login-security",
+            "operation-proof",
+            "codex",
+            "session-proof",
+            "request-proof",
+            "proof",
+        ),
+    )
     .unwrap()
+}
+
+fn passing_gate_execution(
+    repo: &std::path::Path,
+    agent: &str,
+) -> (
+    baron_core::execution_receipt::ExecutionReceipt,
+    ReceiptContext,
+) {
+    #[cfg(windows)]
+    let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
+    #[cfg(not(windows))]
+    let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
+    let binding = ReceiptContext::new(
+        "task-backend-login-security",
+        format!("operation-{agent}"),
+        "codex",
+        "session-plan",
+        format!("request-{agent}"),
+        format!("quality:{agent}"),
+    );
+    let receipt = execute_command_with_context(
+        ExecutionRequest {
+            capability: "security-authorization".to_string(),
+            provider: "test-runner".to_string(),
+            executable: executable.to_string(),
+            arguments,
+            working_directory: repo.to_path_buf(),
+            timeout: Duration::from_secs(5),
+        },
+        binding.clone(),
+    )
+    .unwrap();
+    (receipt, binding)
 }
 
 #[test]
@@ -212,14 +258,24 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
     confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
     let receipt = passing_execution(&repo);
-    record_proof_from_receipt(&repo, &context, &receipt.receipt_id).unwrap();
+    let proof_binding = ReceiptContext::new(
+        "task-backend-login-security",
+        "operation-proof",
+        "codex",
+        "session-proof",
+        "request-proof",
+        "proof",
+    );
+    record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &proof_binding).unwrap();
     for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
-        record_gate_evidence_with_receipt(
+        let (gate_receipt, binding) = passing_gate_execution(&repo, agent);
+        record_gate_evidence_with_receipt_bound(
             &repo,
             &context,
             agent,
             &format!("{agent} reviewed auth security with evidence"),
-            &receipt.receipt_id,
+            &gate_receipt.receipt_id,
+            &binding,
         )
         .unwrap();
     }

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 
 use crate::config::{load_local_config, load_project_config, PROJECT_SCHEMA_VERSION};
 use crate::vault::{load_capsule_metadata, vault_context_without_create, VaultContext};
@@ -19,8 +19,9 @@ pub fn require_coherent_execution_state(
             repo_path.as_ref().display()
         )
     })?;
-    let config = load_project_config(&repo_root)
-        .with_context(|| format!("Baron project configuration is unreadable. {REPAIR_GUIDANCE}"))?;
+    let config = load_project_config(&repo_root).map_err(|error| {
+        anyhow!("Baron project configuration is unreadable: {error}. {REPAIR_GUIDANCE}")
+    })?;
     if config.schema_version != PROJECT_SCHEMA_VERSION {
         bail!(
             "Baron project schema {} is unsupported; expected {}. {}",
@@ -31,6 +32,9 @@ pub fn require_coherent_execution_state(
     }
     if config.project_id.trim().is_empty() {
         bail!("Baron project identity is missing. {REPAIR_GUIDANCE}");
+    }
+    if !valid_identity_binding(&config.identity_binding) {
+        bail!("Baron project identity binding is missing or malformed. {REPAIR_GUIDANCE}");
     }
 
     let vault_root = vault_path.as_ref().canonicalize().with_context(|| {
@@ -73,11 +77,18 @@ pub fn require_coherent_execution_state(
             REPAIR_GUIDANCE
         );
     }
-    if metadata.project_id != context.project_id || metadata.project_slug != context.project_slug {
+    if metadata.project_id != context.project_id
+        || metadata.project_slug != context.project_slug
+        || metadata.identity_binding != context.identity_binding
+    {
         bail!(
             "Baron project identity mismatch between repo and Vault capsule. {}",
             REPAIR_GUIDANCE
         );
     }
     Ok(context)
+}
+
+fn valid_identity_binding(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }

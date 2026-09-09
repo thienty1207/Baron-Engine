@@ -4,21 +4,24 @@ mod install;
 mod managed;
 mod update;
 
-pub use install::{install_adapter, managed_payloads_for_adapter, InstallReport};
+pub use install::{
+    core_managed_payloads, ensure_core_runtime, install_adapter, managed_payloads_for_adapter,
+    CoreInstallReport, InstallReport,
+};
 pub use update::{
-    ensure_managed_baseline, load_managed_baseline, managed_baseline_content,
-    managed_content_for_kind, managed_state_dir, managed_target_path, plan_managed_update,
-    reconcile_installed_managed_assets, record_managed_baseline, replace_managed_baseline,
-    LocalReconcileReport, ManagedAssetPayload, ManagedAssetRecord, ManagedBaseline,
-    ManagedMergeKind, ManagedUpdateAction, ManagedUpdatePlan, UpdateDisposition,
+    core_reconcile_managed_assets, ensure_managed_baseline, load_managed_baseline,
+    managed_baseline_content, managed_content_for_kind, managed_state_dir, managed_target_path,
+    migrate_managed_ownership, plan_managed_update, reconcile_installed_managed_assets,
+    record_managed_baseline, replace_managed_baseline, LocalReconcileReport, ManagedAssetPayload,
+    ManagedAssetRecord, ManagedBaseline, ManagedMergeKind, ManagedOwner, ManagedProvenance,
+    ManagedUpdateAction, ManagedUpdatePlan, OwnershipMigrationReport, SupportedManagedAdapter,
+    UpdateDisposition,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentAdapter {
     Codex,
     Claude,
-    Generic,
-    Reasonix,
 }
 
 impl AgentAdapter {
@@ -26,8 +29,6 @@ impl AgentAdapter {
         match self {
             AgentAdapter::Codex => "--codex",
             AgentAdapter::Claude => "--claude",
-            AgentAdapter::Generic => "--agent",
-            AgentAdapter::Reasonix => "--reasonix",
         }
     }
 }
@@ -65,43 +66,37 @@ pub fn shadow_preview(adapter: AgentAdapter) -> ShadowPreview {
     match adapter {
         AgentAdapter::Codex => ShadowPreview {
             adapter: "codex".to_string(),
-            files: vec!["AGENTS.md".to_string()],
-            directories: vec![
-                ".codex/skills".to_string(),
-                ".codex/agents".to_string(),
-                ".codex/commands".to_string(),
+            files: vec![
+                "AGENTS.md".to_string(),
+                ".agents/skills/baron-engine/SKILL.md".to_string(),
+                ".agents/skills/baron-engine/agents/openai.yaml".to_string(),
+                ".codex/INDEX.md".to_string(),
+                ".codex/hooks.json".to_string(),
             ],
-            message: "Codex adapter would install Baron startup guidance, skill routing, and core quality agents.".to_string(),
+            directories: vec![
+                ".baron/core".to_string(),
+                ".agents/skills/baron-engine".to_string(),
+                ".codex/agents".to_string(),
+            ],
+            message: "Codex adapter would install a thin native bridge over Baron Core, three quality-agent wrappers, and merged hooks.".to_string(),
         },
         AgentAdapter::Claude => ShadowPreview {
             adapter: "claude".to_string(),
-            files: vec!["CLAUDE.md".to_string()],
-            directories: vec![".claude/commands".to_string(), ".claude/hooks".to_string()],
-            message: "Claude adapter would install Baron startup guidance and Claude command/hook surfaces.".to_string(),
-        },
-        AgentAdapter::Generic => ShadowPreview {
-            adapter: "agent".to_string(),
             files: vec![
-                "AGENT.md".to_string(),
-                "baron-context.md".to_string(),
-                "baron-context.json".to_string(),
-            ],
-            directories: vec![".baron".to_string()],
-            message: "Generic adapter would install portable Markdown and JSON context contracts.".to_string(),
-        },
-        AgentAdapter::Reasonix => ShadowPreview {
-            adapter: "reasonix".to_string(),
-            files: vec![
-                "REASONIX.md".to_string(),
-                ".reasonix/INDEX.md".to_string(),
-                ".reasonix/settings.json".to_string(),
+                "CLAUDE.md".to_string(),
+                ".claude/skills/baron-engine/SKILL.md".to_string(),
+                ".claude/agents/code-reviewer.md".to_string(),
+                ".claude/agents/security-auditor.md".to_string(),
+                ".claude/agents/test-engineer.md".to_string(),
+                ".claude/settings.json".to_string(),
             ],
             directories: vec![
-                ".reasonix/commands".to_string(),
-                ".reasonix/skills".to_string(),
-                ".reasonix/agents".to_string(),
+                ".baron/core".to_string(),
+                ".claude/skills/baron-engine".to_string(),
+                ".claude/agents".to_string(),
+                ".claude/commands".to_string(),
             ],
-            message: "Reasonix adapter would install the shared Baron skill/agent core plus native commands, settings, and startup guidance.".to_string(),
+            message: "Claude adapter would install a thin native bridge, three Core-provenance subagent wrappers, diagnostic commands, and merged settings hooks over Baron Core.".to_string(),
         },
     }
 }
@@ -114,8 +109,6 @@ mod tests {
     fn exposes_initial_adapter_flags() {
         assert_eq!(AgentAdapter::Codex.flag(), "--codex");
         assert_eq!(AgentAdapter::Claude.flag(), "--claude");
-        assert_eq!(AgentAdapter::Generic.flag(), "--agent");
-        assert_eq!(AgentAdapter::Reasonix.flag(), "--reasonix");
     }
 
     #[test]

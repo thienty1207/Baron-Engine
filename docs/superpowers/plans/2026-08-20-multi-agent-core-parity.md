@@ -10,24 +10,24 @@ does not create a `4.3` release.
   - [x] Keep adapter-specific bridge paths and native hook formats separate
     from the shared core source.
 
-- [x] Phase 114: full Reasonix core materialization
-  - [x] Install all bundled skills and agents into Baron-managed Reasonix
+- [x] Phase 114: full retired adapter core materialization
+  - [x] Install all bundled skills and agents into Baron-managed retired adapter
     paths, with root, skill, and agent indexes.
-  - [x] Extend Reasonix startup/context/status guidance to route the same
+  - [x] Extend retired adapter startup/context/status guidance to route the same
     workflow, quality gates, and evidence rules as Codex.
-  - [x] Preserve existing Reasonix bridge, settings, and user files.
+  - [x] Preserve existing retired adapter bridge, settings, and user files.
 
 - [x] Phase 115: safe reconciliation and switching
-  - [x] Add Reasonix core assets to managed payloads and baseline/update
+  - [x] Add retired adapter core assets to managed payloads and baseline/update
     reconciliation.
   - [x] Restore missing Baron assets, but preserve changed/unmarked assets and
     report conflicts.
-  - [x] Keep Codex, Claude, generic, and Reasonix files available during
+  - [x] Keep Codex, Claude, generic, and retired adapter files available during
     adapter switching with one project ID and one Vault.
 
 - [x] Phase 116: parity and regression proof
   - [x] Add tests for identical embedded inventories, indexes, and mandatory
-    quality agents across Codex and Reasonix.
+    quality agents across Codex and retired adapter.
   - [x] Add switch round-trip, custom-file preservation, conflict, missing
     asset, and shared-history tests using an isolated fixture shaped like the
     consumer project.
@@ -49,16 +49,16 @@ does not create a `4.3` release.
 - `cargo fmt --all`: passed.
 - `cargo test -p baron-adapters --all-targets --no-fail-fast`: 3 unit,
   30 lifecycle, 15 planner, and 1 transaction test passed.
-- `cargo test -p baron-cli --test reasonix_adapter_cli --no-fail-fast`: 6/6
+- `cargo test -p baron-cli --test retired adapter_adapter_cli --no-fail-fast`: 6/6
   passed, including release-binary-style init/switch/shortcut asset checks and
-  the full Codex -> Reasonix -> Claude -> Generic -> Codex round trip.
+  the full Codex -> retired adapter -> Claude -> Generic -> Codex round trip.
 - `cargo test -p baron-core --test public_trust_docs --no-fail-fast`: 9/9
   passed after the README/status truth update.
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed.
 - `cargo build --release --locked -p baron-cli`: passed; the parity release
   binary reports `baron 4.2.2` after the version bump.
-- Release binary isolated smoke: Codex init -> `baron --reasonix` created the
-  complete Reasonix core view and preserved one project/Vault identity.
+- Release binary isolated smoke: Codex init -> the retired adapter shortcut created the
+  complete retired adapter core view and preserved one project/Vault identity.
 - Full workspace sweep: all relevant engine, memory, adapter, CLI, fallback,
   and release tests passed; four existing Windows environment gates could not
   execute because PowerShell archive autoload/WDAC policy blocked them.

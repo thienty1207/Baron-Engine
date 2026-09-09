@@ -10,6 +10,51 @@ use crate::memory::{
 use crate::semantic::{expand_query, rank_documents_v42, SemanticDocument};
 use crate::vault::VaultContext;
 
+/// The named policy boundary for memory that may influence current Baron
+/// task truth. Older recall generations remain available for frozen
+/// compatibility and benchmark paths, but current context must enter through
+/// this policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrustedRecallPolicy {
+    Current,
+}
+
+/// Apply the current trusted retrieval policy. Keeping this boundary explicit
+/// prevents context, resume, and direct recall callers from silently selecting
+/// a weaker legacy eligibility path.
+pub fn trusted_recall(
+    context: &VaultContext,
+    query: &str,
+    limit: usize,
+    policy: TrustedRecallPolicy,
+) -> Result<RecallResult> {
+    match policy {
+        TrustedRecallPolicy::Current => recall_v5(context, query, limit),
+    }
+}
+
+pub fn trusted_recall_current(
+    context: &VaultContext,
+    query: &str,
+    limit: usize,
+) -> Result<RecallResult> {
+    trusted_recall(context, query, limit, TrustedRecallPolicy::Current)
+}
+
+/// Existing trust semantics permit likely/unknown-confidence records when no
+/// stronger exclusion applies. Candidate, contested, superseded, expired,
+/// and stale/warning records are never current truth.
+pub fn record_is_currently_trusted(record: &MemoryRecord) -> bool {
+    !matches!(
+        record.trust_state(),
+        crate::memory::MemoryTrustState::Candidate
+            | crate::memory::MemoryTrustState::Contested
+            | crate::memory::MemoryTrustState::Superseded
+            | crate::memory::MemoryTrustState::Expired
+    ) && record.provenance.superseded_by.is_none()
+        && record.provenance.contradicts.is_empty()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryHit {
     pub record: MemoryRecord,
@@ -152,8 +197,13 @@ pub fn compact_memory_brief_for_task(context: &VaultContext, task: Option<&str>)
     let focused = task
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(|query| recall(context, query, 5))
+        .map(|query| trusted_recall_current(context, query, 5))
         .transpose()?;
+    let trusted_records = if focused.is_none() {
+        trusted_current_records(context, 32)?
+    } else {
+        Vec::new()
+    };
     let mut output = String::new();
     output.push_str("# Memory Firewall Brief\n\n");
     output.push_str(&format!("- Project: `{}`\n", context.project_slug));
@@ -176,9 +226,12 @@ pub fn compact_memory_brief_for_task(context: &VaultContext, task: Option<&str>)
                 .collect::<Vec<_>>()
         })
         .unwrap_or_else(|| {
-            records
+            trusted_records
                 .iter()
-                .filter(|record| record.project_id.as_deref() == Some(context.project_id.as_str()))
+                .filter(|record| {
+                    record.scope == MemoryScope::Project
+                        && record.project_id.as_deref() == Some(context.project_id.as_str())
+                })
                 .take(5)
                 .collect()
         });
@@ -189,7 +242,7 @@ pub fn compact_memory_brief_for_task(context: &VaultContext, task: Option<&str>)
             output.push_str(&format!(
                 "- [{}] {} (`{}`)\n",
                 record.confidence.as_str(),
-                record.excerpt,
+                bounded_excerpt(&record.excerpt, 1_200),
                 record.path
             ));
         }
@@ -207,7 +260,7 @@ pub fn compact_memory_brief_for_task(context: &VaultContext, task: Option<&str>)
                 .collect::<Vec<_>>()
         })
         .unwrap_or_else(|| {
-            records
+            trusted_records
                 .iter()
                 .filter(|record| record.scope == MemoryScope::GlobalVerified)
                 .take(3)
@@ -217,7 +270,11 @@ pub fn compact_memory_brief_for_task(context: &VaultContext, task: Option<&str>)
         output.push_str("- none indexed yet\n");
     } else {
         for record in global_records.into_iter().take(3) {
-            output.push_str(&format!("- {} (`{}`)\n", record.excerpt, record.path));
+            output.push_str(&format!(
+                "- {} (`{}`)\n",
+                bounded_excerpt(&record.excerpt, 1_200),
+                record.path
+            ));
         }
     }
 
@@ -248,6 +305,97 @@ pub fn compact_memory_brief_for_task(context: &VaultContext, task: Option<&str>)
         output.push_str("- No missing memory facts detected\n");
     }
     Ok(output)
+}
+
+/// Return bounded current records for an un-focused memory brief. This uses
+/// the same eligibility and temporal policy as semantic current recall while
+/// keeping deterministic project-first ordering.
+pub fn trusted_current_records(context: &VaultContext, limit: usize) -> Result<Vec<MemoryRecord>> {
+    let records = load_memory_records(context)?;
+    let temporal = load_current_temporal_ledger(context)?;
+    let now = Utc::now();
+    let mut records = records
+        .into_iter()
+        .filter(|record| trusted_record_allowed(context, record, temporal.as_ref(), now))
+        .collect::<Vec<_>>();
+    records.sort_by(|left, right| {
+        let left_current = left.project_id.as_deref() == Some(context.project_id.as_str());
+        let right_current = right.project_id.as_deref() == Some(context.project_id.as_str());
+        right_current
+            .cmp(&left_current)
+            .then_with(|| right.updated_at.cmp(&left.updated_at))
+            .then_with(|| left.path.cmp(&right.path))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    records.truncate(limit.max(1));
+    Ok(records)
+}
+
+fn load_current_temporal_ledger(
+    context: &VaultContext,
+) -> Result<Option<crate::intelligence41::TemporalLedger>> {
+    let path = crate::intelligence41::temporal_ledger_path(context);
+    if path.is_file() {
+        Ok(Some(crate::intelligence41::load_temporal_ledger(context)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn trusted_record_allowed(
+    context: &VaultContext,
+    record: &MemoryRecord,
+    temporal: Option<&crate::intelligence41::TemporalLedger>,
+    now: DateTime<Utc>,
+) -> bool {
+    if record.scope == MemoryScope::GlobalCandidate
+        || (record.scope == MemoryScope::Project
+            && record.project_id.as_deref() != Some(context.project_id.as_str()))
+        || (record.scope != MemoryScope::Project && record.scope != MemoryScope::GlobalVerified)
+        || !record_is_currently_trusted(record)
+    {
+        return false;
+    }
+    if let Some(valid_from) = record
+        .provenance
+        .valid_from
+        .as_deref()
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+    {
+        if valid_from.with_timezone(&Utc) > now {
+            return false;
+        }
+    }
+    if record
+        .provenance
+        .valid_until
+        .as_deref()
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .is_some_and(|value| value.with_timezone(&Utc) <= now)
+    {
+        return false;
+    }
+    if record.scope != MemoryScope::Project {
+        return true;
+    }
+    let Some(ledger) = temporal else {
+        return true;
+    };
+    ledger
+        .entries
+        .iter()
+        .find(|entry| entry.record_id == record.id)
+        .is_some_and(|entry| {
+            !entry.contested && crate::intelligence41::temporal_entry_is_current(entry, now)
+        })
+}
+
+fn bounded_excerpt(value: &str, limit: usize) -> String {
+    let mut output = value.chars().take(limit).collect::<String>();
+    if value.chars().count() > limit {
+        output.push_str("...");
+    }
+    output
 }
 
 pub fn render_recall(result: &RecallResult) -> String {
@@ -456,31 +604,14 @@ pub fn recall_v5(context: &VaultContext, query: &str, limit: usize) -> Result<Re
             });
     }
     result.results = eligible.into_values().collect();
-    let temporal_path = crate::intelligence41::temporal_ledger_path(context);
-    if temporal_path.exists() {
-        let ledger = crate::intelligence41::load_temporal_ledger(context)?;
-        let now = Utc::now();
-        result.results.retain(|hit| {
-            ledger
-                .entries
-                .iter()
-                .find(|entry| entry.record_id == hit.record.id)
-                .map(|entry| crate::intelligence41::temporal_entry_is_current(entry, now))
-                .unwrap_or(false)
-        });
-    }
-    // A semantic hit never upgrades an untrusted or contradictory record. It
-    // may remain visible through the legacy 4.0 path, but the 4.2 candidate
-    // must abstain before reranking/synthesis.
-    result.results.retain(|hit| {
-        !matches!(
-            hit.record.trust_state(),
-            crate::memory::MemoryTrustState::Candidate
-                | crate::memory::MemoryTrustState::Contested
-                | crate::memory::MemoryTrustState::Superseded
-                | crate::memory::MemoryTrustState::Expired
-        )
-    });
+    let temporal = load_current_temporal_ledger(context)?;
+    let now = Utc::now();
+    // A semantic hit never upgrades an untrusted, contradictory, or stale
+    // record. Legacy recall may still expose those records for frozen
+    // compatibility/benchmark behavior, but current retrieval abstains.
+    result
+        .results
+        .retain(|hit| trusted_record_allowed(context, &hit.record, temporal.as_ref(), now));
     let documents = result
         .results
         .iter()

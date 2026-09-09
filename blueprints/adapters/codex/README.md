@@ -1,33 +1,25 @@
 # Codex Adapter Blueprint
 
-Target command:
-
-```bash
-baron init --codex
-baron context --codex
-```
-
-Target generated assets:
+Codex is a thin native projection over Baron Core. Initialization materializes
+the canonical project runtime first, then writes only the Codex bridge and
+managed host entries.
 
 ```text
+assets/core/** → .baron/core/**
+                     ↓
 AGENTS.md
-.codex/
-  INDEX.md
-  agents/
-    INDEX.md
-    code-reviewer.toml
-    security-auditor.toml
-    test-engineer.toml
-  skills/
-    INDEX.md
-    superpowers/
-    frontend-design/
-    vibe-security-scan/
+.agents/skills/baron-engine/SKILL.md
+.agents/skills/baron-engine/agents/openai.yaml
+.codex/agents/*.toml
+.codex/INDEX.md
+.codex/hooks.json
 ```
 
-Codex adapter rules:
+`AGENTS.md` owns the automatic lifecycle contract. The bridge loads only
+route-selected Core resources and uses the structured PrepareRequestV1 and
+PreparePacketV1 protocol. It does not create a copied semantic tree under
+`.codex/skills/**` and does not start a competing router.
 
-- `AGENTS.md` is the automatic startup contract.
-- `.codex/skills/INDEX.md` is the skill routing surface.
-- `.codex/agents/INDEX.md` is the subagent routing surface.
-- Do not recursively load every skill or agent.
+Native hooks are optional accelerators with the managed contract as fallback.
+Third-party hooks, user text, custom skills, agents, settings, and unknown
+entries remain preserved by the ownership and update rules.

@@ -1,7 +1,7 @@
-use std::fs;
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
+use baron_core::safe_io::{read_text, replace_text};
 
 const START: &str = "<!-- BARON:MANAGED:START -->";
 const END: &str = "<!-- BARON:MANAGED:END -->";
@@ -10,7 +10,7 @@ const ROUTING_END: &str = "<!-- BARON:ROUTING:END -->";
 
 pub fn upsert_managed_block(path: &Path, body: &str) -> Result<()> {
     let block = format!("{START}\n{}\n{END}", body.trim());
-    let existing = fs::read_to_string(path).unwrap_or_default();
+    let existing = read_text(path)?.unwrap_or_default();
     let updated = match delimited_block_bounds(&existing, START, END, "managed")? {
         Some((start, end)) => {
             let end = end + END.len();
@@ -19,11 +19,11 @@ pub fn upsert_managed_block(path: &Path, body: &str) -> Result<()> {
         None if existing.trim().is_empty() => format!("{block}\n"),
         None => format!("{}\n\n{block}\n", existing.trim_end()),
     };
-    atomic_write(path, &updated)
+    replace_text(path, &updated)
 }
 
 pub fn write_managed_file(path: &Path, content: &str) -> Result<()> {
-    atomic_write(path, content)
+    replace_text(path, content)
 }
 
 pub fn upsert_routing_block(
@@ -33,7 +33,7 @@ pub fn upsert_routing_block(
     custom_guidance: &str,
 ) -> Result<()> {
     let block = format!("{ROUTING_START}\n{}\n{ROUTING_END}", managed_body.trim());
-    let existing = fs::read_to_string(path).unwrap_or_default();
+    let existing = read_text(path)?.unwrap_or_default();
     let preserved = match delimited_block_bounds(&existing, ROUTING_START, ROUTING_END, "routing")?
     {
         Some((start, end)) => {
@@ -50,7 +50,7 @@ pub fn upsert_routing_block(
     } else {
         preserved.trim().to_string()
     };
-    atomic_write(path, &format!("{block}\n\n{preserved}\n"))
+    replace_text(path, &format!("{block}\n\n{preserved}\n"))
 }
 
 pub(crate) fn delimited_block_bounds(
@@ -75,16 +75,4 @@ pub(crate) fn delimited_block_bounds(
             "Baron {label} markers are malformed: expected zero or one complete marker pair, found {start_count} start marker(s) and {end_count} end marker(s)"
         ),
     }
-}
-
-fn atomic_write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let temp = path.with_extension("baron-tmp");
-    fs::write(&temp, content).with_context(|| format!("Could not write {}", temp.display()))?;
-    if path.exists() {
-        fs::remove_file(path).with_context(|| format!("Could not replace {}", path.display()))?;
-    }
-    fs::rename(&temp, path).with_context(|| format!("Could not write {}", path.display()))
 }

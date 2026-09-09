@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::config::{ProjectConfig, ProjectPlatform};
+use crate::safe_io::replace_text;
 use crate::survey::survey_repository;
 
 const START: &str = "<!-- baron:platform:start -->";
@@ -42,6 +43,7 @@ pub fn profile_for(platform: ProjectPlatform) -> PlatformProfile {
         ProjectPlatform::Tool => profile(platform, TOOL),
         ProjectPlatform::Library => profile(platform, LIBRARY),
         ProjectPlatform::Data => profile(platform, DATA),
+        ProjectPlatform::Database => profile(platform, DATABASE),
         ProjectPlatform::Cloud => profile(platform, CLOUD),
         ProjectPlatform::Unknown => profile(platform, UNKNOWN),
     }
@@ -313,6 +315,7 @@ const MOBILE: ProfileValues = (
         "memory pressure",
     ],
     &[
+        "mobile-application-engineering",
         "api-and-interface-design",
         "performance-optimization when measured",
         "vibe-security-scan",
@@ -501,6 +504,53 @@ const DATA: ProfileValues = (
         "replay/backfill evidence recorded",
     ],
 );
+const DATABASE: ProfileValues = (
+    &[
+        "relational data integrity",
+        "query correctness and predictable performance",
+        "safe migrations and recoverability",
+    ],
+    &[
+        "explicit entity and relation ownership",
+        "constraints before application assumptions",
+        "transaction boundaries and repository access",
+    ],
+    &[
+        "orphaned or duplicate rows",
+        "N+1 and unbounded query plans",
+        "deadlocks, lost updates, and unsafe migrations",
+    ],
+    &[
+        "least-privilege data access",
+        "sensitive-column handling",
+        "validated destructive operations",
+    ],
+    &[
+        "index/selectivity evidence",
+        "bounded query and pool usage",
+        "concurrency and lock behavior",
+    ],
+    &[
+        "database-engineering",
+        "deprecation-and-migration when schema changes",
+        "performance-optimization when measured",
+    ],
+    &[
+        "code-reviewer",
+        "security-auditor for sensitive data",
+        "test-engineer",
+    ],
+    &[
+        "schema/constraint verification",
+        "query-plan or index evidence",
+        "transaction/concurrency and rollback proof",
+    ],
+    &[
+        "integrity constraints proven",
+        "migration/backfill rollback known",
+        "recovery evidence recorded",
+    ],
+);
 const CLOUD: ProfileValues = (
     &["reliability", "cost and operability", "safe deployment"],
     &[
@@ -629,10 +679,7 @@ fn upsert_managed(path: &Path, body: &str) -> Result<()> {
         _ if existing.trim().is_empty() => format!("{block}\n"),
         _ => format!("{}\n\n{block}\n", existing.trim_end()),
     };
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, &content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 fn bounded_read(path: &Path, limit: usize) -> String {
@@ -646,18 +693,42 @@ fn task_lens(task: Option<&str>) -> &'static str {
     for (name, words) in [
         ("mobile", &["mobile", "android", "ios", "device"][..]),
         (
+            "database",
+            &[
+                "database",
+                "foreign key",
+                "query plan",
+                "n+1",
+                "transaction",
+                "deadlock",
+                "isolation",
+                "index",
+                "orm",
+                "schema migration",
+            ],
+        ),
+        (
             "frontend",
             &["frontend", "ui", "page", "component", "responsive"],
         ),
-        ("backend", &["backend", "api", "server", "database", "auth"]),
+        ("backend", &["backend", "api", "server", "auth"]),
         ("cloud", &["cloud", "deploy", "infrastructure", "iam"]),
         ("data", &["pipeline", "dataset", "etl", "analytics"]),
     ] {
-        if words.iter().any(|word| task.contains(word)) {
+        if words.iter().any(|word| task_contains_term(&task, word)) {
             return name;
         }
     }
     "primary"
+}
+
+fn task_contains_term(value: &str, term: &str) -> bool {
+    if term.chars().any(char::is_whitespace) {
+        return value.contains(term);
+    }
+    value
+        .split(|character: char| !character.is_ascii_alphanumeric() && character != '+')
+        .any(|token| token == term)
 }
 
 pub fn platform_name(platform: ProjectPlatform) -> &'static str {
@@ -670,6 +741,7 @@ pub fn platform_name(platform: ProjectPlatform) -> &'static str {
         ProjectPlatform::Tool => "tool",
         ProjectPlatform::Library => "library",
         ProjectPlatform::Data => "data",
+        ProjectPlatform::Database => "database",
         ProjectPlatform::Cloud => "cloud",
         ProjectPlatform::Unknown => "unknown",
     }

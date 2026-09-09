@@ -10,4 +10,6 @@ Initial adapters:
 
 - `codex`
 - `claude`
-- `generic-agent`
+
+Historical unsupported adapter values are migration inputs only. They do not
+have a blueprint or an installable runtime surface.

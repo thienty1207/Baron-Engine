@@ -44,7 +44,10 @@ fn non_shadow_init_installs_codex_and_configuration() {
     assert!(capabilities.contains("code-map"));
     assert!(capabilities.contains("optional"));
     assert!(repo.join("AGENTS.md").exists());
-    assert!(repo.join(".codex/skills/superpowers/SKILL.md").exists());
+    assert!(repo
+        .join(".baron/core/skills/superpowers/SKILL.md")
+        .exists());
+    assert!(!repo.join(".codex/skills/superpowers/SKILL.md").exists());
     assert!(repo.join("docs/baron/harness/DOMAIN_LANGUAGE.md").exists());
     let context = vault_context_without_create(&vault, &repo).unwrap();
     assert!(context.project_root.join("Facts.md").exists());
@@ -282,6 +285,10 @@ fn automation_reconcile_preserves_custom_routing_and_recovers_missing_domain_lan
     );
     let skills_index = repo.join(".codex/skills/INDEX.md");
     let agents_index = repo.join(".codex/agents/INDEX.md");
+    write(
+        &skills_index,
+        "# Existing Codex Skill Routing\n\n## Custom Skills\n",
+    );
     let skills = fs::read_to_string(&skills_index).unwrap();
     fs::write(
         &skills_index,
@@ -432,7 +439,7 @@ fn update_dry_run_merges_all_registered_adapters_without_writing_any_repo_file()
 }
 
 #[test]
-fn context_uses_registered_adapter_and_local_vault_automatically() {
+fn context_requires_explicit_adapter_and_uses_local_vault_automatically() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let nested = repo.join("src");
@@ -454,7 +461,7 @@ fn context_uses_registered_adapter_and_local_vault_automatically() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&nested)
-        .arg("context")
+        .args(["context", "--codex"])
         .assert()
         .success()
         .stdout(predicate::str::contains("# Baron Context Bundle - Codex"))
@@ -469,7 +476,7 @@ fn shadow_init_remains_read_only_and_does_not_require_vault() {
 
     Command::cargo_bin("baron")
         .unwrap()
-        .args(["init", repo.to_str().unwrap(), "--agent", "--shadow"])
+        .args(["init", repo.to_str().unwrap(), "--codex", "--shadow"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No files were written"));

@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fmt;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -8,9 +9,9 @@ mod update_transaction;
 use crate::self_update::CandidateBinaryInspector;
 use anyhow::{bail, Context, Result};
 use baron_adapters::{
-    install_adapter, managed_payloads_for_adapter, plan_managed_update,
-    reconcile_installed_managed_assets, shadow_preview, AgentAdapter, ManagedUpdatePlan,
-    UpdateDisposition,
+    core_managed_payloads, install_adapter, managed_payloads_for_adapter, plan_managed_update,
+    reconcile_installed_managed_assets, shadow_preview, AgentAdapter, ManagedAssetPayload,
+    ManagedUpdatePlan, UpdateDisposition,
 };
 use baron_core::architecture::ensure_architecture_governor;
 use baron_core::asset_lifecycle::{
@@ -18,10 +19,12 @@ use baron_core::asset_lifecycle::{
 };
 use baron_core::authority::classify_request;
 use baron_core::automation::{
-    automation_status, handle_hook, reconcile, record_lifecycle_event, AutomationEvent, HookAdapter,
+    automation_status, handle_hook, reconcile, record_lifecycle_event_for_operation,
+    record_lifecycle_event_neutral, AutomationEvent, HookAdapter,
 };
 use baron_core::autopilot::{
-    approve_candidate, autopilot_status, reject_candidate, review_after_task,
+    approve_candidate, autopilot_status, reject_candidate, respond_to_pending_approval,
+    review_after_task,
 };
 use baron_core::capability::{
     check_capabilities, load_capability_state, load_registry, register_provider, remove_provider,
@@ -42,21 +45,23 @@ use baron_core::config::{
     load_project_config, resolve_vault_path_for_repo, set_active_adapter, set_project_platform,
     setup_machine_vault, AdapterKind, ProjectPlatform,
 };
-use baron_core::context::{compile_context_for_task, compile_context_why, ContextTarget};
+use baron_core::context::{compile_context_for_operation, compile_context_why, ContextTarget};
 use baron_core::continuity::{
-    continuity_status, record_continuity_checkpoint, record_recovery, RecoveryInput,
+    continuity_status, record_continuity_checkpoint_for_operation, record_recovery, RecoveryInput,
     RecoveryOutcome,
 };
 use baron_core::control_plane::{
-    gate_evidence_status_strict, record_gate_evidence, record_gate_evidence_with_receipt,
-    route_task, validate_control_plane,
+    gate_evidence_status_strict, record_gate_evidence, record_gate_evidence_with_receipt_bound,
+    route_task, validate_control_plane, GateReceiptBinding,
 };
 use baron_core::evaluation41::run_benchmark as run_benchmark41;
 use baron_core::evaluation42::{
     freeze_contract42, run_acceptance42, run_benchmark42, run_holdout42, write_phase88_audit,
 };
-use baron_core::execution_receipt::{execute_command, ExecutionRequest, ExecutionResult};
-use baron_core::firewall::{compact_memory_brief, recall_v4, recall_v5, render_recall};
+use baron_core::execution_receipt::{
+    execute_command, ExecutionRequest, ExecutionResult, ReceiptContext,
+};
+use baron_core::firewall::{compact_memory_brief, render_recall, trusted_recall_current};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
 use baron_core::harness::{
     ensure_harness_workspace, harness_status, record_decision, record_friction,
@@ -88,13 +93,15 @@ use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
     render_migration_inventory, rollback_migration,
 };
+use baron_core::operation::{OperationContext, SupportedAdapter};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
-use baron_core::proof::{
-    proof_status, record_proof, record_proof_from_receipt, record_proof_with_capabilities,
+use baron_core::prepare::{
+    decode_request, prepare, PrepareError, PreparePacketV1, PREPARE_MAX_INPUT_BYTES,
 };
+use baron_core::proof::{proof_status, record_proof, record_proof_from_receipt_bound};
 use baron_core::release::{
     load_and_verify_release_metadata, verify_release_identity, write_release_metadata,
 };
@@ -118,11 +125,11 @@ struct Cli {
     /// These root shortcuts intentionally keep the detailed `adapter` command
     /// available for diagnostics and scripts without making it part of the
     /// normal daily workflow.
-    #[arg(long, conflicts_with = "reasonix")]
+    #[arg(long)]
     codex: bool,
     /// Switch the active adapter for the Baron project in the current folder.
     #[arg(long, conflicts_with = "codex")]
-    reasonix: bool,
+    claude: bool,
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -152,10 +159,6 @@ enum Commands {
         codex: bool,
         #[arg(long)]
         claude: bool,
-        #[arg(long = "agent")]
-        agent: bool,
-        #[arg(long)]
-        reasonix: bool,
         #[arg(long)]
         shadow: bool,
         #[arg(long)]
@@ -177,6 +180,8 @@ enum Commands {
         #[arg(long)]
         data: bool,
         #[arg(long)]
+        database: bool,
+        #[arg(long)]
         cloud: bool,
         #[arg(long)]
         unknown: bool,
@@ -187,10 +192,6 @@ enum Commands {
         codex: bool,
         #[arg(long, hide = true)]
         claude: bool,
-        #[arg(long = "agent", hide = true)]
-        agent: bool,
-        #[arg(long, hide = true)]
-        reasonix: bool,
         #[arg(long, hide = true)]
         dry_run: bool,
         #[arg(long, hide = true, requires = "dry_run")]
@@ -259,10 +260,6 @@ enum Commands {
         codex: bool,
         #[arg(long)]
         claude: bool,
-        #[arg(long = "agent")]
-        agent: bool,
-        #[arg(long)]
-        reasonix: bool,
         #[arg(long)]
         why: bool,
         #[arg(long)]
@@ -664,10 +661,22 @@ enum ProofCommands {
     Record {
         summary: String,
         repo_path: Option<PathBuf>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
         #[arg(long = "capability-evidence")]
         capability_evidence: Vec<String>,
         #[arg(long)]
         receipt: Option<String>,
+        #[arg(long, requires = "receipt")]
+        task_id: Option<String>,
+        #[arg(long, requires = "receipt")]
+        operation_id: Option<String>,
+        #[arg(long, requires = "receipt")]
+        session_id: Option<String>,
+        #[arg(long, requires = "receipt")]
+        request_id: Option<String>,
+        #[arg(long, requires = "receipt")]
+        gate_kind: Option<String>,
     },
     Execute {
         #[arg(long)]
@@ -792,6 +801,15 @@ enum ControlPlaneCommands {
     Status {
         repo_path: Option<PathBuf>,
     },
+    Prepare {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        adapter: String,
+        #[arg(long)]
+        vault: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
     Route {
         task: String,
         repo_path: Option<PathBuf>,
@@ -804,6 +822,18 @@ enum ControlPlaneCommands {
         repo_path: Option<PathBuf>,
         #[arg(long)]
         receipt: Option<String>,
+        #[arg(long, requires = "receipt")]
+        gate_kind: Option<String>,
+        #[arg(long, requires = "receipt")]
+        task_id: Option<String>,
+        #[arg(long, requires = "receipt")]
+        operation_id: Option<String>,
+        #[arg(long, requires = "receipt")]
+        adapter: Option<String>,
+        #[arg(long, requires = "receipt")]
+        session_id: Option<String>,
+        #[arg(long, requires = "receipt")]
+        request_id: Option<String>,
     },
     Evidence {
         repo_path: Option<PathBuf>,
@@ -868,6 +898,10 @@ enum AutopilotCommands {
     },
     Reject {
         candidate_id: String,
+        repo_path: Option<PathBuf>,
+    },
+    Respond {
+        response: String,
         repo_path: Option<PathBuf>,
     },
 }
@@ -947,6 +981,8 @@ enum ContinuityCommands {
     Checkpoint {
         note: String,
         repo_path: Option<PathBuf>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
     },
     Recover {
         root_cause: String,
@@ -1020,8 +1056,6 @@ enum RiskLaneArg {
 enum AdapterArg {
     Codex,
     Claude,
-    Agent,
-    Reasonix,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -1034,8 +1068,10 @@ enum CertificationProfileArg {
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum AutomationEventArg {
     SessionStart,
-    Prompt,
-    Checkpoint,
+    #[value(name = "user-prompt-submit", alias = "prompt")]
+    UserPromptSubmit,
+    #[value(name = "pre-compact", alias = "checkpoint")]
+    PreCompact,
     ContextCompiled,
     PlanStarted,
     HarnessStarted,
@@ -1043,6 +1079,26 @@ enum AutomationEventArg {
     TraceScored,
     Stop,
 }
+
+#[derive(Debug)]
+struct PrepareCommandFailure {
+    error: PrepareError,
+    json: bool,
+}
+
+impl PrepareCommandFailure {
+    fn new(error: PrepareError, json: bool) -> Self {
+        Self { error, json }
+    }
+}
+
+impl fmt::Display for PrepareCommandFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(formatter)
+    }
+}
+
+impl std::error::Error for PrepareCommandFailure {}
 
 fn main() {
     // The command dispatcher intentionally owns a broad, strongly typed
@@ -1057,6 +1113,19 @@ fn main() {
     match result {
         Ok(Ok(())) => {}
         Ok(Err(error)) => {
+            if let Some(failure) = error.downcast_ref::<PrepareCommandFailure>() {
+                if failure.json {
+                    match serde_json::to_string(&failure.error.envelope()) {
+                        Ok(payload) => println!("{payload}"),
+                        Err(serialize_error) => {
+                            eprintln!("error: could not serialize prepare error: {serialize_error}")
+                        }
+                    }
+                } else {
+                    eprintln!("error: {failure}");
+                }
+                std::process::exit(failure.error.exit_code());
+            }
             eprintln!("error: {error}");
             std::process::exit(1);
         }
@@ -1068,15 +1137,15 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
     let Cli {
         codex,
-        reasonix,
+        claude,
         command,
     } = cli;
-    if codex || reasonix {
+    if codex || claude {
         if command.is_some() {
-            bail!("Use `baron --codex` or `baron --reasonix` by itself; detailed commands remain under `baron adapter`.");
+            bail!("Use `baron --codex` or `baron --claude` by itself; detailed commands remain under `baron adapter`.");
         }
-        return run_adapter_shortcut(if reasonix {
-            AdapterKind::Reasonix
+        return run_adapter_shortcut(if claude {
+            AdapterKind::Claude
         } else {
             AdapterKind::Codex
         });
@@ -1137,6 +1206,7 @@ fn run() -> Result<()> {
                             .join(", ")
                     }
                 );
+                println!("- Runtime authority: `non-authoritative`; operations require an explicit Codex or Claude identity.");
                 println!(
                     "- Shared Vault: `{}`",
                     vault_path
@@ -1159,7 +1229,7 @@ fn run() -> Result<()> {
                 let config = load_project_config(&repo_root)?;
                 let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
                 let shared_context = require_coherent_execution_state(&repo_root, &vault_path)?;
-                let payloads = managed_payloads_for_adapter(target)?;
+                let payloads = managed_payloads_for_adapters(std::slice::from_ref(&target))?;
                 if dry_run {
                     println!("# Baron Adapter Switch Preview\n");
                     println!("- Project: `{}`", config.project_id);
@@ -1170,6 +1240,7 @@ fn run() -> Result<()> {
                             .unwrap_or("unknown")
                     );
                     println!("- Target adapter: `{}`", adapter_kind_name(target_kind));
+                    println!("- Runtime authority: `non-authoritative`; this switch is compatibility/UI state only.");
                     println!("- Shared Vault unchanged: `{}`", vault_path.display());
                     println!("- Files considered: {}", payloads.len());
                     for payload in payloads {
@@ -1188,14 +1259,16 @@ fn run() -> Result<()> {
                 } else {
                     let updated = set_active_adapter(&repo_root, target_kind)?;
                     let report = install_adapter(&repo_root, target)?;
-                    record_lifecycle_event(
+                    let operation = operation_context_from_kind(target_kind);
+                    record_operation_lifecycle_or_neutral(
                         &shared_context,
-                        hook_adapter_for_repo(&repo_root),
+                        operation.as_ref(),
                         AutomationEvent::Checkpoint,
                     )?;
                     println!("# Baron Adapter Switch\n");
                     println!("- Project: `{}`", updated.project_id);
                     println!("- Active adapter: `{}`", adapter_kind_name(target_kind));
+                    println!("- Runtime authority: `non-authoritative`; operations require an explicit Codex or Claude identity.");
                     println!("- Shared Vault: `{}`", vault_path.display());
                     println!(
                         "- Registered adapters: {}",
@@ -1207,6 +1280,18 @@ fn run() -> Result<()> {
                             .join(", ")
                     );
                     println!("- Managed files: {}", report.managed_files.len());
+                    println!(
+                        "- Canonical Core files: {}",
+                        report.core.managed_files.len()
+                    );
+                    println!(
+                        "- Core conflicts requiring review: {}",
+                        if report.core.conflicts.is_empty() {
+                            "none".to_string()
+                        } else {
+                            report.core.conflicts.join(", ")
+                        }
+                    );
                     println!(
                         "- Preserved existing paths: {}",
                         if report.preserved_paths.is_empty() {
@@ -1265,8 +1350,6 @@ fn run() -> Result<()> {
             repo_path,
             codex,
             claude,
-            agent,
-            reasonix,
             shadow,
             vault,
             frontend,
@@ -1277,10 +1360,11 @@ fn run() -> Result<()> {
             tool_platform,
             library,
             data,
+            database,
             cloud,
             unknown,
         }) => {
-            let adapter = selected_adapter(codex, claude, agent, reasonix)?;
+            let adapter = selected_adapter(codex, claude)?;
             let platform = parse_platform(
                 frontend,
                 backend,
@@ -1290,14 +1374,14 @@ fn run() -> Result<()> {
                 tool_platform,
                 library,
                 data,
+                database,
                 cloud,
                 unknown,
             )?;
             let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
             if shadow {
-                let adapter = adapter.context(
-                    "Choose exactly one adapter for shadow init: --codex, --claude, --agent, or --reasonix",
-                )?;
+                let adapter = adapter
+                    .context("Choose exactly one adapter for shadow init: --codex or --claude")?;
                 print!("{}", shadow_preview(adapter).to_markdown());
             } else if let Some(adapter) = adapter {
                 let repo_root = repo_path.canonicalize()?;
@@ -1327,6 +1411,18 @@ fn run() -> Result<()> {
                         .unwrap_or("auto-detected")
                 );
                 println!("- Managed files: {}", report.managed_files.len());
+                println!(
+                    "- Canonical Core files: {}",
+                    report.core.managed_files.len()
+                );
+                println!(
+                    "- Core conflicts requiring review: {}",
+                    if report.core.conflicts.is_empty() {
+                        "none".to_string()
+                    } else {
+                        report.core.conflicts.join(", ")
+                    }
+                );
                 println!(
                     "- Preserved existing paths: {}",
                     if report.preserved_paths.is_empty() {
@@ -1367,7 +1463,7 @@ fn run() -> Result<()> {
                 println!("- Adapter files were not changed.");
             } else {
                 bail!(
-                    "Choose an adapter (--codex, --claude, --agent, --reasonix), a platform (--fullstack, --backend, --frontend, --mobile, --desktop, --tool, --library, --data, --cloud), or both."
+                    "Choose an adapter (--codex, --claude), a platform (--fullstack, --backend, --frontend, --mobile, --desktop, --tool, --library, --data, --database, --cloud), or both."
                 );
             }
         }
@@ -1375,8 +1471,6 @@ fn run() -> Result<()> {
             repo_path,
             codex,
             claude,
-            agent,
-            reasonix,
             dry_run,
             installed,
             verify_candidate,
@@ -1393,7 +1487,7 @@ fn run() -> Result<()> {
             let start = repo_path.unwrap_or(std::env::current_dir()?);
             let repo_root = find_project_root(&start)?;
             let config = load_project_config(&repo_root)?;
-            let requested = selected_adapter(codex, claude, agent, reasonix)?;
+            let requested = selected_adapter(codex, claude)?;
             let adapters = match requested {
                 Some(adapter) => {
                     let kind = adapter_kind(adapter);
@@ -1408,6 +1502,11 @@ fn run() -> Result<()> {
                 }
                 None => config.adapters.iter().copied().map(agent_adapter).collect(),
             };
+            if adapters.is_empty() {
+                bail!(
+                    "No supported adapter is configured. Initialize Codex or Claude explicitly before updating."
+                );
+            }
             let names = adapters
                 .iter()
                 .map(|adapter| adapter_name(*adapter))
@@ -1496,13 +1595,7 @@ fn run() -> Result<()> {
             } else if candidate_plan {
                 let state_path = transaction
                     .context("Baron candidate planning requires --transaction <state-path>.")?;
-                let payloads = adapters
-                    .iter()
-                    .map(|adapter| managed_payloads_for_adapter(*adapter))
-                    .collect::<Result<Vec<_>>>()?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
+                let payloads = managed_payloads_for_adapters(&adapters)?;
                 let planned = update_transaction::plan_candidate_transaction(
                     &repo_root,
                     &state_path,
@@ -1685,13 +1778,7 @@ fn run() -> Result<()> {
                 println!("- Runtime activation: not performed");
                 println!("- Project managed files: unchanged");
             } else if dry_run {
-                let payloads = adapters
-                    .iter()
-                    .map(|adapter| managed_payloads_for_adapter(*adapter))
-                    .collect::<Result<Vec<_>>>()?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
+                let payloads = managed_payloads_for_adapters(&adapters)?;
                 let plan = plan_managed_update(&repo_root, &payloads)?;
                 let candidate_label = if installed {
                     "currently installed embedded assets"
@@ -1832,6 +1919,7 @@ fn run() -> Result<()> {
                 let vault_path = resolve_command_vault(vault, &repo_path)?;
                 let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
                 build_memory_index(&context)?;
+                refresh_temporal_ledger(&context)?;
                 print!("{}", compact_memory_brief(&context)?);
             }
             MemoryCommands::ImportSessions { repo_path, vault } => {
@@ -2471,23 +2559,10 @@ fn run() -> Result<()> {
             let vault_path = resolve_command_vault(vault, &repo_path)?;
             let context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             build_memory_index(&context)?;
-            let temporal_ready = refresh_temporal_ledger(&context).is_ok();
-            let (generation, result) = if experimental_generation_enabled() {
-                match temporal_ready.then(|| recall_v5(&context, &query, 8)) {
-                    Some(Ok(result)) if !result.results.is_empty() => ("4.2", result),
-                    Some(Ok(_)) | Some(Err(_)) | None => ("4.0", recall_v4(&context, &query, 8)?),
-                }
-            } else if next_generation_enabled() {
-                match temporal_ready.then(|| recall_v5(&context, &query, 8)) {
-                    Some(Ok(result)) if !result.results.is_empty() => ("4.1", result),
-                    Some(Ok(_)) | Some(Err(_)) | None => ("4.0", recall_v4(&context, &query, 8)?),
-                }
-            } else {
-                ("4.0", recall_v4(&context, &query, 8)?)
-            };
+            let _ = refresh_temporal_ledger(&context);
+            let result = trusted_recall_current(&context, &query, 8)?;
             println!(
-                "- Intelligence generation: `{}` (4.0 fallback retained)\n",
-                generation
+                "- Retrieval policy: `trusted-current` (semantic generation fallback remains internal)\n"
             );
             print!("{}", render_recall(&result));
         }
@@ -2495,31 +2570,20 @@ fn run() -> Result<()> {
             repo_path,
             codex,
             claude,
-            agent,
-            reasonix,
             why,
             task,
             vault,
         }) => {
             let repo_path = resolve_repo_root(repo_path.unwrap_or(std::env::current_dir()?))?;
             let vault_path = resolve_command_vault(vault, &repo_path)?;
-            let default = load_project_config(&repo_path)
-                .ok()
-                .and_then(|config| active_adapter(&config))
-                .map(agent_adapter)
-                .map(context_target);
-            let target = parse_context_target(codex, claude, agent, reasonix, why, default)?;
+            let target = parse_context_target(codex, claude, why, None)?;
             let vault_context = coherent_or_bootstrap_context(&repo_path, &vault_path)?;
             if why {
                 print!("{}", compile_context_why(repo_path, vault_path, target)?);
             } else {
                 let output =
-                    compile_context_for_task(&repo_path, &vault_path, target, task.as_deref())?;
-                record_lifecycle_event(
-                    &vault_context,
-                    hook_adapter_for_repo(&repo_path),
-                    AutomationEvent::ContextCompiled,
-                )?;
+                    compile_context_for_target(&repo_path, &vault_path, target, task.as_deref())?;
+                record_context_lifecycle(&vault_context, target)?;
                 print!("{}", output);
             }
         }
@@ -2531,11 +2595,7 @@ fn run() -> Result<()> {
             PlanCommands::Start { title, repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let plan = start_or_resume_plan(&repo_root, &vault, &title)?;
-                record_lifecycle_event(
-                    &vault,
-                    hook_adapter_for_repo(&repo_root),
-                    AutomationEvent::PlanStarted,
-                )?;
+                record_lifecycle_event_neutral(&vault, AutomationEvent::PlanStarted)?;
                 println!("# Baron Plan Start\n");
                 println!("- Title: {}", plan.title);
                 println!("- Risk: `{}`", plan.risk.as_str());
@@ -2640,11 +2700,7 @@ fn run() -> Result<()> {
             HarnessCommands::Intake { title, repo_path } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let story = start_or_resume_intake(&repo_root, &vault, &title)?;
-                record_lifecycle_event(
-                    &vault,
-                    hook_adapter_for_repo(&repo_root),
-                    AutomationEvent::HarnessStarted,
-                )?;
+                record_lifecycle_event_neutral(&vault, AutomationEvent::HarnessStarted)?;
                 println!("# Baron Harness Intake\n");
                 println!("- Title: {}", story.title);
                 println!("- Risk: `{}`", story.risk.as_str());
@@ -2745,15 +2801,30 @@ fn run() -> Result<()> {
             ProofCommands::Record {
                 summary,
                 repo_path,
+                adapter,
                 capability_evidence,
                 receipt,
+                task_id,
+                operation_id,
+                session_id,
+                request_id,
+                gate_kind,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
+                let operation = operation_context_from_arg(adapter)?;
                 let proof = if let Some(receipt_id) = receipt {
                     if !capability_evidence.is_empty() {
                         bail!("Use either --receipt or --capability-evidence, not both");
                     }
-                    record_proof_from_receipt(&repo_root, &vault, &receipt_id)?
+                    let binding = ReceiptContext::new(
+                        task_id.context("--task-id is required with --receipt")?,
+                        operation_id.context("--operation-id is required with --receipt")?,
+                        adapter_arg_name(adapter.context("--adapter is required with --receipt")?),
+                        session_id.context("--session-id is required with --receipt")?,
+                        request_id.context("--request-id is required with --receipt")?,
+                        gate_kind.context("--gate-kind is required with --receipt")?,
+                    );
+                    record_proof_from_receipt_bound(&repo_root, &vault, &receipt_id, &binding)?
                 } else {
                     let capability_evidence = capability_evidence
                         .iter()
@@ -2762,22 +2833,29 @@ fn run() -> Result<()> {
                     if capability_evidence.is_empty() {
                         record_proof(&repo_root, &vault, &summary)?
                     } else {
-                        record_proof_with_capabilities(
+                        let operation = operation.as_ref().context(
+                            "explicit adapter identity is required for capability evidence",
+                        )?;
+                        baron_core::proof::record_proof_with_capabilities_for_operation(
                             &repo_root,
                             &vault,
+                            operation,
                             &summary,
                             &capability_evidence,
                         )?
                     }
                 };
-                record_lifecycle_event(
+                record_operation_lifecycle_or_neutral(
                     &vault,
-                    hook_adapter_for_repo(&repo_root),
+                    operation.as_ref(),
                     AutomationEvent::ProofRecorded,
                 )?;
                 println!("# Baron Proof Record\n");
                 println!("- Proof ID: `{}`", proof.id);
                 println!("- Evidence: {}", proof.summary);
+                if let Some(operation) = operation.as_ref() {
+                    println!("- Adapter: `{}`", operation.adapter.as_str());
+                }
                 println!(
                     "- Capability gate: `{}`",
                     if proof.capability_gate_passed {
@@ -2841,11 +2919,7 @@ fn run() -> Result<()> {
             TraceCommands::Score { repo_path, id } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let score = score_trace(&repo_root, &vault, id.as_deref())?;
-                record_lifecycle_event(
-                    &vault,
-                    hook_adapter_for_repo(&repo_root),
-                    AutomationEvent::TraceScored,
-                )?;
+                record_lifecycle_event_neutral(&vault, AutomationEvent::TraceScored)?;
                 println!("# Baron Trace Score\n");
                 println!("- Achieved: `{}`", score.achieved.as_str());
                 println!("- Required: `{}`", score.required.as_str());
@@ -3088,6 +3162,46 @@ fn run() -> Result<()> {
                 );
                 println!("- Diagnostics: {}", list_or_none(&report.diagnostics));
             }
+            ControlPlaneCommands::Prepare {
+                repo_path,
+                adapter,
+                vault,
+                json,
+            } => {
+                let stdin = std::io::stdin();
+                let mut input = Vec::new();
+                stdin
+                    .take((PREPARE_MAX_INPUT_BYTES + 1) as u64)
+                    .read_to_end(&mut input)
+                    .map_err(|error| {
+                        PrepareCommandFailure::new(
+                            PrepareError::internal(format!(
+                                "could not read prepare stdin: {error}"
+                            )),
+                            json,
+                        )
+                    })?;
+                let request = decode_request(&input)
+                    .map_err(|error| PrepareCommandFailure::new(error, json))?;
+                let repo_start = match repo_path {
+                    Some(path) => path,
+                    None => std::env::current_dir().map_err(|error| {
+                        PrepareCommandFailure::new(
+                            PrepareError::project_state(format!(
+                                "could not resolve current project directory: {error}"
+                            )),
+                            json,
+                        )
+                    })?,
+                };
+                let packet = prepare(request, &adapter, repo_start, vault)
+                    .map_err(|error| PrepareCommandFailure::new(error, json))?;
+                if json {
+                    println!("{}", serde_json::to_string(&packet)?);
+                } else {
+                    print_prepare_packet(&packet);
+                }
+            }
             ControlPlaneCommands::Route {
                 task,
                 repo_path,
@@ -3101,6 +3215,14 @@ fn run() -> Result<()> {
                 println!("\n## Selected Skills\n");
                 for skill in &route.selected_skills {
                     println!("- `{}`: {}", skill.name, skill.reason);
+                }
+                println!("\n## Verification Hints\n");
+                if route.verification.is_empty() {
+                    println!("- focused tests");
+                } else {
+                    for check in &route.verification {
+                        println!("- `{}`: {}", check.name, check.reason);
+                    }
                 }
                 println!("\n## Mandatory Agent Gates\n");
                 for agent in &route.mandatory_agents {
@@ -3128,15 +3250,30 @@ fn run() -> Result<()> {
                 summary,
                 repo_path,
                 receipt,
+                gate_kind,
+                task_id,
+                operation_id,
+                adapter,
+                session_id,
+                request_id,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let evidence = if let Some(receipt_id) = receipt {
-                    record_gate_evidence_with_receipt(
+                    let binding = GateReceiptBinding::new(
+                        task_id.context("--task-id is required with --receipt")?,
+                        operation_id.context("--operation-id is required with --receipt")?,
+                        adapter.context("--adapter is required with --receipt")?,
+                        session_id.context("--session-id is required with --receipt")?,
+                        request_id.context("--request-id is required with --receipt")?,
+                        gate_kind.context("--gate-kind is required with --receipt")?,
+                    );
+                    record_gate_evidence_with_receipt_bound(
                         &repo_root,
                         &vault,
                         &agent,
                         &summary,
                         &receipt_id,
+                        &binding,
                     )?
                 } else {
                     record_gate_evidence(&repo_root, &vault, &agent, &summary)?
@@ -3315,6 +3452,22 @@ fn run() -> Result<()> {
                 println!("- Candidate: `{candidate_id}`");
                 println!("- Status: `rejected`");
             }
+            AutopilotCommands::Respond {
+                response,
+                repo_path,
+            } => {
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let outcome = respond_to_pending_approval(&repo_root, &vault, &response)?;
+                println!("# Baron Autopilot Approval Response\n");
+                println!("- Candidate: `{}`", outcome.candidate_id);
+                println!("- Status: `{}`", outcome.status);
+                println!(
+                    "- Changed: `{}`",
+                    if outcome.changed { "yes" } else { "no" }
+                );
+                println!("- Promotion: {}", outcome.promotion);
+                println!("- Message: {}", outcome.message);
+            }
         },
         Some(Commands::Runtime { command }) => match command {
             RuntimeCommands::Check {
@@ -3360,14 +3513,12 @@ fn run() -> Result<()> {
             AutomationCommands::Reconcile { repo_path } => {
                 let repo_root = configured_repo(repo_path)?;
                 let config = load_project_config(&repo_root)?;
-                let payloads = config
+                let registered_adapters = config
                     .adapters
                     .iter()
-                    .map(|adapter| managed_payloads_for_adapter(agent_adapter(*adapter)))
-                    .collect::<Result<Vec<_>>>()?
-                    .into_iter()
-                    .flatten()
+                    .map(|adapter| agent_adapter(*adapter))
                     .collect::<Vec<_>>();
+                let payloads = managed_payloads_for_adapters(&registered_adapters)?;
                 let assets = reconcile_installed_managed_assets(
                     &repo_root,
                     &payloads,
@@ -3383,11 +3534,7 @@ fn run() -> Result<()> {
                         ensure_architecture_governor(&repo_root, &config)?;
                         ensure_harness_workspace(&repo_root, &vault)?;
                         ensure_code_map_capability(&repo_root)?;
-                        record_lifecycle_event(
-                            &vault,
-                            hook_adapter_for_repo(&repo_root),
-                            AutomationEvent::Checkpoint,
-                        )?;
+                        record_lifecycle_event_neutral(&vault, AutomationEvent::Checkpoint)?;
                         true
                     }
                     Err(_) => false,
@@ -3500,13 +3647,22 @@ fn run() -> Result<()> {
                 repo_path,
                 adapter,
             } => {
-                let (repo_root, vault) = execution_context(repo_path)?;
                 let mut payload = String::new();
                 std::io::stdin().read_to_string(&mut payload)?;
-                println!(
-                    "{}",
-                    handle_hook(&repo_root, &vault, adapter.into(), event.into(), &payload)?
-                );
+                let response = match execution_context(repo_path) {
+                    Ok((repo_root, vault)) => match handle_hook(
+                        &repo_root,
+                        &vault,
+                        adapter.into(),
+                        event.into(),
+                        &payload,
+                    ) {
+                        Ok(response) => response,
+                        Err(error) => render_hook_failure(&error),
+                    },
+                    Err(error) => render_hook_failure(&error),
+                };
+                println!("{response}");
             }
         },
         Some(Commands::Continuity { command }) => match command {
@@ -3514,16 +3670,16 @@ fn run() -> Result<()> {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 print!("{}", continuity_status(&repo_root, &vault)?);
             }
-            ContinuityCommands::Checkpoint { note, repo_path } => {
+            ContinuityCommands::Checkpoint {
+                note,
+                repo_path,
+                adapter,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let packet = record_continuity_checkpoint(
-                    &repo_root,
-                    &vault,
-                    &note,
-                    adapter_kind_name(
-                        active_adapter(&load_project_config(&repo_root)?)
-                            .unwrap_or(AdapterKind::Generic),
-                    ),
+                let operation = operation_context_from_arg(adapter)?
+                    .context("explicit adapter identity is required for continuity checkpoints")?;
+                let packet = record_continuity_checkpoint_for_operation(
+                    &repo_root, &vault, &note, &operation,
                 )?;
                 println!("# Baron Continuity Checkpoint\n");
                 println!("- Note: {}", note);
@@ -3686,20 +3842,93 @@ fn update_disposition_label(disposition: UpdateDisposition) -> &'static str {
 }
 
 fn resolve_capability_adapter(
-    repo_root: &std::path::Path,
+    _repo_root: &std::path::Path,
     requested: Option<AdapterArg>,
 ) -> Result<AdapterKind> {
-    if let Some(adapter) = requested {
-        return Ok(adapter.into());
+    let operation = operation_context_from_arg(requested)?
+        .context("explicit adapter identity is required for capability checks")?;
+    Ok(operation.adapter_kind())
+}
+
+fn operation_context_from_arg(requested: Option<AdapterArg>) -> Result<Option<OperationContext>> {
+    requested
+        .map(|adapter| match adapter {
+            AdapterArg::Codex => Ok(OperationContext::new(SupportedAdapter::Codex)),
+            AdapterArg::Claude => Ok(OperationContext::new(SupportedAdapter::Claude)),
+        })
+        .transpose()
+}
+
+fn adapter_arg_name(adapter: AdapterArg) -> &'static str {
+    match adapter {
+        AdapterArg::Codex => "codex",
+        AdapterArg::Claude => "claude",
     }
-    active_adapter(&load_project_config(repo_root)?)
-        .context("No registered adapter is available for capability checks")
+}
+
+fn operation_context_from_kind(adapter: AdapterKind) -> Option<OperationContext> {
+    match adapter {
+        AdapterKind::Codex => Some(OperationContext::new(SupportedAdapter::Codex)),
+        AdapterKind::Claude => Some(OperationContext::new(SupportedAdapter::Claude)),
+    }
+}
+
+fn record_operation_lifecycle_or_neutral(
+    vault: &baron_core::vault::VaultContext,
+    operation: Option<&OperationContext>,
+    event: AutomationEvent,
+) -> Result<()> {
+    if let Some(operation) = operation {
+        record_lifecycle_event_for_operation(vault, operation, event)
+    } else {
+        record_lifecycle_event_neutral(vault, event)
+    }
+}
+
+fn record_context_lifecycle(
+    vault: &baron_core::vault::VaultContext,
+    target: ContextTarget,
+) -> Result<()> {
+    match target {
+        ContextTarget::Codex => record_lifecycle_event_for_operation(
+            vault,
+            &OperationContext::new(SupportedAdapter::Codex),
+            AutomationEvent::ContextCompiled,
+        ),
+        ContextTarget::Claude => record_lifecycle_event_for_operation(
+            vault,
+            &OperationContext::new(SupportedAdapter::Claude),
+            AutomationEvent::ContextCompiled,
+        ),
+    }
+}
+
+fn compile_context_for_target(
+    repo_root: &std::path::Path,
+    vault_path: &std::path::Path,
+    target: ContextTarget,
+    task: Option<&str>,
+) -> Result<String> {
+    match target {
+        ContextTarget::Codex => compile_context_for_operation(
+            repo_root,
+            vault_path,
+            &OperationContext::new(SupportedAdapter::Codex),
+            task,
+        ),
+        ContextTarget::Claude => compile_context_for_operation(
+            repo_root,
+            vault_path,
+            &OperationContext::new(SupportedAdapter::Claude),
+            task,
+        ),
+    }
 }
 
 fn render_capability_check(state: &baron_core::capability::CapabilityState) -> String {
     let mut output = format!(
         "# Baron Capability Check\n\n- Adapter: `{}`\n- Checked: {}\n",
-        adapter_kind_name(state.adapter),
+        state.adapter.as_str(),
         state.checked_at
     );
     if state.observations.is_empty() {
@@ -3763,7 +3992,7 @@ fn render_capability_list(
     state: Option<&baron_core::capability::CapabilityState>,
     adapter: AdapterKind,
 ) -> String {
-    let state = state.filter(|state| state.adapter == adapter);
+    let state = state.filter(|state| state.adapter.supported() == Some(adapter));
     let mut output = format!(
         "# Baron Capability Registry\n\n- Adapter view: `{}`\n",
         adapter_kind_name(adapter)
@@ -3838,8 +4067,6 @@ fn adapter_kind_name(adapter: AdapterKind) -> &'static str {
     match adapter {
         AdapterKind::Codex => "codex",
         AdapterKind::Claude => "claude",
-        AdapterKind::Generic => "agent",
-        AdapterKind::Reasonix => "reasonix",
     }
 }
 
@@ -3863,42 +4090,35 @@ fn parse_capability_evidence(value: &str) -> Result<CapabilityExecutionEvidence>
         capability: capability.to_string(),
         provider: provider.to_string(),
         summary: summary.to_string(),
+        receipt_id: None,
+        task_id: None,
+        operation_id: None,
+        gate_kind: None,
     })
 }
 
 fn parse_context_target(
     codex: bool,
     claude: bool,
-    agent: bool,
-    reasonix: bool,
     allow_default: bool,
     default: Option<ContextTarget>,
 ) -> Result<ContextTarget> {
-    match (codex as u8) + (claude as u8) + (agent as u8) + (reasonix as u8) {
+    match (codex as u8) + (claude as u8) {
         1 if codex => Ok(ContextTarget::Codex),
         1 if claude => Ok(ContextTarget::Claude),
-        1 if agent => Ok(ContextTarget::Generic),
-        1 if reasonix => Ok(ContextTarget::Reasonix),
-        0 if allow_default => Ok(default.unwrap_or(ContextTarget::Generic)),
+        0 if allow_default => Ok(default.unwrap_or(ContextTarget::Codex)),
         0 if default.is_some() => Ok(default.expect("checked above")),
-        0 => bail!("Choose one context target: --codex, --claude, --agent, or --reasonix."),
-        _ => bail!("Choose only one context target: --codex, --claude, --agent, or --reasonix."),
+        0 => bail!("Choose one context target: --codex or --claude."),
+        _ => bail!("Choose only one context target: --codex or --claude."),
     }
 }
 
-fn selected_adapter(
-    codex: bool,
-    claude: bool,
-    agent: bool,
-    reasonix: bool,
-) -> Result<Option<AgentAdapter>> {
-    match (codex as u8) + (claude as u8) + (agent as u8) + (reasonix as u8) {
+fn selected_adapter(codex: bool, claude: bool) -> Result<Option<AgentAdapter>> {
+    match (codex as u8) + (claude as u8) {
         1 if codex => Ok(Some(AgentAdapter::Codex)),
         1 if claude => Ok(Some(AgentAdapter::Claude)),
-        1 if agent => Ok(Some(AgentAdapter::Generic)),
-        1 if reasonix => Ok(Some(AgentAdapter::Reasonix)),
         0 => Ok(None),
-        _ => bail!("Choose only one adapter: --codex, --claude, --agent, or --reasonix."),
+        _ => bail!("Choose only one adapter: --codex or --claude."),
     }
 }
 
@@ -3912,6 +4132,7 @@ fn parse_platform(
     tool: bool,
     library: bool,
     data: bool,
+    database: bool,
     cloud: bool,
     unknown: bool,
 ) -> Result<Option<ProjectPlatform>> {
@@ -3924,6 +4145,7 @@ fn parse_platform(
         (tool, ProjectPlatform::Tool),
         (library, ProjectPlatform::Library),
         (data, ProjectPlatform::Data),
+        (database, ProjectPlatform::Database),
         (cloud, ProjectPlatform::Cloud),
         (unknown, ProjectPlatform::Unknown),
     ]
@@ -3957,8 +4179,6 @@ fn adapter_kind(adapter: AgentAdapter) -> AdapterKind {
     match adapter {
         AgentAdapter::Codex => AdapterKind::Codex,
         AgentAdapter::Claude => AdapterKind::Claude,
-        AgentAdapter::Generic => AdapterKind::Generic,
-        AgentAdapter::Reasonix => AdapterKind::Reasonix,
     }
 }
 
@@ -3966,17 +4186,6 @@ fn agent_adapter(adapter: AdapterKind) -> AgentAdapter {
     match adapter {
         AdapterKind::Codex => AgentAdapter::Codex,
         AdapterKind::Claude => AgentAdapter::Claude,
-        AdapterKind::Generic => AgentAdapter::Generic,
-        AdapterKind::Reasonix => AgentAdapter::Reasonix,
-    }
-}
-
-fn context_target(adapter: AgentAdapter) -> ContextTarget {
-    match adapter {
-        AgentAdapter::Codex => ContextTarget::Codex,
-        AgentAdapter::Claude => ContextTarget::Claude,
-        AgentAdapter::Generic => ContextTarget::Generic,
-        AgentAdapter::Reasonix => ContextTarget::Reasonix,
     }
 }
 
@@ -3984,8 +4193,6 @@ fn adapter_name(adapter: AgentAdapter) -> &'static str {
     match adapter {
         AgentAdapter::Codex => "codex",
         AgentAdapter::Claude => "claude",
-        AgentAdapter::Generic => "agent",
-        AgentAdapter::Reasonix => "reasonix",
     }
 }
 
@@ -3995,8 +4202,6 @@ fn candidate_adapter_flags(adapters: &[String]) -> Result<Vec<OsString>> {
         let flag = match adapter.as_str() {
             "codex" => "--codex",
             "claude" => "--claude",
-            "agent" => "--agent",
-            "reasonix" => "--reasonix",
             _ => bail!("Baron update transaction contains an unsupported adapter: {adapter}"),
         };
         flags.push(OsString::from(flag));
@@ -4045,6 +4250,84 @@ fn resolve_repo_root(path: PathBuf) -> Result<PathBuf> {
     })
 }
 
+fn print_prepare_packet(packet: &PreparePacketV1) {
+    println!("# Baron Control-Plane Prepare\n");
+    println!("- Schema: `{}`", packet.schema_version);
+    println!("- Project: `{}`", packet.project_id);
+    println!("- Adapter: `{}`", packet.adapter);
+    println!("- Task: `{}`", packet.task.summary);
+    println!("- Task id: `{}`", packet.task.id);
+    println!(
+        "- Resumed: `{}`",
+        if packet.task.resumed { "yes" } else { "no" }
+    );
+    println!("- Risk: `{}`", packet.risk.as_str());
+    println!("- Work shape: `{}`", packet.work_shape.work_shape);
+    println!(
+        "- Selected skills: {}",
+        list_or_none(
+            &packet
+                .route
+                .selected_skills
+                .iter()
+                .map(|skill| skill.name.clone())
+                .collect::<Vec<_>>()
+        )
+    );
+    println!(
+        "- Mandatory agents: {}",
+        list_or_none(
+            &packet
+                .route
+                .mandatory_agents
+                .iter()
+                .map(|agent| agent.name.clone())
+                .collect::<Vec<_>>()
+        )
+    );
+    println!(
+        "- Blockers: {}",
+        list_or_none(
+            &packet
+                .blockers
+                .iter()
+                .map(|issue| format!("{}: {}", issue.code, issue.message))
+                .collect::<Vec<_>>()
+        )
+    );
+    println!(
+        "- Warnings: {}",
+        list_or_none(
+            &packet
+                .warnings
+                .iter()
+                .map(|issue| format!("{}: {}", issue.code, issue.message))
+                .collect::<Vec<_>>()
+        )
+    );
+    println!("- Next action: {}", packet.next_action.action);
+}
+
+/// Render one canonical Core payload set followed by each registered adapter's
+/// integration payloads. Effective live paths are deduplicated so legacy
+/// adapter entries that still describe `.baron/core/**` cannot create a second
+/// owner during update planning.
+fn managed_payloads_for_adapters(adapters: &[AgentAdapter]) -> Result<Vec<ManagedAssetPayload>> {
+    let mut payloads = core_managed_payloads()?;
+    for adapter in adapters {
+        for payload in managed_payloads_for_adapter(*adapter)? {
+            if payloads
+                .iter()
+                .any(|existing| existing.relative_path == payload.relative_path)
+            {
+                continue;
+            }
+            payloads.push(payload);
+        }
+    }
+    Ok(payloads)
+}
+
 fn resolve_command_vault(vault: Option<PathBuf>, repo_root: &PathBuf) -> Result<PathBuf> {
     resolve_vault_path_for_repo(vault.clone(), repo_root).or_else(|_| resolve_vault_path(vault))
 }
@@ -4064,9 +4347,10 @@ fn run_adapter_shortcut(target_kind: AdapterKind) -> Result<()> {
     let shared_context = require_coherent_execution_state(&repo_root, &vault_path)?;
     let updated = set_active_adapter(&repo_root, target_kind)?;
     let report = install_adapter(&repo_root, agent_adapter(target_kind))?;
-    record_lifecycle_event(
+    let operation = operation_context_from_kind(target_kind);
+    record_operation_lifecycle_or_neutral(
         &shared_context,
-        hook_adapter_for_repo(&repo_root),
+        operation.as_ref(),
         AutomationEvent::Checkpoint,
     )?;
     println!("# Baron Adapter Shortcut\n");
@@ -4075,6 +4359,7 @@ fn run_adapter_shortcut(target_kind: AdapterKind) -> Result<()> {
         "- Active adapter: `{}` (was `{previous}`)",
         adapter_kind_name(target_kind)
     );
+    println!("- Runtime authority: `non-authoritative`; operations require an explicit Codex or Claude identity.");
     println!("- Shared Vault: `{}`", vault_path.display());
     println!(
         "- Registered adapters: {}",
@@ -4086,6 +4371,18 @@ fn run_adapter_shortcut(target_kind: AdapterKind) -> Result<()> {
             .join(", ")
     );
     println!("- Managed files: {}", report.managed_files.len());
+    println!(
+        "- Canonical Core files: {}",
+        report.core.managed_files.len()
+    );
+    println!(
+        "- Core conflicts requiring review: {}",
+        if report.core.conflicts.is_empty() {
+            "none".to_string()
+        } else {
+            report.core.conflicts.join(", ")
+        }
+    );
     println!(
         "- Preserved existing paths: {}",
         if report.preserved_paths.is_empty() {
@@ -4260,19 +4557,6 @@ fn coherent_or_bootstrap_context(
     }
 }
 
-fn hook_adapter_for_repo(repo_root: &std::path::Path) -> HookAdapter {
-    match load_project_config(repo_root)
-        .ok()
-        .and_then(|config| active_adapter(&config))
-    {
-        Some(AdapterKind::Codex) => HookAdapter::Codex,
-        Some(AdapterKind::Claude) => HookAdapter::Claude,
-        Some(AdapterKind::Generic) => HookAdapter::Agent,
-        Some(AdapterKind::Reasonix) => HookAdapter::Reasonix,
-        None => HookAdapter::Agent,
-    }
-}
-
 impl From<OutcomeArg> for TraceOutcome {
     fn from(value: OutcomeArg) -> Self {
         match value {
@@ -4312,8 +4596,6 @@ impl From<AdapterArg> for AdapterKind {
         match value {
             AdapterArg::Codex => AdapterKind::Codex,
             AdapterArg::Claude => AdapterKind::Claude,
-            AdapterArg::Agent => AdapterKind::Generic,
-            AdapterArg::Reasonix => AdapterKind::Reasonix,
         }
     }
 }
@@ -4323,8 +4605,6 @@ impl From<AdapterArg> for HookAdapter {
         match value {
             AdapterArg::Codex => HookAdapter::Codex,
             AdapterArg::Claude => HookAdapter::Claude,
-            AdapterArg::Agent => HookAdapter::Agent,
-            AdapterArg::Reasonix => HookAdapter::Reasonix,
         }
     }
 }
@@ -4343,8 +4623,8 @@ impl From<AutomationEventArg> for AutomationEvent {
     fn from(value: AutomationEventArg) -> Self {
         match value {
             AutomationEventArg::SessionStart => AutomationEvent::SessionStart,
-            AutomationEventArg::Prompt => AutomationEvent::Prompt,
-            AutomationEventArg::Checkpoint => AutomationEvent::Checkpoint,
+            AutomationEventArg::UserPromptSubmit => AutomationEvent::UserPromptSubmit,
+            AutomationEventArg::PreCompact => AutomationEvent::PreCompact,
             AutomationEventArg::ContextCompiled => AutomationEvent::ContextCompiled,
             AutomationEventArg::PlanStarted => AutomationEvent::PlanStarted,
             AutomationEventArg::HarnessStarted => AutomationEvent::HarnessStarted,
@@ -4352,6 +4632,49 @@ impl From<AutomationEventArg> for AutomationEvent {
             AutomationEventArg::TraceScored => AutomationEvent::TraceScored,
             AutomationEventArg::Stop => AutomationEvent::Stop,
         }
+    }
+}
+
+fn render_hook_failure(error: &anyhow::Error) -> String {
+    let message = error.to_string();
+    let lower = message.to_ascii_lowercase();
+    let hard = [
+        "mutation lock",
+        "symlink",
+        "junction",
+        "reparse",
+        "path escapes",
+        "unsafe",
+        "dedup schema",
+        "dedup state",
+        "not a regular file",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker));
+    if hard {
+        serde_json::to_string(&serde_json::json!({
+            "decision": "block",
+            "completed": false,
+            "baron": {
+                "hook_failure": "hard",
+                "message": message.chars().take(600).collect::<String>(),
+                "fallback": "Repair the Baron state or use `baron control-plane prepare` with structured JSON stdin."
+            }
+        }))
+        .unwrap_or_else(|_| {
+            r#"{"decision":"block","completed":false,"baron":{"hook_failure":"hard"}}"#
+                .to_string()
+        })
+    } else {
+        serde_json::to_string(&serde_json::json!({
+            "continue": true,
+            "baron": {
+                "hook_failure": "soft",
+                "message": message.chars().take(600).collect::<String>(),
+                "fallback": "Use `baron control-plane prepare` with structured JSON stdin."
+            }
+        }))
+        .unwrap_or_else(|_| r#"{"continue":true,"baron":{"hook_failure":"soft"}}"#.to_string())
     }
 }
 

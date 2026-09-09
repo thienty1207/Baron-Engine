@@ -98,7 +98,7 @@ fn public_demo_and_certification_docs_are_present() {
     assert!(demo.contains("10-year repo"));
     assert!(demo.contains("Codex"));
     assert!(demo.contains("Claude"));
-    assert!(demo.contains("generic agent"));
+    assert!(demo.contains("Codex"));
     assert!(demo.contains("memory firewall"));
     assert!(demo.contains("proof gate"));
     assert!(demo.contains("session replay"));
@@ -287,6 +287,132 @@ fn public_docs_do_not_reference_external_harness_repositories() {
         path_offenders.is_empty(),
         "public Baron file paths must not point readers at external harness repos: {path_offenders:#?}"
     );
+}
+
+#[test]
+fn phase15_public_product_model_is_core_first_and_ask_first() {
+    let readme = read("README.md");
+    for required in [
+        "Baron Core",
+        "assets/core/**",
+        ".baron/core/**",
+        "Codex",
+        "Claude",
+        "ask Codex or Claude",
+        "Database",
+        "Data",
+        "trusted memory",
+        "recovery",
+    ] {
+        assert!(readme.contains(required), "README is missing `{required}`");
+    }
+    for stale in [
+        "baron adapter switch",
+        "baron context",
+        "baron route",
+        "baron proof",
+        "baron continuity",
+        "Switch between Codex and Claude",
+    ] {
+        assert!(
+            !readme.to_ascii_lowercase().contains(stale),
+            "README must not present `{stale}` as normal user workflow"
+        );
+    }
+
+    let architecture = read("docs/architecture/ARCHITECTURE.md");
+    for required in [
+        "Baron Core",
+        "Codex native adapter",
+        "Claude native adapter",
+        "OperationContext",
+        "PrepareRequestV1",
+        "PreparePacketV1",
+        "Task State",
+        "Tier 0",
+        "TrustedRecallPolicy::Current",
+        "optional accelerators",
+    ] {
+        assert!(
+            architecture.contains(required),
+            "architecture docs are missing `{required}`"
+        );
+    }
+
+    let commands = read("docs/architecture/COMMAND_SURFACE.md");
+    assert!(commands.contains("Advanced / diagnostic commands"));
+    assert!(commands.contains("baron control-plane prepare --adapter codex --json"));
+    assert!(commands.contains("baron control-plane prepare --adapter claude --json"));
+    assert!(commands.contains("Normal users do not manually invoke Prepare"));
+}
+
+#[test]
+fn phase15_maintained_docs_describe_trust_hooks_and_profiles_without_adapter_brain_duplication() {
+    let adapters = read("docs/architecture/ADAPTERS.md");
+    let context = read("docs/architecture/CONTEXT_COMPILER.md");
+    let codex = read("docs/compatibility/CODEX.md");
+    let claude = read("docs/compatibility/CLAUDE.md");
+
+    for (name, body) in [
+        ("adapter architecture", adapters),
+        ("context compiler", context),
+        ("Codex compatibility", codex),
+        ("Claude compatibility", claude),
+    ] {
+        for required in [
+            "canonical Core",
+            "thin",
+            "hooks",
+            "fallback",
+            "Autopilot",
+            "Task State",
+        ] {
+            assert!(body.contains(required), "{name} is missing `{required}`");
+        }
+        assert!(
+            !body.contains("active adapter is the runtime authority"),
+            "{name} must not make active_adapter authoritative"
+        );
+    }
+
+    let changelog = read("CHANGELOG.md");
+    assert!(changelog.contains("## 5.0.0 - 2026-09-09"));
+    let spec = read("docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md");
+    assert!(spec.contains("implementation completed through Phase 15"));
+    assert!(spec.contains("Phase 16 verification pending"));
+}
+
+#[test]
+fn phase15_maintained_doc_links_and_historical_framing_are_present() {
+    let root = repo_root();
+    for (source, target) in [
+        ("README.md", "docs/RELEASE.md"),
+        ("README.md", "docs/demo/README.md"),
+        ("README.md", "docs/compatibility/CODEX.md"),
+        ("README.md", "docs/compatibility/CLAUDE.md"),
+        ("README.md", "docs/architecture/COMMAND_SURFACE.md"),
+        ("docs/refractor/README.md", "../../README.md"),
+        (
+            "docs/refractor/README.md",
+            "../architecture/ARCHITECTURE.md",
+        ),
+        ("docs/refractor/README.md", "../compatibility/CODEX.md"),
+    ] {
+        let source_path = root.join(source);
+        let source_dir = source_path.parent().expect("documentation parent");
+        let target_path = source_dir.join(target);
+        assert!(
+            target_path.is_file(),
+            "maintained documentation link {source} -> {target} must resolve"
+        );
+    }
+
+    let refactor_index = read("docs/refractor/README.md");
+    assert!(refactor_index.contains("Historical evidence"));
+    assert!(refactor_index.contains("not as current user instructions"));
+    let audit = read("docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md");
+    assert!(audit.contains("Historical evidence."));
+    assert!(audit.contains("not the current public product contract"));
 }
 
 fn collect_paths(dir: &Path) -> Vec<PathBuf> {

@@ -68,7 +68,7 @@ fn repeated_extension_is_idempotent() {
     fs::create_dir_all(&repo).unwrap();
     initialize_project_with_options(
         &repo,
-        Some(AdapterKind::Generic),
+        Some(AdapterKind::Codex),
         &vault,
         Some(ProjectPlatform::Backend),
     )

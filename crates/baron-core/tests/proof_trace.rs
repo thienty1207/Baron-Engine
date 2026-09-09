@@ -1,14 +1,19 @@
 use std::fs;
 use std::process::Command;
+use std::time::Duration;
 
 use baron_core::capability::{
     check_capabilities, register_provider, CapabilityExecutionEvidence, CapabilityProvider,
     CheckOptions, ProviderKind, Requirement,
 };
 use baron_core::config::{initialize_project, AdapterKind};
+use baron_core::execution_receipt::{
+    execute_command_with_context, ExecutionRequest, ReceiptContext,
+};
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
-use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities};
+use baron_core::operation::{OperationContext, SupportedAdapter};
+use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities_for_operation};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome, TraceTier};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -325,14 +330,43 @@ fn structured_execution_evidence_satisfies_present_required_capability() {
     register_required_git(&repo, &vault);
     start_or_resume_intake(&repo, &context, "fix README typo").unwrap();
 
-    let proof = record_proof_with_capabilities(
+    #[cfg(windows)]
+    let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
+    #[cfg(not(windows))]
+    let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
+    let binding = ReceiptContext::new(
+        "task-proof",
+        "operation-proof",
+        "codex",
+        "session-proof",
+        "request-proof",
+        "capability_execution",
+    );
+    let receipt = execute_command_with_context(
+        ExecutionRequest {
+            capability: "source-control".to_string(),
+            provider: "git-cli".to_string(),
+            executable: executable.to_string(),
+            arguments,
+            working_directory: repo.clone(),
+            timeout: Duration::from_secs(5),
+        },
+        binding.clone(),
+    )
+    .unwrap();
+    let proof = record_proof_with_capabilities_for_operation(
         &repo,
         &context,
+        &OperationContext::new(SupportedAdapter::Codex),
         "README text verified",
         &[CapabilityExecutionEvidence {
             capability: "source-control".to_string(),
             provider: "git-cli".to_string(),
             summary: "git status completed and repository state was inspected".to_string(),
+            receipt_id: Some(receipt.receipt_id),
+            task_id: Some(binding.task_id),
+            operation_id: Some(binding.operation_id),
+            gate_kind: Some(binding.gate_kind),
         }],
     )
     .unwrap();

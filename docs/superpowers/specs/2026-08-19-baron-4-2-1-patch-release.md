@@ -3,8 +3,8 @@
 ## Decision
 
 Publish Baron `4.2.1` as a packaging and release-truth patch. The original
-`v4.2.0` tag was created before the Reasonix adapter commits, so its native
-binary cannot expose the Reasonix command surface even though the current
+`v4.2.0` tag was created before the legacy adapter commits, so its native
+binary cannot expose the retired adapter command surface even though the current
 source and README can. Baron `4.2.1` packages the already-reviewed adapter in
 the public binary without changing the intelligence engine or memory model.
 
@@ -12,8 +12,8 @@ the public binary without changing the intelligence engine or memory model.
 
 - bump the workspace and certification release identity from `4.2.0` to
   `4.2.1`;
-- keep `baron init --reasonix`, `baron context --reasonix`, and the root
-  `baron --reasonix` shortcut in the released binary;
+- keep the retired adapter init path, the retired adapter context path, and the root
+  the retired adapter shortcut shortcut in the released binary;
 - publish native archives, raw update candidates, checksums, manifest, and
   installers through the existing immutable release workflow;
 - synchronize README, release guide, changelog, status, JSON, architecture,
@@ -33,5 +33,5 @@ the public binary without changing the intelligence engine or memory model.
 The release is complete only when the exact `4.2.1` source commit is on
 `origin/main`, the native matrix and release workflow pass, the public
 `releases/latest` installer reports `baron 4.2.1`, and that binary accepts
-`baron --reasonix` and `baron init --reasonix`. A new binary hash must be
+the retired adapter shortcut and the retired adapter init path. A new binary hash must be
 recorded separately from the old 4.2.0 WDAC exception.

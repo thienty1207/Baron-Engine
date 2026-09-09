@@ -1,175 +1,92 @@
 # Baron Adapter Architecture
 
-Baron core owns memory, context, plan, harness, proof, and trace behavior.
-Adapters only translate that core into the shape expected by an agent tool.
+Baron supports exactly two active integrations: Codex and Claude. Each is a
+thin adapter over the canonical Core. Core owns memory, context, workflow,
+skills, Task State, routing, continuity, proof, trace, and Autopilot policy.
+The host adapters render those decisions in native files and event formats.
 
-All adapters share `.baron/project.toml` for committed project identity and
-`.baron/local.toml` for the machine-local Vault path. Repeated init may register
-multiple adapters. `baron automation reconcile` repairs only missing installed
-Baron-managed assets locally without deleting unknown custom assets. A human-run
-`baron update` additionally verifies and activates an official Baron release;
-agents never receive that download or runtime-replacement authority.
-
-## Initial Adapters
-
-### Codex
-
-Command:
-
-```bash
-baron init --codex
-baron context --codex
+```text
+assets/core/** → .baron/core/** → Codex bridge / Claude bridge
 ```
 
-Outputs:
+## Shared Core contract
 
-- `AGENTS.md`
-- `.codex/skills/INDEX.md`
-- `.codex/agents/INDEX.md`
-- core Superpowers skill
-- 3 core quality agents
-- optional frontend/security skills
-- managed root instructions that preserve user text outside Baron markers
-- native project hooks in `.codex/hooks.json`
+An adapter supplies an explicit `OperationContext` and a structured
+`PrepareRequestV1`. Core returns `PreparePacketV1`, including the current
+project identity, profile lens, work shape, trusted context, selected Core
+skills, the three quality agents, verification gates, warnings, blockers, and
+the safe next action. The packet is the same semantic contract for both hosts;
+only native rendering differs.
 
-### Claude
+Core applies `TrustedRecallPolicy::Current` to every context-critical memory
+path. It projects Task State from intent, constraints, plan progress, recovery,
+proof, trace, affected files, blocker, and next action. A task can resume from
+that evidence when either host opens the project.
 
-Command:
+## Codex adapter
 
-```bash
-baron init --claude
-baron context --claude
-```
+`baron init --codex` writes the native projection:
 
-Outputs:
+- `AGENTS.md` managed lifecycle block;
+- `.agents/skills/baron-engine/SKILL.md` thin bridge;
+- `.agents/skills/baron-engine/agents/openai.yaml` invocation policy;
+- `.codex/agents/*.toml` wrappers for the three Core quality agents;
+- `.codex/INDEX.md` and `.codex/hooks.json` managed entries.
 
-- `CLAUDE.md`
-- Claude-readable imports or command guidance
-- Baron context and harness instructions
-- Claude-readable Superpowers, optional domain skills, and quality agents
-- native project hooks in `.claude/settings.json`
+Codex does not need a copied Baron semantic skill tree. The bridge loads only
+route-selected files below `.baron/core/**`. Hooks are optional accelerators;
+the managed `AGENTS.md` contract is the fallback when a hook is missing,
+untrusted, or skipped. Existing Codex hooks, settings, text, and user-owned
+skills remain intact.
 
-### Generic Agent
+## Claude adapter
 
-Command:
+`baron init --claude` writes the native projection:
 
-```bash
-baron init --agent
-baron context --agent
-```
+- `CLAUDE.md` managed lifecycle block;
+- `.claude/skills/baron-engine/SKILL.md` thin bridge;
+- `.claude/agents/*.md` wrappers for the three Core quality agents;
+- `.claude/settings.json` managed hook entries;
+- compact command and routing indexes where they are Baron-owned.
 
-Outputs:
+Claude also loads selected resources from `.baron/core/**`; it does not need a
+full copied Baron skill library under `.claude/skills/**`. Claude host auto
+memory is local context and is never a replacement for Core trusted memory.
+Hooks are accelerators, and `CLAUDE.md` is the fallback correctness contract.
 
-- `AGENT.md`
-- `baron-context.md`
-- optional JSON context bundle
-- portable core skills and quality-agent contracts under `.baron/core`
+## Legacy compatibility
 
-### DeepSeek Reasonix
+Old project files may contain opaque adapter values or managed records from an
+earlier layout. The parser retains unknown serialized values for inspection and
+transactional migration, but only Codex and Claude can be initialized as active
+integrations. Legacy data is imported, validated, preserved, or quarantined;
+old architecture is not reactivated.
 
-Command:
+Records for `.baron/core/**` belong to Core even when an older record names a
+different owner. Supported Codex and Claude records migrate through the normal
+managed-state transaction. Modified or ambiguous files remain user-visible and
+are never silently overwritten or deleted.
 
-```bash
-baron init --reasonix
-baron context --reasonix
-baron --reasonix
-baron --codex
-baron adapter status
-baron adapter switch --to reasonix
-```
+## Hooks, preservation, and updates
 
-Outputs:
+Native hooks observe lifecycle events and may call the same Core prepare path as
+the managed bridge. They do not create a second router or proof authority.
+Event keys are deduplicated under the project lock, and reconciliation remains
+available when hooks do not run.
 
-- `REASONIX.md` with a Baron-managed startup block
-- `.reasonix/INDEX.md` with the shared-core entry contract
-- `.reasonix/skills/INDEX.md` and the complete Baron-managed skill tree
-- `.reasonix/agents/INDEX.md` and the three core plus optional agent contracts
-- `.reasonix/commands/baron-context.md`
-- `.reasonix/commands/baron-status.md`
-- `.reasonix/settings.json` with shared-Vault lifecycle hooks when the file is
-  absent or already Baron-managed
+Updates operate on the adapter's managed set and the Core baseline. Unknown
+JSON/TOML keys, user text outside markers, custom skills and agents, and
+third-party hooks are preserved. Missing or changed baselines fail closed and
+produce a recoverable review record. An update never downloads a release from
+inside an agent task.
 
-For an already initialized project, `baron --reasonix` and `baron --codex` are
-the normal daily switch shortcuts. They resolve the project from the current
-working directory, keep the long diagnostic commands available but out of the
-normal path, and install only Baron-managed adapter assets.
+Autopilot can perform bounded housekeeping and present candidates for natural
+review. It cannot promote a candidate into memory truth, routing policy, a
+skill, or a Core asset without the existing approval authority.
 
-Reasonix is an adapter view over the same Baron core, not a second memory
-engine. It uses the same embedded `assets/core` skill/agent source as Codex,
-Claude, and generic agents. It is included in the Baron 4.2.2 patch release
-and uses the same
-`.baron/project.toml` project ID, `.baron/local.toml` Vault route, Vault
-Markdown, session journal, Wiki, and CodeGraph as Codex and Claude. Adapter
-provenance is recorded on shared lifecycle entries so history remains
-auditable without creating a Reasonix-only namespace. `baron adapter switch`
-changes only the active adapter and installs missing Baron-owned surfaces.
-Unmarked user files are preserved and reported as conflicts; they are never
-silently overwritten.
+## Adapter rule
 
-Every adapter materializes a native view of the same Baron-managed skills,
-quality agents, routing indexes, startup contract, and evidence rules. The
-native paths differ because the agent tools differ; the workflow and engine
-ownership do not. Reasonix reads its narrow indexes after
-`baron control-plane route` and must not recursively load the whole tree.
-
-## Adapter Rule
-
-Adapters must not fork Baron behavior. They only translate Baron behavior.
-Every adapter requires automatic context, plan, harness, proof, and trace
-behavior. Platform-specific hooks are accelerators, not separate workflow truth.
-Before medium/high-risk work, every adapter reads available repository, Vault,
-plan, decision, and continuity evidence, asks only one unresolved high-value
-question at a time, and records a matching confirmed intent brief. Silence is
-never confirmation. When work fails, blocks, or is interrupted, every adapter
-records an actionable recovery packet with evidence and a safe next action
-instead of rewriting the attempt as successful.
-Every adapter loads only the task-relevant platform profile, uses architecture
-contracts before structural work, adds explicitly requested product platforms
-through `baron init --<platform>`, and keeps review findings open until fix and
-verification evidence both exist.
-Every adapter must also route work through `baron control-plane route` before
-loading optional skills or dispatching quality gates. A mandatory quality gate
-does not count until `baron control-plane record-gate` records evidence.
-Managed runtime skills and agents are local Baron assets. They must not depend
-on live external guidance to operate. If a custom skill or agent looks weak,
-conflicting, externally dependent, or recursively orchestrated, Baron can audit
-and quarantine it through the hidden asset lifecycle commands before routing.
-
-Context startup also refreshes the project-local session replay index. When a
-task is provided, the context bundle may include a few matching prior messages
-from imported sessions, but it never dumps full session history and it filters
-results by project identity.
-
-On Baron 4.0, context compilation reports the selected intelligence generation
-(`4.0` default or `3.8` fallback) and keeps the same bounded contract for
-Codex, Claude, and generic agents. Wiki hits carry exact citations and bounded
-linked-document hints; CodeGraph hits carry source spans, imports, and advisory
-reference/call relations. Security and reverse-analysis guidance stays lazy
-and is routed by Baron Control Plane, never loaded for ordinary coding.
-
-Codex, Claude, and Reasonix hooks record supported session-start, prompt, and
-stop events in the same project journal. SessionStart injects bounded context.
-Stop reconciliation blocks one
-premature completion attempt when active work lacks proof or a passing trace,
-then avoids a hook loop. Project hook trust remains controlled by the agent
-tool; Baron reports observed events instead of assuming hooks executed.
-
-Hook JSON and skill/agent indexes are merged through Baron-managed entries.
-Unknown user hook groups and custom routing text remain intact across update.
-Skill and agent indexes include ownership, trigger, exclusion, evidence, and
-conflict fields so custom routing can be preserved without weakening Baron
-contracts.
-
-## Migration Boundary
-
-Agent Bootstrap migration does not reuse a legacy adapter. Baron inventories
-and backs up the old workspace, imports user-owned data, then installs a fresh
-Baron adapter.
-
-The Codex takeover preserves user text outside legacy managed markers and keeps
-validated custom skills/agents. Baron bundled assets and the three core quality
-agents are regenerated from `assets/core/`; invalid custom assets are
-quarantined and never enter routing indexes.
-
-After verification, the active adapter contains Baron commands only. The legacy
-Node runtime, config, manifest, and managed hook are retired.
+Adapters must stay thin. They translate explicit Core inputs and outputs,
+preserve host-owned content, and report hook or provider degradation. They do
+not fork Baron workflow, load every skill recursively, or infer correctness
+from a project-global preference.

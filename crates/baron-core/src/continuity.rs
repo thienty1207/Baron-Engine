@@ -7,7 +7,9 @@ use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use crate::operation::OperationContext;
 use crate::proof::latest_proof;
+use crate::safe_io::{acquire_project_lock, replace_text};
 use crate::trace::latest_trace_score;
 use crate::vault::VaultContext;
 
@@ -120,10 +122,74 @@ pub fn record_continuity_checkpoint(
     note: &str,
     adapter: &str,
 ) -> Result<ContinuityPacket> {
+    record_continuity_checkpoint_internal(repo_root, vault, note, adapter, None, None, None)
+}
+
+/// Record a shared continuity packet with explicit operation provenance. The
+/// packet path remains one project-wide record so Codex and Claude can resume
+/// the same task state.
+pub fn record_continuity_checkpoint_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    note: &str,
+    operation: &OperationContext,
+) -> Result<ContinuityPacket> {
+    record_continuity_checkpoint_internal(
+        repo_root,
+        vault,
+        note,
+        operation.adapter.as_str(),
+        operation.session_id.as_deref(),
+        operation.request_id.as_deref(),
+        None,
+    )
+}
+
+/// Record a checkpoint tied to one normalized lifecycle event. Retrying the
+/// same event is a byte-stable no-op once the event key is already present in
+/// the shared resume packet.
+pub fn record_continuity_checkpoint_for_event(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    note: &str,
+    operation: &OperationContext,
+    event_key: &str,
+) -> Result<ContinuityPacket> {
+    record_continuity_checkpoint_internal(
+        repo_root,
+        vault,
+        note,
+        operation.adapter.as_str(),
+        operation.session_id.as_deref(),
+        operation.request_id.as_deref(),
+        Some(event_key),
+    )
+}
+
+fn record_continuity_checkpoint_internal(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    note: &str,
+    adapter: &str,
+    session_id: Option<&str>,
+    request_id: Option<&str>,
+    event_key: Option<&str>,
+) -> Result<ContinuityPacket> {
     let repo_root = repo_root.as_ref();
-    let content = render_resume_packet(repo_root, vault, note, adapter)?;
     let repo_path = repo_root.join("docs/baron/continuity/CURRENT.md");
     let vault_path = vault.project_root.join("Continuity/CURRENT.md");
+    let _lock = acquire_project_lock(repo_root)?;
+    if let Some(event_key) = event_key {
+        if checkpoint_has_event_key(&repo_path, event_key)? {
+            return Ok(ContinuityPacket {
+                repo_path,
+                vault_path,
+            });
+        }
+    }
+    let content = render_resume_packet(
+        repo_root, vault, note, adapter, session_id, request_id, event_key,
+    )?;
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
     append_index(
@@ -169,6 +235,9 @@ fn render_resume_packet(
     vault: &VaultContext,
     note: &str,
     adapter: &str,
+    session_id: Option<&str>,
+    request_id: Option<&str>,
+    event_key: Option<&str>,
 ) -> Result<String> {
     let plan = read_optional(&repo_root.join("docs/baron/plans/CURRENT.md"));
     let harness = read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"));
@@ -217,6 +286,9 @@ fn render_resume_packet(
         "# Baron Continuity Resume\n\n\
 - Last updated: {}\n\
 - Adapter: `{}`\n\
+- Session ID: `{}`\n\
+- Request ID: `{}`\n\
+- Lifecycle event key: `{}`\n\
 - Latest checkpoint: {}\n\
 - Latest automation event: `{}`\n\
 - Current task: `{}`\n\
@@ -236,6 +308,9 @@ fn render_resume_packet(
 - If the task scope changed, start a new explicit plan and write a new checkpoint.\n",
         now(),
         adapter.trim(),
+        session_id.unwrap_or("none"),
+        request_id.unwrap_or("none"),
+        event_key.unwrap_or("none"),
         single_line(note),
         latest_event.unwrap_or_else(|| "none".to_string()),
         plan_title,
@@ -492,10 +567,21 @@ fn append_index(path: &Path, note: &str, current: &Path, root: &Path) -> Result<
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
+}
+
+fn checkpoint_has_event_key(path: &Path, event_key: &str) -> Result<bool> {
+    let expected = format!("- Lifecycle event key: `{event_key}`");
+    match fs::read_to_string(path) {
+        Ok(content) => Ok(content.lines().any(|line| line == expected)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "Could not inspect continuity checkpoint: {}",
+                path.display()
+            )
+        }),
     }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 fn normalize(path: &Path, root: &Path) -> String {

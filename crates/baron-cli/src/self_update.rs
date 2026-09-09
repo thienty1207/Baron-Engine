@@ -8,7 +8,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use baron_core::release::{
-    load_and_verify_release_metadata, parse_release_manifest, sha256_file,
+    load_and_verify_release_metadata, parse_signed_release_manifest, sha256_file,
     update_candidate_for_target, validate_release_manifest, ReleaseManifest, ReleaseUpdateArtifact,
 };
 use reqwest::blocking::{Client, Response};
@@ -81,17 +81,39 @@ impl CandidateBinaryInspector for ProcessBinaryInspector {
 #[derive(Debug, Clone)]
 pub struct DirectoryCandidateSource {
     root: PathBuf,
+    trusted_keys: Option<Vec<baron_core::release::TrustedReleaseKey>>,
 }
 
 impl DirectoryCandidateSource {
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self {
+            root: root.into(),
+            trusted_keys: None,
+        }
+    }
+
+    #[cfg(test)]
+    fn new_with_trusted_keys(
+        root: impl Into<PathBuf>,
+        trusted_keys: Vec<baron_core::release::TrustedReleaseKey>,
+    ) -> Self {
+        Self {
+            root: root.into(),
+            trusted_keys: Some(trusted_keys),
+        }
     }
 }
 
 impl CandidateSource for DirectoryCandidateSource {
     fn latest_manifest(&self) -> Result<ReleaseManifest> {
-        load_and_verify_release_metadata(&self.root)
+        if let Some(trusted_keys) = &self.trusted_keys {
+            baron_core::release::load_and_verify_release_metadata_with_keys(
+                &self.root,
+                trusted_keys,
+            )
+        } else {
+            load_and_verify_release_metadata(&self.root)
+        }
     }
 
     fn fetch_candidate(
@@ -207,9 +229,20 @@ impl CandidateSource for HttpsCandidateSource {
     fn latest_manifest(&self) -> Result<ReleaseManifest> {
         let bytes =
             self.fetch_approved_bytes(self.latest_manifest_url.clone(), MAX_MANIFEST_BYTES)?;
-        let content =
+        let manifest_content =
             std::str::from_utf8(&bytes).context("Baron release manifest was not UTF-8")?;
-        parse_release_manifest(content)
+        let signature_path = self
+            .latest_manifest_url
+            .path()
+            .strip_suffix(".json")
+            .unwrap_or(self.latest_manifest_url.path())
+            .to_string();
+        let mut signature_url = self.latest_manifest_url.clone();
+        signature_url.set_path(&format!("{signature_path}.sig"));
+        let signature_bytes = self.fetch_approved_bytes(signature_url, MAX_MANIFEST_BYTES)?;
+        let signature_content = std::str::from_utf8(&signature_bytes)
+            .context("Baron release signature was not UTF-8")?;
+        parse_signed_release_manifest(manifest_content, signature_content)
     }
 
     fn fetch_candidate(
@@ -899,7 +932,9 @@ fn write_json_atomically(path: &Path, handoff: &RuntimeHandoff) -> Result<()> {
 mod tests {
     use super::*;
     use baron_core::release::{
-        supported_release_target, write_release_metadata, SUPPORTED_RELEASE_TARGETS,
+        compiled_trusted_release_keys, load_and_verify_release_metadata_with_keys,
+        supported_release_target, write_release_metadata_with_signing_key, TrustedReleaseKey,
+        SUPPORTED_RELEASE_TARGETS,
     };
     use tempfile::tempdir;
 
@@ -939,7 +974,7 @@ mod tests {
         }
     }
 
-    fn complete_release(directory: &Path, version: &str) {
+    fn complete_release(directory: &Path, version: &str) -> Vec<TrustedReleaseKey> {
         for target in SUPPORTED_RELEASE_TARGETS {
             fs::write(
                 directory.join(target.archive_name(version)),
@@ -952,7 +987,16 @@ mod tests {
             )
             .unwrap();
         }
-        write_release_metadata(directory, version, SOURCE_REVISION).unwrap();
+        let seed = [7_u8; 32];
+        write_release_metadata_with_signing_key(
+            directory,
+            version,
+            SOURCE_REVISION,
+            "baron-debug-test-key",
+            &seed,
+        )
+        .unwrap();
+        compiled_trusted_release_keys()
     }
 
     #[test]
@@ -962,8 +1006,9 @@ mod tests {
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.4.0");
-        let mut manifest = load_and_verify_release_metadata(&release).unwrap();
+        let trusted_keys = complete_release(&release, "3.4.0");
+        let mut manifest =
+            load_and_verify_release_metadata_with_keys(&release, &trusted_keys).unwrap();
         manifest.source_revision = "not-a-commit".to_string();
 
         let error = stage_verified_candidate(
@@ -985,14 +1030,44 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_manifest_failure_happens_before_update_workspace_mutation() {
+        let temp = tempdir().unwrap();
+        let release = temp.path().join("release");
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&release).unwrap();
+        fs::create_dir_all(&repo).unwrap();
+        let trusted_keys = complete_release(&release, "3.4.0");
+        let signature_path = release.join("release-manifest.sig");
+        let mut signature: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&signature_path).unwrap()).unwrap();
+        signature["signature"] = serde_json::json!("00".repeat(64));
+        fs::write(&signature_path, serde_json::to_string(&signature).unwrap()).unwrap();
+        fs::write(repo.join("README.md"), b"preserve\n").unwrap();
+
+        let error = stage_verified_candidate(
+            &repo,
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
+            &StaticInspector("baron 3.4.0".to_string()),
+            "3.3.0",
+            current_release_target().unwrap(),
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("signature"));
+        assert!(!repo.join(".baron/update").exists());
+        assert_eq!(fs::read(repo.join("README.md")).unwrap(), b"preserve\n");
+    }
+
+    #[test]
     fn candidate_byte_tampering_is_rejected_inside_the_update_workspace() {
         let temp = tempdir().unwrap();
         let release = temp.path().join("release");
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.4.0");
-        let manifest = load_and_verify_release_metadata(&release).unwrap();
+        let trusted_keys = complete_release(&release, "3.4.0");
+        let manifest = load_and_verify_release_metadata_with_keys(&release, &trusted_keys).unwrap();
 
         let error = stage_verified_candidate(
             &repo,
@@ -1020,11 +1095,11 @@ mod tests {
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.4.0");
+        let trusted_keys = complete_release(&release, "3.4.0");
 
         let candidate = stage_verified_candidate(
             &repo,
-            &DirectoryCandidateSource::new(&release),
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
             &StaticInspector("baron 3.4.0".to_string()),
             "3.3.0",
             current_release_target().unwrap(),
@@ -1064,11 +1139,11 @@ mod tests {
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.3.0");
+        let trusted_keys = complete_release(&release, "3.3.0");
 
         let error = stage_verified_candidate(
             &repo,
-            &DirectoryCandidateSource::new(&release),
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
             &StaticInspector("baron 3.3.0".to_string()),
             "3.3.0",
             current_release_target().unwrap(),
@@ -1087,11 +1162,11 @@ mod tests {
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.2.0");
+        let trusted_keys = complete_release(&release, "3.2.0");
 
         let error = stage_verified_candidate(
             &repo,
-            &DirectoryCandidateSource::new(&release),
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
             &StaticInspector("baron 3.2.0".to_string()),
             "3.3.0",
             current_release_target().unwrap(),
@@ -1110,11 +1185,11 @@ mod tests {
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.4.0");
+        let trusted_keys = complete_release(&release, "3.4.0");
 
         let error = stage_verified_candidate(
             &repo,
-            &DirectoryCandidateSource::new(&release),
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
             &StaticInspector("baron 3.4.0".to_string()),
             "3.3.0",
             "unsupported-target",
@@ -1133,11 +1208,11 @@ mod tests {
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.4.0");
+        let trusted_keys = complete_release(&release, "3.4.0");
 
         let error = stage_verified_candidate(
             &repo,
-            &DirectoryCandidateSource::new(&release),
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
             &StaticInspector("baron 3.3.0".to_string()),
             "3.3.0",
             current_release_target().unwrap(),
@@ -1156,10 +1231,10 @@ mod tests {
         let repo = temp.path().join("repo");
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(&repo).unwrap();
-        complete_release(&release, "3.4.0");
+        let trusted_keys = complete_release(&release, "3.4.0");
         let candidate = stage_verified_candidate(
             &repo,
-            &DirectoryCandidateSource::new(&release),
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
             &StaticInspector("baron 3.4.0".to_string()),
             "3.3.0",
             current_release_target().unwrap(),
@@ -1238,7 +1313,7 @@ mod tests {
         fs::create_dir_all(&release).unwrap();
         fs::create_dir_all(repo.join(".baron")).unwrap();
         fs::create_dir_all(&outside).unwrap();
-        complete_release(&release, "3.4.0");
+        let trusted_keys = complete_release(&release, "3.4.0");
         let script = format!(
             "New-Item -ItemType Junction -Path '{}' -Target '{}' | Out-Null",
             repo.join(".baron/update")
@@ -1255,7 +1330,7 @@ mod tests {
 
         let error = stage_verified_candidate(
             &repo,
-            &DirectoryCandidateSource::new(&release),
+            &DirectoryCandidateSource::new_with_trusted_keys(&release, trusted_keys),
             &StaticInspector("baron 3.4.0".to_string()),
             "3.3.0",
             current_release_target().unwrap(),

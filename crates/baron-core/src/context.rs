@@ -13,17 +13,21 @@ use crate::domain_language::{read_domain_language, render_domain_language_contex
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
 use crate::intelligence::{experimental_generation_enabled, select_resume_brief_runtime};
-use crate::intelligence41::{build_grounded_handoff, render_grounded_handoff};
+use crate::intelligence41::{
+    build_grounded_handoff, refresh_temporal_ledger, render_grounded_handoff,
+};
 use crate::knowledge::render_resume_brief;
 use crate::memory::{analyze_memory_consolidation, build_memory_index};
+use crate::operation::OperationContext;
 use crate::operations::{load_runbook, relevant_to_task, render_bounded_context};
 use crate::platform::render_platform_context;
 use crate::review_gate::review_status;
 use crate::session::import_sessions;
 use crate::session_replay::{
-    index_session_replay, render_session_replay_hits, search_session_replay,
+    index_session_replay, render_session_replay_hits, replay_session_context, search_session_replay,
 };
 use crate::survey::{survey_repository, ProjectType, RepoSurvey};
+use crate::task_state::{compile_task_state, render_task_state};
 use crate::vault::ensure_vault;
 
 const MAX_CONTEXT_CHARS: usize = 20_000;
@@ -33,8 +37,6 @@ const MAX_EXECUTION_STATE_CHARS: usize = 2_000;
 pub enum ContextTarget {
     Codex,
     Claude,
-    Generic,
-    Reasonix,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,6 +80,7 @@ pub fn compile_context_for_task(
         )?;
     }
     build_memory_index(&vault)?;
+    refresh_temporal_ledger(&vault)?;
     index_session_replay(&vault)?;
     let memory_brief = compact_memory_brief_for_task(&vault, task)?;
     let (intelligence_generation, resume_brief) = select_resume_brief_runtime(&vault, task, 4_800)?;
@@ -92,6 +95,7 @@ pub fn compile_context_for_task(
     };
     let consolidation = analyze_memory_consolidation(&vault)?;
     let risk = classify_risk(task, &survey);
+    let task_state = compile_task_state(repo_path, &vault, task)?;
 
     let mut output = String::new();
     output.push_str(&format!("# Baron Context Bundle - {}\n\n", target.title()));
@@ -206,7 +210,26 @@ pub fn compile_context_for_task(
     output.push_str("- adapter refresh; managed files are owned by `baron init/update`\n");
     output.push_str("- No target repo files were written.\n");
 
-    Ok(truncate_context(output))
+    Ok(render_priority_context(
+        output,
+        render_task_state(&task_state, 5_800),
+    ))
+}
+
+/// Compile the shared Baron context for one explicitly identified supported
+/// operation. The adapter only selects the host projection at this edge; all
+/// semantic memory, routing, task, and plan state remains shared.
+pub fn compile_context_for_operation(
+    repo_path: impl AsRef<Path>,
+    vault_path: impl AsRef<Path>,
+    operation: &OperationContext,
+    task: Option<&str>,
+) -> Result<String> {
+    let target = match operation.adapter {
+        crate::operation::SupportedAdapter::Codex => ContextTarget::Codex,
+        crate::operation::SupportedAdapter::Claude => ContextTarget::Claude,
+    };
+    compile_context_for_task(repo_path, vault_path, target, task)
 }
 
 fn render_review_gate(repo_path: &Path) -> String {
@@ -255,6 +278,7 @@ fn platform_name(platform: ProjectPlatform) -> &'static str {
         ProjectPlatform::Tool => "tool",
         ProjectPlatform::Library => "library",
         ProjectPlatform::Data => "data",
+        ProjectPlatform::Database => "database",
         ProjectPlatform::Cloud => "cloud",
         ProjectPlatform::Unknown => "unknown",
     }
@@ -297,6 +321,7 @@ fn platform_guidance(platform: ProjectPlatform) -> &'static str {
         ProjectPlatform::Tool => "prioritize CLI UX, automation, release safety, installers, and cross-platform smoke proof.",
         ProjectPlatform::Library => "prioritize public API contracts, compatibility, examples, and regression tests.",
         ProjectPlatform::Data => "prioritize data pipelines, schemas, migrations, reproducibility, and data-quality proof.",
+        ProjectPlatform::Database => "prioritize relational modeling, constraints, query plans, transactions, migration safety, and integrity proof.",
         ProjectPlatform::Cloud => "prioritize infrastructure, deployment, secrets, permissions, observability, and rollback proof.",
         ProjectPlatform::Unknown => "use repo evidence first, keep unknown facts unknown, and avoid assuming a product shape.",
     }
@@ -626,9 +651,43 @@ fn render_session_replay_summary(vault: &crate::vault::VaultContext, task: Optio
         return "## Session Replay\n\n- No task was provided, so Baron did not pull prior conversation messages.\n\n".to_string();
     };
     match search_session_replay(vault, task, 3) {
-        Ok(hits) => render_session_replay_hits(&hits),
+        Ok(hits) => render_session_replay_with_neighbors(vault, &hits),
         Err(error) => format!("## Session Replay\n\n- unavailable: {error}\n\n"),
     }
+}
+
+fn render_session_replay_with_neighbors(
+    vault: &crate::vault::VaultContext,
+    hits: &[crate::session_replay::SessionReplaySearchResult],
+) -> String {
+    let mut output = render_session_replay_hits(hits);
+    let mut seen = hits
+        .iter()
+        .map(|hit| hit.message_id.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut added = 0usize;
+    for hit in hits.iter().take(3) {
+        let Ok(context) = replay_session_context(vault, &hit.message_id, 1) else {
+            continue;
+        };
+        for message in context.messages {
+            if added >= 3 || !seen.insert(message.message_id.clone()) {
+                continue;
+            }
+            let text = message
+                .text
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
+            let text = text.chars().take(220).collect::<String>();
+            output.push_str(&format!(
+                "- `{}` {} (adjacent): {}\n",
+                message.source_path, message.role, text
+            ));
+            added += 1;
+        }
+    }
+    output
 }
 
 fn bounded_file(path: &Path, limit: usize, missing: &str) -> String {
@@ -677,13 +736,246 @@ fn classify_risk(task: Option<&str>, survey: &RepoSurvey) -> RiskLane {
     }
 }
 
-fn truncate_context(mut output: String) -> String {
-    if output.chars().count() <= MAX_CONTEXT_CHARS {
-        return output;
+const TIER0_CONTEXT_BUDGET: usize = 5_800;
+const TIER1_CONTEXT_BUDGET: usize = 6_500;
+const TIER2_CONTEXT_BUDGET: usize = 3_800;
+const TIER3_CONTEXT_BUDGET: usize = 2_200;
+const CONTEXT_HEADER_BUDGET: usize = 900;
+const CONTEXT_TAIL_RESERVE: usize = 1_000;
+
+fn render_priority_context(legacy_output: String, task_state: String) -> String {
+    let (header, sections) = split_context_sections(&legacy_output);
+    let mut tiers = [Vec::new(), Vec::new(), Vec::new()];
+    for section in sections {
+        tiers[section_tier(&section.0)].push(section);
     }
-    output = truncate_chars(&output, MAX_CONTEXT_CHARS.saturating_sub(120));
-    output.push_str("\n\n[Context truncated by Baron to preserve the bounded context contract.]\n");
+
+    let mut truncated = Vec::new();
+    let mut output = String::new();
+    let header = header.trim_end();
+    let header_take = header.chars().count().min(CONTEXT_HEADER_BUDGET);
+    output.push_str(&truncate_chars(header, header_take));
+    if header_take < header.chars().count() {
+        truncated.push("Context header".to_string());
+    }
+    output.push_str("\n\n## Tier 0 — Protected Task State\n\n");
+    append_bounded_block(
+        &mut output,
+        &task_state,
+        TIER0_CONTEXT_BUDGET,
+        "Task State",
+        &mut truncated,
+    );
+    output.push_str("\n## Tier 1 — Trusted Current Evidence\n\n");
+    append_tier(
+        &mut output,
+        &tiers[0],
+        TIER1_CONTEXT_BUDGET,
+        "Tier 1",
+        &mut truncated,
+    );
+    output.push_str("\n## Tier 2 — Supporting Project Intelligence\n\n");
+    append_tier(
+        &mut output,
+        &tiers[1],
+        TIER2_CONTEXT_BUDGET,
+        "Tier 2",
+        &mut truncated,
+    );
+    output.push_str("\n## Tier 3 — Diagnostics and Optional Context\n\n");
+    let tier3_budget = TIER3_CONTEXT_BUDGET
+        .min(MAX_CONTEXT_CHARS.saturating_sub(output.chars().count() + CONTEXT_TAIL_RESERVE));
+    append_tier(
+        &mut output,
+        &tiers[2],
+        tier3_budget,
+        "Tier 3",
+        &mut truncated,
+    );
+    output.push_str("\n## Context Budget\n\n");
+    output.push_str(&format!(
+        "- Tier 0 protected budget: {} characters\n- Tier 1 budget: {} characters\n- Tier 2 budget: {} characters\n- Tier 3 budget: {} characters\n",
+        TIER0_CONTEXT_BUDGET,
+        TIER1_CONTEXT_BUDGET,
+        TIER2_CONTEXT_BUDGET,
+        tier3_budget
+    ));
+    if truncated.is_empty() {
+        output.push_str("- No tier was truncated or omitted.\n");
+    } else {
+        let mut summary = truncated.join(", ");
+        if summary.chars().count() > 720 {
+            summary = truncate_chars(&summary, 720);
+            summary.push_str("...");
+        }
+        output.push_str(&format!("- Truncated or omitted sections: {summary}\n"));
+    }
+    output.push_str("- Tier 0 state is retained before lower-priority context under pressure.\n");
     output
+}
+
+fn split_context_sections(output: &str) -> (String, Vec<(String, String)>) {
+    let mut header = String::new();
+    let mut sections = Vec::new();
+    let mut current_heading: Option<String> = None;
+    let mut current = String::new();
+    for line in output.lines() {
+        if line.starts_with("## ") && is_primary_context_heading(line) {
+            if let Some(heading) = current_heading.take() {
+                sections.push((heading, current));
+                current = String::new();
+            }
+            current_heading = Some(line.trim().to_string());
+            current.push_str(line);
+            current.push('\n');
+        } else if current_heading.is_some() {
+            current.push_str(line);
+            current.push('\n');
+        } else {
+            header.push_str(line);
+            header.push('\n');
+        }
+    }
+    if let Some(heading) = current_heading {
+        sections.push((heading, current));
+    }
+    (header, sections)
+}
+
+fn is_primary_context_heading(line: &str) -> bool {
+    let heading = line.trim().to_lowercase();
+    [
+        "adapter guidance",
+        "task focus",
+        "platform focus",
+        "platform intelligence",
+        "architecture",
+        "architecture governor",
+        "reviewer closure",
+        "intent clarity",
+        "continuity resume",
+        "actionable recovery",
+        "memory maintenance candidates",
+        "project atlas",
+        "application runbook",
+        "optional code map",
+        "execution state",
+        "product harness state",
+        "proof and trace state",
+        "product domain language",
+        "capability summary",
+        "runtime backend policy",
+        "control plane summary",
+        "harness improvement summary",
+        "autopilot learning and resume",
+        "session replay",
+        "memory firewall brief",
+        "skipped context",
+    ]
+    .iter()
+    .any(|name| heading == format!("## {name}"))
+}
+
+fn section_tier(heading: &str) -> usize {
+    let heading = heading.to_lowercase();
+    if [
+        "adapter guidance",
+        "task focus",
+        "intent clarity",
+        "continuity resume",
+        "actionable recovery",
+        "product harness state",
+        "proof and trace state",
+        "memory firewall brief",
+        "reviewer closure",
+        "session replay",
+        "skipped context",
+    ]
+    .iter()
+    .any(|name| heading.contains(name))
+    {
+        return 0;
+    }
+    if [
+        "project atlas",
+        "platform focus",
+        "architecture",
+        "product domain language",
+        "session replay",
+        "application runbook",
+        "code map",
+    ]
+    .iter()
+    .any(|name| heading.contains(name))
+    {
+        return 1;
+    }
+    2
+}
+
+fn append_tier(
+    output: &mut String,
+    sections: &[(String, String)],
+    budget: usize,
+    tier_name: &str,
+    truncated: &mut Vec<String>,
+) {
+    let mut remaining = budget;
+    let mut ordered = sections.to_vec();
+    ordered.sort_by_key(|(heading, _)| section_priority(heading));
+    for (heading, section) in &ordered {
+        if remaining == 0 {
+            truncated.push(heading.trim_start_matches("## ").to_string());
+            continue;
+        }
+        let section_chars = section.chars().count();
+        let take = section_chars.min(remaining);
+        output.push_str(&truncate_chars(section, take));
+        remaining = remaining.saturating_sub(take);
+        if take < section_chars {
+            truncated.push(heading.trim_start_matches("## ").to_string());
+        }
+    }
+    if ordered.is_empty() {
+        output.push_str("- none\n");
+    } else if remaining == 0 && truncated.iter().any(|item| item == tier_name) {
+        output.push_str("- lower-priority sections omitted\n");
+    }
+}
+
+fn section_priority(heading: &str) -> usize {
+    let heading = heading.to_lowercase();
+    [
+        "memory firewall brief",
+        "session replay",
+        "adapter guidance",
+        "task focus",
+        "intent clarity",
+        "continuity resume",
+        "actionable recovery",
+        "product harness state",
+        "proof and trace state",
+        "reviewer closure",
+        "skipped context",
+    ]
+    .iter()
+    .position(|name| heading.contains(name))
+    .unwrap_or(100)
+}
+
+fn append_bounded_block(
+    output: &mut String,
+    block: &str,
+    budget: usize,
+    name: &str,
+    truncated: &mut Vec<String>,
+) {
+    let length = block.chars().count();
+    let take = length.min(budget);
+    output.push_str(&truncate_chars(block, take));
+    if take < length {
+        truncated.push(name.to_string());
+    }
 }
 
 fn truncate_chars(value: &str, limit: usize) -> String {
@@ -711,8 +1003,6 @@ impl ContextTarget {
         match self {
             ContextTarget::Codex => AdapterKind::Codex,
             ContextTarget::Claude => AdapterKind::Claude,
-            ContextTarget::Generic => AdapterKind::Generic,
-            ContextTarget::Reasonix => AdapterKind::Reasonix,
         }
     }
 
@@ -720,8 +1010,6 @@ impl ContextTarget {
         match self {
             ContextTarget::Codex => "codex",
             ContextTarget::Claude => "claude",
-            ContextTarget::Generic => "agent",
-            ContextTarget::Reasonix => "reasonix",
         }
     }
 
@@ -729,8 +1017,6 @@ impl ContextTarget {
         match self {
             ContextTarget::Codex => "Codex",
             ContextTarget::Claude => "Claude",
-            ContextTarget::Generic => "Generic Agent",
-            ContextTarget::Reasonix => "DeepSeek Reasonix",
         }
     }
 
@@ -741,12 +1027,6 @@ impl ContextTarget {
             }
             ContextTarget::Claude => {
                 "For Claude: treat CLAUDE.md and routed Claude command/hook surfaces as the workspace contract when present."
-            }
-            ContextTarget::Generic => {
-                "For generic agents: use portable Markdown/JSON context and do not assume tool-specific hooks."
-            }
-            ContextTarget::Reasonix => {
-                "For DeepSeek Reasonix: treat REASONIX.md and the shared Baron Vault/context as the workspace contract; adapter-local runtime state is not durable memory."
             }
         }
     }

@@ -84,7 +84,7 @@ Every Baron-managed file is classified by one merge policy:
 
 | Policy | Examples | Baron ownership |
 | --- | --- | --- |
-| Managed marker | `AGENTS.md`, `CLAUDE.md`, `AGENT.md` | only text between Baron markers |
+| Managed marker | `AGENTS.md`, `CLAUDE.md` | only text between Baron markers |
 | Managed routing | skill and agent indexes | managed routing block only |
 | Structural JSON | Codex/Claude settings or hooks | Baron-owned keys and entries only |
 | Managed full file | bundled core skill/agent assets | entire file, with baseline conflict detection |

@@ -53,7 +53,7 @@ fn register_check_list_and_remove_work_from_nested_paths() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&nested)
-        .args(["capability", "check"])
+        .args(["capability", "check", "--adapter", "codex"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Presence: `present`"))
@@ -62,7 +62,7 @@ fn register_check_list_and_remove_work_from_nested_paths() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&nested)
-        .args(["capability", "list"])
+        .args(["capability", "list", "--adapter", "codex"])
         .assert()
         .success()
         .stdout(predicate::str::contains("source-control"))
@@ -85,7 +85,7 @@ fn register_check_list_and_remove_work_from_nested_paths() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&nested)
-        .args(["capability", "list"])
+        .args(["capability", "list", "--adapter", "codex"])
         .assert()
         .success()
         .stdout(predicate::str::contains("code-map"))
@@ -120,7 +120,14 @@ fn capability_check_and_list_have_machine_readable_json() {
     let check = Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["capability", "check", "security-scan", "--json"])
+        .args([
+            "capability",
+            "check",
+            "security-scan",
+            "--adapter",
+            "codex",
+            "--json",
+        ])
         .output()
         .unwrap();
     assert!(check.status.success());
@@ -194,7 +201,7 @@ fn missing_required_capability_is_reported_as_diagnostic_not_command_crash() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["capability", "check"])
+        .args(["capability", "check", "--adapter", "codex"])
         .assert()
         .success()
         .stdout(predicate::str::contains(

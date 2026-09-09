@@ -1,100 +1,105 @@
 # Baron Architecture
 
-Baron is split into a core engine and adapter outputs.
+Baron Core owns the product semantics. Codex and Claude are native adapters that
+translate a Core decision into host files, hooks, and agent wrappers. Neither
+adapter owns memory, workflow, routing policy, or proof truth.
 
 ```text
-baron-cli
-  -> baron-core
-       -> survey engine
-       -> memory engine
-       -> read-only memory consolidation candidates
-       -> guarded Baron 4.0 intelligence selector (3.8 recovery fallback)
-       -> cited Wiki link graph and local CodeGraph candidate paths
-       -> bounded defensive security router and authorization gate
-       -> context compiler
-       -> plan engine
-       -> harness engine
-       -> proof engine
-       -> trace engine
-       -> control-plane engine
-       -> harness improvement engine
-       -> work-shape decision engine
-       -> trusted execution receipt ledger
-       -> measured Harness experiment ledger
-       -> bounded application runbook reader
-       -> certification engine
-       -> release metadata and checksum verifier
-  -> baron-adapters
-       -> codex adapter
-       -> claude adapter
-       -> generic agent adapter
+assets/core/**                 packaged canonical source
+      ↓ install / reconcile
+.baron/core/**                 one project runtime and one owner
+      ↓ selected resources
+Codex native adapter            Claude native adapter
+AGENTS.md + .agents/           CLAUDE.md + .claude/
 ```
 
-GitHub Actions builds the same `baron-cli` on four native runner targets.
-Installers are thin lifecycle clients around those verified archives; they are
-not another runtime and never own project or Vault data.
+Core contains project identity, trusted memory, Task State, Superpowers,
+platform profiles, routing, continuity, recovery, proof, trace, quality gates,
+and Autopilot candidate handling. Hooks, session replay, Wiki, and CodeGraph
+are optional accelerators around that authority.
 
-## Data Flow
+## Request lifecycle
+
+Every task is represented by an explicit `OperationContext`. It carries the
+project ID, session and request identity, adapter identity, task text, profile,
+work shape, risk, current phase, and the evidence available to Core. The
+adapter never infers correctness from a project-global adapter preference.
+
+The native hook or managed host contract sends a structured `PrepareRequestV1`.
+Core validates the request, applies the memory firewall and
+`TrustedRecallPolicy::Current`, resumes Task State when present, and returns a
+`PreparePacketV1`. The packet contains the selected profile lens, canonical
+skills, quality agents, bounded context, required verification, blockers,
+warnings, and next action. Task text is structured data; it is never assembled
+into a shell command.
 
 ```text
-repo + vault + user task
-  -> survey/context compiler
-  -> memory firewall
-  -> active plan and harness state
-  -> work-shape decision (read-only, focused, durable, or confirmation)
-  -> control-plane route and trusted quality-gate receipt evidence
-  -> bounded application runbook when the task needs runtime operations
-  -> harness audit and improvement loop
-  -> certification gate when release confidence matters
-  -> adapter-specific context output
-  -> agent work
-  -> proof + trace + memory write-back
+prompt / native event
+      ↓
+OperationContext + PrepareRequestV1
+      ↓
+survey → trusted memory → Task State → profile-aware route
+      ↓
+PreparePacketV1
+      ↓
+Codex or Claude works through the selected Core resources
+      ↓
+proof / trace / continuity / Autopilot review
 ```
 
-## Source Hierarchy
+## Context and state priorities
 
-1. User request and repo files.
-2. Verified project memory.
-3. Active plan and product harness state.
-4. Verified global memory.
-5. Cross-project memory only when explicitly matched.
-6. Stale/unknown memory as reference only.
+The context compiler uses priority-aware budgeting rather than dropping the
+tail of a flat string. `Tier 0` is never silently dropped and includes project
+identity, task identity, intent, constraints, non-goals, current plan/work
+state, recovery, blockers, next action, route, and mandatory proof/completion
+gates. Tier 1 carries trusted decisions, current source evidence, proof/trace,
+and the immediate action. Tier 2 carries profile and bounded Wiki, CodeGraph,
+and session-replay material. Tier 3 carries low-priority diagnostics and
+Autopilot candidate summaries.
 
-## Safety Model
+Task State is the durable projection of an active task. It links intent,
+constraints, plan progress, last successful step, affected files, proof and
+trace state, blocker, recovery packet, and safe next action. A stopped session
+can therefore resume from evidence without asking the user to repeat known
+facts.
 
-- Shadow mode reads only.
-- Update mode must preserve user-owned files.
-- Adapter files use managed markers where possible.
-- Baron must never mark completion without verification evidence.
-- Baron must never count a mandatory skill/agent gate without recorded gate
-  evidence.
-- A hand-written or stale proof sentence is reported evidence only. Trusted
-  proof and gate completion require a Baron-owned receipt bound to the current
-  project source.
-- Harness interventions remain candidates until explicitly approved, then
-  require a comparable fresh-agent rerun before keep/revise/remove.
-- Project operation facts belong to the repository-owned runbook; missing
-  readiness, interface, credentials, ports, fixtures, and cleanup ownership
-  remain unknown rather than being invented.
-- Baron may propose harness improvements, but must not rewrite core policy or
-  architecture without human approval.
-- Baron must never promote cross-project memory as truth without confidence.
-- Release installers must verify SHA-256 and staged binary version before
-  replacing the active executable.
-- Rollback and uninstall must never traverse into project or Vault paths.
+## Ownership and persistence
 
-## Optional Local Code Map
+| Owner | Managed paths | Authority |
+| --- | --- | --- |
+| Core | `.baron/core/**`, project identity, Task State, memory and receipts | canonical semantics and durable state |
+| Codex | `AGENTS.md` managed block, `.agents/skills/baron-engine/**`, `.codex/**` managed entries | native projection and optional hooks |
+| Claude | `CLAUDE.md` managed block, `.claude/skills/baron-engine/**`, `.claude/**` managed entries | native projection and optional hooks |
+| User | source, Vault Markdown, custom assets, unknown settings and hooks | preserved content and explicit instructions |
 
-The optional `graphify-local` provider is a project-scoped code-navigation
-accelerator for large or older repositories. It is not part of Baron's memory,
-instruction, hook, workflow, or global-context systems.
+One live managed path has one owner. Reconciliation and updates preserve user
+content outside Baron markers, quarantine ambiguous ownership, and fail closed
+when a baseline is missing or changed.
 
-- Baron accepts only its pinned compatible local provider version.
-- Baron permits only a version probe, code-only extraction into
-  `.baron/cache/code-graph/`, and bounded local JSON queries.
-- Provider output is staged, size-checked, path-checked, identity-bound, and
-  checksummed before the cache state changes.
-- A missing, incompatible, stale, malformed, timed-out, or failed provider
-  leaves the last known-good cache intact and returns to the Survey Engine.
-- Graph results are navigation hints only. Current repository files remain the
-  source required for implementation, proof, traces, and durable memory.
+Vault Markdown is the source of truth for durable memory. SQLite, replay,
+Wiki, CodeGraph, and capability caches are disposable accelerators. A trusted
+memory result must match the project firewall and current trust policy before
+ranking; candidate, contested, superseded, expired, and unrelated project
+records remain ineligible as current truth.
+
+## Hooks, fallback, and safety
+
+Codex and Claude hooks observe session start, prompt, compaction, and stop
+events when the host trusts and runs them. They accelerate the same Core
+prepare, journal, and reconciliation paths. The managed `AGENTS.md` or
+`CLAUDE.md` contract is always the fallback, so missing or untrusted hooks do
+not create a second behavior model.
+
+Proof gates require execution evidence, not provider presence. High-risk work
+cannot complete without valid proof and a passing trace. Autopilot may perform
+bounded housekeeping and write reviewable candidates; it cannot silently change
+skills, routing policy, workflow, or Core assets.
+
+## Optional accelerators
+
+The local CodeGraph, Wiki, session replay, capability probes, and native hooks
+are optional accelerators. They are bounded, project-scoped, and disposable.
+Their absence produces a warning or a Core fallback and never changes ownership
+or turns an observation into proof. Core remains fully responsible for the
+decision and for the evidence recorded in the project and Vault.

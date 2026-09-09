@@ -3,12 +3,17 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
-use serde::{Deserialize, Serialize};
+use baron_core::safe_io::{
+    acquire_project_lock, read_bytes, read_text, read_text_required, replace_file, replace_text,
+};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
 use crate::managed::delimited_block_bounds;
 
-const MANAGED_STATE_SCHEMA_VERSION: u32 = 1;
+const MANAGED_STATE_SCHEMA_VERSION: u32 = 2;
+const LEGACY_MANAGED_STATE_SCHEMA_VERSION: u32 = 1;
 const MANAGED_STATE_DIR: &str = ".baron/managed-state";
 const MANAGED_BASE_DIR: &str = "base";
 const MANAGED_MANIFEST: &str = "manifest.json";
@@ -27,13 +32,155 @@ pub enum ManagedMergeKind {
     FullText,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SupportedManagedAdapter {
+    Codex,
+    Claude,
+}
+
+impl SupportedManagedAdapter {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::Claude => "claude",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManagedOwner {
+    Core,
+    Adapter(SupportedManagedAdapter),
+    UnsupportedLegacy(String),
+}
+
+impl Default for ManagedOwner {
+    fn default() -> Self {
+        Self::UnsupportedLegacy(String::new())
+    }
+}
+
+impl ManagedOwner {
+    pub fn for_payload(adapter: &str, relative_path: &Path) -> Self {
+        if is_core_path(relative_path) {
+            return Self::Core;
+        }
+        match adapter {
+            "codex" => Self::Adapter(SupportedManagedAdapter::Codex),
+            "claude" => Self::Adapter(SupportedManagedAdapter::Claude),
+            other => Self::UnsupportedLegacy(other.to_string()),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Core => "core",
+            Self::Adapter(adapter) => adapter.as_str(),
+            Self::UnsupportedLegacy(name) => name,
+        }
+    }
+
+    fn baseline_key(&self) -> String {
+        match self {
+            Self::Core => "core".to_string(),
+            Self::Adapter(adapter) => adapter.as_str().to_string(),
+            Self::UnsupportedLegacy(name) => {
+                let normalized = name
+                    .chars()
+                    .map(|character| {
+                        if character.is_ascii_alphanumeric() || character == '-' || character == '_'
+                        {
+                            character
+                        } else {
+                            '_'
+                        }
+                    })
+                    .collect::<String>();
+                format!("legacy-{normalized}")
+            }
+        }
+    }
+
+    fn adapter_alias(&self) -> String {
+        self.as_str().to_string()
+    }
+}
+
+impl Serialize for ManagedOwner {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ManagedOwner {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct OwnerVisitor;
+
+        impl<'de> Visitor<'de> for OwnerVisitor {
+            type Value = ManagedOwner;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a managed owner string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                if value == "core" {
+                    Ok(ManagedOwner::Core)
+                } else if value == "codex" {
+                    Ok(ManagedOwner::Adapter(SupportedManagedAdapter::Codex))
+                } else if value == "claude" {
+                    Ok(ManagedOwner::Adapter(SupportedManagedAdapter::Claude))
+                } else if value.trim().is_empty() {
+                    Err(E::custom("managed owner cannot be empty"))
+                } else {
+                    Ok(ManagedOwner::UnsupportedLegacy(value.to_string()))
+                }
+            }
+        }
+
+        deserializer.deserialize_string(OwnerVisitor)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ManagedProvenance {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_owner: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ownership_migrated: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ManagedAssetRecord {
+    #[serde(default)]
+    pub owner: ManagedOwner,
+    #[serde(default, skip_serializing)]
     pub adapter: String,
     pub relative_path: PathBuf,
     pub base_sha256: String,
     pub installed_version: String,
     pub merge_kind: ManagedMergeKind,
+    #[serde(default, skip_serializing_if = "is_default_provenance")]
+    pub provenance: ManagedProvenance,
+    #[serde(skip)]
+    legacy_baseline_adapter: Option<String>,
+}
+
+fn is_default_provenance(value: &ManagedProvenance) -> bool {
+    value == &ManagedProvenance::default()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +195,8 @@ pub struct ManagedAssetPayload {
 pub struct ManagedBaseline {
     pub schema_version: u32,
     pub installed_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_writer_schema: Option<u32>,
     pub records: Vec<ManagedAssetRecord>,
 }
 
@@ -86,6 +235,18 @@ pub struct LocalReconcileReport {
     pub preserved_paths: Vec<String>,
 }
 
+/// Evidence returned by the Phase 3 ownership migration. A migration report
+/// is deliberately small: the manifest and byte-preserving filesystem changes
+/// remain the durable evidence, while these paths make the caller's receipt
+/// explainable without reopening the old adapter implementation.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OwnershipMigrationReport {
+    pub migrated_paths: Vec<PathBuf>,
+    pub preserved_paths: Vec<String>,
+    pub conflicts: Vec<PathBuf>,
+    pub published_schema: Option<u32>,
+}
+
 impl ManagedUpdatePlan {
     pub fn action_for(&self, relative_path: &str) -> Option<&ManagedUpdateAction> {
         self.actions
@@ -108,11 +269,250 @@ pub fn managed_state_dir(repo_root: impl AsRef<Path>) -> PathBuf {
     repo_root.as_ref().join(MANAGED_STATE_DIR)
 }
 
+/// Upgrade legacy managed-state ownership before an adapter writes anything.
+///
+/// Schema 1 identified every record by an adapter string. That was sufficient
+/// for the old per-adapter trees, but it could not express that `.baron/core`
+/// is the canonical owner. This migration keeps the old manifest readable,
+/// inventories every effective live path, transfers verified unchanged legacy
+/// skills into Core, and publishes one schema-2 manifest only after all
+/// conflicts have been ruled out. A modified former managed skill is a hard
+/// conflict: preserving its bytes is safer than guessing whether the user
+/// intended a move.
+pub fn migrate_managed_ownership(repo_root: impl AsRef<Path>) -> Result<OwnershipMigrationReport> {
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    if !managed_manifest_exists(&repo_root)? {
+        return Ok(OwnershipMigrationReport::default());
+    }
+
+    let baseline = load_managed_baseline(&repo_root)?;
+    if baseline.schema_version != LEGACY_MANAGED_STATE_SCHEMA_VERSION {
+        return Ok(OwnershipMigrationReport {
+            published_schema: Some(baseline.schema_version),
+            ..OwnershipMigrationReport::default()
+        });
+    }
+
+    let mut report = OwnershipMigrationReport::default();
+    let mut records = Vec::with_capacity(baseline.records.len());
+    let mut payloads = Vec::with_capacity(baseline.records.len());
+    let mut live_copies = Vec::new();
+    let mut legacy_removals = Vec::new();
+    let mut target_paths = HashSet::new();
+
+    for legacy_record in &baseline.records {
+        let content = managed_baseline_content(&repo_root, legacy_record)?;
+        let mut record = legacy_record.clone();
+        record.legacy_baseline_adapter = None;
+        record.provenance = ManagedProvenance::default();
+
+        let old_owner = legacy_record.adapter.clone();
+        if is_core_path(&legacy_record.relative_path) {
+            record.owner = ManagedOwner::Core;
+            record.adapter = ManagedOwner::Core.adapter_alias();
+            record.provenance = ManagedProvenance {
+                source_owner: Some(old_owner),
+                ownership_migrated: true,
+            };
+            report
+                .migrated_paths
+                .push(legacy_record.relative_path.clone());
+        } else if let Some(target) = canonical_skill_target(&legacy_record.relative_path) {
+            let source_path = checked_repo_path(&repo_root, &legacy_record.relative_path)?;
+            let live = read_bytes(&source_path)?;
+            if let Some(live) = &live {
+                if sha256_bytes(live) != legacy_record.base_sha256 {
+                    bail!(
+                        "Legacy managed skill conflict at `{}`: the former Baron-managed copy was modified; preserve it for review",
+                        legacy_record.relative_path.display()
+                    );
+                }
+                let canonical_path = checked_repo_path(&repo_root, &target)?;
+                if let Some(existing) = read_bytes(&canonical_path)? {
+                    if existing != *live {
+                        bail!(
+                            "Legacy managed skill conflict at `{}`: canonical Core target already contains different bytes",
+                            target.display()
+                        );
+                    }
+                } else {
+                    live_copies.push((canonical_path, live.clone()));
+                }
+                legacy_removals.push((source_path, live.clone()));
+                record.relative_path = target;
+                record.owner = ManagedOwner::Core;
+                record.adapter = ManagedOwner::Core.adapter_alias();
+                record.provenance = ManagedProvenance {
+                    source_owner: Some(old_owner),
+                    ownership_migrated: true,
+                };
+                report
+                    .migrated_paths
+                    .push(legacy_record.relative_path.clone());
+            } else {
+                // If the process stopped after staging the Core copy but
+                // before publishing the v2 manifest, the old source is gone
+                // while the verified canonical bytes remain. Recognize that
+                // recoverable intermediate state and finish the ownership
+                // transfer on retry. A missing source without a matching
+                // Core copy remains adapter-owned; migration must not invent
+                // a new live file from the baseline alone.
+                let canonical_path = checked_repo_path(&repo_root, &target)?;
+                match read_bytes(&canonical_path)? {
+                    Some(existing) if sha256_bytes(&existing) == legacy_record.base_sha256 => {
+                        record.relative_path = target;
+                        record.owner = ManagedOwner::Core;
+                        record.adapter = ManagedOwner::Core.adapter_alias();
+                        record.provenance = ManagedProvenance {
+                            source_owner: Some(old_owner),
+                            ownership_migrated: true,
+                        };
+                        report
+                            .migrated_paths
+                            .push(legacy_record.relative_path.clone());
+                    }
+                    Some(_) => {
+                        bail!(
+                            "Legacy managed skill conflict at `{}`: its source is missing and the staged Core target contains different bytes",
+                            legacy_record.relative_path.display()
+                        );
+                    }
+                    None => {
+                        record.owner = ManagedOwner::for_payload(
+                            &legacy_record.adapter,
+                            &legacy_record.relative_path,
+                        );
+                        record.adapter = record.owner.adapter_alias();
+                        report
+                            .preserved_paths
+                            .push(legacy_record.relative_path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        } else {
+            record.owner =
+                ManagedOwner::for_payload(&legacy_record.adapter, &legacy_record.relative_path);
+            record.adapter = record.owner.adapter_alias();
+            report
+                .preserved_paths
+                .push(legacy_record.relative_path.to_string_lossy().to_string());
+        }
+
+        validate_relative_path(&record.relative_path)?;
+        if !target_paths.insert(record.relative_path.clone()) {
+            bail!(
+                "Legacy ownership migration found duplicate live path `{}`; preserving the old manifest",
+                record.relative_path.display()
+            );
+        }
+        payloads.push(ManagedAssetPayload {
+            adapter: record.adapter.clone(),
+            relative_path: record.relative_path.clone(),
+            merge_kind: record.merge_kind,
+            content,
+        });
+        records.push(record);
+    }
+
+    let new_baseline = ManagedBaseline {
+        schema_version: MANAGED_STATE_SCHEMA_VERSION,
+        installed_version: baseline.installed_version,
+        minimum_writer_schema: Some(MANAGED_STATE_SCHEMA_VERSION),
+        records,
+    };
+
+    for (path, bytes) in &live_copies {
+        replace_file(path, bytes)?;
+    }
+
+    let mut removed_legacy = Vec::new();
+    for (path, expected) in &legacy_removals {
+        match read_bytes(path)? {
+            Some(current) if current == *expected => {
+                if let Err(error) = fs::remove_file(path).with_context(|| {
+                    format!(
+                        "Could not retire migrated legacy managed skill: {}",
+                        path.display()
+                    )
+                }) {
+                    let restore = restore_legacy_files(&removed_legacy);
+                    let rollback = rollback_live_copies(&live_copies);
+                    return Err(error.context(format!(
+                        "Legacy ownership migration stopped before publication; restore={:?}, live_rollback={:?}",
+                        restore, rollback
+                    )));
+                }
+                removed_legacy.push((path.clone(), expected.clone()));
+            }
+            Some(_) => {
+                let restore = restore_legacy_files(&removed_legacy);
+                let rollback = rollback_live_copies(&live_copies);
+                return Err(anyhow!(
+                    "Legacy managed skill changed during migration; preserving {} for review (restore={:?}, live_rollback={:?})",
+                    path.display(),
+                    restore,
+                    rollback
+                ));
+            }
+            None => {}
+        }
+    }
+
+    if let Err(error) = write_baseline(&repo_root, &new_baseline, &payloads) {
+        let restore = restore_legacy_files(&removed_legacy);
+        let rollback = rollback_live_copies(&live_copies);
+        return Err(error.context(format!(
+            "Legacy ownership migration was rolled back (legacy_restore={:?}, live_rollback={:?})",
+            restore, rollback
+        )));
+    }
+
+    report.published_schema = Some(MANAGED_STATE_SCHEMA_VERSION);
+    Ok(report)
+}
+
+fn restore_legacy_files(files: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+    for (path, content) in files.iter().rev() {
+        replace_file(path, content)?;
+    }
+    Ok(())
+}
+
+fn canonical_skill_target(path: &Path) -> Option<PathBuf> {
+    for prefix in [Path::new(".codex/skills"), Path::new(".claude/skills")] {
+        if let Ok(relative) = path.strip_prefix(prefix) {
+            if !relative.as_os_str().is_empty() {
+                return Some(Path::new(".baron/core/skills").join(relative));
+            }
+        }
+    }
+    None
+}
+
+fn rollback_live_copies(copies: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+    for (path, expected) in copies.iter().rev() {
+        match read_bytes(path)? {
+            Some(current) if current == *expected => {
+                fs::remove_file(path).with_context(|| {
+                    format!("Could not remove staged Core target: {}", path.display())
+                })?;
+            }
+            Some(_) => bail!(
+                "Migrated Core target changed during rollback; preserving {}",
+                path.display()
+            ),
+            None => {}
+        }
+    }
+    Ok(())
+}
+
 fn managed_manifest_path(repo_root: &Path) -> Result<PathBuf> {
     checked_state_path(repo_root, Path::new(MANAGED_MANIFEST), false)
 }
 
-fn managed_manifest_exists(repo_root: &Path) -> Result<bool> {
+pub(crate) fn managed_manifest_exists(repo_root: &Path) -> Result<bool> {
     let path = managed_manifest_path(repo_root)?;
     match fs::metadata(&path) {
         Ok(metadata) => Ok(metadata.is_file()),
@@ -129,21 +529,22 @@ fn managed_manifest_exists(repo_root: &Path) -> Result<bool> {
 pub fn load_managed_baseline(repo_root: impl AsRef<Path>) -> Result<ManagedBaseline> {
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
     let path = managed_manifest_path(&repo_root)?;
-    let content = fs::read_to_string(&path)
+    let content = read_text_required(&path)
         .with_context(|| format!("Managed baseline manifest is missing: {}", path.display()))?;
-    let baseline: ManagedBaseline = serde_json::from_str(&content)
+    let mut baseline: ManagedBaseline = serde_json::from_str(&content)
         .with_context(|| format!("Managed baseline manifest is malformed: {}", path.display()))?;
+    normalize_loaded_baseline(&mut baseline)?;
     validate_baseline(&baseline)?;
     for record in &baseline.records {
         let base_path = baseline_copy_path(&repo_root, record, false)?;
-        if !base_path.is_file() {
+        if !is_regular_file(&base_path)? {
             bail!(
                 "Managed baseline copy is missing for `{}`: {}",
                 record.relative_path.display(),
                 base_path.display()
             );
         }
-        let content = fs::read_to_string(&base_path).with_context(|| {
+        let content = read_text_required(&base_path).with_context(|| {
             format!(
                 "Could not read managed baseline copy for `{}`: {}",
                 record.relative_path.display(),
@@ -160,13 +561,70 @@ pub fn load_managed_baseline(repo_root: impl AsRef<Path>) -> Result<ManagedBasel
     Ok(baseline)
 }
 
+fn normalize_loaded_baseline(baseline: &mut ManagedBaseline) -> Result<()> {
+    match baseline.schema_version {
+        LEGACY_MANAGED_STATE_SCHEMA_VERSION => {
+            baseline.minimum_writer_schema = Some(MANAGED_STATE_SCHEMA_VERSION);
+            for record in &mut baseline.records {
+                let legacy_adapter = record.adapter.trim().to_string();
+                if legacy_adapter.is_empty() {
+                    bail!("Legacy managed record is missing its adapter owner");
+                }
+                record.owner = ManagedOwner::for_payload(&legacy_adapter, &record.relative_path);
+                record.legacy_baseline_adapter = Some(legacy_adapter);
+            }
+        }
+        MANAGED_STATE_SCHEMA_VERSION => {
+            for record in &mut baseline.records {
+                if matches!(&record.owner, ManagedOwner::UnsupportedLegacy(name) if name.is_empty())
+                {
+                    if record.adapter.trim().is_empty() {
+                        bail!(
+                            "Managed v2 record has neither an owner nor a legacy adapter: {}",
+                            record.relative_path.display()
+                        );
+                    }
+                    record.owner =
+                        ManagedOwner::for_payload(&record.adapter, &record.relative_path);
+                }
+                if record.adapter.trim().is_empty() {
+                    record.adapter = record.owner.adapter_alias();
+                }
+            }
+        }
+        other => bail!(
+            "Unsupported managed baseline schema {}; expected {} or {}",
+            other,
+            LEGACY_MANAGED_STATE_SCHEMA_VERSION,
+            MANAGED_STATE_SCHEMA_VERSION
+        ),
+    }
+    Ok(())
+}
+
+/// Inspect an existing manifest before replacing it. This keeps a future
+/// writer floor or malformed persisted document from being silently hidden by
+/// a baseline rewrite. Baseline-copy availability remains the reader's job.
+fn ensure_existing_manifest_writable(repo_root: &Path) -> Result<()> {
+    if !managed_manifest_exists(repo_root)? {
+        return Ok(());
+    }
+    let path = managed_manifest_path(repo_root)?;
+    let content = read_text_required(&path)
+        .with_context(|| format!("Managed baseline manifest is missing: {}", path.display()))?;
+    let mut baseline: ManagedBaseline = serde_json::from_str(&content)
+        .with_context(|| format!("Managed baseline manifest is malformed: {}", path.display()))?;
+    normalize_loaded_baseline(&mut baseline)?;
+    validate_baseline(&baseline)
+}
+
 pub fn managed_baseline_content(
     repo_root: impl AsRef<Path>,
     record: &ManagedAssetRecord,
 ) -> Result<String> {
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
     let path = baseline_copy_path(&repo_root, record, false)?;
-    fs::read_to_string(&path).with_context(|| {
+    read_text_required(&path).with_context(|| {
         format!(
             "Could not read managed baseline copy for `{}`: {}",
             record.relative_path.display(),
@@ -185,7 +643,9 @@ pub fn record_managed_baseline(
     payloads: &[ManagedAssetPayload],
     installed_version: &str,
 ) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    ensure_existing_manifest_writable(&repo_root)?;
     let baseline = baseline_from_payloads(payloads, installed_version)?;
     write_baseline(&repo_root, &baseline, payloads)
 }
@@ -195,19 +655,19 @@ pub fn ensure_managed_baseline(
     payloads: &[ManagedAssetPayload],
     installed_version: &str,
 ) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    migrate_managed_ownership(&repo_root)?;
     if managed_manifest_exists(&repo_root)? {
         let mut baseline = load_managed_baseline(&repo_root)?;
         let existing = baseline
             .records
             .iter()
-            .map(|record| (record.adapter.clone(), record.relative_path.clone()))
+            .map(|record| record.relative_path.clone())
             .collect::<HashSet<_>>();
         let additions = payloads
             .iter()
-            .filter(|payload| {
-                !existing.contains(&(payload.adapter.clone(), payload.relative_path.clone()))
-            })
+            .filter(|payload| !existing.contains(&payload.relative_path))
             .cloned()
             .collect::<Vec<_>>();
         if additions.is_empty() {
@@ -215,11 +675,9 @@ pub fn ensure_managed_baseline(
         }
         let additional_baseline = baseline_from_payloads(&additions, installed_version)?;
         baseline.records.extend(additional_baseline.records);
-        baseline.records.sort_by(|left, right| {
-            left.adapter
-                .cmp(&right.adapter)
-                .then_with(|| left.relative_path.cmp(&right.relative_path))
-        });
+        baseline
+            .records
+            .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
         validate_baseline(&baseline)?;
         write_baseline(&repo_root, &baseline, &additions)
     } else {
@@ -232,6 +690,7 @@ pub fn replace_managed_baseline(
     payloads: &[ManagedAssetPayload],
     installed_version: &str,
 ) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
     record_managed_baseline(repo_root, payloads, installed_version)
 }
 
@@ -244,12 +703,7 @@ pub fn plan_managed_update(
     validate_payloads(upstream_payloads)?;
     let upstream = upstream_payloads
         .iter()
-        .map(|payload| {
-            (
-                (payload.adapter.clone(), payload.relative_path.clone()),
-                payload,
-            )
-        })
+        .map(|payload| (payload.relative_path.clone(), payload))
         .collect::<HashMap<_, _>>();
     let mut actions = Vec::new();
     let mut conflicts = Vec::new();
@@ -257,12 +711,11 @@ pub fn plan_managed_update(
     let baseline_keys = baseline
         .records
         .iter()
-        .map(|record| (record.adapter.clone(), record.relative_path.clone()))
+        .map(|record| record.relative_path.clone())
         .collect::<HashSet<_>>();
 
     for record in &baseline.records {
-        let Some(payload) = upstream.get(&(record.adapter.clone(), record.relative_path.clone()))
-        else {
+        let Some(payload) = upstream.get(&record.relative_path) else {
             diagnostics.push(format!(
                 "No upstream managed payload exists for `{}`; preserving local content.",
                 record.relative_path.display()
@@ -294,9 +747,9 @@ pub fn plan_managed_update(
             });
             continue;
         }
-        let base = fs::read_to_string(baseline_copy_path(&repo_root, record, false)?)?;
+        let base = read_text_required(baseline_copy_path(&repo_root, record, false)?)?;
         let local_path = checked_repo_path(&repo_root, &record.relative_path)?;
-        let local = fs::read_to_string(&local_path).unwrap_or_default();
+        let local = read_text(&local_path)?.unwrap_or_default();
         let action = plan_one(record, &base, &local, &payload.content)?;
         if action.disposition == UpdateDisposition::Conflict {
             conflicts.push(record.relative_path.clone());
@@ -308,7 +761,7 @@ pub fn plan_managed_update(
     }
 
     for payload in upstream_payloads {
-        if baseline_keys.contains(&(payload.adapter.clone(), payload.relative_path.clone())) {
+        if baseline_keys.contains(&payload.relative_path) {
             continue;
         }
         let action = plan_new_upstream_payload(&repo_root, payload)?;
@@ -321,11 +774,7 @@ pub fn plan_managed_update(
         actions.push(action);
     }
 
-    actions.sort_by(|left, right| {
-        left.adapter
-            .cmp(&right.adapter)
-            .then_with(|| left.relative_path.cmp(&right.relative_path))
-    });
+    actions.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     conflicts.sort();
     conflicts.dedup();
     let managed_paths = baseline
@@ -360,7 +809,9 @@ pub fn reconcile_installed_managed_assets(
     upstream_payloads: &[ManagedAssetPayload],
     installed_version: &str,
 ) -> Result<LocalReconcileReport> {
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
     let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    migrate_managed_ownership(&repo_root)?;
     let plan = plan_managed_update(&repo_root, upstream_payloads)?;
     if !plan.conflicts.is_empty() {
         return Ok(LocalReconcileReport {
@@ -372,12 +823,7 @@ pub fn reconcile_installed_managed_assets(
 
     let payloads = upstream_payloads
         .iter()
-        .map(|payload| {
-            (
-                (payload.adapter.clone(), payload.relative_path.clone()),
-                payload,
-            )
-        })
+        .map(|payload| (payload.relative_path.clone(), payload))
         .collect::<HashMap<_, _>>();
     let previous_baseline = load_managed_baseline(&repo_root)?;
     let previous_payloads = previous_baseline
@@ -396,12 +842,12 @@ pub fn reconcile_installed_managed_assets(
     let mut seen_targets = HashSet::new();
     let mut rewrites = Vec::new();
     for action in &plan.actions {
-        let key = (action.adapter.clone(), action.relative_path.clone());
-        let Some(payload) = payloads.get(&key) else {
+        let Some(payload) = payloads.get(&action.relative_path) else {
             continue;
         };
         let target = checked_repo_path(&repo_root, &action.relative_path)?;
-        let target_exists = target.exists();
+        let local = read_text(&target)?;
+        let target_exists = local.is_some();
         let replacement = action.resolved_content.clone().or_else(|| {
             (!target_exists && action.disposition == UpdateDisposition::KeepLocal)
                 .then(|| payload.content.clone())
@@ -415,16 +861,7 @@ pub fn reconcile_installed_managed_assets(
                 action.relative_path.display()
             );
         }
-        let previous = if target_exists {
-            fs::read_to_string(&target).with_context(|| {
-                format!(
-                    "Could not read managed target for local reconciliation: {}",
-                    target.display()
-                )
-            })?
-        } else {
-            String::new()
-        };
+        let previous = local.unwrap_or_default();
         if previous != replacement {
             rewrites.push((target, target_exists, previous, replacement));
         }
@@ -472,22 +909,228 @@ pub fn reconcile_installed_managed_assets(
     })
 }
 
+/// Reconcile only the canonical Core payloads while preserving every existing
+/// adapter record in the managed baseline. This keeps Core installation
+/// independent from malformed or user-modified adapter integration files.
+pub fn core_reconcile_managed_assets(
+    repo_root: impl AsRef<Path>,
+    upstream_payloads: &[ManagedAssetPayload],
+    installed_version: &str,
+) -> Result<LocalReconcileReport> {
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    migrate_managed_ownership(&repo_root)?;
+    validate_payloads(upstream_payloads)?;
+    let baseline = load_managed_baseline(&repo_root)?;
+    let upstream = upstream_payloads
+        .iter()
+        .map(|payload| (payload.relative_path.clone(), payload))
+        .collect::<HashMap<_, _>>();
+    let core_records = baseline
+        .records
+        .iter()
+        .filter(|record| is_core_path(&record.relative_path))
+        .collect::<Vec<_>>();
+    let baseline_core_paths = core_records
+        .iter()
+        .map(|record| record.relative_path.clone())
+        .collect::<HashSet<_>>();
+
+    let mut actions = Vec::new();
+    let mut conflicts = Vec::new();
+    for record in core_records {
+        let Some(payload) = upstream.get(&record.relative_path) else {
+            continue;
+        };
+        if payload.merge_kind != record.merge_kind {
+            conflicts.push(record.relative_path.clone());
+            continue;
+        }
+        let base = managed_baseline_content(&repo_root, record)?;
+        let local_path = checked_repo_path(&repo_root, &record.relative_path)?;
+        let local = read_text(&local_path)?;
+        if local
+            .as_deref()
+            .is_some_and(|local| local != base && payload.content == base)
+        {
+            conflicts.push(record.relative_path.clone());
+            continue;
+        }
+        let local = local.unwrap_or_default();
+        let action = plan_one(record, &base, &local, &payload.content)?;
+        if action.disposition == UpdateDisposition::Conflict {
+            conflicts.push(record.relative_path.clone());
+        }
+        actions.push(action);
+    }
+    for payload in upstream_payloads {
+        if baseline_core_paths.contains(&payload.relative_path) {
+            continue;
+        }
+        let action = plan_new_upstream_payload(&repo_root, payload)?;
+        if action.disposition == UpdateDisposition::Conflict {
+            conflicts.push(payload.relative_path.clone());
+        }
+        actions.push(action);
+    }
+    conflicts.sort();
+    conflicts.dedup();
+    let managed_paths = baseline
+        .records
+        .iter()
+        .map(|record| record.relative_path.clone())
+        .chain(
+            upstream_payloads
+                .iter()
+                .map(|payload| payload.relative_path.clone()),
+        )
+        .collect::<HashSet<_>>();
+    let preserved = collect_preserved_paths(&repo_root, &managed_paths)?;
+    if !conflicts.is_empty() {
+        return Ok(LocalReconcileReport {
+            applied_paths: Vec::new(),
+            conflicts,
+            preserved_paths: preserved.paths,
+        });
+    }
+
+    actions.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    let payloads = upstream_payloads
+        .iter()
+        .map(|payload| (payload.relative_path.clone(), payload))
+        .collect::<HashMap<_, _>>();
+    let previous_payloads = baseline
+        .records
+        .iter()
+        .map(|record| {
+            Ok(ManagedAssetPayload {
+                adapter: record.adapter.clone(),
+                relative_path: record.relative_path.clone(),
+                merge_kind: record.merge_kind,
+                content: managed_baseline_content(&repo_root, record)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut seen_targets = HashSet::new();
+    let mut rewrites = Vec::new();
+    for action in &actions {
+        let Some(payload) = payloads.get(&action.relative_path) else {
+            continue;
+        };
+        let target = checked_repo_path(&repo_root, &action.relative_path)?;
+        let local = read_text(&target)?;
+        let target_exists = local.is_some();
+        let replacement = action.resolved_content.clone().or_else(|| {
+            (!target_exists && action.disposition == UpdateDisposition::KeepLocal)
+                .then(|| payload.content.clone())
+        });
+        let Some(replacement) = replacement else {
+            continue;
+        };
+        if !seen_targets.insert(action.relative_path.clone()) {
+            bail!(
+                "Baron Core reconciliation refuses duplicate target ownership: {}",
+                action.relative_path.display()
+            );
+        }
+        let previous = local.unwrap_or_default();
+        if previous != replacement {
+            rewrites.push((target, target_exists, previous, replacement));
+        }
+    }
+
+    let mut applied = Vec::new();
+    for (target, _existed, _previous, replacement) in &rewrites {
+        if let Err(error) = ensure_safe_target_parent(&repo_root, target)
+            .and_then(|_| atomic_write(target, replacement))
+        {
+            rollback_local_reconcile(&rewrites, &applied)?;
+            return Err(error
+                .context("Baron Core reconciliation failed and restored prior managed targets"));
+        }
+        applied.push(target.clone());
+    }
+
+    let mut merged_payloads = previous_payloads
+        .into_iter()
+        .filter_map(|previous| {
+            if is_core_path(&previous.relative_path) {
+                payloads
+                    .get(&previous.relative_path)
+                    .map(|payload| (*payload).clone())
+            } else {
+                Some(previous)
+            }
+        })
+        .collect::<Vec<_>>();
+    for payload in upstream_payloads {
+        if !merged_payloads
+            .iter()
+            .any(|existing| existing.relative_path == payload.relative_path)
+        {
+            merged_payloads.push(payload.clone());
+        }
+    }
+    if let Err(error) = replace_managed_baseline(&repo_root, &merged_payloads, installed_version) {
+        let rollback_targets = rollback_local_reconcile(&rewrites, &applied);
+        let rollback_baseline = replace_managed_baseline(
+            &repo_root,
+            &baseline_payloads(&repo_root, &baseline)?,
+            &baseline.installed_version,
+        );
+        return match (rollback_targets, rollback_baseline) {
+            (Ok(()), Ok(())) => Err(error.context(
+                "Baron Core reconciliation could not publish its baseline and restored prior state",
+            )),
+            (target_error, baseline_error) => Err(error.context(format!(
+                "Baron Core reconciliation failed; target rollback: {}; baseline rollback: {}",
+                target_error
+                    .map(|_| "ok".to_string())
+                    .unwrap_or_else(|rollback| rollback.to_string()),
+                baseline_error
+                    .map(|_| "ok".to_string())
+                    .unwrap_or_else(|rollback| rollback.to_string())
+            ))),
+        };
+    }
+    Ok(LocalReconcileReport {
+        applied_paths: applied,
+        conflicts: Vec::new(),
+        preserved_paths: preserved.paths,
+    })
+}
+
+fn baseline_payloads(
+    repo_root: &Path,
+    baseline: &ManagedBaseline,
+) -> Result<Vec<ManagedAssetPayload>> {
+    baseline
+        .records
+        .iter()
+        .map(|record| {
+            Ok(ManagedAssetPayload {
+                adapter: record.adapter.clone(),
+                relative_path: record.relative_path.clone(),
+                merge_kind: record.merge_kind,
+                content: managed_baseline_content(repo_root, record)?,
+            })
+        })
+        .collect()
+}
+
 fn plan_new_upstream_payload(
     repo_root: &Path,
     payload: &ManagedAssetPayload,
 ) -> Result<ManagedUpdateAction> {
     let local_path = checked_repo_path(repo_root, &payload.relative_path)?;
-    let local_exists = local_path.exists();
-    let local = if local_exists {
-        fs::read_to_string(&local_path).with_context(|| {
-            format!(
-                "Could not read existing local managed candidate: {}",
-                local_path.display()
-            )
-        })?
-    } else {
-        String::new()
-    };
+    let local = read_text(&local_path).with_context(|| {
+        format!(
+            "Could not read existing local managed candidate: {}",
+            local_path.display()
+        )
+    })?;
+    let local_exists = local.is_some();
+    let local = local.unwrap_or_default();
     let (disposition, resolved_content, diagnostic) = match payload.merge_kind {
         ManagedMergeKind::FullText if !local_exists => {
             (UpdateDisposition::TakeUpstream, Some(payload.content.clone()), None)
@@ -631,21 +1274,21 @@ fn baseline_from_payloads(
     let mut records = payloads
         .iter()
         .map(|payload| ManagedAssetRecord {
+            owner: ManagedOwner::for_payload(&payload.adapter, &payload.relative_path),
             adapter: payload.adapter.clone(),
             relative_path: payload.relative_path.clone(),
             base_sha256: sha256(&payload.content),
             installed_version: installed_version.to_string(),
             merge_kind: payload.merge_kind,
+            provenance: ManagedProvenance::default(),
+            legacy_baseline_adapter: None,
         })
         .collect::<Vec<_>>();
-    records.sort_by(|left, right| {
-        left.adapter
-            .cmp(&right.adapter)
-            .then_with(|| left.relative_path.cmp(&right.relative_path))
-    });
+    records.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     Ok(ManagedBaseline {
         schema_version: MANAGED_STATE_SCHEMA_VERSION,
         installed_version: installed_version.to_string(),
+        minimum_writer_schema: Some(MANAGED_STATE_SCHEMA_VERSION),
         records,
     })
 }
@@ -658,26 +1301,96 @@ fn write_baseline(
     validate_baseline(baseline)?;
     validate_payloads(payloads)?;
     let manifest_path = checked_state_path(repo_root, Path::new(MANAGED_MANIFEST), true)?;
+    let mut writes = Vec::new();
     for payload in payloads {
         let record = baseline
             .records
             .iter()
-            .find(|record| {
-                record.adapter == payload.adapter && record.relative_path == payload.relative_path
-            })
+            .find(|record| record.relative_path == payload.relative_path)
             .ok_or_else(|| anyhow!("Managed baseline record is missing for payload"))?;
         let path = baseline_copy_path(repo_root, record, true)?;
-        atomic_write(&path, &payload.content)?;
+        writes.push((path, payload.content.as_bytes().to_vec()));
     }
     let manifest = serde_json::to_string_pretty(baseline)?;
-    atomic_write(&manifest_path, &format!("{manifest}\n"))
+    writes.push((manifest_path, format!("{manifest}\n").into_bytes()));
+
+    let previous = writes
+        .iter()
+        .map(|(path, _)| Ok((path.clone(), read_bytes(path)?)))
+        .collect::<Result<Vec<_>>>()?;
+    let mut applied = Vec::new();
+    for (path, content) in &writes {
+        if let Err(error) = baron_core::safe_io::replace_file(path, content) {
+            let rollback = rollback_baseline_files(&previous, &applied);
+            return match rollback {
+                Ok(()) => {
+                    Err(error.context("Managed baseline publication failed and was rolled back"))
+                }
+                Err(rollback_error) => Err(error.context(format!(
+                    "Managed baseline publication failed; rollback also failed: {rollback_error:#}"
+                ))),
+            };
+        }
+        applied.push(path.clone());
+    }
+    Ok(())
+}
+
+fn rollback_baseline_files(
+    previous: &[(PathBuf, Option<Vec<u8>>)],
+    applied: &[PathBuf],
+) -> Result<()> {
+    let mut failures = Vec::new();
+    for path in applied.iter().rev() {
+        let Some((_, bytes)) = previous.iter().find(|(candidate, _)| candidate == path) else {
+            failures.push(format!("missing rollback record for {}", path.display()));
+            continue;
+        };
+        let result = match bytes {
+            Some(bytes) => baron_core::safe_io::replace_file(path, bytes),
+            None => match fs::symlink_metadata(path) {
+                Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => Err(
+                    anyhow!("Rollback target is not a regular file: {}", path.display()),
+                ),
+                Ok(_) => fs::remove_file(path).with_context(|| {
+                    format!("Could not remove new baseline file: {}", path.display())
+                }),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error.into()),
+            },
+        };
+        if let Err(error) = result {
+            failures.push(format!("{}: {error:#}", path.display()));
+        }
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        bail!(
+            "Managed baseline rollback could not restore all files: {}",
+            failures.join("; ")
+        )
+    }
 }
 
 fn validate_baseline(baseline: &ManagedBaseline) -> Result<()> {
-    if baseline.schema_version != MANAGED_STATE_SCHEMA_VERSION {
+    if !matches!(
+        baseline.schema_version,
+        LEGACY_MANAGED_STATE_SCHEMA_VERSION | MANAGED_STATE_SCHEMA_VERSION
+    ) {
         bail!(
-            "Unsupported managed baseline schema {}; expected {}",
+            "Unsupported managed baseline schema {}; expected {} or {}",
             baseline.schema_version,
+            LEGACY_MANAGED_STATE_SCHEMA_VERSION,
+            MANAGED_STATE_SCHEMA_VERSION
+        );
+    }
+    if baseline.schema_version == MANAGED_STATE_SCHEMA_VERSION
+        && baseline.minimum_writer_schema != Some(MANAGED_STATE_SCHEMA_VERSION)
+    {
+        bail!(
+            "Managed baseline schema {} requires minimum writer schema {}",
+            MANAGED_STATE_SCHEMA_VERSION,
             MANAGED_STATE_SCHEMA_VERSION
         );
     }
@@ -686,7 +1399,7 @@ fn validate_baseline(baseline: &ManagedBaseline) -> Result<()> {
     }
     let mut seen = HashSet::new();
     for record in &baseline.records {
-        validate_adapter(&record.adapter)?;
+        validate_record_adapter(record)?;
         validate_relative_path(&record.relative_path)?;
         if record.base_sha256.len() != 64
             || !record
@@ -699,9 +1412,15 @@ fn validate_baseline(baseline: &ManagedBaseline) -> Result<()> {
                 record.relative_path.display()
             );
         }
-        if !seen.insert((record.adapter.clone(), record.relative_path.clone())) {
+        if !seen.insert(record.relative_path.clone()) {
             bail!(
-                "Duplicate managed baseline ownership for `{}`",
+                "Duplicate live managed owner for `{}`",
+                record.relative_path.display()
+            );
+        }
+        if is_core_path(&record.relative_path) && !matches!(record.owner, ManagedOwner::Core) {
+            bail!(
+                "Canonical Core path `{}` must be owned by Core",
                 record.relative_path.display()
             );
         }
@@ -712,11 +1431,11 @@ fn validate_baseline(baseline: &ManagedBaseline) -> Result<()> {
 fn validate_payloads(payloads: &[ManagedAssetPayload]) -> Result<()> {
     let mut seen = HashSet::new();
     for payload in payloads {
-        validate_adapter(&payload.adapter)?;
+        validate_payload_adapter(&payload.adapter)?;
         validate_relative_path(&payload.relative_path)?;
-        if !seen.insert((payload.adapter.clone(), payload.relative_path.clone())) {
+        if !seen.insert(payload.relative_path.clone()) {
             bail!(
-                "Duplicate managed ownership for `{}`",
+                "Duplicate live managed ownership for `{}`",
                 payload.relative_path.display()
             );
         }
@@ -735,6 +1454,33 @@ fn validate_adapter(adapter: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_payload_adapter(adapter: &str) -> Result<()> {
+    validate_adapter(adapter).or_else(|_| validate_legacy_adapter_component(adapter))
+}
+
+fn validate_record_adapter(record: &ManagedAssetRecord) -> Result<()> {
+    if matches!(record.owner, ManagedOwner::UnsupportedLegacy(_)) {
+        let value = record
+            .legacy_baseline_adapter
+            .as_deref()
+            .unwrap_or(record.owner.as_str());
+        validate_legacy_adapter_component(value)
+    } else {
+        validate_adapter(&record.adapter)
+    }
+}
+
+fn validate_legacy_adapter_component(adapter: &str) -> Result<()> {
+    if adapter.trim().is_empty() {
+        bail!("Legacy managed adapter name cannot be empty");
+    }
+    let mut components = Path::new(adapter).components();
+    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+        bail!("Legacy managed adapter name must be one safe path component");
+    }
+    Ok(())
+}
+
 fn validate_relative_path(path: &Path) -> Result<()> {
     if path.as_os_str().is_empty() || path.is_absolute() {
         bail!("Managed path must be a non-empty repository-relative path");
@@ -745,6 +1491,18 @@ fn validate_relative_path(path: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn is_core_path(path: &Path) -> bool {
+    path == Path::new(".baron/core") || path.starts_with(".baron/core")
+}
+
+fn is_regular_file(path: &Path) -> Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(metadata.is_file() && !metadata.file_type().is_symlink()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn canonical_repo_root(repo_root: &Path) -> Result<PathBuf> {
@@ -818,21 +1576,25 @@ fn rollback_local_reconcile(
         };
         let result = if *existed {
             atomic_write(target, previous)
-        } else if target.exists() {
-            if is_link_or_reparse_point(target)? {
-                bail!(
+        } else {
+            match fs::symlink_metadata(target) {
+                Ok(metadata) if metadata.file_type().is_symlink() => bail!(
                     "Managed target became unsafe during rollback: {}",
                     target.display()
-                );
-            }
-            fs::remove_file(target).with_context(|| {
-                format!(
-                    "Could not remove local reconciliation target: {}",
+                ),
+                Ok(metadata) if !metadata.is_file() => bail!(
+                    "Managed target is not a regular file during rollback: {}",
                     target.display()
-                )
-            })
-        } else {
-            Ok(())
+                ),
+                Ok(_) => fs::remove_file(target).with_context(|| {
+                    format!(
+                        "Could not remove local reconciliation target: {}",
+                        target.display()
+                    )
+                }),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error.into()),
+            }
         };
         if let Err(error) = result {
             failures.push(format!("{}: {error:#}", target.display()));
@@ -853,12 +1615,17 @@ fn baseline_copy_path(
     record: &ManagedAssetRecord,
     create_parent: bool,
 ) -> Result<PathBuf> {
-    validate_adapter(&record.adapter)?;
+    validate_record_adapter(record)?;
     validate_relative_path(&record.relative_path)?;
+    let owner_key = record.owner.baseline_key();
+    let storage_key = record
+        .legacy_baseline_adapter
+        .as_deref()
+        .unwrap_or(&owner_key);
     checked_state_path(
         repo_root,
         &Path::new(MANAGED_BASE_DIR)
-            .join(&record.adapter)
+            .join(storage_key)
             .join(&record.relative_path),
         create_parent,
     )
@@ -1118,26 +1885,23 @@ fn merge_kind_label(kind: ManagedMergeKind) -> &'static str {
 }
 
 fn sha256(content: &str) -> String {
-    Sha256::digest(content.as_bytes())
+    sha256_bytes(content.as_bytes())
+}
+
+fn sha256_bytes(content: &[u8]) -> String {
+    Sha256::digest(content)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<()> {
-    let parent = path
-        .parent()
-        .context("Managed baseline path has no parent directory")?;
-    if !parent.is_dir() {
-        bail!(
-            "Managed baseline parent directory is missing: {}",
-            parent.display()
-        );
+    replace_text(path, content)?;
+    #[cfg(unix)]
+    if content.as_bytes().starts_with(b"#!") {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755))
+            .with_context(|| format!("Could not set executable mode on {}", path.display()))?;
     }
-    let temp = path.with_extension("baron-tmp");
-    fs::write(&temp, content).with_context(|| format!("Could not write {}", temp.display()))?;
-    if path.exists() {
-        fs::remove_file(path).with_context(|| format!("Could not replace {}", path.display()))?;
-    }
-    fs::rename(&temp, path).with_context(|| format!("Could not write {}", path.display()))
+    Ok(())
 }

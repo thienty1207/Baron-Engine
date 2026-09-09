@@ -13,7 +13,8 @@ harness to active plans, product intent, proof, and trace quality.
 Baron remains one brain with multiple adapters:
 
 - Rust core owns configuration, memory, context, plans, harness, proof, and trace.
-- Codex, Claude, and generic-agent files only translate the same Baron contract.
+- Codex and Claude files only translate the same Baron contract. Unsupported
+  historical adapter values are read generically at persistence boundaries.
 - Vault Markdown remains durable memory.
 - Repo Markdown remains current execution state.
 - SQLite remains a rebuildable memory index.
@@ -58,11 +59,9 @@ Commands:
 ```bash
 baron init [repo-path] --codex --vault <vault-path>
 baron init [repo-path] --claude --vault <vault-path>
-baron init [repo-path] --agent --vault <vault-path>
 baron update [repo-path]
 baron update [repo-path] --codex
 baron update [repo-path] --claude
-baron update [repo-path] --agent
 ```
 
 Repeated `init` adds an adapter to the registered adapter list. `update` with no
@@ -102,15 +101,11 @@ Generates:
 - `.claude/skills/` with the same routed workflow/domain assets
 - `.claude/agents/` with Claude-readable forms of the three quality agents
 
-### Generic Agent
+### Historical compatibility
 
-Generates:
-
-- `AGENT.md`
-- `baron-context.md`
-- `baron-context.json`
-- `.baron/core/skills/`
-- `.baron/core/agents/`
+Older project files may contain unsupported adapter values. Baron retains those
+values as opaque migration metadata and requires an explicit Codex or Claude
+initialization before any active integration is installed.
 
 ## Automatic Agent Contract
 

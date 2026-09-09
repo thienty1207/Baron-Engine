@@ -4,11 +4,35 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 const RELEASE_MANIFEST_SCHEMA_V1: u32 = 1;
 const RELEASE_MANIFEST_SCHEMA_V2: u32 = 2;
+const RELEASE_SIGNATURE_SCHEMA_V1: u32 = 1;
+const RELEASE_SIGNATURE_DOMAIN: &[u8] = b"baron-release-manifest-v1\0";
+pub const RELEASE_SIGNATURE_FILE_NAME: &str = "release-manifest.sig";
+
+/// The key identity is deliberately bounded and compiled into the updater.
+/// The corresponding private key is provisioned out of band by release
+/// automation and is never part of the repository or the Baron binary.
+pub const COMPILED_RELEASE_KEY_ID: &str = "baron-release-2026";
+pub const COMPILED_RELEASE_PUBLIC_KEY_BASE64: &str = "SBgrmtK5emhgD5e6UW664fXR3qogCjVPHtrxeVk2TcA=";
+pub const EXPECTED_RELEASE_IDENTITY: &str = "github:thienty1207/Baron-Engine";
+pub const COMPILED_RELEASE_PUBLIC_KEY: [u8; 32] = [
+    0x48, 0x18, 0x2b, 0x9a, 0xd2, 0xb9, 0x7a, 0x68, 0x60, 0x0f, 0x97, 0xba, 0x51, 0x6e, 0xba, 0xe1,
+    0xf5, 0xd1, 0xde, 0xaa, 0x20, 0x0a, 0x35, 0x4f, 0x1e, 0xda, 0xf1, 0x79, 0x59, 0x36, 0x4d, 0xc0,
+];
+
+#[cfg(debug_assertions)]
+const DEBUG_TEST_RELEASE_KEY_ID: &str = "baron-debug-test-key";
+#[cfg(debug_assertions)]
+const DEBUG_TEST_RELEASE_PUBLIC_KEY: [u8; 32] = [
+    0xea, 0x4a, 0x6c, 0x63, 0xe2, 0x9c, 0x52, 0x0a, 0xbe, 0xf5, 0x50, 0x7b, 0x13, 0x2e, 0xc5, 0xf9,
+    0x95, 0x47, 0x76, 0xae, 0xbe, 0xbe, 0x7b, 0x92, 0x42, 0x1e, 0xea, 0x69, 0x14, 0x46, 0xd2, 0x2c,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArchiveKind {
@@ -81,6 +105,7 @@ impl ReleaseArtifactInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ReleaseArtifact {
     pub name: String,
     pub target: String,
@@ -90,6 +115,7 @@ pub struct ReleaseArtifact {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ReleaseUpdateArtifact {
     pub name: String,
     pub target: String,
@@ -99,14 +125,83 @@ pub struct ReleaseUpdateArtifact {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ReleaseManifest {
+#[serde(deny_unknown_fields)]
+pub struct ReleaseManifestV1 {
     pub schema_version: u32,
     pub product: String,
     pub version: String,
     pub source_revision: String,
+    pub release_identity: String,
+    pub minimum_compatible_version: String,
     pub artifacts: Vec<ReleaseArtifact>,
     #[serde(default)]
     pub update_candidates: Vec<ReleaseUpdateArtifact>,
+}
+
+/// Compatibility alias for the payload type used by the existing release and
+/// updater APIs. The payload is authenticated by the detached signature file
+/// emitted alongside it.
+pub type ReleaseManifest = ReleaseManifestV1;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SignedReleaseManifest {
+    pub schema_version: u32,
+    pub key_id: String,
+    pub signature: String,
+    pub manifest: ReleaseManifestV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseSignatureV1 {
+    pub schema_version: u32,
+    pub key_id: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustedReleaseKey {
+    pub key_id: String,
+    pub public_key: [u8; 32],
+}
+
+impl TrustedReleaseKey {
+    pub fn new(key_id: impl Into<String>, public_key: [u8; 32]) -> Self {
+        Self {
+            key_id: key_id.into(),
+            public_key,
+        }
+    }
+}
+
+pub fn compiled_trusted_release_keys() -> Vec<TrustedReleaseKey> {
+    compiled_trusted_release_keys_impl()
+}
+
+#[cfg(not(debug_assertions))]
+fn compiled_trusted_release_keys_impl() -> Vec<TrustedReleaseKey> {
+    vec![TrustedReleaseKey::new(
+        COMPILED_RELEASE_KEY_ID,
+        COMPILED_RELEASE_PUBLIC_KEY,
+    )]
+}
+
+#[cfg(debug_assertions)]
+fn compiled_trusted_release_keys_impl() -> Vec<TrustedReleaseKey> {
+    let mut keys = vec![TrustedReleaseKey::new(
+        COMPILED_RELEASE_KEY_ID,
+        COMPILED_RELEASE_PUBLIC_KEY,
+    )];
+    // This public-only fixture makes local/debug integration tests exercise
+    // the same production verification order without ever shipping a test
+    // private seed in release builds. Release binaries contain only the
+    // independently provisioned public trust anchor above.
+    keys.push(TrustedReleaseKey::new(
+        DEBUG_TEST_RELEASE_KEY_ID,
+        DEBUG_TEST_RELEASE_PUBLIC_KEY,
+    ));
+    keys
 }
 
 pub fn supported_release_target(target: &str) -> Result<ReleaseTarget> {
@@ -170,6 +265,8 @@ pub fn build_release_manifest(
         product: "Baron Engine".to_string(),
         version: version.to_string(),
         source_revision: source_revision.to_string(),
+        release_identity: "github:thienty1207/Baron-Engine".to_string(),
+        minimum_compatible_version: version.to_string(),
         artifacts,
         update_candidates: Vec::new(),
     })
@@ -296,6 +393,59 @@ pub fn write_release_metadata(
     version: &str,
     source_revision: &str,
 ) -> Result<ReleaseManifest> {
+    let key_id = std::env::var("BARON_RELEASE_KEY_ID")
+        .unwrap_or_else(|_| COMPILED_RELEASE_KEY_ID.to_string());
+    let key_base64 = std::env::var("BARON_RELEASE_SIGNING_KEY").context(
+        "BARON_RELEASE_SIGNING_KEY is required; configure a protected release signing secret",
+    )?;
+    let signing_key = decode_release_signing_seed(&key_base64)
+        .context("BARON_RELEASE_SIGNING_KEY must be base64-encoded raw 32-byte Ed25519 seed")?;
+    write_release_metadata_with_signing_key(
+        artifacts_dir,
+        version,
+        source_revision,
+        &key_id,
+        &signing_key,
+    )
+}
+
+/// Produce authenticated release metadata using a caller-provided Ed25519
+/// seed. Release automation obtains this seed from its protected secret/KMS
+/// integration; it is never stored in the repository.
+pub fn write_release_metadata_with_signing_key(
+    artifacts_dir: &Path,
+    version: &str,
+    source_revision: &str,
+    key_id: &str,
+    signing_key_bytes: &[u8; 32],
+) -> Result<ReleaseManifest> {
+    let manifest = build_release_metadata(artifacts_dir, version, source_revision)?;
+    let signed = sign_release_manifest(&manifest, key_id, signing_key_bytes)?;
+    let manifest_json = serde_json::to_vec(&manifest)?;
+    fs::write(artifacts_dir.join("release-manifest.json"), manifest_json)
+        .context("cannot write release-manifest.json")?;
+    fs::write(
+        artifacts_dir.join(RELEASE_SIGNATURE_FILE_NAME),
+        serde_json::to_vec(&ReleaseSignatureV1 {
+            schema_version: signed.schema_version,
+            key_id: signed.key_id,
+            signature: signed.signature,
+        })?,
+    )
+    .context("cannot write release-manifest.sig")?;
+    fs::write(
+        artifacts_dir.join("SHA256SUMS"),
+        render_sha256sums(&manifest),
+    )
+    .context("cannot write SHA256SUMS")?;
+    Ok(manifest)
+}
+
+fn build_release_metadata(
+    artifacts_dir: &Path,
+    version: &str,
+    source_revision: &str,
+) -> Result<ReleaseManifest> {
     let mut inputs = Vec::with_capacity(SUPPORTED_RELEASE_TARGETS.len());
     for target in SUPPORTED_RELEASE_TARGETS {
         let path = artifacts_dir.join(target.archive_name(version));
@@ -326,24 +476,32 @@ pub fn write_release_metadata(
         manifest.schema_version = RELEASE_MANIFEST_SCHEMA_V2;
         manifest.update_candidates = build_update_candidates(version, &candidate_inputs)?;
     }
-    let mut manifest_json = serde_json::to_string_pretty(&manifest)?;
-    manifest_json.push('\n');
-    fs::write(artifacts_dir.join("release-manifest.json"), manifest_json)
-        .context("cannot write release-manifest.json")?;
-    fs::write(
-        artifacts_dir.join("SHA256SUMS"),
-        render_sha256sums(&manifest),
-    )
-    .context("cannot write SHA256SUMS")?;
     Ok(manifest)
 }
 
 pub fn load_and_verify_release_metadata(artifacts_dir: &Path) -> Result<ReleaseManifest> {
+    let trusted_keys = compiled_trusted_release_keys();
+    load_and_verify_release_metadata_with_keys(artifacts_dir, &trusted_keys)
+}
+
+pub fn load_and_verify_release_metadata_with_keys(
+    artifacts_dir: &Path,
+    trusted_keys: &[TrustedReleaseKey],
+) -> Result<ReleaseManifest> {
     let manifest_path = artifacts_dir.join("release-manifest.json");
-    let manifest = parse_release_manifest(
-        &fs::read_to_string(&manifest_path)
+    let manifest_content = String::from_utf8(
+        fs::read(&manifest_path)
             .with_context(|| format!("cannot read {}", manifest_path.display()))?,
-    )?;
+    )
+    .context("release manifest was not valid UTF-8")?;
+    let signature_path = artifacts_dir.join(RELEASE_SIGNATURE_FILE_NAME);
+    let signature_content = String::from_utf8(
+        fs::read(&signature_path)
+            .with_context(|| format!("cannot read {}", signature_path.display()))?,
+    )
+    .context("release manifest signature was not valid UTF-8")?;
+    let manifest =
+        verify_signed_release_manifest(&manifest_content, &signature_content, trusted_keys)?;
     let checksums_path = artifacts_dir.join("SHA256SUMS");
     let checksums = fs::read_to_string(&checksums_path)
         .with_context(|| format!("cannot read {}", checksums_path.display()))?;
@@ -351,11 +509,83 @@ pub fn load_and_verify_release_metadata(artifacts_dir: &Path) -> Result<ReleaseM
     Ok(manifest)
 }
 
-pub fn parse_release_manifest(content: &str) -> Result<ReleaseManifest> {
+pub fn canonical_release_manifest_bytes(manifest: &ReleaseManifest) -> Result<Vec<u8>> {
+    let mut bytes = RELEASE_SIGNATURE_DOMAIN.to_vec();
+    bytes.extend(serde_json::to_vec(manifest)?);
+    Ok(bytes)
+}
+
+pub fn sign_release_manifest(
+    manifest: &ReleaseManifest,
+    key_id: &str,
+    signing_key_bytes: &[u8; 32],
+) -> Result<SignedReleaseManifest> {
+    validate_release_manifest(manifest)?;
+    let key_id = key_id.trim();
+    if key_id.is_empty() || key_id.chars().count() > 120 || !is_safe_key_id(key_id) {
+        bail!("release signing key ID is invalid");
+    }
+    let signing_key = SigningKey::from_bytes(signing_key_bytes);
+    let trusted_key = compiled_trusted_release_keys()
+        .into_iter()
+        .find(|trusted| trusted.key_id == key_id)
+        .with_context(|| format!("release signing key ID is not trusted: {key_id}"))?;
+    if signing_key.verifying_key().to_bytes() != trusted_key.public_key {
+        bail!("release signing key does not match trusted public key for {key_id}");
+    }
+    let signature = signing_key.sign(&canonical_release_manifest_bytes(manifest)?);
+    Ok(SignedReleaseManifest {
+        schema_version: RELEASE_SIGNATURE_SCHEMA_V1,
+        key_id: key_id.to_string(),
+        signature: hex_encode(signature.to_bytes()),
+        manifest: manifest.clone(),
+    })
+}
+
+pub fn verify_signed_release_manifest(
+    manifest_content: &str,
+    signature_content: &str,
+    trusted_keys: &[TrustedReleaseKey],
+) -> Result<ReleaseManifest> {
+    let signature: ReleaseSignatureV1 =
+        serde_json::from_str(signature_content).context("invalid release-manifest.sig")?;
+    if signature.schema_version != RELEASE_SIGNATURE_SCHEMA_V1 {
+        bail!(
+            "unsupported release manifest signature schema: {}",
+            signature.schema_version
+        );
+    }
+    let key = trusted_keys
+        .iter()
+        .find(|key| key.key_id == signature.key_id)
+        .with_context(|| format!("unknown release signing key ID: {}", signature.key_id))?;
+    let signature_bytes = decode_fixed_hex::<64>(&signature.signature)
+        .context("release manifest signature is not a 64-byte hexadecimal Ed25519 signature")?;
+    let verifying_key = VerifyingKey::from_bytes(&key.public_key)
+        .context("trusted release public key is invalid")?;
+    let signature = Signature::from_bytes(&signature_bytes);
+    let mut signed_bytes = RELEASE_SIGNATURE_DOMAIN.to_vec();
+    signed_bytes.extend_from_slice(manifest_content.as_bytes());
+    verifying_key
+        .verify(&signed_bytes, &signature)
+        .context("release manifest signature verification failed")?;
     let manifest: ReleaseManifest =
-        serde_json::from_str(content).context("invalid release-manifest.json")?;
+        serde_json::from_str(manifest_content).context("invalid release-manifest.json")?;
+    if serde_json::to_vec(&manifest)?.as_slice() != manifest_content.as_bytes() {
+        bail!("release-manifest.json is not in canonical deterministic form");
+    }
+    // No security-relevant payload field is validated or consumed until the
+    // signature has been checked against the independently trusted key set.
     validate_release_manifest(&manifest)?;
     Ok(manifest)
+}
+
+pub fn parse_signed_release_manifest(
+    manifest_content: &str,
+    signature_content: &str,
+) -> Result<ReleaseManifest> {
+    let trusted_keys = compiled_trusted_release_keys();
+    verify_signed_release_manifest(manifest_content, signature_content, &trusted_keys)
 }
 
 pub fn validate_release_manifest(manifest: &ReleaseManifest) -> Result<()> {
@@ -372,6 +602,14 @@ pub fn validate_release_manifest(manifest: &ReleaseManifest) -> Result<()> {
         bail!("release manifest product is not Baron Engine");
     }
     validate_version(&manifest.version)?;
+    validate_version(&manifest.minimum_compatible_version)?;
+    if manifest.release_identity != EXPECTED_RELEASE_IDENTITY {
+        bail!(
+            "release manifest identity mismatch: expected {}, got {}",
+            EXPECTED_RELEASE_IDENTITY,
+            manifest.release_identity
+        );
+    }
     validate_complete_manifest(manifest)?;
     Ok(())
 }
@@ -415,6 +653,13 @@ pub fn verify_release_identity(
             manifest.source_revision
         );
     }
+    if manifest.release_identity != EXPECTED_RELEASE_IDENTITY {
+        bail!(
+            "release identity mismatch: expected {}, got {}",
+            EXPECTED_RELEASE_IDENTITY,
+            manifest.release_identity
+        );
+    }
     Ok(())
 }
 
@@ -433,6 +678,14 @@ fn validate_complete_manifest(manifest: &ReleaseManifest) -> Result<()> {
             || !seen_names.insert(artifact.name.as_str())
             || artifact.name != target.archive_name(&manifest.version)
             || artifact.binary != target.binary_name
+            || artifact.sha256.len() != 64
+            || !artifact
+                .sha256
+                .chars()
+                .all(|character| character.is_ascii_hexdigit())
+            || artifact.name.contains('/')
+            || artifact.name.contains('\\')
+            || artifact.name.contains("..")
         {
             bail!("release manifest target set is invalid");
         }
@@ -547,4 +800,48 @@ fn parse_sha256sums(content: &str) -> Result<Vec<(String, String)>> {
         entries.push((checksum.to_ascii_lowercase(), name.to_string()));
     }
     Ok(entries)
+}
+
+fn is_safe_key_id(value: &str) -> bool {
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+fn decode_fixed_hex<const N: usize>(value: &str) -> Result<[u8; N]> {
+    if value.len() != N * 2 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        bail!("hex value has an invalid length or character");
+    }
+    let mut output = [0_u8; N];
+    for (index, byte) in output.iter_mut().enumerate() {
+        let offset = index * 2;
+        *byte = (hex_nibble(value.as_bytes()[offset])? << 4)
+            | hex_nibble(value.as_bytes()[offset + 1])?;
+    }
+    Ok(output)
+}
+
+pub fn decode_release_signing_seed(value: &str) -> Result<[u8; 32]> {
+    let decoded = STANDARD
+        .decode(value.trim())
+        .context("base64 value has an invalid encoding")?;
+    if decoded.len() != 32 {
+        bail!("base64 value must decode to exactly 32 bytes");
+    }
+    let mut output = [0_u8; 32];
+    output.copy_from_slice(&decoded);
+    Ok(output)
+}
+
+fn hex_nibble(value: u8) -> Result<u8> {
+    match value {
+        b'0'..=b'9' => Ok(value - b'0'),
+        b'a'..=b'f' => Ok(value - b'a' + 10),
+        b'A'..=b'F' => Ok(value - b'A' + 10),
+        _ => bail!("invalid hexadecimal character"),
+    }
+}
+
+fn hex_encode<const N: usize>(bytes: [u8; N]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

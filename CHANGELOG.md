@@ -1,29 +1,46 @@
 # Changelog
 
+## 5.0.0 - 2026-09-09
+
+Baron Engine 5.0.0 completes the Codex + Claude Core consolidation and ships
+the hardened release/update boundary:
+
+- Baron Core is the canonical owner for skills, workflow, memory, trusted
+  context, Task State, recovery, routing, proof, trace, gates, and Autopilot;
+- Codex and Claude are thin native bridges over one `.baron/core` tree, with
+  explicit operation identity and preserve-first managed projections;
+- trusted memory/context continuity, profile-aware routing, the Database
+  domain, native hook idempotency, and safe Autopilot are available through the
+  structured prepare path;
+- updates, downgrades, migration, rollback, and dry-run preserve user-owned
+  project/Vault state and fail closed on incompatible or tampered state;
+- release metadata is a deterministic detached Ed25519 manifest authenticated
+  by the pinned `baron-release-2026` production key before artifact selection,
+  size/hash checks, or installation; the signing workflow consumes the
+  protected base64 raw-seed `BARON_RELEASE_SIGNING_KEY` contract.
+
 ## 4.2.2 - 2026-08-20
 
-Baron 4.2.2 publishes the completed multi-agent core parity correction:
+Baron 4.2.2 published the multi-agent core parity correction that preceded the
+Codex and Claude-only product boundary:
 
-- DeepSeek Reasonix now materializes the same embedded Baron skill and agent
-  core as Codex, with native Reasonix commands/settings/hooks kept separate;
-- Codex, Reasonix, Claude, and generic adapters share one project ID, Vault,
-  memory, Wiki, CodeGraph, plan, proof, trace, continuity, and session history;
+- Codex and Claude shared the same embedded Baron skill and agent core;
+- all adapter views shared one project ID, Vault, memory, Wiki, CodeGraph, plan,
+  proof, trace, continuity, and session history;
 - missing Baron assets are reconciled safely while changed and custom user files
   remain preserved and conflicts are reported;
-- cross-adapter round-trip, preservation, parity, README, and release tests are
+- cross-adapter round-trip, preservation, parity, README, and release tests were
   included in the public patch release.
 
 ## 4.2.1 - 2026-08-19
 
-Baron 4.2.1 is the adapter-packaging patch release. It contains the
-Reasonix implementation that landed after the original 4.2.0 tag, so a fresh
-install now has the same CLI surface documented by the source and README:
+Baron 4.2.1 was the adapter-packaging patch release. Its historical adapter
+compatibility work is retained only in Git history; the current source exposes
+Codex and Claude as the supported integrations:
 
-- `baron init --reasonix` and `baron --reasonix` are present in the released
-  binary;
-- Reasonix and Codex keep one project identity, Vault, memory, Wiki, CodeGraph,
+- both integrations keep one project identity, Vault, memory, Wiki, CodeGraph,
   continuity ledger, and session history;
-- adapter installation remains preserve-first for user-owned Reasonix files;
+- adapter installation remains preserve-first for user-owned files;
 - the intelligence engine, 4.1 rollback, 4.0 fallback, and existing project
   data are unchanged;
 - release metadata, installers, checksums, and README now point to `v4.2.1`.
@@ -81,7 +98,7 @@ Baron's first stable release combines:
 
 - bounded repository survey and context compilation
 - shared-Vault memory with cross-project firewalling
-- Codex, Claude, and generic agent adapters
+- Codex and Claude adapter projections
 - Superpowers and three core quality agents
 - optional frontend and defensive security skills
 - active plans, Product Harness, proof, and trace quality gates

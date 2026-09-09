@@ -1,0 +1,108 @@
+# Baron Codex + Claude Core Consolidation — Phase 16
+
+**Status:** `release candidate ready for hosted verification`
+
+**Goal:** Independently verify the completed Phase 1–15 implementation against
+the final Baron Core, Codex, and Claude release contract, and publish v5.0.0
+only if every local and hosted release gate passes.
+
+**Authority:** `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`
+and the accepted Phase 16 brief in the task history. The current source,
+generated assets, persisted-state fixtures, and observed command behavior are
+the evidence.
+
+## Scope boundary
+
+- Re-audit source, generated payloads, persisted-state compatibility, docs,
+  workflows, and release inputs independently of earlier phase reports.
+- Run adversarial fixtures for safe I/O, path boundaries, identity, prepare,
+  memory/context, routing, hooks, Autopilot, ownership, migration, rollback,
+  and fresh Codex/Claude installation.
+- Add tests or make a minimal behavior-neutral seam only when needed for
+  deterministic evidence. Repair only a concrete release-blocking or high
+  value correctness issue found by this audit.
+- Review and classify every ignored test; no relevant broken behavior may be
+  hidden by `#[ignore]`.
+- Keep the current source buildable and preserve user-owned project, Vault,
+  adapter, managed-state, continuity, journal, dedup, and Autopilot bytes.
+- Do not begin a later phase. Version bump, commit, push, tag, and GitHub
+  Release are authorized only after all pre-release gates and hosted CI pass.
+
+## Initial audit evidence
+
+- Branch is `main`; `origin/main` points to the same pre-release commit.
+- The cumulative Phase 1–15 work is present in the working tree and no
+  tracked files exist under `target/`.
+- `cargo fmt --all -- --check` passes.
+- The compatible system Windows PowerShell workspace sweep reports zero test
+  failures. Three ignored Phase 1 fixtures fail only when explicitly run,
+  confirming the historical behaviors were intentionally hardened in Phase 2.
+  The ignored Phase 14 release smoke passes against the current 4.2.2 binary.
+- The retired-adapter content and repository filename guards return no matches.
+- The current source version is now 5.0.0 after the independent pre-bump gates
+  passed; commit, push, hosted CI, tag, and publication remain pending.
+
+## Security remediation checkpoint (2026-09-09)
+
+- SEC-04 is closed for security-sensitive gates: typed current-operation
+  receipts carry exact project/task/operation/adapter/session/request/gate and
+  source bindings; free-form summaries, cached capability evidence, child text,
+  and persisted unkeyed receipts remain diagnostic.
+- SEC-03 implementation tests pass for deterministic Ed25519 manifest signing,
+  compiled-key verification, signature-first ordering, exact release identity,
+  artifact checks, and mutation safety. Both bootstrap installers verify the
+  detached signature before consuming security fields or mutating an existing
+  installation. The release workflow consumes the protected
+  `BARON_RELEASE_SIGNING_KEY` base64 raw-seed contract and checks its derived
+  production identity without exposing the seed.
+- Fresh native Codex Security scan
+  `450e2e04-14c0-40d5-985c-9579637e4a35` completed on the final versioned
+  snapshot with zero reportable findings and no snapshot-change warning. The
+  remote bootstrap-script self-authentication limitation is documented as an
+  explicit trust boundary.
+- The complete post-bump workspace test matrix, formatter, Clippy with warnings
+  denied, release build, final-binary smoke, diff checks, and retired-adapter
+  guards pass with zero unexpected failures. TAC is unavailable on this host
+  and is reported separately. The 5.0.0 release candidate is uncommitted;
+  hosted CI, tag, and GitHub Release remain pending.
+
+## Release-blocker repair checkpoint
+
+- The first Windows junction adversarial run proved that initialization could
+  write configuration through a linked `.baron` directory before a later
+  adapter-path check rejected the project. The test was kept red until the
+  fix was applied.
+- `config`, `vault`, and durable Core state writers now use the shared safe I/O
+  primitives for link rejection, preserve-first replacement, and explicit
+  missing-file semantics. The linked `.baron` and linked control-plane tests
+  pass on the current Windows host.
+- No release metadata or persisted project/Vault data changed during the
+  boundary repair. The source is now the verified 5.0.0 candidate.
+- Next action: inspect the final diff, commit, push, and proceed through hosted
+  CI, tag, and GitHub Release only if every hosted gate remains green.
+
+## Verification and release gates
+
+1. Re-run focused adversarial and compatibility tests, adding deterministic
+   coverage where the brief identifies a gap.
+2. Review high-risk source paths and all ignored tests; record concrete
+   findings and classify any limitation or blocker.
+3. Run formatter, full workspace tests, Clippy, diff checks, retired-adapter
+   guards, and current-binary smoke. Do not claim hosted-platform evidence
+   locally.
+4. Remove the generated `target/` directory, verify it is neither tracked nor
+   staged, then build a clean release candidate and run the final v5.0.0 smoke
+   matrix from the rebuilt binary.
+5. If every gate is green, update product version/changelog/status metadata,
+   commit the verified source, push the intended branch, wait for the actual
+   GitHub matrix, then create and verify the annotated `v5.0.0` tag and GitHub
+   Release. If any blocker remains, stop before version bump/tag/publication.
+
+## Final release decision
+
+The independent source/worktree audit, adversarial fixtures, security
+remediation tests, complete workspace checks, clean-target rebuild, final
+binary smoke, and fresh native review are complete for this checkpoint.
+SEC-03 and SEC-04 are closed locally. TAC is unavailable on this host and is
+reported separately. The source is an uncommitted 5.0.0 candidate; the next
+gate is remote comparison, commit, push, and actual hosted workflow evidence.

@@ -2,14 +2,14 @@
 
 Baron `4.2.2` is the public patch release for the completed multi-agent core
 parity correction. It packages the existing shared `assets/core` behavior so
-Codex, Claude, Reasonix, and generic adapters receive one Baron engine and one
+Codex, Claude, retired adapter, and generic adapters receive one Baron engine and one
 project/Vault history while retaining native adapter views.
 
 ## Scope
 
 - Bump the workspace and release identity from `4.2.1` to `4.2.2`.
-- Publish the already-tested Reasonix shared-core materialization and
-  Codex/Reasonix/Claude/generic switching behavior.
+- Publish the already-tested retired adapter shared-core materialization and
+  Codex/retired adapter/Claude/generic switching behavior.
 - Synchronize current README, changelog, release guide, status Markdown/JSON,
   certification target, Cargo lock metadata, and build log.
 - Run local formatting, tests, Clippy, release build, metadata, and binary
@@ -28,7 +28,7 @@ project/Vault history while retaining native adapter views.
 
 1. Cargo workspace version, lockfile, certification target, and current public
    metadata all resolve to `4.2.2`.
-2. The complete Reasonix parity and cross-adapter round-trip tests pass.
+2. The complete retired adapter parity and cross-adapter round-trip tests pass.
 3. Formatting, workspace tests, warnings-denied Clippy, locked release build,
    release metadata verification, and version smoke pass locally or are
    explicitly recorded as Windows environment-only exceptions.

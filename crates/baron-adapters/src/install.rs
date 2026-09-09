@@ -1,14 +1,19 @@
+#[cfg(unix)]
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 
+use baron_core::safe_io::{acquire_project_lock, read_bytes, read_text, replace_file};
+
 use crate::managed::{upsert_managed_block, upsert_routing_block, write_managed_file};
+use crate::update::managed_manifest_exists;
 use crate::{
-    ensure_managed_baseline, managed_content_for_kind, AgentAdapter, ManagedAssetPayload,
-    ManagedMergeKind,
+    core_reconcile_managed_assets, ensure_managed_baseline, load_managed_baseline,
+    managed_baseline_content, managed_content_for_kind, migrate_managed_ownership, AgentAdapter,
+    ManagedAssetPayload, ManagedMergeKind,
 };
 
 static CORE_ASSETS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../assets/core");
@@ -19,9 +24,48 @@ pub struct InstallReport {
     pub managed_files: Vec<String>,
     pub preserved_custom_assets: bool,
     #[serde(default)]
+    pub core: CoreInstallReport,
+    #[serde(default)]
     pub preserved_paths: Vec<String>,
     #[serde(default)]
     pub conflicts: Vec<String>,
+}
+
+/// Evidence for the canonical `.baron/core/**` publication that precedes a
+/// Codex or Claude adapter install. Core conflicts are reported separately so
+/// an adapter can still preserve and install its own integration files while
+/// never claiming or overwriting an ambiguous semantic asset.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct CoreInstallReport {
+    #[serde(default)]
+    pub managed_files: Vec<String>,
+    #[serde(default)]
+    pub changed_paths: Vec<String>,
+    #[serde(default)]
+    pub preserved_paths: Vec<String>,
+    #[serde(default)]
+    pub conflicts: Vec<String>,
+}
+
+/// Render the embedded Baron semantic runtime as one Core-owned payload set.
+/// Every nested reference, script, and support file is included so installed
+/// relative paths continue to resolve from their canonical skill directory.
+pub fn core_managed_payloads() -> Result<Vec<ManagedAssetPayload>> {
+    let mut payloads = Vec::new();
+    collect_embedded_asset_payloads(
+        "skills",
+        Path::new(".baron/core/skills"),
+        "core",
+        &mut payloads,
+    )?;
+    collect_embedded_asset_payloads(
+        "agents",
+        Path::new(".baron/core/agents"),
+        "core",
+        &mut payloads,
+    )?;
+    payloads.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    Ok(payloads)
 }
 
 pub fn install_adapter(
@@ -29,15 +73,134 @@ pub fn install_adapter(
     adapter: AgentAdapter,
 ) -> Result<InstallReport> {
     let repo_root = repo_root.as_ref();
-    let report = match adapter {
+    let core = Some(ensure_core_runtime(repo_root)?);
+    let _lock = acquire_project_lock(repo_root)?;
+    preflight_native_hooks(repo_root, adapter)?;
+    migrate_managed_ownership(repo_root)?;
+    let mut report = match adapter {
         AgentAdapter::Codex => install_codex(repo_root),
         AgentAdapter::Claude => install_claude(repo_root),
-        AgentAdapter::Generic => install_generic(repo_root),
-        AgentAdapter::Reasonix => install_reasonix(repo_root),
     }?;
-    let payloads = managed_payloads_for_adapter(adapter)?;
+    let mut payloads = managed_payloads_for_adapter(adapter)?;
+    payloads.retain(|payload| {
+        let relative = payload.relative_path.to_string_lossy().replace('\\', "/");
+        !report.conflicts.iter().any(|path| path == &relative)
+    });
     ensure_managed_baseline(repo_root, &payloads, env!("CARGO_PKG_VERSION"))?;
+    if let Some(core) = core {
+        report.core = core;
+    }
     Ok(report)
+}
+
+/// Ensure the packaged semantic runtime is present at `.baron/core/**`.
+///
+/// Existing managed Core records are reconciled through the Phase 3 three-way
+/// planner. A fresh repository publishes only files that are absent or byte
+/// identical; unknown or modified targets remain untouched and are reported as
+/// conflicts. Adapter-owned records are retained in the same baseline but are
+/// deliberately excluded from Core reconciliation.
+pub fn ensure_core_runtime(repo_root: impl AsRef<Path>) -> Result<CoreInstallReport> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    migrate_managed_ownership(repo_root)?;
+    let payloads = core_managed_payloads()?;
+    let managed_files = payloads
+        .iter()
+        .map(|payload| payload.relative_path.to_string_lossy().replace('\\', "/"))
+        .collect::<Vec<_>>();
+
+    if managed_manifest_exists(repo_root)? {
+        let report =
+            core_reconcile_managed_assets(repo_root, &payloads, env!("CARGO_PKG_VERSION"))?;
+        return Ok(CoreInstallReport {
+            managed_files,
+            changed_paths: report
+                .applied_paths
+                .into_iter()
+                .map(|path| path.to_string_lossy().replace('\\', "/"))
+                .collect(),
+            preserved_paths: report.preserved_paths,
+            conflicts: report
+                .conflicts
+                .into_iter()
+                .map(|path| path.to_string_lossy().replace('\\', "/"))
+                .collect(),
+        });
+    }
+
+    let mut installable = Vec::new();
+    let mut writes = Vec::new();
+    let mut conflicts = Vec::new();
+    for payload in &payloads {
+        let path = repo_root.join(&payload.relative_path);
+        match read_bytes(&path)? {
+            None => {
+                writes.push((path, payload.content.as_bytes().to_vec()));
+                installable.push(payload.clone());
+            }
+            Some(existing) if existing == payload.content.as_bytes() => {
+                installable.push(payload.clone());
+            }
+            Some(_) => {
+                conflicts.push(payload.relative_path.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+
+    let mut applied = Vec::new();
+    for (path, content) in &writes {
+        if let Err(error) =
+            replace_file(path, content).and_then(|_| apply_embedded_mode(path, content))
+        {
+            rollback_core_files(&applied)?;
+            return Err(error.context("Canonical Core publication failed and was rolled back"));
+        }
+        applied.push(path.clone());
+    }
+    if !installable.is_empty() {
+        if let Err(error) =
+            ensure_managed_baseline(repo_root, &installable, env!("CARGO_PKG_VERSION"))
+        {
+            rollback_core_files(&applied)?;
+            return Err(
+                error.context("Canonical Core baseline publication failed and was rolled back")
+            );
+        }
+    }
+
+    Ok(CoreInstallReport {
+        managed_files,
+        changed_paths: applied
+            .into_iter()
+            .map(|path| {
+                path.strip_prefix(repo_root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect(),
+        preserved_paths: conflicts.clone(),
+        conflicts,
+    })
+}
+
+fn rollback_core_files(paths: &[PathBuf]) -> Result<()> {
+    for path in paths.iter().rev() {
+        match std::fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                std::fs::remove_file(path)
+                    .with_context(|| format!("Could not roll back Core file {}", path.display()))?;
+            }
+            Ok(_) => bail!(
+                "Core rollback target is not a regular file: {}",
+                path.display()
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
 }
 
 /// Renders exactly the Baron-owned portions of an adapter installation without
@@ -45,13 +208,25 @@ pub fn install_adapter(
 /// safe three-way update planner.
 pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<ManagedAssetPayload>> {
     let adapter_name = adapter_name(adapter).to_string();
-    let mut payloads = match adapter {
+    let payloads = match adapter {
         AgentAdapter::Codex => vec![
             payload(
                 &adapter_name,
                 "AGENTS.md",
                 ManagedMergeKind::MarkerBlock,
-                &managed_block(&startup_contract("Codex", "codex")),
+                &managed_block(&codex_startup_contract()),
+            ),
+            payload(
+                &adapter_name,
+                ".agents/skills/baron-engine/SKILL.md",
+                ManagedMergeKind::FullText,
+                &codex_bridge_skill(),
+            ),
+            payload(
+                &adapter_name,
+                ".agents/skills/baron-engine/agents/openai.yaml",
+                ManagedMergeKind::FullText,
+                &codex_openai_metadata(),
             ),
             payload(
                 &adapter_name,
@@ -61,16 +236,13 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
             ),
             payload(
                 &adapter_name,
-                ".codex/skills/INDEX.md",
-                ManagedMergeKind::RoutingBlock,
-                &routing_block(&skills_index(".codex/skills")),
-            ),
-            payload(
-                &adapter_name,
                 ".codex/agents/INDEX.md",
                 ManagedMergeKind::RoutingBlock,
                 &routing_block(&agents_index()),
             ),
+            codex_agent_payload("code-reviewer"),
+            codex_agent_payload("security-auditor"),
+            codex_agent_payload("test-engineer"),
             payload(
                 &adapter_name,
                 ".codex/hooks.json",
@@ -86,8 +258,17 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
                 &adapter_name,
                 "CLAUDE.md",
                 ManagedMergeKind::MarkerBlock,
-                &managed_block(&startup_contract("Claude", "claude")),
+                &managed_block(&claude_startup_contract()),
             ),
+            payload(
+                &adapter_name,
+                ".claude/skills/baron-engine/SKILL.md",
+                ManagedMergeKind::FullText,
+                &claude_bridge_skill(),
+            ),
+            claude_agent_payload("code-reviewer"),
+            claude_agent_payload("security-auditor"),
+            claude_agent_payload("test-engineer"),
             payload(
                 &adapter_name,
                 ".claude/commands/baron-context.md",
@@ -104,7 +285,7 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
                 &adapter_name,
                 ".claude/skills/INDEX.md",
                 ManagedMergeKind::RoutingBlock,
-                &routing_block(&skills_index(".claude/skills")),
+                &routing_block(&skills_index(".baron/core/skills")),
             ),
             payload(
                 &adapter_name,
@@ -121,164 +302,8 @@ pub fn managed_payloads_for_adapter(adapter: AgentAdapter) -> Result<Vec<Managed
                     ManagedMergeKind::JsonOwnedEntries,
                 )?,
             ),
-            payload(
-                &adapter_name,
-                ".claude/agents/code-reviewer.md",
-                ManagedMergeKind::FullText,
-                &claude_agent_content("code-reviewer", "Review findings first. Focus on correctness, regressions, maintainability, architecture fit, and missing tests. Use evidence."),
-            ),
-            payload(
-                &adapter_name,
-                ".claude/agents/security-auditor.md",
-                ManagedMergeKind::FullText,
-                &claude_agent_content("security-auditor", "Report defensive security findings with severity, evidence, impact, fix, and verification. Never provide weaponized exploitation."),
-            ),
-            payload(
-                &adapter_name,
-                ".claude/agents/test-engineer.md",
-                ManagedMergeKind::FullText,
-                &claude_agent_content("test-engineer", "Identify the smallest sufficient proof, missing coverage, and exact verification evidence. Never replace tests with confidence."),
-            ),
-            payload(
-                &adapter_name,
-                ".claude/agents/web-performance-auditor.md",
-                ManagedMergeKind::FullText,
-                &claude_agent_content("web-performance-auditor", "Optional web performance auditor. Use only for web performance tasks. Never fabricate metrics; mark static findings as potential impact. Not included in mandatory gates."),
-            ),
-        ],
-        AgentAdapter::Generic => vec![
-            payload(
-                &adapter_name,
-                "AGENT.md",
-                ManagedMergeKind::MarkerBlock,
-                &managed_block(&startup_contract("generic agents", "agent")),
-            ),
-            payload(
-                &adapter_name,
-                "baron-context.md",
-                ManagedMergeKind::FullText,
-                &generic_context_markdown(),
-            ),
-            payload(
-                &adapter_name,
-                "baron-context.json",
-                ManagedMergeKind::FullText,
-                &generic_context_json()?,
-            ),
-            payload(
-                &adapter_name,
-                ".baron/core/skills/INDEX.md",
-                ManagedMergeKind::RoutingBlock,
-                &routing_block(&skills_index(".baron/core/skills")),
-            ),
-            payload(
-                &adapter_name,
-                ".baron/core/agents/INDEX.md",
-                ManagedMergeKind::RoutingBlock,
-                &routing_block(&agents_index()),
-            ),
-        ],
-        AgentAdapter::Reasonix => vec![
-            payload(
-                &adapter_name,
-                "REASONIX.md",
-                ManagedMergeKind::MarkerBlock,
-                &managed_block(&startup_contract("DeepSeek Reasonix", "reasonix")),
-            ),
-            payload(
-                &adapter_name,
-                ".reasonix/INDEX.md",
-                ManagedMergeKind::FullText,
-                &reasonix_index(),
-            ),
-            payload(
-                &adapter_name,
-                ".reasonix/skills/INDEX.md",
-                ManagedMergeKind::RoutingBlock,
-                &routing_block(&skills_index(".reasonix/skills")),
-            ),
-            payload(
-                &adapter_name,
-                ".reasonix/agents/INDEX.md",
-                ManagedMergeKind::RoutingBlock,
-                &routing_block(&agents_index()),
-            ),
-            payload(
-                &adapter_name,
-                ".reasonix/commands/baron-context.md",
-                ManagedMergeKind::FullText,
-                &reasonix_context_command(),
-            ),
-            payload(
-                &adapter_name,
-                ".reasonix/commands/baron-status.md",
-                ManagedMergeKind::FullText,
-                &reasonix_status_command(),
-            ),
-            payload(
-                &adapter_name,
-                ".reasonix/settings.json",
-                ManagedMergeKind::JsonOwnedEntries,
-                &managed_content_for_kind(
-                    &reasonix_hooks_document()?,
-                    ManagedMergeKind::JsonOwnedEntries,
-                )?,
-            ),
         ],
     };
-
-    match adapter {
-        AgentAdapter::Codex => {
-            collect_embedded_asset_payloads(
-                "skills",
-                Path::new(".codex/skills"),
-                &adapter_name,
-                &mut payloads,
-            )?;
-            collect_embedded_asset_payloads(
-                "agents",
-                Path::new(".codex/agents"),
-                &adapter_name,
-                &mut payloads,
-            )?;
-        }
-        AgentAdapter::Claude => {
-            collect_embedded_asset_payloads(
-                "skills",
-                Path::new(".claude/skills"),
-                &adapter_name,
-                &mut payloads,
-            )?;
-        }
-        AgentAdapter::Generic => {
-            collect_embedded_asset_payloads(
-                "skills",
-                Path::new(".baron/core/skills"),
-                &adapter_name,
-                &mut payloads,
-            )?;
-            collect_embedded_asset_payloads(
-                "agents",
-                Path::new(".baron/core/agents"),
-                &adapter_name,
-                &mut payloads,
-            )?;
-        }
-        AgentAdapter::Reasonix => {
-            collect_embedded_asset_payloads(
-                "skills",
-                Path::new(".reasonix/skills"),
-                &adapter_name,
-                &mut payloads,
-            )?;
-            collect_embedded_asset_payloads(
-                "agents",
-                Path::new(".reasonix/agents"),
-                &adapter_name,
-                &mut payloads,
-            )?;
-        }
-    }
 
     Ok(payloads)
 }
@@ -362,8 +387,6 @@ fn adapter_name(adapter: AgentAdapter) -> &'static str {
     match adapter {
         AgentAdapter::Codex => "codex",
         AgentAdapter::Claude => "claude",
-        AgentAdapter::Generic => "agent",
-        AgentAdapter::Reasonix => "reasonix",
     }
 }
 
@@ -375,73 +398,16 @@ fn claude_status_command() -> String {
     "# Baron Status\n\nRun `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score.\n".to_string()
 }
 
-fn generic_context_markdown() -> String {
-    "# Baron Context Contract\n\nRun `baron capability check --adapter agent`, `baron runtime check --adapter agent`, `baron autopilot status`, and then `baron context --agent` at session start. For architecture, dependency, impact, entrypoint, ownership, call-flow, refactor, or cross-module work, run task context first. If its Optional Code Map section requests it, silently run `baron automation code-map refresh` then `baron automation code-map query \"<task>\"`; verify selected source files before using any hit as proof. Treat output as bounded orientation, not as a replacement for repository evidence. Capability presence and graph hints are not execution evidence.\n".to_string()
-}
-
-fn generic_context_json() -> Result<String> {
-    Ok(serde_json::to_string_pretty(&serde_json::json!({
-        "engine": "baron",
-        "adapter": "agent",
-        "capabilityCheckCommand": "baron capability check --adapter agent",
-        "runtimeCheckCommand": "baron runtime check --adapter agent",
-        "autopilotStatusCommand": "baron autopilot status",
-        "autopilotReviewCommand": "baron autopilot review \"<summary>\"",
-        "contextCommand": "baron context --agent",
-        "codeMapRefreshCommand": "baron automation code-map refresh",
-        "codeMapQueryCommand": "baron automation code-map query \"<task>\"",
-        "codeMapRule": "Use only when task context requests a code map; verify selected source before proof.",
-        "automatic": true,
-        "sourceOfTruth": ["repository", "vault-markdown"]
-    }))?)
-}
-
-fn reasonix_context_command() -> String {
-    "# Baron Context\n\nRun `baron capability check --adapter reasonix`, `baron runtime check --adapter reasonix`, `baron autopilot status`, and then `baron context --reasonix`. Use the shared Baron Vault for durable memory; Reasonix-local state is only an adapter surface. Read `.reasonix/INDEX.md`, then use `baron control-plane route \"<task>\"` and read only the selected entries from `.reasonix/skills/INDEX.md` and `.reasonix/agents/INDEX.md`; do not recursively load the full tree. For architecture, dependency, impact, entrypoint, ownership, call-flow, refactor, or cross-module work, run task context first and verify selected source files before treating graph hints as proof.\n".to_string()
-}
-
-fn reasonix_status_command() -> String {
-    "# Baron Status\n\nRun `baron adapter status`, `baron plan status`, `baron harness status`, `baron proof status`, and inspect the latest trace score. The Reasonix skill and agent views under `.reasonix/skills` and `.reasonix/agents` are materialized from the same embedded Baron core as Codex; route them narrowly instead of loading everything. Switch adapters with `baron adapter switch --to <codex|claude|agent|reasonix>`; the project ID, Vault, memory, and history remain shared.\n".to_string()
-}
-
-fn reasonix_hooks_document() -> Result<String> {
-    Ok(format!(
-        "{}\n",
-        serde_json::to_string_pretty(&serde_json::json!({
-            "_baron": {"managed": true, "adapter": "reasonix"},
-            "hooks": {
-                "SessionStart": [{
-                    "command": "baron automation hook session-start --adapter reasonix",
-                    "description": "Load shared Baron context",
-                    "timeout": 15000
-                }],
-                "UserPromptSubmit": [{
-                    "command": "baron automation hook prompt --adapter reasonix",
-                    "description": "Record the submitted task in the shared Vault",
-                    "timeout": 5000
-                }],
-                "Stop": [{
-                    "command": "baron automation hook stop --adapter reasonix",
-                    "description": "Persist the shared handoff without inferring completion",
-                    "timeout": 5000
-                }]
-            }
-        }))?
-    ))
-}
-
-fn claude_agent_content(name: &str, instructions: &str) -> String {
-    format!(
-        "---\nname: {name}\ndescription: Baron core quality gate\n---\n\n# {name}\n\n{instructions}\n\nSuperpowers remains the workflow core. Do not orchestrate other agents.\n"
-    )
-}
-
 fn native_hooks_document(adapter: &str) -> Result<String> {
     let mut hooks = serde_json::Map::new();
     for (event, command, matcher) in [
         ("SessionStart", "session-start", None),
-        ("UserPromptSubmit", "prompt", None),
-        ("PostToolUse", "checkpoint", Some("Edit|Write|apply_patch")),
+        ("UserPromptSubmit", "user-prompt-submit", None),
+        ("PreCompact", "pre-compact", None),
+        // Older hosts delivered a cheap checkpoint after mutating tools. Keep
+        // this compatibility accelerator while routing it through the
+        // canonical PreCompact handler.
+        ("PostToolUse", "pre-compact", Some("Edit|Write|apply_patch")),
         ("Stop", "stop", None),
     ] {
         let mut group = serde_json::json!({
@@ -464,100 +430,142 @@ fn native_hooks_document(adapter: &str) -> Result<String> {
 }
 
 fn install_codex(repo: &Path) -> Result<InstallReport> {
-    upsert_managed_block(&repo.join("AGENTS.md"), &startup_contract("Codex", "codex"))?;
-    write_managed_file(&repo.join(".codex/INDEX.md"), &codex_index())?;
-    upsert_routing_block(
-        &repo.join(".codex/skills/INDEX.md"),
-        &skills_index(".codex/skills"),
-        "## Custom Skills",
-        "Register project-specific skills below. Custom skills must not duplicate Superpowers workflow ownership.",
-    )?;
+    let mut preserved_paths = Vec::new();
+    let mut conflicts = Vec::new();
+    upsert_managed_block(&repo.join("AGENTS.md"), &codex_startup_contract())?;
+    for (relative_path, content) in [
+        (".agents/skills/baron-engine/SKILL.md", codex_bridge_skill()),
+        (
+            ".agents/skills/baron-engine/agents/openai.yaml",
+            codex_openai_metadata(),
+        ),
+        (".codex/INDEX.md", codex_index()),
+    ] {
+        if let Some(path) = safe_write_codex_projection(repo, relative_path, &content)? {
+            conflicts.push(path.clone());
+            preserved_paths.push(path);
+        }
+    }
     upsert_routing_block(
         &repo.join(".codex/agents/INDEX.md"),
         &agents_index(),
         "## Custom Agents",
         "Register optional project-specific agents below without replacing the core gates.",
     )?;
-    write_asset_subtree("skills", &repo.join(".codex/skills"))?;
-    write_asset_subtree("agents", &repo.join(".codex/agents"))?;
+    for name in ["code-reviewer", "security-auditor", "test-engineer"] {
+        if let Some(path) = safe_write_codex_projection(
+            repo,
+            &format!(".codex/agents/{name}.toml"),
+            &codex_agent_wrapper(name),
+        )? {
+            conflicts.push(path.clone());
+            preserved_paths.push(path);
+        }
+    }
     install_native_hooks(&repo.join(".codex/hooks.json"), "codex")?;
-    Ok(report(
+    Ok(report_with_details(
         "codex",
         &[
             "AGENTS.md",
+            ".agents/skills/baron-engine/SKILL.md",
+            ".agents/skills/baron-engine/agents/openai.yaml",
             ".codex/INDEX.md",
-            ".codex/skills/INDEX.md",
             ".codex/agents/INDEX.md",
+            ".codex/agents/code-reviewer.toml",
+            ".codex/agents/security-auditor.toml",
+            ".codex/agents/test-engineer.toml",
             ".codex/hooks.json",
         ],
+        preserved_paths,
+        conflicts,
     ))
 }
 
 fn install_claude(repo: &Path) -> Result<InstallReport> {
-    upsert_managed_block(
-        &repo.join("CLAUDE.md"),
-        &startup_contract("Claude", "claude"),
-    )?;
-    write_managed_file(
-        &repo.join(".claude/commands/baron-context.md"),
-        &claude_context_command(),
-    )?;
-    write_managed_file(
-        &repo.join(".claude/commands/baron-status.md"),
-        &claude_status_command(),
-    )?;
+    let mut preserved_paths = Vec::new();
+    let mut conflicts = Vec::new();
+    upsert_managed_block(&repo.join("CLAUDE.md"), &claude_startup_contract())?;
+    for (relative_path, content) in [
+        (
+            ".claude/skills/baron-engine/SKILL.md",
+            claude_bridge_skill(),
+        ),
+        (
+            ".claude/commands/baron-context.md",
+            claude_context_command(),
+        ),
+        (".claude/commands/baron-status.md", claude_status_command()),
+    ] {
+        if let Some(path) = safe_write_adapter_projection(repo, relative_path, &content, "claude")?
+        {
+            conflicts.push(path.clone());
+            preserved_paths.push(path);
+        }
+    }
     upsert_routing_block(
         &repo.join(".claude/skills/INDEX.md"),
-        &skills_index(".claude/skills"),
+        &skills_index(".baron/core/skills"),
         "## Custom Skills",
         "Register project-specific skills below. Custom skills must not duplicate Superpowers workflow ownership.",
     )?;
-    write_asset_subtree("skills", &repo.join(".claude/skills"))?;
-    write_claude_agents(repo)?;
+    upsert_routing_block(
+        &repo.join(".claude/agents/INDEX.md"),
+        &agents_index(),
+        "## Custom Agents",
+        "Register optional project-specific agents below without replacing the core gates.",
+    )?;
+    for name in ["code-reviewer", "security-auditor", "test-engineer"] {
+        let relative_path = format!(".claude/agents/{name}.md");
+        if let Some(path) = safe_write_adapter_projection(
+            repo,
+            &relative_path,
+            &claude_agent_wrapper(name),
+            "claude",
+        )? {
+            conflicts.push(path.clone());
+            preserved_paths.push(path);
+        }
+    }
     install_native_hooks(&repo.join(".claude/settings.json"), "claude")?;
-    Ok(report(
+    Ok(report_with_details(
         "claude",
         &[
             "CLAUDE.md",
+            ".claude/skills/baron-engine/SKILL.md",
+            ".claude/agents/code-reviewer.md",
+            ".claude/agents/security-auditor.md",
+            ".claude/agents/test-engineer.md",
             ".claude/commands/baron-context.md",
             ".claude/commands/baron-status.md",
             ".claude/skills/INDEX.md",
+            ".claude/agents/INDEX.md",
             ".claude/settings.json",
         ],
+        preserved_paths,
+        conflicts,
     ))
 }
 
 fn install_native_hooks(path: &Path, adapter: &str) -> Result<()> {
-    let mut root = fs::read_to_string(path)
-        .ok()
-        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
-        .unwrap_or_else(|| serde_json::json!({}));
-    if !root.is_object() {
-        root = serde_json::json!({});
-    }
+    let mut root = native_hooks_root(path)?;
     let root_object = root
         .as_object_mut()
         .context("Native hook configuration must be a JSON object")?;
     let hooks = root_object
         .entry("hooks")
         .or_insert_with(|| serde_json::json!({}));
-    if !hooks.is_object() {
-        *hooks = serde_json::json!({});
-    }
     let hooks = hooks
         .as_object_mut()
         .context("Native hook registry must be a JSON object")?;
 
     for (event, command, matcher) in [
         ("SessionStart", "session-start", None),
-        ("UserPromptSubmit", "prompt", None),
-        ("PostToolUse", "checkpoint", Some("Edit|Write|apply_patch")),
+        ("UserPromptSubmit", "user-prompt-submit", None),
+        ("PreCompact", "pre-compact", None),
+        ("PostToolUse", "pre-compact", Some("Edit|Write|apply_patch")),
         ("Stop", "stop", None),
     ] {
         let entries = hooks.entry(event).or_insert_with(|| serde_json::json!([]));
-        if !entries.is_array() {
-            *entries = serde_json::json!([]);
-        }
         let entries = entries
             .as_array_mut()
             .context("Native hook event must contain an array")?;
@@ -578,365 +586,209 @@ fn install_native_hooks(path: &Path, adapter: &str) -> Result<()> {
     write_managed_file(path, &format!("{}\n", serde_json::to_string_pretty(&root)?))
 }
 
-fn install_generic(repo: &Path) -> Result<InstallReport> {
-    upsert_managed_block(
-        &repo.join("AGENT.md"),
-        &startup_contract("generic agents", "agent"),
-    )?;
-    write_managed_file(&repo.join("baron-context.md"), &generic_context_markdown())?;
-    write_managed_file(&repo.join("baron-context.json"), &generic_context_json()?)?;
-    upsert_routing_block(
-        &repo.join(".baron/core/skills/INDEX.md"),
-        &skills_index(".baron/core/skills"),
-        "## Custom Skills",
-        "Register project-specific skills below. Custom skills must not duplicate Superpowers workflow ownership.",
-    )?;
-    upsert_routing_block(
-        &repo.join(".baron/core/agents/INDEX.md"),
-        &agents_index(),
-        "## Custom Agents",
-        "Register optional project-specific agents below without replacing the core gates.",
-    )?;
-    write_asset_subtree("skills", &repo.join(".baron/core/skills"))?;
-    write_asset_subtree("agents", &repo.join(".baron/core/agents"))?;
-    Ok(report(
-        "agent",
-        &[
-            "AGENT.md",
-            "baron-context.md",
-            "baron-context.json",
-            ".baron/core/skills/INDEX.md",
-            ".baron/core/agents/INDEX.md",
-        ],
-    ))
-}
-
-fn install_reasonix(repo: &Path) -> Result<InstallReport> {
-    let mut preserved_paths = Vec::new();
-    let mut conflicts = Vec::new();
-
-    install_reasonix_contract(
-        &repo.join("REASONIX.md"),
-        &startup_contract("DeepSeek Reasonix", "reasonix"),
-        &mut preserved_paths,
-        &mut conflicts,
-    )?;
-    install_reasonix_file(
-        &repo.join(".reasonix/INDEX.md"),
-        &reasonix_index(),
-        &mut preserved_paths,
-        &mut conflicts,
-    )?;
-    install_reasonix_routing_file(
-        &repo.join(".reasonix/skills/INDEX.md"),
-        &skills_index(".reasonix/skills"),
-    )?;
-    install_reasonix_routing_file(&repo.join(".reasonix/agents/INDEX.md"), &agents_index())?;
-    write_asset_subtree_preserving(
-        "skills",
-        &repo.join(".reasonix/skills"),
-        repo,
-        &mut preserved_paths,
-        &mut conflicts,
-    )?;
-    write_asset_subtree_preserving(
-        "agents",
-        &repo.join(".reasonix/agents"),
-        repo,
-        &mut preserved_paths,
-        &mut conflicts,
-    )?;
-    install_reasonix_file(
-        &repo.join(".reasonix/commands/baron-context.md"),
-        &reasonix_context_command(),
-        &mut preserved_paths,
-        &mut conflicts,
-    )?;
-    install_reasonix_file(
-        &repo.join(".reasonix/commands/baron-status.md"),
-        &reasonix_status_command(),
-        &mut preserved_paths,
-        &mut conflicts,
-    )?;
-    install_reasonix_settings(
-        &repo.join(".reasonix/settings.json"),
-        &mut preserved_paths,
-        &mut conflicts,
-    )?;
-
-    Ok(report_with_details(
-        "reasonix",
-        &[
-            "REASONIX.md",
-            ".reasonix/INDEX.md",
-            ".reasonix/skills/INDEX.md",
-            ".reasonix/agents/INDEX.md",
-            ".reasonix/commands/baron-context.md",
-            ".reasonix/commands/baron-status.md",
-            ".reasonix/settings.json",
-        ],
-        preserved_paths,
-        conflicts,
-    ))
-}
-
-fn install_reasonix_routing_file(path: &Path, content: &str) -> Result<()> {
-    upsert_routing_block(
-        path,
-        content,
-        "## Custom Reasonix Routing",
-        "Register project-specific Reasonix routing below without replacing Baron core gates.",
-    )
-}
-
-fn write_asset_subtree_preserving(
-    source: &str,
-    destination: &Path,
-    repo_root: &Path,
-    preserved_paths: &mut Vec<String>,
-    conflicts: &mut Vec<String>,
-) -> Result<()> {
-    let directory = CORE_ASSETS
-        .get_dir(source)
-        .with_context(|| format!("Embedded Baron asset directory missing: {source}"))?;
-    write_directory_preserving(
-        directory,
-        destination,
-        repo_root,
-        preserved_paths,
-        conflicts,
-    )
-}
-
-fn write_directory_preserving(
-    directory: &Dir<'_>,
-    destination: &Path,
-    repo_root: &Path,
-    preserved_paths: &mut Vec<String>,
-    conflicts: &mut Vec<String>,
-) -> Result<()> {
-    fs::create_dir_all(destination)?;
-    for file in directory.files() {
-        let relative = file
-            .path()
-            .strip_prefix(directory.path())
-            .unwrap_or(file.path());
-        let path = destination.join(relative);
-        if path.exists() {
-            let unchanged = path.is_file() && fs::read(&path)? == file.contents();
-            if !unchanged {
-                let relative = path
-                    .strip_prefix(repo_root)
-                    .unwrap_or(&path)
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                preserved_paths.push(relative.clone());
-                conflicts.push(relative);
-            }
-        } else {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(&path, file.contents())
-                .with_context(|| format!("Could not write {}", path.display()))?;
-            apply_embedded_mode(&path, file.contents())?;
-        }
-    }
-    for child in directory.dirs() {
-        let relative = child
-            .path()
-            .strip_prefix(directory.path())
-            .unwrap_or(child.path());
-        write_directory_preserving(
-            child,
-            &destination.join(relative),
-            repo_root,
-            preserved_paths,
-            conflicts,
-        )?;
-    }
-    Ok(())
-}
-
-fn install_reasonix_contract(
-    path: &Path,
-    body: &str,
-    preserved_paths: &mut Vec<String>,
-    conflicts: &mut Vec<String>,
-) -> Result<()> {
-    if !path.exists() {
-        upsert_managed_block(path, body)?;
-        return Ok(());
-    }
-    let existing = fs::read_to_string(path)
-        .with_context(|| format!("Could not read existing {}", path.display()))?;
-    if existing.contains("BARON:MANAGED:START") && existing.contains("BARON:MANAGED:END") {
-        upsert_managed_block(path, body)?;
-    } else {
-        let relative = path.to_string_lossy().replace('\\', "/");
-        preserved_paths.push(relative.clone());
-        conflicts.push(relative);
-    }
-    Ok(())
-}
-
-fn install_reasonix_file(
-    path: &Path,
-    content: &str,
-    preserved_paths: &mut Vec<String>,
-    conflicts: &mut Vec<String>,
-) -> Result<()> {
-    if !path.exists() {
-        write_managed_file(path, content)?;
-        return Ok(());
-    }
-    let existing = fs::read_to_string(path)
-        .with_context(|| format!("Could not read existing {}", path.display()))?;
-    if existing == content {
-        return Ok(());
-    }
-    let relative = path.to_string_lossy().replace('\\', "/");
-    preserved_paths.push(relative.clone());
-    conflicts.push(relative);
-    Ok(())
-}
-
-fn install_reasonix_settings(
-    path: &Path,
-    preserved_paths: &mut Vec<String>,
-    conflicts: &mut Vec<String>,
-) -> Result<()> {
-    if !path.exists() {
-        write_managed_file(path, &reasonix_hooks_document()?)?;
-        return Ok(());
-    }
-    let existing = fs::read_to_string(path)
-        .with_context(|| format!("Could not read existing {}", path.display()))?;
-    let mut root: serde_json::Value = match serde_json::from_str(&existing) {
-        Ok(value) => value,
-        Err(_) => {
-            let relative = path.to_string_lossy().replace('\\', "/");
-            preserved_paths.push(relative.clone());
-            conflicts.push(relative);
-            return Ok(());
-        }
+fn preflight_native_hooks(repo_root: &Path, adapter: AgentAdapter) -> Result<()> {
+    let path = match adapter {
+        AgentAdapter::Codex => repo_root.join(".codex/hooks.json"),
+        AgentAdapter::Claude => repo_root.join(".claude/settings.json"),
     };
-    let managed = root
-        .get("_baron")
-        .and_then(|value| value.get("managed"))
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false);
-    if !managed {
-        let relative = path.to_string_lossy().replace('\\', "/");
-        preserved_paths.push(relative.clone());
-        conflicts.push(relative);
-        return Ok(());
-    }
-    let root_object = root
-        .as_object_mut()
-        .context("Reasonix settings must be a JSON object")?;
-    root_object.insert(
-        "_baron".to_string(),
-        serde_json::json!({"managed": true, "adapter": "reasonix"}),
-    );
-    let hooks = root_object
-        .entry("hooks")
-        .or_insert_with(|| serde_json::json!({}));
-    if !hooks.is_object() {
-        *hooks = serde_json::json!({});
-    }
-    let hooks_object = hooks
-        .as_object_mut()
-        .context("Reasonix hook registry must be a JSON object")?;
-    for (event, command, description, timeout) in [
-        (
-            "SessionStart",
-            "session-start",
-            "Load shared Baron context",
-            15000,
-        ),
-        (
-            "UserPromptSubmit",
-            "prompt",
-            "Record the submitted task in the shared Vault",
-            5000,
-        ),
-        (
-            "Stop",
-            "stop",
-            "Persist the shared handoff without inferring completion",
-            5000,
-        ),
-    ] {
-        let entries = hooks_object
-            .entry(event.to_string())
-            .or_insert_with(|| serde_json::json!([]));
-        if !entries.is_array() {
-            *entries = serde_json::json!([]);
-        }
-        let entries = entries
-            .as_array_mut()
-            .context("Reasonix hook event must contain an array")?;
-        entries.retain(|entry| !entry.to_string().contains("baron automation hook"));
-        entries.push(serde_json::json!({
-            "command": format!("baron automation hook {command} --adapter reasonix"),
-            "description": description,
-            "timeout": timeout
-        }));
-    }
-    write_managed_file(path, &format!("{}\n", serde_json::to_string_pretty(&root)?))?;
+    let _ = native_hooks_root(&path)?;
     Ok(())
 }
 
-fn startup_contract(agent: &str, adapter: &str) -> String {
-    format!(
-        "# Baron Automatic Agent Contract\n\n\
-    You are using Baron through the {agent} adapter.\n\n\
-    - Before any durable Baron or repository write, silently run `baron authority classify \"<requested outcome>\"`; classify by the outcome, so `review and apply fixes` is a change request even though it contains `review`.\n\
-    - Silently run `baron work-shape \"<task>\" --json` before meaningful work. Read-only tasks create no lifecycle state; focused reversible changes use focused proof; risky, coordinated, ambiguous, or multi-session work keeps the full plan, intent, recovery, gate, proof, and trace path.\n\
-    - When authority is `read_only` or `ambiguous`, inspect only what is needed to answer and do not create or update plan, Harness, proof, trace, review, friction, or learning state. Ambiguous authority stays read-only until the user explicitly requests a change.\n\
-    - If Baron reports project, Vault, capsule, schema, or identity mismatch, stop durable work and run `baron automation reconcile`; never repair Baron metadata by hand or continue with guessed state. If local reconciliation cannot restore coherent state, tell the user that a human must run public `baron update`. Never run public `baron update`: only a human may authorize a release download or runtime replacement.\n\
-    - At session start, silently run `baron capability check --adapter {adapter}`; capability presence is not execution evidence.\n\
-    - At session start, silently run `baron runtime check --adapter {adapter}`; unsafe, missing, or unverified required backends cannot satisfy proof.\n\
-    - At session start, silently run `baron context --{adapter}` and follow its bounded context.\n\
-    - For architecture, dependency, impact, ownership, entrypoint, call-flow, refactor, or cross-module work, silently run task context first. If its Optional Code Map section requests it, silently run `baron automation code-map refresh` and then `baron automation code-map query \"<task>\"`; verify selected source files before edits, proof, traces, or durable memory. Inferred graph results are reading hints only.\n\
-    - At session start and after interruption, silently inspect `baron continuity status`; resume from its current task, last checkpoint, proof status, trace status, and next action before guessing.\n\
-    - At session start and after interruption, silently inspect `baron autopilot status`; treat learning candidates as candidates, not facts.\n\
-    - Respect `.baron/project.toml` platform focus when present; use it to prioritize domain knowledge without creating new workflow ownership.\n\
-    - Read `docs/baron/platform/PROJECT_PROFILE.md` and `docs/baron/architecture/CURRENT_ARCHITECTURE.md` before structural work; load only the task-relevant profile.\n\
-    - For cross-module, product, API, data-model, or interface work, silently inspect `docs/baron/harness/DOMAIN_LANGUAGE.md`. Use canonical terms only when their evidence and status support them; record a new term only when it changes cross-module understanding; mark disagreement as `ambiguous` rather than silently choosing a definition. Product Harness owns this document; Superpowers still owns workflow.\n\
-    - When the user explicitly expands the product to a new platform, silently run `baron init --<platform>` so Baron adds an extension and regenerates non-destructive architecture contracts; never rearrange existing code automatically.\n\
-    - Silently inspect `baron plan status` and `baron harness status` before meaningful implementation.\n\
-    - For a new or materially changed task, read repo, Vault, current plan, Harness, continuity, and decisions before asking; ask exactly one missing high-value question at a time and mark unresolved facts unknown.\n\
-    - Silently inspect `baron harness intent-status`. Before medium/high-risk intake, record the current/target behavior, scope, proof, constraints, decisions, non-goals, and unknowns with `baron harness intent`; do not pass `--confirmed` until the user explicitly confirms the reflected intent.\n\
-    - Before selecting skills or agents for meaningful work, silently run `baron control-plane route \"<task>\"` and follow the selected/skipped explanation.\n\
-    - Use Baron-managed skills and agents as local self-contained assets; if a custom asset looks weak, conflicting, or externally dependent, run `baron asset audit` before trusting it.\n\
-    - When prior conversation context may matter, rely on `baron context --{adapter} --task \"<task>\"` or `baron session-replay search \"<query>\"`; do not dump full session histories.\n\
-    - Start or resume a Baron plan before editing code for a meaningful task.\n\
-    - Create harness intake for medium/high-risk work.\n\
-    - Before edits, direction changes, interruptions, and final responses for meaningful work, record `baron continuity checkpoint \"<current state and next action>\"`.\n\
-    - If work fails, blocks, or remains interrupted, silently record `baron continuity recover \"<root cause>\" --outcome <failed|blocked|interrupted> --last-success \"<last successful step>\" --next-action \"<safe next action>\"` with available evidence, affected files, and retry conditions; preserve the failed attempt even after a later retry succeeds.\n\
-    - Before final response after meaningful work, run `baron autopilot review \"<task summary, proof state, remaining risks>\"`; it may propose learning, but it must not rewrite trusted facts or runtime assets without approval.\n\
-    - Use Superpowers as the workflow core for planning, TDD, debugging, review, and verification.\n\
-    - Read the routed skill and agent indexes; do not recursively load every skill or agent.\n\
-    - For execution-required proof, use Baron-owned `baron proof execute --capability <capability> --provider <provider> -- <executable> <args...>`; record the returned receipt with `baron proof record \"<summary>\" --receipt <receipt-id>`. A sentence or hand-written receipt is not execution proof.\n\
-    - After each mandatory quality gate actually runs, record it with `baron control-plane record-gate <agent> \"<evidence summary>\" --receipt <receipt-id>`; the legacy form remains reported evidence only.\n\
-    - For concrete reviewer findings, silently run `baron review finding \"<summary>\" --severity <level> --evidence \"<evidence>\"`; keep findings open until the fix exists.\n\
-    - Close a finding only with `baron review close <id> --fix-evidence \"<what changed>\" --verification \"<command/result>\"`; fix evidence and verification are both mandatory.\n\
-    - After actually running a registered provider, attach structured capability evidence with `baron proof record`; then record and run `baron trace score` before claiming completion.\n\
-    - Never complete high-risk work when proof is missing or trace quality fails.\n\
-    - Treat Vault Markdown as durable memory and unknown facts as unknown.\n"
+fn native_hooks_root(path: &Path) -> Result<serde_json::Value> {
+    let content = read_text(path)?.unwrap_or_else(|| "{}".to_string());
+    let root: serde_json::Value = serde_json::from_str(&content)
+        .with_context(|| format!("Native hook configuration is malformed: {}", path.display()))?;
+    let root_object = root
+        .as_object()
+        .context("Native hook configuration must be a JSON object")?;
+    if let Some(hooks) = root_object.get("hooks") {
+        let hooks_object = hooks
+            .as_object()
+            .context("Native hook registry must be a JSON object")?;
+        for (event, entries) in hooks_object {
+            entries
+                .as_array()
+                .with_context(|| format!("Native hook event must contain an array: {event}"))?;
+        }
+    }
+    Ok(root)
+}
+
+fn claude_startup_contract() -> String {
+    r#"# Baron Claude Code Contract
+
+Baron Core is the project's state, routing, memory, continuity, and verification authority. This managed section governs Baron lifecycle/orchestration only and coexists with user, nested, plugin, and host instructions.
+
+- The user's current explicit instructions take precedence over generic Baron guidance unless a real safety, integrity, migration, or required confirmation gate prevents execution; preserve that intent.
+- For normal engineering work, construct a structured PrepareRequestV1 and silently run `baron control-plane prepare --adapter claude --json`; never interpolate arbitrary task text into a shell command. Consume the existing PreparePacketV1 and follow its work shape, risk, intent, trusted Task State, bounded route explanation, selected skills, selected agents, verification, blockers, warnings, and next action. Do not ask the user to run hidden Baron commands.
+- Resume compatible Baron Task State, continuity, recovery, and its safe next action before restarting investigation. Preserve unknowns and genuine blockers instead of inventing certainty.
+- Load only route-selected canonical resources from `.baron/core/skills/<skill>/` and `.baron/core/agents/<agent>`; resolve references, scripts, and assets relative to that root. Do not recursively load the full `.baron/core/**` tree, and do not create a competing workflow or keyword router.
+- Use proportional lifecycle depth: read-only explanation stays read-only, focused edits use bounded verification, and durable/risky work uses the full plan, Harness, proof, trace, checkpoint, and recovery path.
+- At session start silently run `baron capability check --adapter claude`, `baron runtime check --adapter claude`, `baron context --claude`, `baron continuity status`, `baron autopilot status`, `baron plan status`, and `baron harness status`; capability presence is not execution evidence.
+- For architecture, dependency, impact, ownership, entrypoint, call-flow, refactor, or cross-module work, use task context first. If requested, run `baron automation code-map refresh` and `baron automation code-map query "<task>"`, then verify selected source files before edits or proof.
+- Classify authority with `baron authority classify "<requested outcome>"`. For `read_only` or `ambiguous`, do not create or update plan, Harness, proof, trace, review, friction, or learning state. Classify by outcome, so `review and apply fixes` remains a change request. If identity or metadata mismatches, run `baron automation reconcile`; never repair Baron metadata by hand. Never run public `baron update`.
+- Before medium/high-risk intake, read repo, Vault, current plan, Harness, continuity, and decisions before asking; ask exactly one missing high-value question at a time. Record intent with `baron harness intent`, inspect `baron harness intent-status`, and do not pass `--confirmed` until the user explicitly confirms.
+- When the user explicitly expands the product to a new platform, silently run `baron init --<platform>` so Baron adds a non-destructive extension without rearranging existing code.
+- Use Superpowers as the workflow core and dispatch only selected Core agents. Claude subagents return bounded findings/evidence to this parent; they must not create a competing plan, restart prepare, switch adapters, write competing memory, invoke another agent, or claim overall completion.
+- Before edits, direction changes, interruptions, and final state, record `baron continuity checkpoint`. If work fails, blocks, or is interrupted, record `baron continuity recover` with cause, last successful step, evidence, affected files, blocker, safe next action, and retry conditions; preserve the failed attempt.
+- Verify before claiming completion. Run required checks, record execution with `baron proof record`, record mandatory gates with `baron control-plane record-gate`, run `baron autopilot review`, and run `baron trace score`; missing proof or failed trace remains incomplete.
+- Claude host auto memory is non-authoritative host-local context. Never import it into trusted Baron memory or let it override Baron trusted project state, current intent, decisions, continuity, or recovery. Preserve any explicit host auto-memory preference unless a separately proven architecture requirement changes it.
+- Preserve user CLAUDE text, custom skills, user agents, commands, settings, hooks, Codex files, and unknown fields. Native hooks are optional accelerators; this contract is the correctness fallback. Read only selected skill/agent indexes and never require a normal user to operate hidden Baron CLI commands.
+- Read `docs/baron/platform/PROJECT_PROFILE.md`, `docs/baron/architecture/CURRENT_ARCHITECTURE.md`, and `docs/baron/harness/DOMAIN_LANGUAGE.md` before structural work; use canonical terms only when evidence/status support them. Product Harness owns this document; Superpowers still owns workflow. Use `baron control-plane route` for explainable routing and `baron review finding`/`baron review close` only with fix evidence and verification.
+"#
+    .to_string()
+}
+
+fn claude_bridge_skill() -> String {
+    r#"---
+name: baron-engine
+description: Explicit Claude bridge to the canonical Baron Core lifecycle and selected resources.
+disable-model-invocation: true
+---
+
+# Baron Engine Claude Bridge
+
+Baron Core is the semantic and orchestration authority. The root `CLAUDE.md` contract owns automatic lifecycle behavior; this skill is an explicit diagnostic/native bridge and must not create a second routing path.
+
+For a meaningful task, construct `PrepareRequestV1` as structured data and invoke `baron control-plane prepare --adapter claude --json`; pass task text through the supported structured transport, never shell interpolation. Consume the existing `PreparePacketV1` and follow its bounded work shape, risk, intent, Task State, route explanation, selected skills, selected agents, verification, blockers, and next action.
+
+A selected skill identifier maps to `.baron/core/skills/<name>/SKILL.md`. Load only that canonical root and resolve its `references/`, `scripts/`, `assets/`, and nested files relative to it. A selected agent identifier maps to `.baron/core/agents/<name>` and remains subject to the parent session's lifecycle and proof gates.
+
+Do not preload or recursively read all of `.baron/core/**`; this bridge contains no copied Baron skill body and no independent keyword router. Preserve explicit user intent and surface safety, integrity, identity, or migration blockers. If Core or the Baron runtime is unavailable, stop and report the blocker instead of guessing.
+"#
+    .to_string()
+}
+
+fn codex_startup_contract() -> String {
+    r#"# Baron Codex Contract
+
+Baron Core is the project state, routing, memory, and verification authority.
+
+- The user's current explicit instructions take precedence over generic Baron skill guidance unless a required safety or integrity constraint blocks the request; preserve that intent.
+- For a normal engineering task, construct a structured PrepareRequestV1 and silently run `baron control-plane prepare --adapter codex --json`; never interpolate arbitrary task text into a shell command. Consume the existing PreparePacketV1 and follow its work shape, risk, intent, Task State, bounded route explanation (including why skills, agents, or profile evidence influenced selection), selected skills, selected agents, verification, blockers, and next action. Do not ask the user to run hidden Baron commands.
+- Resume compatible Task State, continuity, recovery, and safe next action before restarting investigation. Preserve unknowns and genuine blockers.
+- Load only selected canonical resources from `.baron/core/skills/<skill>/` and `.baron/core/agents/<agent>`; resolve references, scripts, and assets relative to that root. Do not recursively load the full `.baron/core/**` tree and do not create a competing workflow.
+- Use proportional lifecycle depth: read-only explanation may remain read-only, focused edits use bounded verification, and durable/risky work uses the full Baron plan, Harness, proof, trace, and recovery path.
+- At session start silently run `baron capability check --adapter codex`, `baron runtime check --adapter codex`, `baron context --codex`, `baron continuity status`, `baron autopilot status`, `baron plan status`, and `baron harness status`; presence is not execution evidence.
+- For architecture, dependency, impact, ownership, entrypoint, call-flow, refactor, or cross-module work, use task context first; when requested, run `baron automation code-map refresh` and `baron automation code-map query "<task>"`, then verify selected source files.
+- Classify authority with `baron authority classify "<requested outcome>"`. For `read_only` or `ambiguous`, do not create or update plan, Harness, proof, trace, review, friction, or learning state. Classify by outcome, so `review and apply fixes` remains a change request. If identity or metadata mismatches, run `baron automation reconcile`; never repair Baron metadata by hand. Never run public `baron update`.
+- Before medium/high-risk intake, read repo, Vault, current plan, Harness, continuity, and decisions before asking; ask exactly one missing high-value question at a time. Record intent with `baron harness intent`, inspect `baron harness intent-status`, and do not pass `--confirmed` until the user explicitly confirms.
+- Use Superpowers as the workflow core. Dispatch only selected Core agents. Child work is bounded evidence returned to the parent: it must not start another lifecycle, overwrite parent intent, create a competing plan, switch adapters, or claim completion.
+- Checkpoint meaningful edits, direction changes, interruptions, and final state. On failure record `baron continuity recover`, preserve the failed attempt, and include the last successful step, evidence, affected files, blocker, safe next action, and retry conditions.
+- Verify before claiming completion. Run required checks, record execution with `baron proof record`, record mandatory gates with `baron control-plane record-gate`, and run `baron autopilot review`; proof and trace failures remain blockers. Do not fabricate unknowns or success.
+- Preserve user files, custom skills/agents, hooks, settings, nested instructions, and Claude-owned files. Hooks are optional accelerators; the same idempotent instruction protocol is the fallback.
+- Read `docs/baron/platform/PROJECT_PROFILE.md`, `docs/baron/architecture/CURRENT_ARCHITECTURE.md`, and `docs/baron/harness/DOMAIN_LANGUAGE.md` before structural work; use canonical terms from the domain language. Product Harness owns this document; Superpowers still owns workflow. Use `baron control-plane route` for explainable routing and `baron init --<platform>` only when the user explicitly expands the product. For findings use `baron review finding`, then `baron review close` only with fix evidence and verification. Run `baron trace score` before claiming completion.
+"#
+    .to_string()
+}
+
+fn codex_bridge_skill() -> String {
+    r#"---
+name: baron-engine
+description: Native Codex bridge to the canonical Baron Core lifecycle and selected resources.
+---
+
+# Baron Engine Codex Bridge
+
+Baron Core is the project orchestration authority and semantic source of truth. The root `AGENTS.md` contract owns automatic lifecycle behavior.
+
+For a meaningful user task, construct `PrepareRequestV1` as structured data and invoke `baron control-plane prepare --adapter codex --json`; pass task text through the supported structured transport, never through shell interpolation. Consume the existing `PreparePacketV1` and follow its work shape, risk, intent, Task State, bounded route explanation, selected skills, selected agents, verification, blockers, and next action.
+
+A selected skill identifier maps to `.baron/core/skills/<name>/SKILL.md`. Load only the selected skill entrypoint and resolve its `references/`, `scripts/`, `assets/`, and nested files relative to `.baron/core/skills/<name>/`. A selected agent identifier maps to `.baron/core/agents/<name>` and remains subject to the parent session's lifecycle and proof gates.
+
+Do not preload or recursively read all of `.baron/core/**`; this bridge contains no copied Baron skill body. Preserve explicit user intent and surface safety, integrity, identity, or migration blockers clearly. If Core or the Baron runtime is unavailable, stop and report the blocker instead of guessing.
+"#
+    .to_string()
+}
+
+fn codex_openai_metadata() -> String {
+    "name: baron-engine\ndescription: Explicit Codex bridge to Baron Core; AGENTS.md owns automatic routing.\npolicy:\n  allow_implicit_invocation: false\n  products:\n    - codex\n"
+        .to_string()
+}
+
+fn codex_agent_payload(name: &str) -> ManagedAssetPayload {
+    payload(
+        "codex",
+        &format!(".codex/agents/{name}.toml"),
+        ManagedMergeKind::FullText,
+        &codex_agent_wrapper(name),
     )
+}
+
+fn codex_agent_wrapper(name: &str) -> String {
+    format!(
+        "name = \"{name}\"\ndescription = \"Baron Core {name} quality-gate projection for Codex.\"\ndeveloper_instructions = \"\"\"\nCanonical semantic source: `.baron/core/agents/{name}.toml`.\n\nUse the Core definition and bounded Baron evidence for the `{name}` role. Return concise findings, proof, verification, and remaining uncertainty to the parent session. Do not plan, implement, switch adapters, invoke other subagents, or change lifecycle ownership. The parent owns intent, checkpoints, completion, and recovery.\n\"\"\"\n"
+    )
+}
+
+fn claude_agent_payload(name: &str) -> ManagedAssetPayload {
+    payload(
+        "claude",
+        &format!(".claude/agents/{name}.md"),
+        ManagedMergeKind::FullText,
+        &claude_agent_wrapper(name),
+    )
+}
+
+fn claude_agent_wrapper(name: &str) -> String {
+    format!(
+        "---\nname: {name}\ndescription: Baron Core {name} quality-gate projection for Claude.\n---\n\nCanonical semantic source: `.baron/core/agents/{name}.toml`.\n\nUse the Core definition and return bounded findings, evidence, verification, and uncertainty to the parent session. This child must not create a plan, switch adapters, restart prepare, write competing memory, invoke another agent, or claim overall completion. The parent session owns intent, checkpoints, lifecycle, proof, and recovery.\n"
+    )
+}
+
+fn safe_write_codex_projection(
+    repo: &Path,
+    relative_path: &str,
+    content: &str,
+) -> Result<Option<String>> {
+    safe_write_adapter_projection(repo, relative_path, content, "codex")
+}
+
+fn safe_write_adapter_projection(
+    repo: &Path,
+    relative_path: &str,
+    content: &str,
+    adapter: &str,
+) -> Result<Option<String>> {
+    let path = repo.join(relative_path);
+    let existing = read_bytes(&path)?;
+    if existing.as_deref() == Some(content.as_bytes()) {
+        return Ok(None);
+    }
+    if let Some(existing) = existing {
+        let unchanged_owned = if managed_manifest_exists(repo)? {
+            load_managed_baseline(repo)
+                .ok()
+                .and_then(|baseline| {
+                    baseline
+                        .records
+                        .into_iter()
+                        .find(|record| record.relative_path == Path::new(relative_path))
+                })
+                .and_then(|record| {
+                    managed_baseline_content(repo, &record)
+                        .ok()
+                        .map(|base| (record, base))
+                })
+                .is_some_and(|(record, base)| {
+                    record.owner.as_str() == adapter && existing == base.as_bytes()
+                })
+        } else {
+            false
+        };
+        if !unchanged_owned {
+            return Ok(Some(relative_path.replace('\\', "/")));
+        }
+    }
+    write_managed_file(&path, content)?;
+    Ok(None)
 }
 
 fn codex_index() -> String {
     "# Baron Codex Workspace\n\n\
-Start with root `AGENTS.md`. Read `.codex/skills/INDEX.md` and `.codex/agents/INDEX.md` for narrow routing. Superpowers is the workflow core; domain skills and quality agents are routed only when relevant.\n"
+Start with root `AGENTS.md`. Baron Core lives at `.baron/core/**`; the native bridge is `.agents/skills/baron-engine/`; Codex quality-agent projections live under `.codex/agents/`. Do not recursively load every skill; read only the route-selected Core resources. Core routing covers Superpowers, `frontend-design`, `vibe-security-scan`, `api-and-interface-design`, `observability-and-instrumentation`, `performance-optimization`, and `deprecation-and-migration`; these names identify canonical Core resources rather than copied Codex files. `.codex/hooks.json` is an optional accelerator and never the sole correctness path.\n"
         .to_string()
-}
-
-fn reasonix_index() -> String {
-    "# Baron Reasonix Workspace\n\nStart with `REASONIX.md`. Read `.reasonix/skills/INDEX.md` and `.reasonix/agents/INDEX.md` only after `baron control-plane route \"<task>\"` selects a relevant capability. Reasonix is an adapter over the shared Baron core: use the same project ID, Vault, memory, Wiki, CodeGraph, plan, proof, trace, continuity, and autopilot state as every other adapter.\n".to_string()
 }
 
 fn skills_index(root: &str) -> String {
@@ -956,6 +808,8 @@ Run `baron control-plane route \"<task>\"` before loading optional skills.\n\n\
 | `observability-and-instrumentation` | optional operations domain | logs, metrics, tracing, alerts, SLOs, audit events, diagnostics | tasks with no runtime/operations impact | signal list, gaps, proof hooks | must not fabricate production behavior |\n\
 | `performance-optimization` | optional performance domain | latency, runtime speed, bundle size, cache, loading, database/query performance | cosmetic-only or security-only tasks | measured or potential impact, verification | must not fabricate metrics |\n\
 | `deprecation-and-migration` | optional migration domain | legacy behavior, migrations, deprecations, compatibility, rollout/rollback | greenfield work with no compatibility risk | migration plan, compatibility proof, rollback | must not bypass proof gates |\n\n\
+| `database-engineering` | optional database domain | relational models, constraints, indexes, query plans, transactions, migrations, backfills, integrity | pipeline-only, frontend-only, incidental SQL | schema/query/migration evidence, integrity and rollback checks | conflicts with mobile/reverse-analysis domains; must not replace Superpowers |\n\
+| `mobile-application-engineering` | optional mobile application domain | Android/iOS app lifecycle, navigation, offline, permissions, storage, device behavior | APK/binary reverse, decompile, malware analysis | lifecycle/device/network evidence, platform build checks | conflicts with APK/binary/malware analysis; must not replace Superpowers |\n\n\
 Skill root: `{root}`.\n"
     )
 }
@@ -971,38 +825,6 @@ Run `baron control-plane route \"<task>\"` before dispatch. After a gate actuall
 | `test-engineer` | core verification gate | implementation, bugfix, release, proof, regression concern | none for meaningful implementation | exact commands, outcomes, missing coverage | must not replace actual test/proof execution |\n\
 | `web-performance-auditor` | optional web performance gate | Core Web Vitals, Lighthouse, LCP, INP, CLS, bundle/loading/rendering performance | non-web or non-performance tasks | metric source or potential-impact label | optional web performance only; not included in mandatory gates |\n"
         .to_string()
-}
-
-fn write_asset_subtree(source: &str, destination: &Path) -> Result<()> {
-    let directory = CORE_ASSETS
-        .get_dir(source)
-        .with_context(|| format!("Embedded Baron asset directory missing: {source}"))?;
-    write_directory(directory, destination)
-}
-
-fn write_directory(directory: &Dir<'_>, destination: &Path) -> Result<()> {
-    fs::create_dir_all(destination)?;
-    for file in directory.files() {
-        let relative = file
-            .path()
-            .strip_prefix(directory.path())
-            .unwrap_or(file.path());
-        let path = destination.join(relative);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&path, file.contents())
-            .with_context(|| format!("Could not write {}", path.display()))?;
-        apply_embedded_mode(&path, file.contents())?;
-    }
-    for child in directory.dirs() {
-        let relative = child
-            .path()
-            .strip_prefix(directory.path())
-            .unwrap_or(child.path());
-        write_directory(child, &destination.join(relative))?;
-    }
-    Ok(())
 }
 
 fn desired_embedded_mode(contents: &[u8]) -> Option<u32> {
@@ -1026,43 +848,6 @@ fn apply_embedded_mode(_path: &Path, contents: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn write_claude_agents(repo: &Path) -> Result<()> {
-    let agents = [
-        (
-            "code-reviewer",
-            "Review findings first. Focus on correctness, regressions, maintainability, architecture fit, and missing tests. Use evidence.",
-        ),
-        (
-            "security-auditor",
-            "Report defensive security findings with severity, evidence, impact, fix, and verification. Never provide weaponized exploitation.",
-        ),
-        (
-            "test-engineer",
-            "Identify the smallest sufficient proof, missing coverage, and exact verification evidence. Never replace tests with confidence.",
-        ),
-        (
-            "web-performance-auditor",
-            "Optional web performance auditor. Use only for web performance tasks. Never fabricate metrics; mark static findings as potential impact. Not included in mandatory gates.",
-        ),
-    ];
-    for (name, instructions) in agents {
-        write_managed_file(
-            &repo.join(".claude/agents").join(format!("{name}.md")),
-            &claude_agent_content(name, instructions),
-        )?;
-    }
-    upsert_routing_block(
-        &repo.join(".claude/agents/INDEX.md"),
-        &agents_index(),
-        "## Custom Agents",
-        "Register optional project-specific agents below without replacing the core gates.",
-    )
-}
-
-fn report(adapter: &str, files: &[&str]) -> InstallReport {
-    report_with_details(adapter, files, Vec::new(), Vec::new())
-}
-
 fn report_with_details(
     adapter: &str,
     files: &[&str],
@@ -1073,6 +858,7 @@ fn report_with_details(
         adapter: adapter.to_string(),
         managed_files: files.iter().map(|value| value.to_string()).collect(),
         preserved_custom_assets: true,
+        core: CoreInstallReport::default(),
         preserved_paths,
         conflicts,
     }

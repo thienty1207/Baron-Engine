@@ -1,43 +1,34 @@
 # Baron Memory Model
 
-Baron uses two layers:
-
-1. Markdown vault as source of truth.
-2. SQLite/cache/index as accelerator.
-
-Phase 2 implemented the first working version of this model through
-`baron memory status`, `baron memory index`, `baron memory compact`, and
-`baron recall`. Phase 10 replaces full destructive rebuild behavior with an
-incremental source cache, project-ID isolation, multilingual concept ranking,
-task-focused context, and automatic session ingestion. Memory commands require
-`--vault <path>` or `BARON_VAULT`.
-
-## Memory Classes
-
-- `project_verified`: current project fact backed by repo, test, decision, or trace.
-- `project_likely`: current project fact inferred from repo but not proven.
-- `project_stale`: old memory that may no longer match code.
-- `global_verified`: approved reusable memory across projects.
-- `global_candidate`: possible reusable memory that is not trusted yet.
-- `cross_project`: memory from another project; blocked unless explicitly matched.
-- `unknown`: missing fact that must not be guessed.
-
-## Firewall Rule
-
-Default retrieval order:
+Baron Core uses a durable Vault plus disposable indexes:
 
 ```text
-project_verified
-project_likely
-global_verified
-project_stale as warning
-cross_project only on strong explicit match
-unknown remains unknown
+Vault Markdown                 source of truth
+SQLite / replay / Wiki / graph caches   bounded accelerators
 ```
 
-## Vault Shape
+The memory boundary is the stable project ID. A folder name is only a display
+hint, so two repositories with the same basename remain isolated.
 
-Target vault shape:
+## Trust and scope
+
+Core retrieval uses `TrustedRecallPolicy::Current` for every context-critical
+path before lexical or semantic ranking. Records carry both project scope and a
+trust state:
+
+- verified current-project evidence may be selected;
+- approved global evidence may be selected when relevant;
+- likely or stale evidence remains labelled and needs corroboration;
+- candidate, contested, superseded, and expired evidence cannot become current
+  truth;
+- cross-project evidence stays blocked unless the existing firewall policy has
+  an explicit match;
+- unknown facts remain unknown rather than being guessed.
+
+Host-local auto memory is context only. It does not replace Core memory or
+override intent, decisions, Task State, continuity, recovery, proof, or trace.
+
+## Vault shape
 
 ```text
 Vault/
@@ -51,121 +42,57 @@ Vault/
       Decisions.md
       Tasks.md
       Plans/
-      ProductHarness/
-        TEST_MATRIX.md
+      ProductHarness/TEST_MATRIX.md
       Proofs/
       Traces/
-      Sessions/
-        Imported/
+      Sessions/Imported/
       Research/
       Notes/
       Open Questions.md
       Handoff.md
-      Artifacts/
-  Artifacts/
-    Baron/
-      memory-index.sqlite
-      memory-engine-state.json
-      APPROVED_GLOBAL.md
-      GLOBAL_CANDIDATES.md
+  Artifacts/Baron/
+    memory-index.sqlite
+    session-replay.sqlite
+    memory-engine-state.json
+    APPROVED_GLOBAL.md
+    GLOBAL_CANDIDATES.md
 ```
 
-SQLite is disposable. Markdown is durable.
+The Markdown capsule is readable, backed up, and portable. Index files may be
+deleted and rebuilt without changing durable truth.
 
-## Phase 2 Behavior
+## Task State and context
 
-- `memory status` inspects Vault health and does not create files.
-- `memory index` creates the Vault scaffold and project capsule, then rebuilds
-  or incrementally refreshes `memory-index.sqlite` from Markdown.
-- `memory compact` rebuilds the index and prints a bounded Memory Firewall Brief.
-- `recall` rebuilds the index and returns ranked memory after firewall gating.
-- Current-project memory is preferred over all other project memory.
-- `APPROVED_GLOBAL.md` may be used when relevant.
-- `GLOBAL_CANDIDATES.md` is indexed for diagnostics but not trusted as fact.
-- Plan, Product Harness, proof, and trace Markdown are indexed as distinct
-  memory kinds so later sessions can recall both intent and verification.
-- Migrated research, notes, open questions, and handoff Markdown are indexed as
-  distinct memory kinds instead of becoming inert archive files.
-- Product Harness `TEST_MATRIX.md` ties the current story to proof status and
-  evidence while remaining plain Markdown that can be rebuilt or inspected.
+Task State is the Core projection used by `PreparePacketV1`. It retains project
+and task identity, intent, constraints, non-goals, current plan/work state,
+last successful step, failed or interrupted status, affected files, proof/trace
+state, blockers, recovery, route, mandatory gates, and the next safe action.
 
-## Phase 10 Behavior
+The Context Compiler places these fields in Tier 0, which is never silently
+dropped under budget pressure. Trusted decisions, current source evidence, and
+proof/trace occupy Tier 1. Profile and bounded Wiki/CodeGraph/session replay
+occupy Tier 2. Low-priority diagnostics and Autopilot candidate summaries are
+Tier 3 and are compressed or omitted first.
 
-- `.baron/project.toml` schema v2 stores a stable project ID.
-- Vault capsules include the slug plus an ID prefix, preventing same-name
-  projects from sharing memory.
-- Existing slug-only capsules migrate to the identity capsule without deleting
-  Markdown.
-- SQLite tracks each Markdown source by path, modified time, size, and content
-  hash. Unchanged files are reused; changed and deleted files are reconciled.
-- Survey and memory discovery have no silent fixed file-count cutoff.
-- Recall combines Unicode lexical overlap, concept aliases, title/path/kind,
-  confidence, proof, recency, project identity, and firewall rules.
-- Common Vietnamese/English engineering concepts are matched locally without a
-  cloud model or API key.
-- Initialized projects import a bounded recent batch of confidently matched
-  Codex/Claude sessions during context startup.
-- Imported sessions are redacted, deduplicated, and stored as clean Markdown;
-  import state is rebuildable metadata under project `Artifacts/`.
+## Session, Wiki, and CodeGraph accelerators
 
-## Phase 20 Session Replay
+Session import is bounded, redacted, deduplicated, and matched to the current
+project. Replay returns a small surrounding window rather than a full history.
+Wiki and CodeGraph caches retain source paths, spans, citations, hashes, and
+project identity; they are navigation hints and never proof by themselves.
 
-- Imported session Markdown remains the source of truth.
-- Baron builds a disposable `session-replay.sqlite` cache under
-  `Vault/Artifacts/Baron/`.
-- The replay cache stores individual messages with project ID, project slug,
-  source path, role, ordinal, and content hash.
-- Search returns only current-project messages by default.
-- Replay returns bounded surrounding context around one message instead of
-  dumping full histories.
-- `context --task` can include a few relevant replay hits automatically, while
-  `context --why` explains that full session history stayed skipped.
-- Cross-project session history stays blocked unless a future explicit workflow
-  deliberately asks for that project and passes the Memory Firewall rules.
+If an accelerator is absent, stale, malformed, or untrusted, Core reports a
+warning and uses the bounded fallback. No cloud model or paid embedding account
+is required for normal indexing and recall.
 
-## Phase 53-61 Smart Coding Memory
+## Durable writes and migration
 
-Baron 3.8 keeps the same durable boundary and adds four explicit derived memory
-layers: evidence, verified, decision, and invariant. Candidate, stale,
-contested, and inferred records stay labeled and cannot silently become current
-facts. `baron memory resume` compiles a bounded Resume Brief containing project
-identity, source revision, objective, checkpoint, decisions, blocker,
-affected files, proof/trace state, unknowns, and next safe action.
+Memory, Task State, continuity, proof, trace, and Autopilot writes use the
+project/Vault transaction and lock rules. A repo and Vault on different file
+systems do not receive a false cross-filesystem atomicity claim; receipts and
+reconciliation make partial progress recoverable.
 
-Recall keeps the local lexical path and adds a deterministic character-ngram
-hybrid score for close Vietnamese/English and identifier matches. Project and
-trust filters happen before ranking. No cloud embedding, paid API, or mandatory
-daemon is required.
-
-Baron 4.1 adds a guarded semantic/temporal path on top of that firewall.
-`recall_v5` only reranks already-eligible records and annotates each hit with
-independent
-abstraction (`l0_evidence` through `l3_invariant`) and trust (`candidate`,
-`verified`, `expired`, or `unknown`) labels. `select_resume_brief_v41` uses the
-released 4.1 path by default and only when project identity, bounded size,
-temporal evidence, and structure checks pass; `BARON_ENGINE_GENERATION=4.0`
-pins the guarded 4.0 fallback, while `BARON_ENGINE_GENERATION=3.8` or
-`baseline` pins the proven older recovery path. A candidate may never bypass
-the project firewall
-or turn a polished summary into a verified fact.
-
-Project Wiki and local CodeGraph JSON under `.baron/cache/` are disposable
-accelerators. Wiki entries retain heading citations and source hashes. The
-CodeGraph fallback retains project ID, source fingerprint, observed symbols,
-and advisory inferred references. Deleting either cache and rebuilding from
-Markdown/source must return a valid result; neither cache is imported as Vault
-truth.
-
-All derived excerpts pass secret redaction, canonical path checks, and project
-identity checks. Imported documentation, sessions, graph strings, and optional
-reverse-analysis guidance are data, not executable policy.
-
-## Legacy Import
-
-Migration reads the source Vault from `vault.config.json`. An explicit
-`--vault` is the Baron destination, so old and new Vaults may be different.
-
-The source capsule is copied into the migration backup before import. Existing
-Baron Markdown wins on conflict; compatible legacy Markdown is merged with an
-explicit import marker, while non-Markdown conflicts are preserved separately.
-SQLite is rebuilt from the resulting Markdown and remains disposable.
+Legacy import copies source capsules into a backup, validates identity and
+ownership, merges compatible Markdown with an import marker, preserves user
+conflicts, and rebuilds disposable indexes. It imports data and user-owned
+assets, never an old adapter architecture.

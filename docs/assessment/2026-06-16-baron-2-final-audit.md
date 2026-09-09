@@ -20,7 +20,8 @@ projects.
 Agent Bootstrap is strong at Obsidian-first memory and Codex setup. Baron goes
 further by making the engine native and multi-agent:
 
-- supports Codex, Claude, and generic agents instead of one primary tool shape
+- supports Codex and Claude as the active tool shapes; older generic values are
+  migration input only
 - uses stable project identity so same-name projects cannot share memory by accident
 - keeps SQLite as a rebuildable accelerator while Vault Markdown stays source of truth
 - has a control plane that validates skill/agent contracts instead of trusting folder presence
@@ -36,7 +37,7 @@ engine, then adds a long-term memory layer:
 - memory firewall to stop cross-project contamination
 - task-aware multilingual recall
 - automatic Codex/Claude session import with redaction and dedupe
-- adapter-specific install/update for Codex, Claude, and generic agents
+- adapter-specific install/update for Codex and Claude
 - capability registry so tool presence is not confused with tool execution
 - certification reports for scale, cache recovery, context budget, and release readiness
 

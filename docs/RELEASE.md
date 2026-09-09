@@ -11,7 +11,24 @@ SQLite, Cargo, or a running server on the user's machine.
 - macOS Apple Silicon
 
 Every GitHub Release contains the native archives, `SHA256SUMS`,
-`release-manifest.json`, `install.ps1`, and `install.sh`.
+`release-manifest.json`, `release-manifest.sig`, `install.ps1`, and
+`install.sh`.
+
+`release-manifest.json` is a deterministic `ReleaseManifestV1` payload and
+`release-manifest.sig` carries its Ed25519 signature and bounded key ID. The
+Baron updater and both bootstrap installers verify that signature against the
+public key pinned in Baron before trusting a version, platform, artifact name,
+size, digest, release identity, or compatibility field. SHA-256 remains an
+artifact integrity check after authentication. See [Release Metadata And Proof
+Authority](architecture/RELEASE_SECURITY.md) for the trust boundary and key
+provisioning contract.
+
+The installed product has one Baron Core runtime and two supported native
+projections: Codex and Claude. Project initialization owns `.baron/core/**`
+through a preserve-first transaction; the host projections own only their
+native bridge files. Release and update tooling must keep that ownership split
+and must never delete project source, Vault Markdown, or user-owned adapter
+content.
 
 ## Install On Windows
 
@@ -136,10 +153,16 @@ Uninstall removes the Baron executable and install metadata only. These remain:
 
 ## Checksum Safety
 
-Both installers download the matching archive and `SHA256SUMS` into a temporary
-directory. Baron is not extracted or installed unless SHA-256 verification
-passes. The staged binary must also report the requested version before the
-active binary is replaced.
+Both installers download the manifest, signature, matching archive, and
+`SHA256SUMS` into a temporary directory. They require OpenSSL with Ed25519
+support, fail closed when it is unavailable, and do not create or replace an
+installation until the signature, platform, size, and SHA-256 checks pass. The
+staged binary must also report the requested version before the active binary
+is replaced.
+
+The native Baron updater also requires authenticated release metadata before
+it creates an update stage. An unsigned manifest or an unsigned checksum file
+cannot authorize a runtime update.
 
 For manual verification:
 
@@ -157,7 +180,8 @@ Compare that value with the matching line in `SHA256SUMS`.
 
 ## Offline Or Private Mirror Install
 
-Download one native archive and `SHA256SUMS` into the same directory.
+Download one native archive, `SHA256SUMS`, `release-manifest.json`, and
+`release-manifest.sig` into the same directory.
 
 Windows:
 
@@ -188,6 +212,14 @@ The final promotion job assembles all four archives and runs:
   baron release metadata release-assets --release-version 4.2.2 --source-revision <40-character-git-sha>
   baron release verify release-assets --expected-version 4.2.2 --expected-source-revision <40-character-git-sha>
 ```
+
+The metadata command requires `BARON_RELEASE_SIGNING_KEY`, a protected GitHub
+Actions secret containing `base64(raw 32-byte Ed25519 seed)`. The workflow
+decodes exactly 32 bytes, derives the public key, and compares it with the
+pinned `baron-release-2026` identity and fingerprint before signing. The
+secret is injected only into the signing step, is never printed or uploaded,
+and no private signing material belongs in the repository or an updater
+binary.
 
 These maintainer commands are hidden from normal help because users do not need
 them during project work.

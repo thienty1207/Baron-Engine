@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
 use baron_core::release::{
-    supported_release_target, write_release_metadata, SUPPORTED_RELEASE_TARGETS,
+    supported_release_target, write_release_metadata_with_signing_key, SUPPORTED_RELEASE_TARGETS,
 };
 use predicates::prelude::*;
 use tempfile::tempdir;
@@ -45,6 +45,9 @@ fn snapshot_outside_update_workspace(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> 
             if relative.starts_with(Path::new(".baron/update")) {
                 continue;
             }
+            if relative == Path::new(".baron/.baron-mutation.lock") {
+                continue;
+            }
             if path.is_dir() {
                 collect(root, &path, files);
             } else if path.is_file() {
@@ -78,7 +81,14 @@ fn write_release_fixture(release: &Path, running_binary: &Path, release_version:
             fs::write(candidate, format!("other-target:{}", target.triple)).unwrap();
         }
     }
-    write_release_metadata(release, release_version, SOURCE_REVISION).unwrap();
+    write_release_metadata_with_signing_key(
+        release,
+        release_version,
+        SOURCE_REVISION,
+        "baron-debug-test-key",
+        &[7_u8; 32],
+    )
+    .unwrap();
 }
 
 #[test]

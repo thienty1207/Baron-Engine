@@ -1,12 +1,15 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
-use crate::control_plane::gate_evidence_status_strict;
-use crate::proof::{latest_proof, proof_has_current_receipt, proof_satisfies_risk};
+use crate::control_plane::gate_evidence_status_strict_for_scope;
+use crate::proof::{
+    latest_proof, proof_has_current_receipt, proof_receipt_context, proof_satisfies_risk,
+};
 use crate::risk::{classify_risk, RiskLane};
+use crate::safe_io::{read_text, read_text_required, replace_text};
 use crate::trace::{latest_trace_score, TraceTier};
 use crate::vault::VaultContext;
 
@@ -189,7 +192,14 @@ pub fn complete_plan(
             "security-auditor".to_string(),
             "test-engineer".to_string(),
         ];
-        let gate_status = gate_evidence_status_strict(repo_root, &required_agents)?;
+        let (_, proof_binding) = proof_receipt_context(&proof)?
+            .context("Plan completion blocked: proof receipt binding is missing.")?;
+        let gate_status = gate_evidence_status_strict_for_scope(
+            repo_root,
+            &required_agents,
+            &proof_binding.task_id,
+            &proof_binding.adapter,
+        )?;
         if !gate_status.passed {
             bail!(
                 "Plan completion blocked: trusted quality-gate receipts are missing for {}.",
@@ -244,10 +254,9 @@ pub fn complete_plan(
 pub fn plan_status(repo_root: impl AsRef<Path>) -> Result<String> {
     let repo_root = repo_root.as_ref();
     let path = repo_root.join("docs/baron/plans/CURRENT.md");
-    if !path.exists() {
+    let Some(current) = read_text(&path)? else {
         return Ok("# Baron Plan Status\n\n- Active plan: none\n".to_string());
-    }
-    let current = fs::read_to_string(path)?;
+    };
     let mut output = format!("# Baron Plan Status\n\n{current}");
     if current.contains("- Status: `completed`") {
         let issues = completion_integrity_issues(repo_root, &current)?;
@@ -274,7 +283,7 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
     let active = active_plan(repo_root)?;
     match active {
         Some(plan) if plan.path.is_file() => {
-            let body = fs::read_to_string(&plan.path)?;
+            let body = read_text_required(&plan.path)?;
             if !body.lines().any(|line| line == "status: completed") {
                 issues.push("plan file is not marked completed".to_string());
             }
@@ -301,7 +310,25 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
                     "security-auditor".to_string(),
                     "test-engineer".to_string(),
                 ];
-                if !gate_evidence_status_strict(repo_root, &required_agents)?.passed {
+                let gate_scope = latest_proof(repo_root)?
+                    .as_ref()
+                    .map(proof_receipt_context)
+                    .transpose()?
+                    .flatten();
+                let gates_passed = gate_scope
+                    .as_ref()
+                    .map(|(_, binding)| {
+                        gate_evidence_status_strict_for_scope(
+                            repo_root,
+                            &required_agents,
+                            &binding.task_id,
+                            &binding.adapter,
+                        )
+                        .map(|status| status.passed)
+                    })
+                    .transpose()?
+                    .unwrap_or(false);
+                if !gates_passed {
                     issues.push("trusted quality-gate evidence is missing".to_string());
                 }
             }
@@ -343,14 +370,21 @@ fn write_current(repo_root: &Path, vault: &VaultContext, view: CurrentPlanView<'
 
 fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
     let current_path = repo_root.join("docs/baron/plans/CURRENT.md");
-    if !current_path.exists() {
+    let Some(content) = read_text(&current_path)? else {
         return Ok(None);
-    }
-    let content = fs::read_to_string(&current_path)?;
+    };
     let title = field(&content, "- Title: ").unwrap_or_default();
     let path = field(&content, "- Plan: `")
         .and_then(|value| value.strip_suffix('`').map(str::to_string))
-        .map(|value| repo_root.join(value));
+        .map(|value| {
+            if !is_safe_plan_path(&value) {
+                return Err(anyhow::anyhow!(
+                    "Active Baron plan path escapes the project: {value}"
+                ));
+            }
+            Ok(repo_root.join(value))
+        })
+        .transpose()?;
     let status = field(&content, "- Status: `")
         .and_then(|value| value.strip_suffix('`').map(str::to_string))
         .unwrap_or_else(|| "in_progress".to_string());
@@ -381,7 +415,7 @@ fn field(content: &str, prefix: &str) -> Option<String> {
 }
 
 fn set_plan_state(path: &Path, status: &str, verification: Option<&str>) -> Result<()> {
-    let content = fs::read_to_string(path)?;
+    let content = read_text_required(path)?;
     let updated = now();
     let verification = verification.map(single_line);
     let updated = content
@@ -410,7 +444,7 @@ fn single_line(value: &str) -> String {
 }
 
 fn append_progress(path: &Path, note: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path)?;
+    let mut content = read_text_required(path)?;
     if !content.ends_with('\n') {
         content.push('\n');
     }
@@ -419,7 +453,7 @@ fn append_progress(path: &Path, note: &str) -> Result<()> {
 }
 
 fn mirror_plan(repo_root: &Path, vault: &VaultContext, plan_path: &Path) -> Result<()> {
-    let content = fs::read_to_string(plan_path)?;
+    let content = read_text_required(plan_path)?;
     write(&vault_plan_path(repo_root, vault, plan_path), &content)
 }
 
@@ -539,10 +573,17 @@ fn replace_plan_index_row(
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
+}
+
+fn is_safe_plan_path(value: &str) -> bool {
+    let path = Path::new(value);
+    !value.trim().is_empty()
+        && !value.contains('\\')
+        && !path.is_absolute()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
 }
 
 fn normalize(path: &Path, root: &Path) -> String {

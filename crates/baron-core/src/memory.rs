@@ -707,6 +707,7 @@ fn legacy_metadata(entry: &fs::DirEntry) -> CapsuleMetadata {
         schema_version: 1,
         project_id: format!("legacy:{}", hash(&slug)),
         project_slug: slug,
+        identity_binding: String::new(),
     }
 }
 

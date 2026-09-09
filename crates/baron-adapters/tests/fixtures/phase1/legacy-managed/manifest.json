@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "installed_version": "4.2.2",
+  "records": [
+    {
+      "adapter": "agent",
+      "relative_path": ".baron/core/skills/legacy/SKILL.md",
+      "base_sha256": "1d005ad443fde94b0424bafea23fe5aae52428a6c403f158f64ca97308157c5c",
+      "installed_version": "4.2.2",
+      "merge_kind": "full_text"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ pub struct ProjectIdentity {
     pub project_id: String,
     pub project_slug: String,
     pub capsule_key: String,
+    pub identity_binding: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -18,6 +19,8 @@ pub struct CapsuleMetadata {
     pub schema_version: u32,
     pub project_id: String,
     pub project_slug: String,
+    #[serde(default)]
+    pub identity_binding: String,
 }
 
 pub fn project_id_for_path(repo_root: &Path) -> Result<String> {
@@ -39,11 +42,28 @@ pub fn capsule_key(project_slug: &str, project_id: &str) -> String {
     format!("{project_slug}--{short_id}")
 }
 
-pub fn identity(project_slug: String, project_id: String) -> ProjectIdentity {
+pub fn identity(
+    project_slug: String,
+    project_id: String,
+    identity_binding: String,
+) -> ProjectIdentity {
     let capsule_key = capsule_key(&project_slug, &project_id);
     ProjectIdentity {
         project_id,
         project_slug,
         capsule_key,
+        identity_binding,
     }
+}
+
+/// Generate a stable per-project binding independent of repository location.
+/// It is stored in both project configuration and capsule metadata so a
+/// serialized project ID cannot be changed in isolation to select another
+/// project's capsule.
+pub fn new_identity_binding() -> anyhow::Result<String> {
+    let mut bytes = [0_u8; 32];
+    getrandom::getrandom(&mut bytes).map_err(|error| {
+        anyhow::anyhow!("Could not generate a secure Baron project identity binding: {error:?}")
+    })?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }

@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
 use assert_cmd::cargo::cargo_bin;
-use baron_core::release::{sha256_file, supported_release_target};
+use baron_core::release::{
+    supported_release_target, write_release_metadata_with_signing_key, SUPPORTED_RELEASE_TARGETS,
+};
 use tempfile::tempdir;
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -37,60 +39,85 @@ fn current_target() -> &'static str {
 }
 
 fn package_current_binary(source_dir: &Path) -> PathBuf {
-    let target = supported_release_target(current_target()).unwrap();
-    let archive = source_dir.join(target.archive_name(CURRENT_VERSION));
+    let current = supported_release_target(current_target()).unwrap();
     let binary = cargo_bin("baron");
 
-    #[cfg(target_os = "windows")]
-    {
-        let staging = source_dir.join("staging");
-        fs::create_dir_all(&staging).unwrap();
-        let staged_binary = staging.join("baron.exe");
-        fs::copy(&binary, &staged_binary).unwrap();
-        let command = format!(
-            "Compress-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
-            staged_binary.display().to_string().replace('\'', "''"),
-            archive.display().to_string().replace('\'', "''")
-        );
-        let status = ProcessCommand::new("powershell")
-            .args(["-NoProfile", "-Command", &command])
-            .status()
-            .unwrap();
-        assert!(status.success());
+    for target in SUPPORTED_RELEASE_TARGETS {
+        let archive = source_dir.join(target.archive_name(CURRENT_VERSION));
+        if target.triple != current.triple {
+            fs::write(&archive, format!("placeholder:{}", target.triple)).unwrap();
+            continue;
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            let staging = source_dir.join("staging");
+            fs::create_dir_all(&staging).unwrap();
+            let staged_binary = staging.join("baron.exe");
+            fs::copy(&binary, &staged_binary).unwrap();
+            let command = format!(
+                "Compress-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
+                staged_binary.display().to_string().replace('\'', "''"),
+                archive.display().to_string().replace('\'', "''")
+            );
+            let status = ProcessCommand::new("powershell")
+                .args(["-NoProfile", "-Command", &command])
+                .status()
+                .unwrap();
+            assert!(status.success());
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let staging = source_dir.join("staging");
+            fs::create_dir_all(&staging).unwrap();
+            fs::copy(&binary, staging.join("baron")).unwrap();
+            let status = ProcessCommand::new("tar")
+                .args(["-czf"])
+                .arg(&archive)
+                .arg("-C")
+                .arg(&staging)
+                .arg("baron")
+                .status()
+                .unwrap();
+            assert!(status.success());
+        }
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let staging = source_dir.join("staging");
-        fs::create_dir_all(&staging).unwrap();
-        fs::copy(&binary, staging.join("baron")).unwrap();
-        let status = ProcessCommand::new("tar")
-            .args(["-czf"])
-            .arg(&archive)
-            .arg("-C")
-            .arg(&staging)
-            .arg("baron")
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
-
-    let checksum = sha256_file(&archive).unwrap();
-    let raw_candidate = source_dir.join(target.update_candidate_name(CURRENT_VERSION));
-    fs::copy(&binary, &raw_candidate).unwrap();
-    let raw_candidate_checksum = sha256_file(&raw_candidate).unwrap();
-    fs::write(
-        source_dir.join("SHA256SUMS"),
-        format!(
-            "{}  {}\n{}  {}\n",
-            checksum,
-            archive.file_name().unwrap().to_string_lossy(),
-            raw_candidate_checksum,
-            raw_candidate.file_name().unwrap().to_string_lossy()
-        ),
+    write_release_metadata_with_signing_key(
+        source_dir,
+        CURRENT_VERSION,
+        "0123456789abcdef0123456789abcdef01234567",
+        "baron-debug-test-key",
+        &[7_u8; 32],
     )
     .unwrap();
-    archive
+    source_dir.join(current.archive_name(CURRENT_VERSION))
+}
+
+fn installer_copy_with_test_key(source_dir: &Path) -> PathBuf {
+    let source_name = if cfg!(target_os = "windows") {
+        "installers/install.ps1"
+    } else {
+        "installers/install.sh"
+    };
+    let destination = source_dir.join(if cfg!(target_os = "windows") {
+        "test-install.ps1"
+    } else {
+        "test-install.sh"
+    });
+    let mut script = fs::read_to_string(workspace_root().join(source_name)).unwrap();
+    script = script.replace("baron-release-2026", "baron-debug-test-key");
+    script = script.replace(
+        "SBgrmtK5emhgD5e6UW664fXR3qogCjVPHtrxeVk2TcA=",
+        "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=",
+    );
+    script = script.replace(
+        "MCowBQYDK2VwAyEASBgrmtK5emhgD5e6UW664fXR3qogCjVPHtrxeVk2TcA=",
+        "MCowBQYDK2VwAyEA6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=",
+    );
+    fs::write(&destination, script).unwrap();
+    destination
 }
 
 #[test]
@@ -120,6 +147,29 @@ fn installer_scripts_enforce_checksum_and_data_safety_contracts() {
 }
 
 #[test]
+fn installer_scripts_require_pinned_signed_metadata_before_mutation() {
+    let root = workspace_root();
+    let powershell = fs::read_to_string(root.join("installers/install.ps1")).unwrap();
+    let shell = fs::read_to_string(root.join("installers/install.sh")).unwrap();
+    for script in [&powershell, &shell] {
+        assert!(script.contains("baron-release-2026"));
+        assert!(script.contains("SBgrmtK5emhgD5e6UW664fXR3qogCjVPHtrxeVk2TcA="));
+        assert!(script.contains("release-manifest.sig"));
+        assert!(script.contains("pkeyutl"));
+        assert!(script.contains("refusing") || script.contains("Refusing"));
+    }
+    assert!(shell.contains("OpenSSL with Ed25519 support"));
+    assert!(powershell.contains("OpenSSL with Ed25519 support"));
+    assert!(shell.find("pkeyutl").unwrap() < shell.find("mv \"$staged_binary\"").unwrap());
+    assert!(
+        powershell.find("pkeyutl").unwrap()
+            < powershell
+                .find("Move-Item -LiteralPath $stagedBinary")
+                .unwrap()
+    );
+}
+
+#[test]
 fn installer_scripts_resolve_latest_without_github_api_quota() {
     let root = workspace_root();
     let powershell = fs::read_to_string(root.join("installers/install.ps1")).unwrap();
@@ -141,6 +191,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
     fs::create_dir_all(&source).unwrap();
     fs::write(&data_sentinel, "must survive").unwrap();
     package_current_binary(&source);
+    let installer = installer_copy_with_test_key(&source);
 
     #[cfg(target_os = "windows")]
     let run = |action: &str| {
@@ -151,10 +202,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                workspace_root()
-                    .join("installers/install.ps1")
-                    .to_str()
-                    .unwrap(),
+                installer.to_str().unwrap(),
                 "-Action",
                 action,
                 "-Version",
@@ -173,7 +221,7 @@ fn native_installer_supports_install_update_rollback_and_uninstall() {
     let run = |action: &str| {
         ProcessCommand::new("sh")
             .env("BARON_STATE_DIR", &state)
-            .arg(workspace_root().join("installers/install.sh"))
+            .arg(&installer)
             .args([
                 "--action",
                 action,
@@ -218,6 +266,7 @@ fn powershell_installer_makes_baron_available_in_the_current_session() {
     let state = temp.path().join("state");
     fs::create_dir_all(&source).unwrap();
     package_current_binary(&source);
+    let installer = installer_copy_with_test_key(&source);
 
     let script = format!(
         r#"
@@ -237,11 +286,7 @@ try {{
     [Environment]::SetEnvironmentVariable("Path", $oldUserPath, "User")
 }}
 "#,
-        installer = workspace_root()
-            .join("installers/install.ps1")
-            .display()
-            .to_string()
-            .replace('\'', "''"),
+        installer = installer.display().to_string().replace('\'', "''"),
         install = install.display().to_string().replace('\'', "''"),
         source = source.display().to_string().replace('\'', "''"),
         state = state.display().to_string().replace('\'', "''"),
@@ -270,6 +315,55 @@ try {{
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn powershell_installer_rejects_signature_tampering_before_touching_existing_binary() {
+    let temp = tempdir().unwrap();
+    let source = temp.path().join("release");
+    let install = temp.path().join("install");
+    let state = temp.path().join("state");
+    fs::create_dir_all(&source).unwrap();
+    package_current_binary(&source);
+    let installer = installer_copy_with_test_key(&source);
+    fs::create_dir_all(&install).unwrap();
+    let existing = install.join("baron.exe");
+    fs::write(&existing, b"existing-binary").unwrap();
+
+    let mut signature: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(source.join("release-manifest.sig")).unwrap())
+            .unwrap();
+    signature["signature"] = serde_json::json!("00".repeat(64));
+    fs::write(
+        source.join("release-manifest.sig"),
+        serde_json::to_string(&signature).unwrap(),
+    )
+    .unwrap();
+
+    let output = ProcessCommand::new("powershell")
+        .env("BARON_STATE_DIR", &state)
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            installer.to_str().unwrap(),
+            "-Action",
+            "install",
+            "-Version",
+            CURRENT_VERSION,
+            "-InstallDir",
+            install.to_str().unwrap(),
+            "-SourceDirectory",
+            source.to_str().unwrap(),
+            "-NoPathUpdate",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert_eq!(fs::read(&existing).unwrap(), b"existing-binary");
+    assert!(!state.exists());
 }
 
 #[test]

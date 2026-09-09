@@ -15,7 +15,7 @@ fn review_finding_requires_evidence_to_close() {
         .args([
             "init",
             repo.to_str().unwrap(),
-            "--agent",
+            "--codex",
             "--frontend",
             "--vault",
             vault.to_str().unwrap(),

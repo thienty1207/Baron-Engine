@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::code_graph::compute_code_source_fingerprint;
-use crate::firewall::recall_v5;
+use crate::firewall::trusted_recall_current;
 use crate::knowledge::{redact_sensitive, LocalCodeGraph};
 use crate::memory::{load_memory_records, MemoryStatus};
 use crate::semantic::{rank_documents_v42, SemanticDocument};
@@ -358,7 +358,7 @@ pub fn temporal_report(
 }
 
 pub fn temporal_entry_is_current(entry: &TemporalEntry, at: DateTime<Utc>) -> bool {
-    if entry.tombstone || entry.superseded_by.is_some() {
+    if entry.contested || entry.tombstone || entry.superseded_by.is_some() {
         return false;
     }
     let valid_from = DateTime::parse_from_rfc3339(&entry.valid_from)
@@ -525,7 +525,7 @@ pub fn build_grounded_handoff(
         .filter(|value| !value.is_empty())
         .unwrap_or("current work and next safe action")
         .to_string();
-    let recall = recall_v5(context, &task, 12)?;
+    let recall = trusted_recall_current(context, &task, 12)?;
     let ledger = load_temporal_ledger(context).ok();
     let now = Utc::now();
     let mut claims = Vec::new();

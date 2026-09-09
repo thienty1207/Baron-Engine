@@ -1,21 +1,50 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-08-20",
-  "stableRelease": "4.2.2",
-  "downloadableRelease": "4.2.2",
-  "candidateSourceVersion": "4.2.2",
-  "releasePromotionStatus": "published",
+  "lastUpdated": "2026-09-09",
+  "stableRelease": "5.0.0",
+  "downloadableRelease": "5.0.0",
+  "candidateSourceVersion": "5.0.0",
+  "releasePromotionStatus": "candidate",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "4.2.2",
+  "targetRelease": "5.0.0",
   "targetReleaseCompletionPercent": 100,
-  "programTargetRelease": "4.2.2",
+  "programTargetRelease": "5.0.0",
   "programCompletionPercent": 100,
+  "supportedAdapters": [
+    "codex",
+    "claude"
+  ],
   "remainingPhaseCount": 0,
-  "currentPhase": "baron-4-2-2-release-phase-120",
-  "currentPhaseStatus": "completed",
-  "nextAction": "Normal 4.2.2 maintenance; Codex, Claude, Reasonix, and generic adapters now materialize the same Baron core while preserving native bridges and user files.",
+  "currentPhase": "baron-codex-claude-core-phase-16",
+  "currentPhaseStatus": "release candidate",
+  "nextAction": "Push the verified 5.0.0 candidate, wait for required hosted CI, then create and verify the annotated v5.0.0 tag and GitHub Release.",
+  "securityRemediation": {
+    "status": "complete",
+    "sec03": "closed",
+    "sec04": "closed",
+    "reason": "Authenticated release metadata, pinned production trust, bootstrap installer verification, immutable workflow action pins, exact release identity, and current-operation receipt authority are implemented and tested. The final native scan found zero reportable findings; TAC is unavailable on this host and the remote bootstrap-script self-authentication boundary is documented.",
+    "securityScan": {
+      "tool": "Codex Security",
+    "scanId": "450e2e04-14c0-40d5-985c-9579637e4a35",
+      "snapshotWarning": false,
+      "coverage": "partial",
+      "validatedHighFindings": []
+    },
+    "tac": "unavailable: connector_openai_codex_security_access is not connected"
+  },
+  "refactorTrack": {
+    "name": "Codex + Claude Core Consolidation",
+    "status": "phase-16-release-candidate",
+    "phase": 16,
+    "totalPhases": 16,
+    "completionPercent": 100,
+    "productionChanges": true,
+    "nextAction": "Publish the verified 5.0.0 candidate through hosted CI and the immutable release workflow.",
+    "activePlan": "docs/superpowers/plans/2026-09-09-final-adversarial-verification-phase16.md",
+    "scope": "Complete the verified 5.0.0 candidate through commit, hosted CI, protected signing preflight, tag, and GitHub Release."
+  },
   "maintenanceTrack": {
-    "name": "Baron Reasonix Adapter Compatibility",
+    "name": "Legacy Adapter Compatibility",
     "status": "completed",
     "releaseLine": "4.2.0",
     "versionBump": false,
@@ -23,12 +52,12 @@
     "phaseCount": 8,
     "completionPercent": 100,
     "currentPhase": "Phase 108 root adapter shortcut UX (completed)",
-    "nextAction": "Normal 4.2.0 maintenance; use baron --reasonix or baron --codex for daily switching; no 4.3 release is created.",
+    "nextAction": "Legacy compatibility is migration-only; initialize an explicit supported integration for new work.",
     "finalPublicationPhase": 108,
     "noEngineChange": true
   },
   "patchReleaseTrack": {
-    "name": "Baron 4.2.1 Reasonix packaging patch",
+    "name": "Baron 4.2.1 legacy packaging patch",
     "status": "completed",
     "releaseLine": "4.2.1",
     "versionBump": true,
@@ -36,7 +65,7 @@
     "phaseCount": 4,
     "completionPercent": 100,
     "currentPhase": "Phase 112 immutable GitHub publication and handoff (completed)",
-    "nextAction": "Normal 4.2.1 maintenance; preserve the shared-brain adapter path and the narrowly scoped Windows policy exception.",
+    "nextAction": "Historical release metadata remains in Git history; current product surfaces are being cleaned up.",
     "finalPublicationPhase": 112,
     "noEngineChange": true
   },
@@ -79,7 +108,7 @@
     "publicWindowsArchiveSha256": "B298E7007CC060C5AAD1B0B11AB4C618C461ABAC8473B81A5A1EE38029D55A4B",
     "noEngineChange": true
   },
-  "buildConfidence": "Baron 4.2 local release-profile acceptance passed three raw runs at 100/100 and an executable private eight-case holdout at 100/100. Baron 4.2.2 hosted CI and immutable Release promotion passed exact-source verification, Clippy, all four native targets, fresh public release assets, checksums, Reasonix shared-core parity, 4.0 fallback, and 4.1 rollback smoke.",
+  "buildConfidence": "Baron 4.2 local release-profile acceptance passed three raw runs at 100/100 and an executable private eight-case holdout at 100/100. Baron 4.2.2 hosted CI and immutable Release promotion passed exact-source verification, Clippy, all four native targets, fresh public release assets, checksums, retired adapter shared-core parity, 4.0 fallback, and 4.1 rollback smoke.",
   "openFollowUpCount": 3,
   "openFollowUps": [
     "real-repository and large-corpus scale budgets",
@@ -135,9 +164,9 @@
       "contractId": "432846e9aa5088a87a3c8ba2785cfc6c21a8afc12c6536fc8a78447c92b5b39a",
       "sourceRevision": "545cf6ca6ef8a92886c09dc2bfd38c101edf43408a121a87eba408fde81a562d",
       "baronScores": {
-                        "long_term_memory_l0_l3": 100,
-                        "semantic_retrieval_grounded_synthesis": 100,
-                        "automatic_session_learning": 100,
+        "long_term_memory_l0_l3": 100,
+        "semantic_retrieval_grounded_synthesis": 100,
+        "automatic_session_learning": 100,
         "wiki": 100,
         "codegraph": 100
       },
@@ -156,7 +185,11 @@
     },
     "acceptance": {
       "contractId": "432846e9aa5088a87a3c8ba2785cfc6c21a8afc12c6536fc8a78447c92b5b39a",
-      "scores": [100, 100, 100],
+      "scores": [
+        100,
+        100,
+        100
+      ],
       "stable": true,
       "holdoutExecuted": true,
       "holdoutScore": 100,
@@ -186,30 +219,126 @@
       "releasePromotion": true
     },
     "phases": [
-      { "id": 77, "name": "Benchmark contract", "status": "completed" },
-      { "id": 78, "name": "Semantic retrieval fusion", "status": "completed" },
-      { "id": 79, "name": "Automatic session learning", "status": "completed" },
-      { "id": 80, "name": "Temporal truth and consolidation", "status": "completed" },
-      { "id": 81, "name": "Grounded memory synthesis and handoff", "status": "completed" },
-      { "id": 82, "name": "Wiki intelligence", "status": "completed" },
-      { "id": 83, "name": "CodeGraph depth and impact", "status": "completed" },
-      { "id": 84, "name": "Scale, sync, and recovery", "status": "completed" },
-      { "id": 85, "name": "Safety, cost, and 4.0 fallback", "status": "completed" },
-      { "id": 86, "name": "Baron-only internal acceptance", "status": "completed" },
-      { "id": 87, "name": "Version, README, GitHub, and reinstall", "status": "completed" },
-      { "id": 88, "name": "Practical perfection contract and 4.1 truth audit", "status": "completed" },
-      { "id": 89, "name": "Private real-session ground truth and sealed evaluation", "status": "completed" },
-      { "id": 90, "name": "Evidence-native memory schema and project firewall", "status": "completed" },
-      { "id": 91, "name": "Calibrated semantic retrieval and reranking", "status": "completed" },
-      { "id": 92, "name": "Task-segmented session learning and poisoning defense", "status": "completed" },
-      { "id": 93, "name": "Bi-temporal truth, conflict resolution, and reversible consolidation", "status": "completed" },
-      { "id": 94, "name": "Grounded synthesis, abstention, and 4.0 arbitration", "status": "completed" },
-      { "id": 95, "name": "Fresh Wiki knowledge graph", "status": "completed" },
-      { "id": 96, "name": "Parser-backed incremental CodeGraph and impact intelligence", "status": "completed" },
-      { "id": 97, "name": "Cross-agent resume, adapter parity, and shadow operation", "status": "completed" },
-      { "id": 98, "name": "Scale, concurrency, fault injection, security, and cost", "status": "completed" },
-      { "id": 99, "name": "Integrated 4.2 acceptance and no-regression decision", "status": "completed" },
-      { "id": 100, "name": "Baron 4.2 public GitHub release, README, reinstall, and rollback", "status": "completed" }
+      {
+        "id": 77,
+        "name": "Benchmark contract",
+        "status": "completed"
+      },
+      {
+        "id": 78,
+        "name": "Semantic retrieval fusion",
+        "status": "completed"
+      },
+      {
+        "id": 79,
+        "name": "Automatic session learning",
+        "status": "completed"
+      },
+      {
+        "id": 80,
+        "name": "Temporal truth and consolidation",
+        "status": "completed"
+      },
+      {
+        "id": 81,
+        "name": "Grounded memory synthesis and handoff",
+        "status": "completed"
+      },
+      {
+        "id": 82,
+        "name": "Wiki intelligence",
+        "status": "completed"
+      },
+      {
+        "id": 83,
+        "name": "CodeGraph depth and impact",
+        "status": "completed"
+      },
+      {
+        "id": 84,
+        "name": "Scale, sync, and recovery",
+        "status": "completed"
+      },
+      {
+        "id": 85,
+        "name": "Safety, cost, and 4.0 fallback",
+        "status": "completed"
+      },
+      {
+        "id": 86,
+        "name": "Baron-only internal acceptance",
+        "status": "completed"
+      },
+      {
+        "id": 87,
+        "name": "Version, README, GitHub, and reinstall",
+        "status": "completed"
+      },
+      {
+        "id": 88,
+        "name": "Practical perfection contract and 4.1 truth audit",
+        "status": "completed"
+      },
+      {
+        "id": 89,
+        "name": "Private real-session ground truth and sealed evaluation",
+        "status": "completed"
+      },
+      {
+        "id": 90,
+        "name": "Evidence-native memory schema and project firewall",
+        "status": "completed"
+      },
+      {
+        "id": 91,
+        "name": "Calibrated semantic retrieval and reranking",
+        "status": "completed"
+      },
+      {
+        "id": 92,
+        "name": "Task-segmented session learning and poisoning defense",
+        "status": "completed"
+      },
+      {
+        "id": 93,
+        "name": "Bi-temporal truth, conflict resolution, and reversible consolidation",
+        "status": "completed"
+      },
+      {
+        "id": 94,
+        "name": "Grounded synthesis, abstention, and 4.0 arbitration",
+        "status": "completed"
+      },
+      {
+        "id": 95,
+        "name": "Fresh Wiki knowledge graph",
+        "status": "completed"
+      },
+      {
+        "id": 96,
+        "name": "Parser-backed incremental CodeGraph and impact intelligence",
+        "status": "completed"
+      },
+      {
+        "id": 97,
+        "name": "Cross-agent resume, adapter parity, and shadow operation",
+        "status": "completed"
+      },
+      {
+        "id": 98,
+        "name": "Scale, concurrency, fault injection, security, and cost",
+        "status": "completed"
+      },
+      {
+        "id": 99,
+        "name": "Integrated 4.2 acceptance and no-regression decision",
+        "status": "completed"
+      },
+      {
+        "id": 100,
+        "name": "Baron 4.2 public GitHub release, README, reinstall, and rollback",
+        "status": "completed"
+      }
     ],
     "implementedCandidateEvidence": [
       "hash-sealed contract and honest target_not_achieved benchmark report",
@@ -270,7 +399,7 @@
     "SQLite cache is accelerator only and rebuildable",
     "memory firewall prevents shared-vault project noise",
     "context compiler produces bounded task-relevant context",
-    "Codex Claude and generic adapters work",
+    "Codex and Claude adapters work",
     "Superpowers remains the sole workflow core and its vendored upstream subtree is revision pinned provenance tracked adapter consistent and locally verified",
     "three core quality agents are shipped and routed",
     "optional frontend and security skills are shipped and lazy-routed",
@@ -315,7 +444,11 @@
       "status": "completed",
       "roadmapWeightPercent": 3,
       "completionPercent": 3,
-      "proof": ["cargo test", "help smoke", "initial commit"]
+      "proof": [
+        "cargo test",
+        "help smoke",
+        "initial commit"
+      ]
     },
     {
       "id": 1,
@@ -409,7 +542,7 @@
         "graceful degradation and required-gap tests",
         "bounded context summary tests",
         "structured proof and trace execution-evidence tests",
-        "Codex Claude and generic automatic startup tests",
+        "Codex and Claude automatic startup tests",
         "full workspace tests and Clippy"
       ]
     },
@@ -643,7 +776,7 @@
       "requiredProof": [
         "full cargo test workspace all targets passes",
         "cargo clippy workspace all targets with warnings denied passes",
-        "Codex Claude and generic adapter smoke tests pass",
+        "Codex and Claude adapter smoke tests pass",
         "old-repo migration and shared Vault stress smoke pass",
         "docs status JSON build logs README and command surface stay synchronized",
         "release metadata and installer lifecycle checks pass"
@@ -657,7 +790,7 @@
       "completionPercent": 100,
       "requiredProof": [
         "README exposes the normal user flow without dumping automation commands",
-        "public demo documents Codex Claude and generic agent flows for a 10-year repo",
+        "public demo documents Codex and Claude flows for a 10-year repo",
         "public docs explain Baron through Baron-owned demo and certification evidence",
         "public certification snapshot lists tests smoke checks release latest and migration proof",
         "release docs explain tag publication and releases/latest behavior",
@@ -754,7 +887,7 @@
       "targetReleaseWeightPercent": 15,
       "completionPercent": 100,
       "requiredProof": [
-        "Codex Claude and generic adapters automate the new lifecycle",
+        "Codex and Claude adapters automate the new lifecycle",
         "all platform fixtures and fullstack to mobile expansion smoke pass",
         "existing irregular repository remains intact",
         "full workspace format Clippy installer and release verification passes",
@@ -771,7 +904,7 @@
         "read only change and ambiguous authority classification",
         "change outcome wins over mixed review wording",
         "English and Vietnamese intent fixtures",
-        "Codex Claude and generic adapter no mutation rules",
+        "Codex and Claude adapter no mutation rules",
         "core CLI and adapter RED GREEN tests"
       ]
     },
@@ -813,7 +946,7 @@
       "requiredProof": [
         "runtime installers adapters tests and manifests read or embed assets core only",
         "all seven stale blueprints core files are removed after a no runtime reference RED GREEN test",
-        "Codex Claude and generic installed assets still match assets core after cleanup",
+        "Codex and Claude installed assets still match assets core after cleanup",
         "managed baseline manifest and exact baseline copies use safe repository relative paths and refuse symlink or junction traversal",
         "baseline copy hashes are verified before deterministic BASE LOCAL UPSTREAM decision tests pass",
         "marker routing JSON and full text ownership rules preserve user content",
@@ -864,7 +997,7 @@
       "requiredProof": [
         "public baron update remains the one command human authorized update flow",
         "AI baron automation reconcile remains local only and cannot download or replace the runtime",
-        "Codex Claude and generic adapter contracts separate local repair from release authority",
+        "Codex and Claude adapter contracts separate local repair from release authority",
         "one time pre 3.4 installer bootstrap is documented honestly",
         "full workspace format Clippy release build YAML installer candidate conflict recovery and real project Vault smoke pass",
         "version source docs tests runtime assets release metadata and installers agree at 3.4.0 before source push"
@@ -881,7 +1014,7 @@
         "frontend design remains the single frontend skill owner",
         "brief fingerprint anti template responsive and state proof references are local and bounded",
         "Hallmark does not become a runtime dependency installer command or duplicate skill",
-        "Codex Claude and generic adapter behavior pressure tests pass"
+        "Codex and Claude adapter behavior pressure tests pass"
       ]
     },
     {
@@ -1118,7 +1251,7 @@
       "completionPercent": 100,
       "requiredProof": [
         "context emits a bounded Resume Brief from current evidence",
-        "Codex, Claude, and generic adapters retain the shared contract"
+        "Codex and Claude adapters retain the shared contract"
       ]
     },
     {
@@ -1213,482 +1346,655 @@
       "targetReleaseWeightPercent": 14,
       "completionPercent": 100,
       "requiredProof": [
-          "source/docs/version/status synchronize at 3.8.0",
-          "exact commit is pushed and the immutable v3.8.0 Release assets are installable"
-        ]
-      },
-      {
-        "id": 65,
-        "name": "Ground-Truth 9/10 Score Contract",
-        "status": "completed_with_limits",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 8,
-        "completionPercent": 40,
-        "requiredProof": [
-          "versioned sixteen-case four-surface benchmark with separate baseline/candidate results",
+        "source/docs/version/status synchronize at 3.8.0",
+        "exact commit is pushed and the immutable v3.8.0 Release assets are installable"
+      ]
+    },
+    {
+      "id": 65,
+      "name": "Ground-Truth 9/10 Score Contract",
+      "status": "completed_with_limits",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 40,
+      "requiredProof": [
+        "versioned sixteen-case four-surface benchmark with separate baseline/candidate results",
         "docs/assessment/baron-4.0-benchmark.json and .md",
-          "zero cross-project leakage; clean cache/Vault rerun, 16-case expansion, Windows environment metadata, and independent 3.8/4.0 scorecards are recorded; real-repository and adversarial scale breadth remains a documented follow-up"
-        ]
-      },
-      {
-        "id": 66,
-        "name": "Layered Memory Abstraction And Trust",
-        "status": "completed",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 9,
-        "completionPercent": 38,
-        "requiredProof": ["L0-L3 abstraction and trust separation", "frontmatter labels, project firewall, and bounded rebuild proof; full migration remains follow-up"]
-      },
-      {
-        "id": 67,
-        "name": "Consolidation Conflict And Supersession",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 8,
-        "completionPercent": 35,
-        "requiredProof": ["read-only deterministic duplicate/conflict/supersession analysis", "authority explanations and atomic reviewable staging; durable temporal compaction remains follow-up"]
-      },
-      {
-        "id": 68,
-        "name": "Local Semantic Retrieval And Reranking",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 12,
-        "completionPercent": 32,
-        "requiredProof": ["local hybrid retrieval and pre-ranking firewall", "bounded reranking, score explanations, and automatic 3.8 recovery fallback"]
-      },
-      {
-        "id": 69,
-        "name": "Grounded Synthesis And Cross-Agent Handoff",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 9,
-        "completionPercent": 36,
-        "requiredProof": ["cited grounded Resume Brief", "project identity, blockers, unknowns, proof, and bounded 902-character handoff evidence"]
-      },
-      {
-        "id": 70,
-        "name": "Linked Wiki Knowledge Graph",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 10,
-        "completionPercent": 42,
-        "requiredProof": ["bounded linked two-hop Wiki retrieval", "exact citations, link paths, freshness labels, and project-bound rebuild evidence"]
-      },
-      {
-        "id": 71,
-        "name": "AST CodeGraph And Impact Intelligence",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 11,
-        "completionPercent": 42,
-        "requiredProof": ["language-aware symbols/imports/calls/impact", "source spans, incremental source verification, and project isolation evidence"]
-      },
-      {
-        "id": 72,
-        "name": "Security Intelligence And AppSec Expansion",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 8,
-        "completionPercent": 30,
-        "requiredProof": ["defensive static AppSec boundary", "vibe-security ownership, reverse-static routing, redaction, and advisory evidence"]
-      },
-      {
-        "id": 73,
-        "name": "Authorized Adversary Assessment And Lab Safety",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 8,
-        "completionPercent": 32,
-        "requiredProof": ["authorization/scope/safety contract", "nine-case fail-closed routing regression; dynamic lab execution remains intentionally disabled"]
-      },
-      {
-        "id": 74,
-        "name": "Security Routing Tool Governance And Regression",
-        "status": "in_progress",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 5,
-        "completionPercent": 36,
-        "requiredProof": ["deterministic security route matrix", "nine-case regression, project scope, allowlist, offensive-intent, and missing-auth hard stops"]
-      },
-      {
-        "id": 75,
-        "name": "Integrated Security Scale Cost And 9/10 Acceptance",
-        "status": "completed_with_limits",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 7,
-        "completionPercent": 78,
-        "requiredProof": ["integrated 100/100 acceptance, four independent 100/100 surfaces, zero leakage, nine security cases, static scan, bounded handoff, and cache identity; native release evidence passed while scale/cost breadth remains a follow-up"]
-      },
-      {
-        "id": 76,
-        "name": "Baron 4.0 Public GitHub Release And Recovery Install",
-        "status": "completed",
-        "release": "4.0.0",
-        "targetReleaseWeightPercent": 5,
-        "completionPercent": 100,
-        "requiredProof": ["versioned 4.0.0 source and README are public", "native matrix, checksums, immutable v4.0.0 Release, and fresh public Windows install passed", "https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831", "https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0"]
-      },
-      {
-        "id": 77,
-        "name": "Baron 4.1 Owner-Approved Local Intelligence Baseline",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["public v4.1.0 baseline", "Baron-only release evidence retained for comparison"]
-      },
-      {
-        "id": 78,
-        "name": "Baron 4.1 Semantic Retrieval Fusion",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["deterministic project-filtered semantic fusion retained as 4.1 baseline"]
-      },
-      {
-        "id": 79,
-        "name": "Baron 4.1 Automatic Session Learning",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["redacted evidence-linked candidate-only learning retained as 4.1 baseline"]
-      },
-      {
-        "id": 80,
-        "name": "Baron 4.1 Temporal Truth",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["project-bound temporal ledger and rollback retained as 4.1 baseline"]
-      },
-      {
-        "id": 81,
-        "name": "Baron 4.1 Grounded Handoff",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["bounded cited handoff and 4.0 fallback retained as 4.1 baseline"]
-      },
-      {
-        "id": 82,
-        "name": "Baron 4.1 Wiki Intelligence",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["semantic Wiki and stale-cache rebuild retained as 4.1 baseline"]
-      },
-      {
-        "id": 83,
-        "name": "Baron 4.1 CodeGraph Depth",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["local CodeGraph and impact path retained as 4.1 baseline"]
-      },
-      {
-        "id": 84,
-        "name": "Baron 4.1 Scale Sync And Recovery",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["release-profile resource and rebuild evidence retained as 4.1 baseline"]
-      },
-      {
-        "id": 85,
-        "name": "Baron 4.1 Safety Cost And 4.0 Fallback",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["project firewall, poisoning quarantine, cost, and explicit 4.0 fallback retained as 4.1 baseline"]
-      },
-      {
-        "id": 86,
-        "name": "Baron 4.1 Baron-Only Acceptance",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["three repeated release-binary runner artifacts retained as 4.1 baseline"]
-      },
-      {
-        "id": 87,
-        "name": "Baron 4.1 Public GitHub Release And Reinstall",
-        "status": "completed",
-        "release": "4.1.0",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["public v4.1.0 source, README, native Release, and fresh Windows install"]
-      },
-      {
-        "id": 88,
-        "name": "Practical Perfection Contract And Baron 4.1 Truth Audit",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 8,
-        "completionPercent": 100,
-        "requiredProof": ["hash-sealed correctness contract", "reproduced 4.1/4.0 baselines", "owner-approved design/plan/status/build checkpoint"]
-      },
-      {
-        "id": 89,
-        "name": "Private Real-Session Ground Truth And Sealed Evaluation",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 9,
-        "completionPercent": 100,
-        "requiredProof": ["eight-case redacted private holdout outside Git/Vault", "executed sealed holdout", "independent gold evaluator; raw owner sessions not supplied"]
-      },
-      {
-        "id": 90,
-        "name": "Evidence-Native Memory Schema And Project Firewall",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 8,
-        "completionPercent": 100,
-        "requiredProof": ["complete provenance envelope", "project-partitioned state", "zero-leakage matrix"]
-      },
-      {
-        "id": 91,
-        "name": "Calibrated Semantic Retrieval And Reranking",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 12,
-        "completionPercent": 100,
-        "requiredProof": ["exact/lexical/dense/reranked retrieval", "calibration and abstention", "Recall@10/nDCG@10 gates"]
-      },
-      {
-        "id": 92,
-        "name": "Task-Segmented Session Learning And Poisoning Defense",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 10,
-        "completionPercent": 100,
-        "requiredProof": ["task segmentation", "noise/dedup/poisoning gates", "candidate-only real-session evidence"]
-      },
-      {
-        "id": 93,
-        "name": "Bi-Temporal Truth Conflict Resolution And Reversible Consolidation",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 10,
-        "completionPercent": 100,
-        "requiredProof": ["current/as-of/conflict correctness", "atomic evidence-preserving rollback"]
-      },
-      {
-        "id": 94,
-        "name": "Grounded Synthesis Abstention And Baron 4.0 Arbitration",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 7,
-        "completionPercent": 100,
-        "requiredProof": ["claim-level citations", "accurate generation labels", "unknown/4.0 fallback matrix"]
-      },
-      {
-        "id": 95,
-        "name": "Fresh Wiki Knowledge Graph",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 8,
-        "completionPercent": 100,
-        "requiredProof": ["freshness/entity/link graph", "cited multi-hop answers", "incremental rebuild parity"]
-      },
-      {
-        "id": 96,
-        "name": "Parser-Backed Incremental CodeGraph And Impact Intelligence",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 12,
-        "completionPercent": 100,
-        "requiredProof": ["four-language parser graph", "directional relation/source-span accuracy", "incremental impact gates"]
-      },
-      {
-        "id": 97,
-        "name": "Cross-Agent Resume Adapter Parity And Shadow Operation",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 5,
-        "completionPercent": 100,
-        "requiredProof": ["Codex/Claude/generic parity", "shadow-safe fresh-agent resume"]
-      },
-      {
-        "id": 98,
-        "name": "Scale Concurrency Fault Injection Security And Cost",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 5,
-        "completionPercent": 100,
-        "requiredProof": ["long-history and multi-agent budgets", "fault/security/asset integrity matrix"]
-      },
-      {
-        "id": 99,
-        "name": "Integrated 4.2 Acceptance And No-Regression Decision",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 3,
-        "completionPercent": 100,
-        "requiredProof": ["raw 4.2 vs 4.1/4.0 per-case report", "three clean/warm repetitions", "promote/reject verdict"]
-      },
-      {
-        "id": 100,
-        "name": "Baron 4.2 Public GitHub Release README Reinstall And Rollback",
-        "status": "completed",
-        "release": "4.2.0",
-        "targetReleaseWeightPercent": 3,
-        "completionPercent": 100,
-        "requiredProof": ["exact 4.2.0 source and README", "native matrix/checksums/immutable Release", "fresh install and 4.1/4.0 rollback"]
-      },
-      {
-        "id": 101,
-        "name": "Reasonix Shared-Brain Adapter Identity",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["Reasonix enum/CLI/config/context/automation mapping", "backward-compatible active_adapter", "shared project ID and Vault tests"]
-      },
-      {
-        "id": 102,
-        "name": "Reasonix Native Assets And Commands",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["managed REASONIX.md", "bounded .reasonix command assets", "correct reasonix context and lifecycle commands"]
-      },
-      {
-        "id": 103,
-        "name": "Reasonix Non-Destructive Install And Update",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["unmarked user files preserved", "managed baseline update", "ambiguous conflict refuses overwrite"]
-      },
-      {
-        "id": 104,
-        "name": "Shared-Brain Adapter Switch And Rollback",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["adapter status/switch CLI", "shared adapter-switch event", "Codex -> Reasonix -> Codex continuity"]
-      },
-      {
-        "id": 105,
-        "name": "Reasonix Compatibility And Preservation Tests",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["core/CLI/adapter tests", "GoGetSomeFoodFerris-shaped read-only fixture", "malformed settings and identity mismatch gates"]
-      },
-      {
-        "id": 106,
-        "name": "Reasonix Documentation And 4.2.0 Truth Sync",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["README/command surface/adapter architecture updated", "status/build log synchronized", "no 4.3 version claim"]
-      },
-      {
-        "id": 107,
-        "name": "Reasonix Adapter Final Verification And GitHub Publication",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["format/tests/Clippy/release smoke", "every completed task marked x", "intended commit pushed and remote/worktree verified clean", "no v4.3.0 tag or Release"]
-      },
-      {
-        "id": 108,
-        "name": "Root Adapter Shortcut UX",
-        "status": "completed",
-        "release": "4.2.0-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["baron --reasonix and --codex shortcuts", "shared project/Vault switch tests", "README/command surface updated", "no version bump"]
-      },
-      {
-        "id": 113,
-        "name": "Shared Multi-Agent Core Inventory Contract",
-        "status": "completed",
-        "release": "4.2.1-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["assets/core source-of-truth contract", "identical skill and agent payload inventory", "adapter-specific bridge boundary"]
-      },
-      {
-        "id": 114,
-        "name": "Full Reasonix Core Materialization",
-        "status": "completed",
-        "release": "4.2.1-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["Reasonix skill and agent views", "root/skill/agent indexes", "same startup workflow and quality-gate contract"]
-      },
-      {
-        "id": 115,
-        "name": "Safe Cross-Adapter Reconciliation And Switching",
-        "status": "completed",
-        "release": "4.2.1-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["missing asset restoration", "changed/unmarked conflict preservation", "shared project ID and Vault switch"]
-      },
-      {
-        "id": 116,
-        "name": "Cross-Adapter Core Parity And Regression Proof",
-        "status": "completed",
-        "release": "4.2.1-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["Codex/Reasonix content parity", "round-trip switch preservation", "existing engine/core/CLI/release suites"]
-      },
-      {
-        "id": 117,
-        "name": "Multi-Agent Parity Documentation And Handoff",
-        "status": "completed",
-        "release": "4.2.1-maintenance",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["README/architecture/status/build-log sync", "all tasks marked x", "version remains 4.2.1 and no unapproved publication"]
-      },
-      {
-        "id": 118,
-        "name": "Baron 4.2.2 Release Identity And Current Metadata",
-        "status": "completed",
-        "release": "4.2.2",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["Cargo/lock/certification version 4.2.2", "README/changelog/release guidance sync", "historical 4.2.1 evidence preserved"]
-      },
-      {
-        "id": 119,
-        "name": "Baron 4.2.2 Local Release Proof",
-        "status": "completed",
-        "release": "4.2.2",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["format, parity, CLI, public-doc, workspace, Clippy, build, metadata, and binary smoke evidence", "two Windows archive-module blocks recorded without weakening gates", "Reasonix parity packaged without engine change"]
-      },
-      {
-        "id": 120,
-        "name": "Baron 4.2.2 Immutable GitHub Publication And Handoff",
-        "status": "completed",
-        "release": "4.2.2",
-        "targetReleaseWeightPercent": 0,
-        "completionPercent": 100,
-        "requiredProof": ["commit 80f4daa13e15b2aafb53bbefe0f54454130fcaba pushed to origin/main", "annotated tag v4.2.2", "CI 32347122499 and Release 32347138548 passed", "12 public assets, releases/latest, README/status/build-log synchronized"]
-      }
+        "zero cross-project leakage; clean cache/Vault rerun, 16-case expansion, Windows environment metadata, and independent 3.8/4.0 scorecards are recorded; real-repository and adversarial scale breadth remains a documented follow-up"
+      ]
+    },
+    {
+      "id": 66,
+      "name": "Layered Memory Abstraction And Trust",
+      "status": "completed",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 9,
+      "completionPercent": 38,
+      "requiredProof": [
+        "L0-L3 abstraction and trust separation",
+        "frontmatter labels, project firewall, and bounded rebuild proof; full migration remains follow-up"
+      ]
+    },
+    {
+      "id": 67,
+      "name": "Consolidation Conflict And Supersession",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 35,
+      "requiredProof": [
+        "read-only deterministic duplicate/conflict/supersession analysis",
+        "authority explanations and atomic reviewable staging; durable temporal compaction remains follow-up"
+      ]
+    },
+    {
+      "id": 68,
+      "name": "Local Semantic Retrieval And Reranking",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 12,
+      "completionPercent": 32,
+      "requiredProof": [
+        "local hybrid retrieval and pre-ranking firewall",
+        "bounded reranking, score explanations, and automatic 3.8 recovery fallback"
+      ]
+    },
+    {
+      "id": 69,
+      "name": "Grounded Synthesis And Cross-Agent Handoff",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 9,
+      "completionPercent": 36,
+      "requiredProof": [
+        "cited grounded Resume Brief",
+        "project identity, blockers, unknowns, proof, and bounded 902-character handoff evidence"
+      ]
+    },
+    {
+      "id": 70,
+      "name": "Linked Wiki Knowledge Graph",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 10,
+      "completionPercent": 42,
+      "requiredProof": [
+        "bounded linked two-hop Wiki retrieval",
+        "exact citations, link paths, freshness labels, and project-bound rebuild evidence"
+      ]
+    },
+    {
+      "id": 71,
+      "name": "AST CodeGraph And Impact Intelligence",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 11,
+      "completionPercent": 42,
+      "requiredProof": [
+        "language-aware symbols/imports/calls/impact",
+        "source spans, incremental source verification, and project isolation evidence"
+      ]
+    },
+    {
+      "id": 72,
+      "name": "Security Intelligence And AppSec Expansion",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 30,
+      "requiredProof": [
+        "defensive static AppSec boundary",
+        "vibe-security ownership, reverse-static routing, redaction, and advisory evidence"
+      ]
+    },
+    {
+      "id": 73,
+      "name": "Authorized Adversary Assessment And Lab Safety",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 32,
+      "requiredProof": [
+        "authorization/scope/safety contract",
+        "nine-case fail-closed routing regression; dynamic lab execution remains intentionally disabled"
+      ]
+    },
+    {
+      "id": 74,
+      "name": "Security Routing Tool Governance And Regression",
+      "status": "in_progress",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 5,
+      "completionPercent": 36,
+      "requiredProof": [
+        "deterministic security route matrix",
+        "nine-case regression, project scope, allowlist, offensive-intent, and missing-auth hard stops"
+      ]
+    },
+    {
+      "id": 75,
+      "name": "Integrated Security Scale Cost And 9/10 Acceptance",
+      "status": "completed_with_limits",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 7,
+      "completionPercent": 78,
+      "requiredProof": [
+        "integrated 100/100 acceptance, four independent 100/100 surfaces, zero leakage, nine security cases, static scan, bounded handoff, and cache identity; native release evidence passed while scale/cost breadth remains a follow-up"
+      ]
+    },
+    {
+      "id": 76,
+      "name": "Baron 4.0 Public GitHub Release And Recovery Install",
+      "status": "completed",
+      "release": "4.0.0",
+      "targetReleaseWeightPercent": 5,
+      "completionPercent": 100,
+      "requiredProof": [
+        "versioned 4.0.0 source and README are public",
+        "native matrix, checksums, immutable v4.0.0 Release, and fresh public Windows install passed",
+        "https://github.com/thienty1207/Baron-Engine/actions/runs/31680499831",
+        "https://github.com/thienty1207/Baron-Engine/releases/tag/v4.0.0"
+      ]
+    },
+    {
+      "id": 77,
+      "name": "Baron 4.1 Owner-Approved Local Intelligence Baseline",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "public v4.1.0 baseline",
+        "Baron-only release evidence retained for comparison"
+      ]
+    },
+    {
+      "id": 78,
+      "name": "Baron 4.1 Semantic Retrieval Fusion",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "deterministic project-filtered semantic fusion retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 79,
+      "name": "Baron 4.1 Automatic Session Learning",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "redacted evidence-linked candidate-only learning retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 80,
+      "name": "Baron 4.1 Temporal Truth",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "project-bound temporal ledger and rollback retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 81,
+      "name": "Baron 4.1 Grounded Handoff",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "bounded cited handoff and 4.0 fallback retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 82,
+      "name": "Baron 4.1 Wiki Intelligence",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "semantic Wiki and stale-cache rebuild retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 83,
+      "name": "Baron 4.1 CodeGraph Depth",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "local CodeGraph and impact path retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 84,
+      "name": "Baron 4.1 Scale Sync And Recovery",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "release-profile resource and rebuild evidence retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 85,
+      "name": "Baron 4.1 Safety Cost And 4.0 Fallback",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "project firewall, poisoning quarantine, cost, and explicit 4.0 fallback retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 86,
+      "name": "Baron 4.1 Baron-Only Acceptance",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "three repeated release-binary runner artifacts retained as 4.1 baseline"
+      ]
+    },
+    {
+      "id": 87,
+      "name": "Baron 4.1 Public GitHub Release And Reinstall",
+      "status": "completed",
+      "release": "4.1.0",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "public v4.1.0 source, README, native Release, and fresh Windows install"
+      ]
+    },
+    {
+      "id": 88,
+      "name": "Practical Perfection Contract And Baron 4.1 Truth Audit",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 100,
+      "requiredProof": [
+        "hash-sealed correctness contract",
+        "reproduced 4.1/4.0 baselines",
+        "owner-approved design/plan/status/build checkpoint"
+      ]
+    },
+    {
+      "id": 89,
+      "name": "Private Real-Session Ground Truth And Sealed Evaluation",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 9,
+      "completionPercent": 100,
+      "requiredProof": [
+        "eight-case redacted private holdout outside Git/Vault",
+        "executed sealed holdout",
+        "independent gold evaluator; raw owner sessions not supplied"
+      ]
+    },
+    {
+      "id": 90,
+      "name": "Evidence-Native Memory Schema And Project Firewall",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 100,
+      "requiredProof": [
+        "complete provenance envelope",
+        "project-partitioned state",
+        "zero-leakage matrix"
+      ]
+    },
+    {
+      "id": 91,
+      "name": "Calibrated Semantic Retrieval And Reranking",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 12,
+      "completionPercent": 100,
+      "requiredProof": [
+        "exact/lexical/dense/reranked retrieval",
+        "calibration and abstention",
+        "Recall@10/nDCG@10 gates"
+      ]
+    },
+    {
+      "id": 92,
+      "name": "Task-Segmented Session Learning And Poisoning Defense",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 10,
+      "completionPercent": 100,
+      "requiredProof": [
+        "task segmentation",
+        "noise/dedup/poisoning gates",
+        "candidate-only real-session evidence"
+      ]
+    },
+    {
+      "id": 93,
+      "name": "Bi-Temporal Truth Conflict Resolution And Reversible Consolidation",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 10,
+      "completionPercent": 100,
+      "requiredProof": [
+        "current/as-of/conflict correctness",
+        "atomic evidence-preserving rollback"
+      ]
+    },
+    {
+      "id": 94,
+      "name": "Grounded Synthesis Abstention And Baron 4.0 Arbitration",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 7,
+      "completionPercent": 100,
+      "requiredProof": [
+        "claim-level citations",
+        "accurate generation labels",
+        "unknown/4.0 fallback matrix"
+      ]
+    },
+    {
+      "id": 95,
+      "name": "Fresh Wiki Knowledge Graph",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 8,
+      "completionPercent": 100,
+      "requiredProof": [
+        "freshness/entity/link graph",
+        "cited multi-hop answers",
+        "incremental rebuild parity"
+      ]
+    },
+    {
+      "id": 96,
+      "name": "Parser-Backed Incremental CodeGraph And Impact Intelligence",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 12,
+      "completionPercent": 100,
+      "requiredProof": [
+        "four-language parser graph",
+        "directional relation/source-span accuracy",
+        "incremental impact gates"
+      ]
+    },
+    {
+      "id": 97,
+      "name": "Cross-Agent Resume Adapter Parity And Shadow Operation",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 5,
+      "completionPercent": 100,
+      "requiredProof": [
+        "Codex/Claude parity",
+        "shadow-safe fresh-agent resume"
+      ]
+    },
+    {
+      "id": 98,
+      "name": "Scale Concurrency Fault Injection Security And Cost",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 5,
+      "completionPercent": 100,
+      "requiredProof": [
+        "long-history and multi-agent budgets",
+        "fault/security/asset integrity matrix"
+      ]
+    },
+    {
+      "id": 99,
+      "name": "Integrated 4.2 Acceptance And No-Regression Decision",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 3,
+      "completionPercent": 100,
+      "requiredProof": [
+        "raw 4.2 vs 4.1/4.0 per-case report",
+        "three clean/warm repetitions",
+        "promote/reject verdict"
+      ]
+    },
+    {
+      "id": 100,
+      "name": "Baron 4.2 Public GitHub Release README Reinstall And Rollback",
+      "status": "completed",
+      "release": "4.2.0",
+      "targetReleaseWeightPercent": 3,
+      "completionPercent": 100,
+      "requiredProof": [
+        "exact 4.2.0 source and README",
+        "native matrix/checksums/immutable Release",
+        "fresh install and 4.1/4.0 rollback"
+      ]
+    },
+    {
+      "id": 101,
+      "name": "retired adapter Shared-Brain Adapter Identity",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "retired adapter enum/CLI/config/context/automation mapping",
+        "backward-compatible active_adapter",
+        "shared project ID and Vault tests"
+      ]
+    },
+    {
+      "id": 102,
+      "name": "retired adapter Native Assets And Commands",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "managed legacy instruction file",
+        "bounded legacy projection command assets",
+        "correct legacy context and lifecycle commands"
+      ]
+    },
+    {
+      "id": 103,
+      "name": "retired adapter Non-Destructive Install And Update",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "unmarked user files preserved",
+        "managed baseline update",
+        "ambiguous conflict refuses overwrite"
+      ]
+    },
+    {
+      "id": 104,
+      "name": "Shared-Brain Adapter Switch And Rollback",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "adapter status/switch CLI",
+        "shared adapter-switch event",
+        "Codex -> retired adapter -> Codex continuity"
+      ]
+    },
+    {
+      "id": 105,
+      "name": "retired adapter Compatibility And Preservation Tests",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "core/CLI/adapter tests",
+        "GoGetSomeFoodFerris-shaped read-only fixture",
+        "malformed settings and identity mismatch gates"
+      ]
+    },
+    {
+      "id": 106,
+      "name": "retired adapter Documentation And 4.2.0 Truth Sync",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "README/command surface/adapter architecture updated",
+        "status/build log synchronized",
+        "no 4.3 version claim"
+      ]
+    },
+    {
+      "id": 107,
+      "name": "retired adapter Adapter Final Verification And GitHub Publication",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "format/tests/Clippy/release smoke",
+        "every completed task marked x",
+        "intended commit pushed and remote/worktree verified clean",
+        "no v4.3.0 tag or Release"
+      ]
+    },
+    {
+      "id": 108,
+      "name": "Root Adapter Shortcut UX",
+      "status": "completed",
+      "release": "4.2.0-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "historical adapter and Codex shortcut tests",
+        "shared project/Vault switch tests",
+        "README/command surface updated",
+        "no version bump"
+      ]
+    },
+    {
+      "id": 113,
+      "name": "Shared Multi-Agent Core Inventory Contract",
+      "status": "completed",
+      "release": "4.2.1-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "assets/core source-of-truth contract",
+        "identical skill and agent payload inventory",
+        "adapter-specific bridge boundary"
+      ]
+    },
+    {
+      "id": 114,
+      "name": "Full retired adapter Core Materialization",
+      "status": "completed",
+      "release": "4.2.1-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "retired adapter skill and agent views",
+        "root/skill/agent indexes",
+        "same startup workflow and quality-gate contract"
+      ]
+    },
+    {
+      "id": 115,
+      "name": "Safe Cross-Adapter Reconciliation And Switching",
+      "status": "completed",
+      "release": "4.2.1-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "missing asset restoration",
+        "changed/unmarked conflict preservation",
+        "shared project ID and Vault switch"
+      ]
+    },
+    {
+      "id": 116,
+      "name": "Cross-Adapter Core Parity And Regression Proof",
+      "status": "completed",
+      "release": "4.2.1-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "Codex/retired adapter content parity",
+        "round-trip switch preservation",
+        "existing engine/core/CLI/release suites"
+      ]
+    },
+    {
+      "id": 117,
+      "name": "Multi-Agent Parity Documentation And Handoff",
+      "status": "completed",
+      "release": "4.2.1-maintenance",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "README/architecture/status/build-log sync",
+        "all tasks marked x",
+        "version remains 4.2.1 and no unapproved publication"
+      ]
+    },
+    {
+      "id": 118,
+      "name": "Baron 4.2.2 Release Identity And Current Metadata",
+      "status": "completed",
+      "release": "4.2.2",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "Cargo/lock/certification version 4.2.2",
+        "README/changelog/release guidance sync",
+        "historical 4.2.1 evidence preserved"
+      ]
+    },
+    {
+      "id": 119,
+      "name": "Baron 4.2.2 Local Release Proof",
+      "status": "completed",
+      "release": "4.2.2",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "format, parity, CLI, public-doc, workspace, Clippy, build, metadata, and binary smoke evidence",
+        "two Windows archive-module blocks recorded without weakening gates",
+        "retired adapter parity packaged without engine change"
+      ]
+    },
+    {
+      "id": 120,
+      "name": "Baron 4.2.2 Immutable GitHub Publication And Handoff",
+      "status": "completed",
+      "release": "4.2.2",
+      "targetReleaseWeightPercent": 0,
+      "completionPercent": 100,
+      "requiredProof": [
+        "commit 80f4daa13e15b2aafb53bbefe0f54454130fcaba pushed to origin/main",
+        "annotated tag v4.2.2",
+        "CI 32347122499 and Release 32347138548 passed",
+        "12 public assets, releases/latest, README/status/build-log synchronized"
+      ]
+    }
   ],
   "decisions20260724": [
     {

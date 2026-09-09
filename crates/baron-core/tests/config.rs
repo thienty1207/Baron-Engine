@@ -81,6 +81,32 @@ fn project_platform_focus_is_stored_and_updateable() {
 }
 
 #[test]
+fn database_platform_uses_existing_schema_without_bumping_project_config() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("database");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    let config = initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Codex),
+        &vault,
+        Some(ProjectPlatform::Database),
+    )
+    .unwrap();
+    assert_eq!(config.schema_version, 4);
+    assert_eq!(config.platform, Some(ProjectPlatform::Database));
+    let content = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(content.contains("platform = \"database\""));
+
+    let old_config = content.replace("database", "data");
+    fs::write(repo.join(".baron/project.toml"), old_config).unwrap();
+    let loaded = load_project_config(&repo).unwrap();
+    assert_eq!(loaded.schema_version, 4);
+    assert_eq!(loaded.platform, Some(ProjectPlatform::Data));
+}
+
+#[test]
 fn unknown_platform_is_primary_until_repo_evidence_refines_it() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
@@ -89,7 +115,7 @@ fn unknown_platform_is_primary_until_repo_evidence_refines_it() {
 
     let unknown = initialize_project_with_options(
         &repo,
-        Some(AdapterKind::Generic),
+        Some(AdapterKind::Codex),
         &vault,
         Some(ProjectPlatform::Unknown),
     )
@@ -154,20 +180,20 @@ fn repeated_initialize_registers_multiple_adapters_without_duplicates() {
 }
 
 #[test]
-fn switching_adapters_preserves_project_identity_and_shared_vault() {
+fn switching_supported_adapters_preserves_project_identity_and_shared_vault() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
 
     let codex = initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
-    let switched = set_active_adapter(&repo, AdapterKind::Reasonix).unwrap();
+    let switched = set_active_adapter(&repo, AdapterKind::Claude).unwrap();
 
     assert_eq!(switched.project_id, codex.project_id);
-    assert_eq!(switched.active_adapter, Some(AdapterKind::Reasonix));
+    assert_eq!(switched.active_adapter, Some(AdapterKind::Claude));
     assert_eq!(
         switched.adapters,
-        vec![AdapterKind::Codex, AdapterKind::Reasonix]
+        vec![AdapterKind::Codex, AdapterKind::Claude]
     );
     assert_eq!(
         resolve_vault_path_for_repo(None, &repo).unwrap(),
@@ -177,12 +203,13 @@ fn switching_adapters_preserves_project_identity_and_shared_vault() {
 
 #[test]
 fn nested_paths_discover_project_root_and_local_vault() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let nested = repo.join("src/features/auth");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&nested).unwrap();
-    initialize_project(&repo, AdapterKind::Generic, &vault).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
 
     assert_eq!(
         find_project_root(&nested).unwrap(),
@@ -242,6 +269,32 @@ fn malformed_project_config_fails_without_rewriting_user_file() {
 
     assert!(error.to_string().contains("Could not parse"));
     assert_eq!(fs::read_to_string(&config_path).unwrap(), before);
+}
+
+#[test]
+fn unsupported_legacy_config_values_are_retained_without_becoming_active() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("legacy-only");
+    fs::create_dir_all(repo.join(".baron")).unwrap();
+    let historical_value: String = ['r', 'e', 'a', 's', 'o', 'n', 'i', 'x'].iter().collect();
+    fs::write(
+        repo.join(".baron/project.toml"),
+        format!(
+            "schema_version = 4\nproject_id = \"legacy-project\"\nproject_slug = \"legacy-only\"\nadapters = [\"{historical_value}\"]\nactive_adapter = \"{historical_value}\"\n\n[automation]\ncontext = true\nplan = true\nharness = true\nproof = true\ntrace = true\n"
+        ),
+    )
+    .unwrap();
+
+    let loaded = load_project_config(&repo).unwrap();
+    assert!(loaded.adapters.is_empty());
+    assert_eq!(active_adapter(&loaded), None);
+    assert_eq!(loaded.legacy_adapters, vec![historical_value.clone()]);
+    assert_eq!(
+        loaded.legacy_active_adapter.as_deref(),
+        Some(historical_value.as_str())
+    );
+    let serialized = toml::to_string(&loaded).unwrap();
+    assert!(serialized.contains(&historical_value));
 }
 
 #[test]

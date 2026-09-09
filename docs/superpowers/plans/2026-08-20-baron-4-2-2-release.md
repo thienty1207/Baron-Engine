@@ -11,7 +11,7 @@
     locked release build, release metadata, and binary smoke gates.
   - [x] Record the two Windows-only archive-module blocks without weakening a
     gate; all parity, engine, memory, CLI, and release tests passed.
-  - [x] Mark the completed Reasonix parity work as included in `4.2.2`.
+  - [x] Mark the completed retired adapter parity work as included in `4.2.2`.
 
 - [x] Phase 120: immutable GitHub publication and handoff
   - [x] Stage only the intended `4.2.2` source, parity, documentation, and
@@ -28,8 +28,8 @@ list, and final `baron --version` output are appended after publication.
 
 - `cargo test -p baron-adapters --all-targets --no-fail-fast`: 3 unit, 30
   lifecycle, 15 planner, and 1 transaction test passed.
-- `cargo test -p baron-cli --test reasonix_adapter_cli --no-fail-fast`: 6/6
-  passed, including the full Codex -> Reasonix -> Claude -> Generic -> Codex
+- `cargo test -p baron-cli --test retired adapter_adapter_cli --no-fail-fast`: 6/6
+  passed, including the full Codex -> retired adapter -> Claude -> Generic -> Codex
   round trip.
 - `cargo test -p baron-core --test public_trust_docs --no-fail-fast`: 9/9
   passed.
@@ -43,8 +43,8 @@ list, and final `baron --version` output are appended after publication.
   `Microsoft.PowerShell.Archive`.
 - Release metadata fixture using `baron release metadata` and `baron release
   verify`: passed for `4.2.2` and the complete four-target artifact set.
-- Isolated release binary smoke: Codex init -> `baron --reasonix` created the
-  complete Reasonix core view; binary reported `baron 4.2.2`.
+- Isolated release binary smoke: Codex init -> the retired adapter shortcut created the
+  complete retired adapter core view; binary reported `baron 4.2.2`.
 
 ## Final publication evidence
 

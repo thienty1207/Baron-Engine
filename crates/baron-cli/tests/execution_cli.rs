@@ -350,7 +350,7 @@ fn risky_harness_intake_rejects_unconfirmed_cli_intent() {
 }
 
 #[test]
-fn proof_cli_accepts_structured_capability_execution_evidence() {
+fn proof_cli_keeps_summary_only_capability_evidence_diagnostic() {
     let (_temp, repo, _vault) = init_project();
     Command::cargo_bin("baron")
         .unwrap()
@@ -374,7 +374,7 @@ fn proof_cli_accepts_structured_capability_execution_evidence() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["capability", "check"])
+        .args(["capability", "check", "--adapter", "codex"])
         .assert()
         .success();
     Command::cargo_bin("baron")
@@ -391,10 +391,15 @@ fn proof_cli_accepts_structured_capability_execution_evidence() {
             "proof",
             "record",
             "README text verified",
+            "--adapter",
+            "codex",
             "--capability-evidence",
             "source-control|git-cli|git status completed and repository state inspected",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Capability gate: `passed`"));
+        .stdout(predicate::str::contains("Capability gate: `failed`"))
+        .stdout(predicate::str::contains(
+            "source-control lacks execution evidence",
+        ));
 }

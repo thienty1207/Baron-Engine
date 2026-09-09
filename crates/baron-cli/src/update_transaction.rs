@@ -1,17 +1,21 @@
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
-use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use baron_adapters::{
-    load_managed_baseline, managed_baseline_content, plan_managed_update, replace_managed_baseline,
-    ManagedAssetPayload, ManagedMergeKind, UpdateDisposition,
+    load_managed_baseline, managed_baseline_content, migrate_managed_ownership,
+    plan_managed_update, replace_managed_baseline, ManagedAssetPayload, ManagedMergeKind,
+    UpdateDisposition,
 };
 use baron_core::config::{load_project_config, ProjectConfig};
 use baron_core::release::sha256_file;
+use baron_core::safe_io::{
+    acquire_project_lock, ensure_directory_chain, read_bytes, read_text_required, replace_file,
+    replace_text,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -132,6 +136,7 @@ pub enum ApplyFailurePoint {
     AfterManagedWrite(usize),
     BeforeBaselineReplacement,
     AfterBaselineReplacement,
+    BeforeReceipt,
 }
 
 pub fn create_verified_transaction(
@@ -141,6 +146,7 @@ pub fn create_verified_transaction(
     source_version: &str,
     adapters: &[String],
 ) -> Result<(TransactionPaths, UpdateTransaction)> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     validate_config(config)?;
     if source_version.trim().is_empty() {
@@ -182,7 +188,16 @@ pub fn create_verified_transaction(
         candidate_relative_path,
         candidate_sha256: candidate.sha256.clone(),
         candidate_size_bytes: candidate.size_bytes,
-        runtime_binary_path: None,
+        runtime_binary_path: Some(
+            std::env::current_exe()
+                .context(
+                    "Could not resolve the installed Baron runtime for the update transaction",
+                )?
+                .canonicalize()
+                .context(
+                    "Could not canonicalize the installed Baron runtime for the update transaction",
+                )?,
+        ),
         status: TransactionStatus::Verified,
         packets: Vec::new(),
         last_checkpoint: "candidate_verified".to_string(),
@@ -198,6 +213,7 @@ pub fn plan_candidate_transaction(
     candidate_version: &str,
     candidate_payloads: &[ManagedAssetPayload],
 ) -> Result<UpdateTransaction> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     let paths = transaction_paths_for_state(&repo_root, state_path)?;
     let mut transaction = load_transaction(&repo_root, &paths)?;
@@ -213,6 +229,7 @@ pub fn plan_candidate_transaction(
     }
     verify_candidate_identity(&repo_root, &transaction)?;
     validate_payload_set(candidate_payloads, &transaction.adapters)?;
+    migrate_managed_ownership(&repo_root)?;
 
     let plan = plan_managed_update(&repo_root, candidate_payloads)?;
     if plan.actions.len() > MAX_TRANSACTION_PACKETS {
@@ -222,21 +239,11 @@ pub fn plan_candidate_transaction(
     let baseline_by_key = baseline
         .records
         .iter()
-        .map(|record| {
-            (
-                (record.adapter.clone(), record.relative_path.clone()),
-                record,
-            )
-        })
+        .map(|record| (record.relative_path.clone(), record))
         .collect::<HashMap<_, _>>();
     let payload_by_key = candidate_payloads
         .iter()
-        .map(|payload| {
-            (
-                (payload.adapter.clone(), payload.relative_path.clone()),
-                payload,
-            )
-        })
+        .map(|payload| (payload.relative_path.clone(), payload))
         .collect::<HashMap<_, _>>();
 
     let mut packet_targets = BTreeSet::new();
@@ -250,9 +257,8 @@ pub fn plan_candidate_transaction(
                 action.relative_path.display()
             );
         }
-        let key = (action.adapter.clone(), action.relative_path.clone());
         let base = baseline_by_key
-            .get(&key)
+            .get(&action.relative_path)
             .map(|record| managed_baseline_content(&repo_root, record))
             .transpose()?
             .unwrap_or_default();
@@ -264,10 +270,10 @@ pub fn plan_candidate_transaction(
             String::new()
         };
         let upstream = payload_by_key
-            .get(&key)
+            .get(&action.relative_path)
             .map(|payload| payload.content.clone())
             .unwrap_or_default();
-        let has_upstream = payload_by_key.contains_key(&key);
+        let has_upstream = payload_by_key.contains_key(&action.relative_path);
         let resolved = match action.disposition {
             UpdateDisposition::Conflict => String::new(),
             _ => action
@@ -327,6 +333,7 @@ pub fn abort_transaction(
     state_path: &Path,
     expected_project_id: &str,
 ) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     let paths = transaction_paths_for_state(&repo_root, state_path)?;
     let transaction = load_transaction(&repo_root, &paths)?;
@@ -348,6 +355,7 @@ pub fn recover_transaction(
     state_path: &Path,
     expected_project_id: &str,
 ) -> Result<UpdateTransaction> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     let paths = transaction_paths_for_state(&repo_root, state_path)?;
     let transaction = load_transaction(&repo_root, &paths)?;
@@ -366,6 +374,7 @@ pub fn mark_runtime_pending(
     expected_project_id: &str,
     installed_binary: &Path,
 ) -> Result<UpdateTransaction> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     let paths = transaction_paths_for_state(&repo_root, state_path)?;
     let mut transaction = load_transaction(&repo_root, &paths)?;
@@ -382,6 +391,17 @@ pub fn mark_runtime_pending(
             installed_binary.display()
         )
     })?;
+    let expected_runtime = transaction
+        .runtime_binary_path
+        .as_ref()
+        .context("Baron update transaction has no frozen runtime handoff path")?
+        .canonicalize()
+        .with_context(|| "Frozen Baron runtime handoff path is unavailable")?;
+    if installed_binary != expected_runtime {
+        bail!(
+            "Baron runtime handoff path does not match the transaction's frozen installed runtime"
+        );
+    }
     if !fs::metadata(&installed_binary)?.is_file() || is_link_or_reparse_point(&installed_binary)? {
         bail!("Active Baron runtime is not a safe regular file for transaction handoff");
     }
@@ -398,6 +418,40 @@ pub fn complete_transaction(
     expected_project_id: &str,
     runtime_proof: &str,
 ) -> Result<UpdateTransaction> {
+    complete_transaction_inner(
+        repo_root,
+        state_path,
+        expected_project_id,
+        runtime_proof,
+        None,
+    )
+}
+
+#[cfg(test)]
+fn complete_transaction_with_failure(
+    repo_root: &Path,
+    state_path: &Path,
+    expected_project_id: &str,
+    runtime_proof: &str,
+    failure: Option<ApplyFailurePoint>,
+) -> Result<UpdateTransaction> {
+    complete_transaction_inner(
+        repo_root,
+        state_path,
+        expected_project_id,
+        runtime_proof,
+        failure,
+    )
+}
+
+fn complete_transaction_inner(
+    repo_root: &Path,
+    state_path: &Path,
+    expected_project_id: &str,
+    runtime_proof: &str,
+    failure: Option<ApplyFailurePoint>,
+) -> Result<UpdateTransaction> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     let paths = transaction_paths_for_state(&repo_root, state_path)?;
     let mut transaction = load_transaction(&repo_root, &paths)?;
@@ -411,7 +465,25 @@ pub fn complete_transaction(
     if runtime_proof.trim().is_empty() {
         bail!("Baron update completion requires runtime verification evidence");
     }
-    write_receipt(&repo_root, &paths, &transaction, runtime_proof)?;
+    // Persist the state-commit checkpoint while the runtime handoff remains
+    // recoverable. A crash or I/O error before the receipt leaves a
+    // RuntimePending transaction that startup recovery can roll back.
+    transaction.last_checkpoint = "state_committed".to_string();
+    write_transaction(&paths, &transaction)?;
+    if let Err(error) = maybe_fail(failure, ApplyFailurePoint::BeforeReceipt)
+        .and_then(|_| write_receipt(&repo_root, &paths, &transaction, runtime_proof))
+    {
+        transaction.last_checkpoint = "receipt_pending".to_string();
+        let state_error = write_transaction(&paths, &transaction).err();
+        return Err(match state_error {
+            Some(state_error) => error.context(format!(
+                "Baron update receipt failed and the recovery checkpoint could not be persisted: {state_error:#}"
+            )),
+            None => error.context(
+                "Baron update receipt failed; the RuntimePending transaction remains recoverable",
+            ),
+        });
+    }
     transition(&mut transaction, TransactionStatus::Completed)?;
     transaction.last_checkpoint = "receipt_written".to_string();
     write_transaction(&paths, &transaction)?;
@@ -479,6 +551,7 @@ pub fn recover_incomplete_transactions(
     repo_root: &Path,
     expected_project_id: &str,
 ) -> Result<Vec<String>> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     let update_root = safe_update_root(&repo_root)?;
     let transactions_root = update_root.join("transactions");
@@ -584,6 +657,7 @@ fn apply_transaction_with_failure(
     expected_project_id: &str,
     failure: Option<ApplyFailurePoint>,
 ) -> Result<UpdateTransaction> {
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_root = canonical_repo_root(repo_root)?;
     let paths = transaction_paths_for_state(&repo_root, state_path)?;
     let mut transaction = load_transaction(&repo_root, &paths)?;
@@ -858,7 +932,11 @@ fn validate_payload_set(payloads: &[ManagedAssetPayload], adapters: &[String]) -
     if payloads.is_empty() {
         bail!("Baron candidate did not render any managed assets");
     }
-    let allowed = adapters.iter().collect::<BTreeSet<_>>();
+    let mut allowed = adapters.iter().cloned().collect::<BTreeSet<_>>();
+    // Canonical Core is a shared managed owner, not a separately registered
+    // adapter. Candidate payloads may therefore contain one `core` namespace
+    // in addition to the registered Codex/Claude integration namespaces.
+    allowed.insert("core".to_string());
     let mut seen = BTreeSet::new();
     for payload in payloads {
         validate_adapter(&payload.adapter)?;
@@ -866,8 +944,8 @@ fn validate_payload_set(payloads: &[ManagedAssetPayload], adapters: &[String]) -
         if !allowed.contains(&payload.adapter) {
             bail!("Baron candidate rendered an unregistered adapter payload");
         }
-        if !seen.insert((payload.adapter.clone(), payload.relative_path.clone())) {
-            bail!("Baron candidate rendered duplicate managed payload ownership");
+        if !seen.insert(payload.relative_path.clone()) {
+            bail!("Baron candidate rendered duplicate live managed ownership");
         }
     }
     Ok(())
@@ -931,18 +1009,30 @@ fn safe_update_root(repo_root: &Path) -> Result<PathBuf> {
 }
 
 fn safe_child_directory(parent: &Path, name: &str) -> Result<PathBuf> {
-    if name.is_empty() || Path::new(name).components().count() != 1 {
+    if name.is_empty()
+        || Path::new(name).components().count() != 1
+        || !Path::new(name)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
         bail!("Baron update workspace component is invalid");
     }
     let path = parent.join(name);
-    if path.exists() {
-        if is_link_or_reparse_point(&path)? || !fs::metadata(&path)?.is_dir() {
-            bail!(
-                "Baron update workspace cannot traverse a symlink, junction, or file: {}",
-                path.display()
-            );
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink()
+                || is_link_or_reparse_point(&path)?
+                || !metadata.is_dir()
+            {
+                bail!(
+                    "Baron update workspace cannot traverse a symlink, junction, or file: {}",
+                    path.display()
+                );
+            }
+            return Ok(path);
         }
-        return Ok(path);
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
     }
     fs::create_dir(&path).or_else(|error| {
         if error.kind() == std::io::ErrorKind::AlreadyExists {
@@ -961,9 +1051,19 @@ fn safe_child_directory(parent: &Path, name: &str) -> Result<PathBuf> {
 }
 
 fn checked_existing_path(root: &Path, path: &Path) -> Result<PathBuf> {
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        bail!(
+            "Baron update path cannot contain parent traversal: {}",
+            path.display()
+        );
+    }
     let root = root
         .canonicalize()
         .with_context(|| format!("Could not resolve update workspace: {}", root.display()))?;
+    reject_lexical_links(path)?;
     let canonical = path
         .canonicalize()
         .with_context(|| format!("Could not resolve staged update path: {}", path.display()))?;
@@ -1100,23 +1200,56 @@ fn packet_path(
 }
 
 fn checked_child_directory(parent: &Path, name: &str) -> Result<PathBuf> {
-    if name.is_empty() || Path::new(name).components().count() != 1 {
+    if name.is_empty()
+        || Path::new(name).components().count() != 1
+        || !Path::new(name)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
         bail!("Baron update workspace component is invalid");
     }
     let path = parent.join(name);
-    if !path.exists() {
-        bail!(
-            "Baron update packet directory is missing: {}",
+    let metadata = fs::symlink_metadata(&path).with_context(|| {
+        format!(
+            "Baron update packet directory is missing or unreadable: {}",
             path.display()
-        );
-    }
-    if is_link_or_reparse_point(&path)? || !fs::metadata(&path)?.is_dir() {
+        )
+    })?;
+    if metadata.file_type().is_symlink() || is_link_or_reparse_point(&path)? || !metadata.is_dir() {
         bail!(
             "Baron update packet directory is unsafe: {}",
             path.display()
         );
     }
     Ok(path)
+}
+
+fn reject_lexical_links(path: &Path) -> Result<()> {
+    let mut current = path.to_path_buf();
+    loop {
+        match fs::symlink_metadata(&current) {
+            Ok(metadata)
+                if metadata.file_type().is_symlink() || is_link_or_reparse_point(&current)? =>
+            {
+                bail!(
+                    "Baron update path cannot traverse a symlink or junction: {}",
+                    current.display()
+                )
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        if current.parent().is_none() {
+            break;
+        }
+        let parent = current.parent().expect("parent checked above");
+        if parent == current {
+            break;
+        }
+        current = parent.to_path_buf();
+    }
+    Ok(())
 }
 
 fn snapshot_managed_state(repo_root: &Path, paths: &TransactionPaths) -> Result<()> {
@@ -1140,21 +1273,113 @@ fn restore_managed_state(repo_root: &Path, paths: &TransactionPaths) -> Result<(
     }
     validate_safe_tree(&backup)?;
     let destination = repo_root.join(".baron/managed-state");
-    if destination.exists() {
-        validate_safe_tree(&destination)?;
-        fs::remove_dir_all(&destination).with_context(|| {
-            format!(
-                "Could not remove changed managed baseline: {}",
-                destination.display()
-            )
-        })?;
+    let parent = destination
+        .parent()
+        .context("Managed baseline restore destination has no parent")?;
+    ensure_directory_chain(parent)?;
+
+    // Build the restored tree beside the live tree. The existing tree is only
+    // moved aside after the replacement is complete, so a failed copy never
+    // destroys the rollback source or leaves a half-written destination.
+    let staging = create_unique_sibling_directory(parent, ".managed-state.baron-restore")?;
+    if let Err(error) = copy_tree(&backup, &staging) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error.context("Could not stage managed baseline rollback"));
     }
-    copy_tree(&backup, &destination)
+    validate_safe_tree(&staging)?;
+
+    let existing = match fs::symlink_metadata(&destination) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || is_link_or_reparse_point(&destination)? {
+                let _ = fs::remove_dir_all(&staging);
+                bail!(
+                    "Managed baseline restore destination is a symlink or junction: {}",
+                    destination.display()
+                );
+            }
+            if !metadata.is_dir() {
+                let _ = fs::remove_dir_all(&staging);
+                bail!(
+                    "Managed baseline restore destination is not a directory: {}",
+                    destination.display()
+                );
+            }
+            let prior = create_unique_sibling_directory(parent, ".managed-state.baron-previous")?;
+            fs::remove_dir(&prior)?;
+            fs::rename(&destination, &prior).with_context(|| {
+                format!(
+                    "Could not preserve the current managed baseline before rollback: {}",
+                    destination.display()
+                )
+            })?;
+            Some(prior)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&staging);
+            return Err(error).with_context(|| {
+                format!(
+                    "Could not inspect managed baseline before rollback: {}",
+                    destination.display()
+                )
+            });
+        }
+    };
+
+    match fs::rename(&staging, &destination) {
+        Ok(()) => {
+            if let Some(prior) = existing {
+                let _ = fs::remove_dir_all(prior);
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let restore_error = existing
+                .as_ref()
+                .map(|prior| fs::rename(prior, &destination))
+                .transpose();
+            let _ = fs::remove_dir_all(&staging);
+            match restore_error {
+                Ok(Some(())) | Ok(None) => Err(error).with_context(|| {
+                    format!(
+                        "Could not activate staged managed baseline rollback: {}",
+                        destination.display()
+                    )
+                }),
+                Err(restore) => Err(error).context(format!(
+                    "Could not activate managed baseline rollback and could not restore the prior tree: {restore}"
+                )),
+            }
+        }
+    }
+}
+
+fn create_unique_sibling_directory(parent: &Path, stem: &str) -> Result<PathBuf> {
+    for _ in 0..MAX_TRANSACTION_PACKETS {
+        let sequence = TRANSACTION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let candidate = parent.join(format!("{stem}-{}-{sequence}", std::process::id()));
+        match fs::create_dir(&candidate) {
+            Ok(()) => return Ok(candidate),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Could not create managed baseline rollback staging directory: {}",
+                        candidate.display()
+                    )
+                })
+            }
+        }
+    }
+    bail!(
+        "Could not allocate a unique managed baseline rollback staging directory beside {}",
+        parent.display()
+    )
 }
 
 fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
     validate_safe_tree(source)?;
-    fs::create_dir_all(destination)?;
+    ensure_directory_chain(destination)?;
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let source_path = entry.path();
@@ -1169,7 +1394,14 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
         if metadata.is_dir() {
             copy_tree(&source_path, &destination_path)?;
         } else if metadata.is_file() {
-            fs::copy(&source_path, &destination_path)?;
+            let content = read_bytes(&source_path)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Update backup source disappeared: {}",
+                    source_path.display()
+                )
+            })?;
+            replace_file(&destination_path, &content)?;
+            let _ = fs::set_permissions(&destination_path, metadata.permissions());
         } else {
             bail!("Baron update backup encountered an unsupported filesystem entry");
         }
@@ -1207,18 +1439,39 @@ fn validate_safe_tree(root: &Path) -> Result<()> {
 
 fn write_receipt(
     repo_root: &Path,
-    _paths: &TransactionPaths,
+    paths: &TransactionPaths,
     transaction: &UpdateTransaction,
     runtime_proof: &str,
 ) -> Result<()> {
     let update_root = safe_update_root(repo_root)?;
     let receipts = safe_child_directory(&update_root, "receipts")?;
+    let staged_files = transaction
+        .packets
+        .iter()
+        .map(|packet| packet.relative_path.to_string_lossy().replace('\\', "/"))
+        .collect::<Vec<_>>();
+    let published_files = transaction
+        .packets
+        .iter()
+        .filter(|packet| packet.disposition != UpdateDisposition::KeepLocal)
+        .map(|packet| packet.relative_path.to_string_lossy().replace('\\', "/"))
+        .collect::<Vec<_>>();
     let receipt = serde_json::json!({
         "schema_version": TRANSACTION_SCHEMA_VERSION,
         "transaction_id": transaction.transaction_id,
         "project_id": transaction.project_id,
+        "project_slug": transaction.project_slug,
+        "source_version": transaction.source_version,
         "target_version": transaction.target_version,
+        "source_revision": transaction.source_revision,
+        "target": transaction.target,
+        "adapters": transaction.adapters,
         "candidate_sha256": transaction.candidate_sha256,
+        "staged_files": staged_files,
+        "published_files": published_files,
+        "baseline_state_committed": true,
+        "rollback_possible": paths.root.join("backups/managed-state").is_dir(),
+        "next_safe_action": "Continue normal work; retain this receipt for recovery evidence.",
         "runtime_proof": runtime_proof,
         "status": "completed"
     });
@@ -1285,37 +1538,7 @@ fn verify_packet_hash(
 }
 
 fn atomic_write_text(path: &Path, content: &str) -> Result<()> {
-    let parent = path
-        .parent()
-        .context("Baron update file has no parent directory")?;
-    if !parent.exists() {
-        fs::create_dir_all(parent)?;
-    }
-    let temporary = parent.join(format!(
-        ".{}.baron-tmp-{}",
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("state"),
-        TRANSACTION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-    ));
-    let mut file = fs::File::create(&temporary)
-        .with_context(|| format!("Could not write Baron update file: {}", temporary.display()))?;
-    file.write_all(content.as_bytes())?;
-    file.sync_all()?;
-    drop(file);
-    if let Err(rename_error) = fs::rename(&temporary, path) {
-        if path.exists() {
-            fs::remove_file(path).with_context(|| {
-                format!("Could not replace Baron update file: {}", path.display())
-            })?;
-            fs::rename(&temporary, path)?;
-        } else {
-            return Err(rename_error).with_context(|| {
-                format!("Could not activate Baron update file: {}", path.display())
-            });
-        }
-    }
-    Ok(())
+    replace_text(path, content)
 }
 
 fn read_bounded_text(path: &Path, label: &str) -> Result<String> {
@@ -1324,7 +1547,7 @@ fn read_bounded_text(path: &Path, label: &str) -> Result<String> {
     if !metadata.is_file() || metadata.len() > MAX_TRANSACTION_FILE_BYTES {
         bail!("Baron {label} is missing, not a file, or exceeds the bounded size limit");
     }
-    fs::read_to_string(path)
+    read_text_required(path)
         .with_context(|| format!("Could not read Baron {label}: {}", path.display()))
 }
 
@@ -1413,12 +1636,15 @@ mod tests {
         ProjectConfig {
             schema_version: 4,
             project_id: "project-identity".to_string(),
+            identity_binding: "phase16-test-binding".to_string(),
             project_slug: "project".to_string(),
             platform: None,
             platform_extensions: Vec::new(),
             adapters: vec![AdapterKind::Codex],
             active_adapter: None,
             automation: AutomationConfig::default(),
+            legacy_adapters: Vec::new(),
+            legacy_active_adapter: None,
         }
     }
 
@@ -1483,6 +1709,53 @@ mod tests {
         )
         .unwrap();
         (paths, transaction)
+    }
+
+    #[test]
+    fn candidate_planning_migrates_v1_ownership_before_using_the_merge_ancestor() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(repo.join(".baron/managed-state/base/codex")).unwrap();
+        initialize_repo(&repo);
+        fs::write(repo.join("AGENTS.md"), "base").unwrap();
+        fs::write(
+            repo.join(".baron/managed-state/base/codex/AGENTS.md"),
+            "base",
+        )
+        .unwrap();
+        let legacy_manifest = format!(
+            "{{\n  \"schema_version\": 1,\n  \"installed_version\": \"3.3.0\",\n  \"records\": [{{\"adapter\":\"codex\",\"relative_path\":\"AGENTS.md\",\"base_sha256\":\"{}\",\"installed_version\":\"3.3.0\",\"merge_kind\":\"full_text\"}}]\n}}\n",
+            sha256_text("base")
+        );
+        fs::write(
+            repo.join(".baron/managed-state/manifest.json"),
+            legacy_manifest,
+        )
+        .unwrap();
+
+        let candidate = staged_candidate(&repo);
+        let (paths, _) = create_verified_transaction(
+            &repo,
+            &config(),
+            &candidate,
+            "3.3.0",
+            &["codex".to_string()],
+        )
+        .unwrap();
+        let transaction = plan_candidate_transaction(
+            &repo,
+            &paths.state_path,
+            "project-identity",
+            "3.4.0",
+            &[payload("upstream")],
+        )
+        .unwrap();
+
+        assert_eq!(transaction.status, TransactionStatus::Planned);
+        let manifest = fs::read_to_string(repo.join(".baron/managed-state/manifest.json")).unwrap();
+        assert!(manifest.contains("\"schema_version\": 2"));
+        assert!(manifest.contains("\"owner\": \"codex\""));
+        assert_eq!(fs::read_to_string(repo.join("AGENTS.md")).unwrap(), "base");
     }
 
     #[test]
@@ -1638,6 +1911,191 @@ mod tests {
         assert_eq!(
             load_managed_baseline(&repo).unwrap().installed_version,
             "3.3.0"
+        );
+    }
+
+    #[test]
+    fn completion_receipt_contains_recovery_evidence_for_the_whole_update() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        let (paths, _) = planned_transaction(&repo, "base", "upstream");
+        let activated = continue_transaction(&repo, &paths.state_path, "project-identity").unwrap();
+        assert_eq!(activated.status, TransactionStatus::ProjectActivated);
+        let runtime = std::env::current_exe().unwrap();
+        let pending =
+            mark_runtime_pending(&repo, &paths.state_path, "project-identity", &runtime).unwrap();
+        assert_eq!(pending.status, TransactionStatus::RuntimePending);
+
+        let completed = complete_transaction(
+            &repo,
+            &paths.state_path,
+            "project-identity",
+            "runtime version matched",
+        )
+        .unwrap();
+        assert_eq!(completed.status, TransactionStatus::Completed);
+
+        let receipt_path = repo
+            .join(".baron/update/receipts")
+            .join(format!("{}.json", completed.transaction_id));
+        let receipt: serde_json::Value =
+            serde_json::from_slice(&fs::read(receipt_path).unwrap()).unwrap();
+        assert_eq!(receipt["source_version"], "3.3.0");
+        assert_eq!(receipt["target_version"], "3.4.0");
+        assert_eq!(receipt["source_revision"], SOURCE_REVISION);
+        assert_eq!(receipt["target"], "x86_64-pc-windows-msvc");
+        assert_eq!(receipt["adapters"][0], "codex");
+        assert!(receipt["staged_files"].as_array().is_some());
+        assert!(receipt["published_files"].as_array().is_some());
+        assert_eq!(receipt["baseline_state_committed"], true);
+        assert_eq!(receipt["rollback_possible"], true);
+        assert!(receipt["next_safe_action"].as_str().is_some());
+    }
+
+    #[test]
+    fn runtime_handoff_rejects_a_path_that_was_not_frozen_for_the_transaction() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        let (paths, _) = planned_transaction(&repo, "base", "upstream");
+        continue_transaction(&repo, &paths.state_path, "project-identity").unwrap();
+        let attacker_path = repo.join("unrelated-runtime.exe");
+        fs::write(&attacker_path, b"unrelated").unwrap();
+
+        let error =
+            mark_runtime_pending(&repo, &paths.state_path, "project-identity", &attacker_path)
+                .unwrap_err()
+                .to_string();
+
+        assert!(error.contains("frozen installed runtime"));
+        assert_eq!(
+            inspect_transaction(&repo, &paths.state_path, "project-identity")
+                .unwrap()
+                .status,
+            TransactionStatus::ProjectActivated
+        );
+    }
+
+    #[test]
+    fn future_transaction_state_is_refused_without_rewriting_state_or_seal() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        let (paths, transaction) = planned_transaction(&repo, "base", "upstream");
+        let state = paths.state_path.clone();
+        let mut future = serde_json::to_value(&transaction).unwrap();
+        future["schema_version"] = serde_json::Value::from(999_u64);
+        let content = format!("{}\n", serde_json::to_string_pretty(&future).unwrap());
+        fs::write(&state, &content).unwrap();
+        fs::write(
+            paths.root.join(STATE_SEAL_FILE),
+            format!("{}\n", sha256_text(&content)),
+        )
+        .unwrap();
+        let before_state = fs::read(&state).unwrap();
+        let before_seal = fs::read(paths.root.join(STATE_SEAL_FILE)).unwrap();
+
+        let error = inspect_transaction(&repo, &state, "project-identity")
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("Unsupported Baron update transaction schema"));
+        assert_eq!(fs::read(&state).unwrap(), before_state);
+        assert_eq!(
+            fs::read(paths.root.join(STATE_SEAL_FILE)).unwrap(),
+            before_seal
+        );
+    }
+
+    #[test]
+    fn receipt_boundary_failure_leaves_runtime_pending_and_recoverable() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        let (paths, _) = planned_transaction(&repo, "base", "upstream");
+        continue_transaction(&repo, &paths.state_path, "project-identity").unwrap();
+        let runtime = std::env::current_exe().unwrap();
+        mark_runtime_pending(&repo, &paths.state_path, "project-identity", &runtime).unwrap();
+
+        let error = complete_transaction_with_failure(
+            &repo,
+            &paths.state_path,
+            "project-identity",
+            "runtime version matched",
+            Some(ApplyFailurePoint::BeforeReceipt),
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("receipt") && error.contains("recoverable"));
+        let pending = inspect_transaction(&repo, &paths.state_path, "project-identity").unwrap();
+        assert_eq!(pending.status, TransactionStatus::RuntimePending);
+        assert_eq!(pending.last_checkpoint, "receipt_pending");
+        assert!(!repo
+            .join(".baron/update/receipts")
+            .join(format!("{}.json", pending.transaction_id))
+            .exists());
+
+        let recovered = recover_transaction(&repo, &paths.state_path, "project-identity").unwrap();
+        assert_eq!(recovered.status, TransactionStatus::RolledBack);
+        assert_eq!(fs::read_to_string(repo.join("AGENTS.md")).unwrap(), "base");
+    }
+
+    #[test]
+    fn activation_preserves_active_task_continuity_hooks_dedup_and_autopilot_state() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        let (paths, _) = planned_transaction(&repo, "base", "upstream");
+        let preserved = [
+            (
+                "docs/baron/plans/CURRENT.md",
+                "# Active Task\n\n- Status: `in_progress`\n- Next action: continue known work\n",
+            ),
+            (
+                "docs/baron/continuity/CURRENT.md",
+                "# Continuity\n\n- Last successful step: staged update\n- Next action: continue known work\n",
+            ),
+            (
+                "docs/baron/continuity/CURRENT_RECOVERY.md",
+                "# Recovery\n\n- Outcome: `interrupted`\n- Safe next action: retry update\n",
+            ),
+            (
+                "docs/baron/autopilot/STATE.json",
+                "{\"schema_version\":1,\"project_id\":\"project-identity\",\"candidates\":[],\"responses\":[],\"archived\":[]}\n",
+            ),
+            (
+                ".baron/cache/automation-dedup.json",
+                "{\"schema_version\":1,\"entries\":[{\"key\":\"event\",\"response\":\"cached\"}]}\n",
+            ),
+            (
+                ".codex/hooks.json",
+                "{\"hooks\":{\"SessionStart\":[{\"command\":\"user-hook\"}]}}\n",
+            ),
+            (
+                ".codex/skills/custom/SKILL.md",
+                "# User Skill\n\nKeep this content.\n",
+            ),
+        ];
+        let mut before = Vec::new();
+        for (relative, content) in preserved {
+            let path = repo.join(relative);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(&path, content).unwrap();
+            before.push((path, content.as_bytes().to_vec()));
+        }
+
+        let activated = continue_transaction(&repo, &paths.state_path, "project-identity").unwrap();
+        assert_eq!(activated.status, TransactionStatus::ProjectActivated);
+        for (path, content) in before {
+            assert_eq!(fs::read(path).unwrap(), content);
+        }
+        assert_eq!(
+            fs::read_to_string(repo.join("AGENTS.md")).unwrap(),
+            "upstream"
         );
     }
 

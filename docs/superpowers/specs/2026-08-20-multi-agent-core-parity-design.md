@@ -2,8 +2,8 @@
 
 ## Decision
 
-Baron has one engine and one Baron-managed core. Codex, Claude, Reasonix, and
-the generic agent surface are adapters over that core; no adapter may silently
+Baron has one engine and one Baron-managed core. Codex and Claude are adapters
+over that core; unsupported historical values remain opaque migration input and no adapter may silently
 receive a thinner set of Baron skills, quality agents, routing indexes, or
 startup lifecycle guidance.
 
@@ -28,25 +28,26 @@ The shared contract includes:
 - one project ID, one Vault route, one session journal, and one memory/Wiki/
   CodeGraph namespace.
 
-## Reasonix materialization
+## Historical legacy projection materialization
 
-Reasonix receives the shared core through these Baron-managed paths:
+The historical legacy projection received the shared core through these
+Baron-managed paths:
 
-- `.reasonix/INDEX.md`;
-- `.reasonix/skills/INDEX.md` and `.reasonix/skills/**`;
-- `.reasonix/agents/INDEX.md` and `.reasonix/agents/**`;
-- the existing `REASONIX.md`, command files, and settings/hooks bridge.
+- `legacy/INDEX.md`;
+- `legacy/skills/INDEX.md` and `legacy/skills/**`;
+- `legacy/agents/INDEX.md` and `legacy/agents/**`;
+- the existing legacy instruction file, command files, and settings/hooks bridge.
 
-The Reasonix startup contract directs the agent to read the narrow index and
+The legacy startup contract directed the agent to read the narrow index and
 only the task-routed skill/agent body. It must not recursively load every
-asset, and it must not create a Reasonix-only memory namespace.
+asset, and it must not create a legacy-only memory namespace.
 
 ## Preservation and switching
 
 Installing or switching an adapter may create missing Baron-managed files. It
 must preserve unmarked user files and changed managed files, report conflicts,
 and rely on the existing managed-baseline planner for later three-way updates.
-Switching Codex, Claude, Reasonix, and generic agents changes only the active
+Switching Codex and Claude changes only the active
 adapter and its bridge; it never copies memory, changes `project_id`, or
 deletes another adapter's files.
 
@@ -54,15 +55,15 @@ deletes another adapter's files.
 
 The correction is complete only when tests prove:
 
-1. Codex and Reasonix expose the same embedded skill and agent inventory,
-   indexes, and mandatory quality-agent contracts.
-2. Reasonix startup/context points at the shared core and uses the same
-   project/Vault commands as Codex.
-3. Codex -> Reasonix -> Claude -> Generic -> Codex preserves every adapter's
-   files, project identity, and shared history.
+1. The historical legacy projection exposed the same embedded skill and agent
+   inventory, indexes, and mandatory quality-agent contracts as Codex.
+2. The legacy startup/context surface pointed at the shared core and used the
+   same project/Vault commands as Codex.
+3. The historical multi-adapter switching sequence preserved files, project
+   identity, and shared history.
 4. Existing user skills, agents, commands, settings, hooks, and instructions
    are never silently overwritten.
-5. Missing managed Reasonix assets are reconciled, while changed or ambiguous
+5. Missing managed legacy assets are reconciled, while changed or ambiguous
    assets are left untouched and reported.
 6. Existing engine, memory, fallback, release, and cross-platform tests remain
    green.

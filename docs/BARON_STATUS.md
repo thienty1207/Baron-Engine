@@ -1,19 +1,416 @@
 # Baron Build Status
 
-Last updated: 2026-08-20
+## Codex + Claude Core Consolidation - Phase 16
+
+### Security remediation checkpoint (2026-09-09)
+
+- Scope was limited to SEC-03 release metadata authenticity and SEC-04 proof /
+  gate evidence authority; the product source is now Baron 5.0.0 and is ready
+  for hosted release staging.
+- SEC-03 is closed in the repaired source: release metadata is a compact,
+  deterministic manifest signed with Ed25519; the compiled trust anchor is
+  `baron-release-2026` with public-key fingerprint
+  `73a005a12cf79f1fa60612f0e359a13c83d2660806075b610b3d83f4f14c31b4`.
+  Rust updater and both bootstrap installers verify the detached signature
+  before consuming security fields or mutating an installation, then verify
+  authenticated size and SHA-256 values. The workflow consumes the protected
+  base64 raw-seed `BARON_RELEASE_SIGNING_KEY`, derives and checks the pinned
+  public key, and pins third-party actions to immutable commits.
+- SEC-04 remains closed: typed current-operation receipts carry task,
+  operation, adapter, session, request, gate, and source identity. Free-form
+  capability/gate summaries, child-agent text, Autopilot candidates, and
+  persisted unkeyed receipts remain diagnostic.
+- Fresh Codex Security scan
+  `450e2e04-14c0-40d5-985c-9579637e4a35` completed against the final versioned
+  snapshot with zero reportable findings and no snapshot-change warning. The
+  remote bootstrap-script self-authentication limit is documented as an
+  explicit trust-boundary limitation; the trusted copy still authenticates
+  release metadata and binaries before mutation.
+- Focused security tests, the complete post-bump workspace regression sweep,
+  formatter, Clippy, release build, final-binary smoke, diff checks, and
+  retired-adapter guards pass with zero unexpected failures. TAC is
+  unavailable on this host and is reported separately. The source is an
+  uncommitted 5.0.0 candidate; commit, push, hosted CI, tag, and GitHub
+  Release remain required.
+
+- Status: `ready for release staging`; SEC-03 and SEC-04 are closed locally.
+- Authority: `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md` and
+  the accepted Phase 16 brief.
+- Active plan: `docs/superpowers/plans/2026-09-09-final-adversarial-verification-phase16.md`.
+- Release boundary: local source and clean build are at 5.0.0. Commit, push,
+  hosted CI, annotated tag, and GitHub Release remain required; historical
+  4.2.2 entries below are preserved as release evidence.
+- Current next action: run the final post-bump local matrix, inspect the release
+  diff, commit and push `main`, then wait for the actual hosted CI before tag
+  and GitHub Release publication.
+
+### Phase 16 repair checkpoint
+
+- A Windows junction fixture exposed a pre-rejection write through a linked
+  `.baron` directory. Initialization now validates the directory chain before
+  writing, and durable Core/config/Vault state writers use safe replacement
+  and explicit missing-file semantics.
+- The linked `.baron` and linked control-plane tests pass on the current
+  Windows host. Version, release metadata, commits, tags, and publication
+  remain unchanged until every gate passes.
+
+The older phase entries below are historical evidence. They remain useful for
+review but do not override the current source or maintained product docs.
+
+## Codex + Claude Core Consolidation - Phase 15
+
+- Status: `completed`; Phase 15 finalized the public product model, README,
+  maintained architecture/compatibility docs, generated integration-contract
+  audits, command-surface alignment, changelog, historical framing, and docs
+  tests.
+- Authority: `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-08-final-documentation-product-model-phase15.md`.
+- Delivered: maintained docs now describe Baron Core as the canonical owner,
+  Codex and Claude as thin native projections, the structured prepare packet,
+  trusted memory and Task State tiers, profile-aware routing, hook fallback,
+  Autopilot trust, and preserve-first update/recovery behavior. Historical
+  audits and dated plans are explicitly provenance rather than user contracts.
+- Verification: Phase 15 documentation and generated-contract tests pass;
+  CLI help, maintained local links, status JSON parsing, formatter, workspace
+  tests, Clippy, diff checks, and zero retired-adapter gates pass.
+- Constraints: preserve Phase 1–14 source behavior and zero retired-adapter
+  gates. Do not begin Phase 16 adversarial verification, release, tag, push,
+  publication, version bump, or history rewrite.
+- Current next action: prepare Phase 16 adversarial verification only; do not
+  release or publish from this checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 14
+
+- Status: `completed`; Phase 14 covered persisted-state compatibility,
+  safe update/downgrade/migration, crash recovery, rollback, dry-run proof,
+  Core/projection coherence, and local release-package hardening.
+- Authority: `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-08-update-downgrade-migration-release-phase14.md`.
+- Delivered: future project and managed-state writers fail closed without
+  rewriting user bytes; state-guard errors preserve the actionable schema
+  cause; update completion commits a recoverable runtime checkpoint before an
+  additive source/version/file/rollback/next-action receipt; and receipt
+  failure remains explicitly recoverable.
+- Verification: focused Phase 14 compatibility/update/release suites, the
+  complete workspace matrix under system Windows PowerShell, release build and
+  binary smoke, formatter, Clippy, diff checks, and retired-adapter gates pass.
+  The default Codex-bundled PowerShell runtime still blocks two installer tests
+  before assertions because `Microsoft.PowerShell.Archive` cannot autoload.
+- Constraints: no Phase 15 documentation rewrite, Phase 16 final release work,
+  version bump, tag, GitHub publication, push, or history rewrite.
+- Current next action: prepare the Phase 15 documentation rewrite only; do not
+  begin Phase 16 or release work.
+
+
+## Codex + Claude Core Consolidation - Phase 13
+
+- Status: `completed`; Phase 13 covered only safe Autopilot candidate
+  learning, bounded housekeeping, and conversational approval over existing
+  Baron Core authorities.
+- Authority: `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-08-autopilot-ux-phase13.md`.
+- Delivered: additive project/Vault Autopilot ledger with deterministic IDs,
+  provenance, readiness, scope/impact, contradiction detection, safe
+  housekeeping, bounded current-context/Prepare warnings, natural-language
+  approve/reject/defer/correction responses, response idempotency, and
+  Codex/Claude cross-adapter correlation. Pending candidates remain outside
+  trusted memory, Tier-0, routing, task truth, proof, policy, and runtime
+  ownership. Approved project decisions use the existing Product Harness
+  authority; Core assets and managed projections remain untouched.
+- Verification: Phase 13 Core `14/14`, CLI `2/2`, full workspace sweep under
+  the compatible system Windows PowerShell module path has zero failures and
+  three intentionally ignored historical fixtures; formatter, Clippy, diff,
+  and retired-adapter gates pass.
+- Constraints: candidates remain outside trusted memory, Tier-0, task truth,
+  routing, proof, workflow, policy, and runtime ownership until an existing
+  authority separately records an explicit decision. Do not begin Phase 14+ or
+  release/tag/push/version/history work.
+- Current next action: prepare the Phase 14 plan only; do not begin Phase 14 in
+  this checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 12
+
+- Status: `completed`; native Codex and Claude hooks are bounded accelerators
+  over Baron Core. AGENTS.md and CLAUDE.md remain the correctness fallback.
+- Authority: `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-08-native-hook-idempotency-phase12.md`.
+- Scope delivered: normalized SessionStart, UserPromptSubmit, PreCompact, and
+  Stop events; structured prepare projections; durable event-key dedup and
+  append-safe journal writes under the project lock; event-keyed continuity;
+  parent/child and recursion guards; soft/hard hook failure responses; and
+  preserved Codex/Claude third-party hook/settings content.
+- Verification: focused Phase 12 Core `9/9`, adapter `3/3`, and CLI `4/4`
+  suites pass. Relevant prior-phase regressions pass. The default Codex
+  PowerShell runtime blocks two installer tests before assertions because its
+  bundled `Microsoft.PowerShell.Archive` cannot load; system Windows
+  PowerShell reruns the lifecycle suite `5/5`, and the full workspace sweep
+  under that module path passes `568` tests with `3` intentionally ignored
+  historical fixtures and `0` failures. Formatter, workspace Clippy, diff,
+  status JSON, and retired-adapter grep gates pass.
+- Constraints: PreparePacket v1, project/managed-state/memory schemas, and
+  Codex/Claude boundaries remain unchanged. Phases 13-16 and all
+  release/tag/push/history rewrite work remain deferred.
+- Current next action: prepare the Phase 13 plan only; do not begin Phase 13
+  in this checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 11
+
+- Status: `completed`; final supported-adapter cleanup leaves Codex and Claude
+  as the only active integration targets. Historical unsupported values remain
+  opaque migration/diagnostic data and cannot become a runtime operation
+  identity.
+- Authority: `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-08-final-supported-adapter-cleanup-phase11.md`.
+- Pre-cleanup evidence: 476 tracked content match lines and 3 tracked
+  filenames contained the retired adapter token. Unsupported legacy adapter
+  surfaces were removed from enums, CLI, installer/update branches, tests,
+  packaged projections, and current documentation.
+- Constraints: preserve Core, Codex and Claude bridge behavior; keep
+  PreparePacket v1, managed-state v2, and memory schemas unchanged; do not
+  auto-select a replacement adapter; do not begin Phase 12 or release work.
+- Completion evidence: focused Phase 11 and adapter regression suites pass;
+  Codex/Claude thin bridges, Core ownership, opaque historical parsing, and
+  fail-closed unsupported-only projects are covered. The final workspace sweep
+  reports 568 passed, 3 intentionally ignored historical fixtures, and zero
+  failures when the Windows PowerShell system module path is used. The default
+  Codex module path makes two installer tests fail before their assertions
+  because `Microsoft.PowerShell.Archive` is resolved from an incompatible
+  runtime module; the focused installer suite passes 5/5 with the system path.
+  Formatter, workspace Clippy, diff, status JSON, content, and tracked-filename
+  gates pass.
+- Current next action: prepare Phase 12 only; do not begin Phase 12 in this
+  checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 10
+
+- Status: `completed`; Phase 10 removes correctness dependence on the
+  project-global `active_adapter` while preserving its serialized compatibility
+  field. Phase 11+ retired-adapter cleanup, final hook architecture, Autopilot
+  UX, release work, and broad documentation cleanup remain deferred.
+- Authority: `docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md` and
+  `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Completed plan: `docs/superpowers/plans/2026-09-08-remove-global-adapter-authority-phase10.md`.
+- Implementation: runtime correctness now consumes explicit, non-persisted
+  `OperationContext` identity restricted to Codex or Claude. Route/context,
+  prepare, capability/runtime checks, proof attribution, journal events,
+  continuity, and bridge-facing CLI paths no longer infer authority from the
+  serialized project preference. Shared task state remains adapter-neutral;
+  status/switch helpers retain the legacy field for compatibility and clearly
+  report that it is non-authoritative. PreparePacket v1 and managed-state v2
+  remain unchanged.
+- Focused proof: Phase 10 Core `14/14` and CLI `8/8`, including deterministic
+  Codex to Claude to Codex resume; all Core tests pass; the complete workspace
+  sweep passes every product target except the two known
+  Windows installer tests blocked by the unavailable
+  `Microsoft.PowerShell.Archive` module. Formatter, workspace Clippy, diff,
+  and status JSON checks pass.
+- Current next action: prepare the Phase 11 plan; do not begin Phase 11 in this
+  checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 8
+
+- Status: `completed`; Phase 8 installs a Codex-native thin projection over the
+  canonical `.baron/core/**` runtime. Claude's final bridge, adapter-authority
+  removal, retired-adapter purge, hook/idempotency hardening, and release work
+  remain deferred.
+- Authority: `docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md` and
+  `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Completed plan: `docs/superpowers/plans/2026-09-07-codex-native-thin-bridge-phase8.md`.
+- Implementation: Codex now owns a compact managed `AGENTS.md` contract, one
+  `.agents/skills/baron-engine` bridge with explicit Codex metadata, three
+  Core-provenance native agent wrappers, a diagnostic `.codex/INDEX.md`, and
+  merged hooks. Fresh installs do not create a copied `.codex/skills` semantic
+  tree; existing legacy/custom paths remain preserved input.
+- Focused proof: Phase 8 adapter bridge `6/6`, CLI bridge `5/5`, promoted Codex
+  target `1/1`, Phase 4 Core `9/9`, Phase 3 ownership `12/12`, Phase 2 safe I/O
+  `8/8`, Phase 5 prepare `5/5`, Phase 6 trusted memory `4/4`, Phase 7 routing
+  `19/19`, adapter lifecycle `30/30`, and update planner `15/15`. Formatter,
+  workspace Clippy, and diff checks pass. The workspace sweep has no product
+  regressions; two lifecycle installer tests remain host-limited by the
+  unavailable `Microsoft.PowerShell.Archive` module on this Windows machine.
+- Current next action: prepare the Phase 9 plan; do not begin Phase 9 in this
+  checkpoint. Managed-state v2 and PreparePacket v1 remain unchanged.
+
+## Codex + Claude Core Consolidation - Phase 7
+
+- Status: `completed`; Phase 7 made the existing control-plane router
+  profile-aware and bounded, added a distinct Database profile, preserved Data
+  as a separate domain, and added canonical mobile application engineering.
+  Phase 8-12 bridge, adapter retirement, hook/idempotency, and release work
+  remain deferred.
+- Authority: `docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md` and
+  `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-07-profile-aware-routing-phase7.md`.
+- Implementation: `baron_core::control_plane::route_task` remains the single
+  routing authority. It now combines normalized task evidence, configured
+  profiles, bounded survey signals, work shape, current state/continuity
+  markers, capabilities, and affected paths into deterministic skill, agent,
+  verification, and explanation decisions. Database and mobile application
+  skills are canonical Core assets and adapter payloads remain thin.
+- Focused proof: Phase 7 routing `19/19`, Database profile CLI `2/2`, platform
+  intelligence `5/5`, context compiler `19/19`, Core prepare `5/5`, Core
+  materialization `9/9`, config `14/14`, promoted Phase 6 targets `3/3`, and
+  promoted Phase 7 targets `2/2`.
+  Formatter, workspace Clippy, diff, and status JSON checks pass. The full
+  workspace sweep has no new product regressions; two lifecycle installer
+  tests remain blocked only by the unavailable `Microsoft.PowerShell.Archive`
+  module on this Windows machine.
+- Current next action: prepare the Phase 8 plan; do not begin Phase 8
+  implementation in this checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 6
+
+- Status: `completed`; this phase unified context-critical memory retrieval,
+  added a bounded Task State projection, and replaced flat context tail
+  truncation with protected priority tiers. Phase 7+ work remains deferred.
+- Authority: `docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md` and
+  `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-06-trusted-memory-phase6.md`.
+- Phase 5 prepare is the precondition. The implementation boundary is the
+  existing firewall/context API: no new memory engine, task database, routing
+  authority, adapter bridge, or persisted schema.
+- Focused proof: promoted Phase 6 targets `3/3`, dedicated trust/context tests
+  `4/4`, context compiler `18/18`, Phase 1 current `8/8`, Phase 5 Core prepare
+  `4/4`, and Phase 5 CLI prepare `5/5`. The workspace sweep has no product
+  regressions; two lifecycle installer tests remain blocked only by the
+  unavailable `Microsoft.PowerShell.Archive` module on this Windows machine.
+  Formatter, workspace Clippy, diff, and status JSON checks pass.
+- Current next action: prepare the Phase 7 profile-routing plan; do not begin
+  Phase 7 implementation in this checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 5
+
+- Status: `completed`; this phase adds the high-level structured
+  `control-plane prepare` protocol as a façade over existing Baron
+  authorities. Phase 6+ work remains deferred.
+- Authority: `docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md` and
+  `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-06-control-plane-prepare-phase5.md`.
+- Phase 4 Core installation was the precondition. Prepare uses explicit
+  Codex/Claude identity, bounded structured stdin, deliberate packet/error
+  projections, and the existing context/routing/continuity/intent/proof
+  authorities without adding a second brain or persisted schema.
+- Focused proof: Core prepare `4/4`, CLI prepare `5/5`, promoted Phase 1
+  structured-input/error targets `2/2`, and Phase 4 Core `9/9`. The full
+  workspace sweep has no product regressions; two lifecycle installer tests
+  remain blocked only by the unavailable `Microsoft.PowerShell.Archive`
+  module on this Windows machine. Formatter, workspace Clippy, diff, and
+  status JSON checks pass.
+- Current next action: prepare the Phase 6 plan; do not begin Phase 6 in this
+  checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 4
+
+- Status: `completed`; this phase installs one canonical packaged Baron Core at
+  `.baron/core/**` and keeps Codex/Claude adapter payloads as thin
+  integrations. Phase 5+ work remains deferred.
+- Authority: `docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md` and
+  `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-06-codex-claude-core-phase4.md`.
+- Phase 3 ownership and schema-2 migration are the precondition. Phase 4 now
+  materializes every embedded `assets/core/**` file once under `.baron/core/**`,
+  preserves user and ambiguous legacy files, and publishes only integration
+  payloads into Codex and Claude surfaces.
+- Focused proof: canonical Core, payload separation, nested packaged resources,
+  ownership, migration ordering, update reconciliation, adapter lifecycle, and
+  CLI adapter tests pass. The full workspace sweep has no product regressions;
+  two lifecycle installer tests remain blocked only by the unavailable
+  `Microsoft.PowerShell.Archive` module on this Windows machine.
+- Current next action: prepare the Phase 5 plan; do not begin Phase 5 in this
+  checkpoint.
+
+## Codex + Claude Core Consolidation - Phase 3
+
+- Status: `completed`; this phase implements explicit managed ownership and
+  legacy migration only. Canonical Core installation, thin bridges, prepare,
+  memory/context, routing, adapter retirement, and retired-adapter cleanup
+  remain deferred to later phases.
+- Authority: `docs/refractor/BARON_ENGINE_DEEP_AUDIT_2026-09-06.md` and
+  `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md`.
+- Active plan: `docs/superpowers/plans/2026-09-06-codex-claude-core-phase3.md`.
+- Managed state now publishes schema 2 with an explicit `owner`, optional
+  migration provenance, and `minimum_writer_schema: 2`. Schema 1 remains
+  readable as migration input; v1 unsupported/Core records transfer to Core and
+  verified unchanged Codex/Claude legacy skills move to `.baron/core/skills`.
+- Modified former managed skills are blocking conflicts. Unregistered and
+  ambiguous adapter-local skills are preserved and excluded from new ownership
+  claims. Codex and Claude embedded skill/agent writes now preserve colliding
+  user files and report their paths.
+- Effective live-path duplicates are rejected before publication. Safe I/O
+  staging plus the project mutation lock provide rollback and retry evidence;
+  a deterministic temporary-name collision restores the old manifest, legacy
+  bytes, and staged Core files.
+- Direct baseline/reconcile calls and verified update-candidate planning
+  migrate schema-1 ownership before using or publishing a managed merge
+  ancestor.
+- Focused proof: Phase 3 ownership `12/12`, promoted Phase 1 ownership target
+  assertions `6/6`, promoted Phase 2 safety assertions `5/5`, adapter lifecycle
+  `30/30`, update planner `15/15`, Phase 2 adapter safety `8/8`, and the
+  relevant transaction/migration targets pass. The three physical canonical
+  Core/projection tests remain intentionally ignored as Phase 4 red tests.
+- Current next action: prepare the Phase 4 canonical Core installation plan;
+  do not begin Phase 4 implementation in this checkpoint.
+
+Last updated: 2026-09-06
+
+## Codex + Claude Core Consolidation — Phase 2
+
+- Status: `completed`; this phase was limited to Safe I/O and locking.
+- Authority: the 2026-09-06 deep audit and Codex + Claude Core optimization
+  specification in `docs/refractor/`.
+- Active plan: `docs/superpowers/plans/2026-09-06-codex-claude-core-phase2.md`.
+- Phase 1 evidence remains preserved in its fixture/test files. The Phase 2
+  dependency graph is: shared `baron-core::safe_io` -> adapter managed/install
+  and update paths, CLI update transactions, and migration-state publication.
+  The mutation lock is `.baron/.baron-mutation.lock`, outside managed-state
+  snapshots.
+- No Core ownership, canonical Core installation, bridge, routing,
+  context/memory, adapter cleanup, or schema change is in scope.
+- Focused proof: `baron-core` `phase2_safe_io` `4/4`, `baron-adapters`
+  `phase2_current` `8/8`, update planner `15/15`, migration `8/8`, update
+  transaction unit tests `8/8`, recovery CLI `3/3`, and self-update CLI `1/1`.
+  The five Phase 1 Safe I/O target tests are green when run as ignored tests.
+- Required verification: `cargo fmt --all -- --check`, workspace Clippy, and
+  `git diff --check` pass. The workspace test sweep has no source regressions;
+  two lifecycle tests remain blocked by this machine's unavailable
+  `Microsoft.PowerShell.Archive` module.
+- Remaining target-red tests are ownership/Core, prepare, trusted context,
+  routing, and retired-adapter work assigned to later phases.
+- Current next action: prepare the Phase 3 Core ownership plan; do not begin
+  Phase 3 implementation in this checkpoint.
+
+## Codex + Claude Core Consolidation — Phase 1
+
+- Status: `ready_to_close`; this phase freezes executable evidence only.
+- Authority: the 2026-09-06 deep audit and Codex + Claude Core optimization
+  specification in `docs/refractor/`.
+- Current regression fixtures now cover Codex, Claude, and unsupported legacy input,
+  multi-adapter identity, installation order, managed-state failure inputs,
+  ownership cases, preservation, memory trust, continuity, profiles, context
+  pressure, path boundaries, and structured task input.
+- Target architecture tests are isolated as ignored expected-red tests. They
+  record the required Core ownership, safe I/O, prepare protocol, trusted
+  context, profile routing, adapter projection, and legacy cleanup behavior.
+- Production Rust behavior is unchanged in Phase 1. No release or tag is part
+  of this phase.
+- Focused evidence: adapter current `21/21`, core current `8/8`, and CLI
+  current `2/2`; adapter target `14` and core target `7` intentionally fail
+  when run as ignored tests, while CLI target has `7` intentional failures.
+- Current next action: publish the Phase 1 evidence report and stop before
+  Phase 2.
 
 ## Overall
 
-- Stable source release: `v4.2.2` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2); [`v4.2.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.1) is the prior adapter/parity Release)
-- Latest downloadable release: [`v4.2.2`](https://github.com/thienty1207/Baron-Engine/releases/latest)
-- Candidate source version: `4.2.2`; immutable public Release, checksums,
-  native matrix, installer smoke, and Reasonix command-surface proof have passed
+- Stable source release: `v5.0.0` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.0); [`v4.2.2`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2) is the prior public release)
+- Latest downloadable release: [`v5.0.0`](https://github.com/thienty1207/Baron-Engine/releases/latest)
+- Candidate source version: `5.0.0`; local release gates and the clean release
+  build have passed; hosted CI and immutable publication remain pending
 - Baron 2.0 completion: 100%
 - Baron 3.0 completion: 100%
 - Baron 3.2 completion: 100%
 - Baron 3.3 completion: 100%
-- Target source release: `v4.2.2`; source, tests, native assets, checksums, and
-  public install evidence agree
+- Target source release: `v5.0.0`; source, tests, native assets, checksums, and
+  authenticated release metadata are prepared for hosted publication
 - Baron 4.2 program target release: `v4.2.0`; Phases 88-100 are complete and the
   engine remains unchanged by the `4.2.1` adapter-packaging and `4.2.2`
   parity-packaging patches
@@ -36,26 +433,26 @@ Last updated: 2026-08-20
   follow-up.
 - Baron 4.2 program: thirteen phases (`88-100`), all complete. Phase 100 is the
   verified public release boundary and is no longer open.
-- Current work state: source version `4.2.2`, default guarded generation `4.2`,
+- Current work state: source version `5.0.0`, default guarded generation `4.2`,
   explicit whole-engine `4.1` rollback, and per-query `4.0` fallback are ready;
-  public `releases/latest` resolves to `4.2.2`.
-- Current next action: normal `4.2.2` maintenance. The multi-agent core parity
-  correction is complete: Reasonix now receives the same Baron-managed skills,
-  agents, indexes, workflow, and evidence contract as Codex without changing
-  the shared engine or Vault.
+  public `releases/latest` will resolve to `5.0.0` after hosted publication.
+- Current next action: complete the 5.0.0 immutable publication. The historical parity
+  correction is complete: the legacy projection received the same Baron-managed
+  skills, agents, indexes, workflow, and evidence contract as Codex without
+  changing the shared engine or Vault.
 - Baron 4.2.1 patch track: four phases (`109-112`), all complete. Phase 112
   closed the immutable GitHub Release and handoff. The patch packages the
-  already-implemented DeepSeek-Reasonix adapter and root shortcuts; it does
+  already-implemented DeepSeek-legacy adapter and root shortcuts; it does
   not create `4.3` or change the intelligence engine.
 - Baron 4.2.2 public patch track: three phases (`118-120`), all complete. Phase
   120 closed the immutable GitHub Release and final handoff for the shared-core
   parity correction; it does not create `4.3` or change the memory engine.
-- Reasonix adapter track: eight maintenance phases (`101-108`) remain the
+- legacy adapter track: eight maintenance phases (`101-108`) remain the
   historical implementation record. Their source commits were first packaged
-  in the `4.2.1` patch so an installed binary exposes `baron --reasonix` and
-  `baron init --reasonix`; the shared-core parity correction is published in
+  in the `4.2.1` patch so an installed binary exposes the retired adapter shortcut and
+  the retired adapter init path; the shared-core parity correction is published in
   `4.2.2`.
-- Reasonix/core parity track: five implementation phases (`113-117`) are
+- retired adapter/core parity track: five implementation phases (`113-117`) are
   complete and published in `v4.2.2`. This corrected the adapter boundary; it
   did not create `4.3` or change Baron intelligence, memory, fallback, project
   identity, or Vault.
@@ -68,9 +465,9 @@ Last updated: 2026-08-20
   `SHA256SUMS`.
 - Baron 4.2.1 candidate proof: `cargo fmt --all`, workspace check, workspace
   library tests (`40/40`), warnings-denied Clippy, locked release build,
-  release metadata/identity tests, focused Reasonix CLI tests (`6/6`), and
+  release metadata/identity tests, focused retired adapter CLI tests (`6/6`), and
   direct release-binary smoke passed. The local unsigned Windows release
-  binary reports `baron 4.2.1`, exposes both Reasonix entry points, and has
+  binary reports `baron 4.2.1`, exposes both retired adapter entry points, and has
   SHA-256 `97975CF1B0B0DDB07B92A7A7C7814D79B830E01577C2541E128A073D61204541`.
   The full local integration sweep has five environment-only skips/failures:
   three unsigned test executables were blocked by the personal WDAC policy and
@@ -84,7 +481,7 @@ Last updated: 2026-08-20
   passed exact-source verification, Clippy, the full native matrix, checksums,
   `release-manifest.json`, installer lifecycle, and immutable promotion. A
   fresh public `releases/latest` installer reported `baron 4.2.1` and exposed
-  both Reasonix entry points. The public Windows raw binary SHA-256 is
+  both retired adapter entry points. The public Windows raw binary SHA-256 is
   `21F4C84009E38951959F04EC1FADA20EE964661C261103849F0EEA23AC2CE942`, matching
   `SHA256SUMS`.
 - Baron 4.2.2 public release evidence: source/tag commit
@@ -412,7 +809,7 @@ The proposed release has five owner-visible outcomes:
 - the default local CodeGraph understands supported-language syntax, imports,
   definitions, references, calls, and impact paths without requiring Graphify,
   an LSP server, a cloud API, or a paid account
-- a compact Resume Brief gives Codex, Claude, or a generic agent the same
+- a compact Resume Brief gives Codex and Claude the same
   grounded work state while reducing context cost and never mixing projects
 
 The release does not add a GUI, team accounts, hosted memory service, proxy,
@@ -472,7 +869,7 @@ Completion requires:
 - SQLite/cache acceleration is working and rebuildable
 - memory firewall prevents shared-vault cross-project noise
 - context compiler produces bounded, task-relevant context
-- Codex, Claude, and generic agent adapters are real
+- Codex and Claude adapters are real
 - Superpowers remains the workflow core
 - 3 core quality agents are shipped and routed
 - optional frontend/security skills are shipped and lazy-routed
@@ -665,7 +1062,7 @@ Phase 16-17 final verification:
 
 - [x] `baron context --codex` works.
 - [x] `baron context --claude` works.
-- [x] `baron context --agent` works.
+- [x] `baron context --codex` and `baron context --claude` work.
 - [x] `baron context --why` explains loaded/skipped context.
 - [x] Context output stays bounded.
 - [x] Context changes by task, risk, phase, and adapter.
@@ -796,7 +1193,7 @@ Phase 16-17 final verification:
 ### Phase 15 - Simple User Flow
 
 - [x] Add `baron setup --vault`, defaulting to the current folder when no Vault path is passed.
-- [x] Let `baron init --codex`, `baron init --claude`, and `baron init --agent` use the machine default Vault after setup.
+- [x] Let `baron init --codex` and `baron init --claude` use the machine default Vault after setup.
 - [x] Add platform focus flags such as `--frontend`, `--backend`, `--fullstack`, `--mobile`, `--desktop`, `--tool`, `--library`, `--data`, and `--cloud`.
 - [x] Support shortcut init such as `baron init --codex --fullstack`.
 - [x] Keep top-level help and README focused on normal user commands while keeping advanced commands available for AI automation and diagnostics.
@@ -816,7 +1213,7 @@ Phase 16-17 final verification:
 
 - [x] Productize the existing build-log, active plan, trace, and automation journal behavior into one explicit Baron resume contract.
 - [x] Ensure every meaningful feature implementation writes a current-work checkpoint before edits, after direction changes, before interruption, and before completion.
-- [x] Add or tighten adapter startup guidance so Codex, Claude, and generic agents read the resume packet before continuing interrupted work.
+- [x] Add or tighten adapter startup guidance so Codex and Claude read the resume packet before continuing interrupted work.
 - [x] Make context output show the current resume point without dumping noisy history.
 - [x] Add tests that simulate a stopped session and verify the next agent can identify current task, last completed step, open risks, proof status, and next action.
 - [x] Keep the feature automatic for AI; normal users should not need to run extra commands during ordinary work.
@@ -879,7 +1276,7 @@ Phase 16-17 final verification:
 
 - [x] Keep Baron 3 engine behavior unchanged.
 - [x] Rewrite README as a concise public landing page.
-- [x] Add a public 10-year repo demo for Codex, Claude, and generic agents.
+- [x] Add a public 10-year repo demo for Codex and Claude.
 - [x] Add Baron-owned public proof docs without pointing readers at external harness repositories.
 - [x] Add a public certification snapshot with concrete verification commands.
 - [x] Update release docs so `releases/latest` and tag publication are explicit.
@@ -1642,7 +2039,7 @@ Program-wide acceptance rules:
   text, configured providers, or an agent's written claim do not count as proof.
 - [x] Preserve user text, custom hooks, custom skills, custom agents, and old
   repositories through shadow-first, non-destructive update and migration paths.
-- [x] Keep Codex, Claude, and generic-agent behavior equivalent at the contract
+- [x] Keep Codex and Claude behavior equivalent at the contract
   level, while allowing each adapter to use its native capabilities safely.
 - [x] Make every optional provider fail closed for proof and degrade gracefully
   for ordinary context; normal coding must still work without embeddings,
@@ -1672,7 +2069,7 @@ Planned work:
   a large repository, an interrupted task, stale and superseded decisions,
   conflicting evidence, a renamed project, and two same-named folders with
   different project IDs.
-- [x] Exercise fresh Codex, Claude, and generic-agent sessions against the same
+- [x] Exercise fresh Codex and Claude sessions against the same
   expected answers so adapter quality is compared on one contract.
 - [x] Capture Baron 3.7 baseline correctness, missing-field rate, stale-answer
   rate, cross-project leakage, context tokens/bytes, index and recall latency,
@@ -2451,7 +2848,7 @@ Planned work:
 - [x] Integrate the candidate abstraction/trust labels with the current Memory Firewall,
   Continuity, Decisions, Proof, Trace, and session import owners instead of
   creating a parallel memory lifecycle.
-- [ ] Add cross-adapter contract tests proving Codex, Claude, and generic agents
+- [ ] Add cross-adapter contract tests proving Codex and Claude
   interpret abstraction, trust, source, freshness, and unknown labels the same
   way without recursively loading all levels.
 
@@ -2625,7 +3022,7 @@ Phase 69 exit gates:
 
 - [ ] Memory search plus grounded synthesis independently scores at least
   `90/100`, with every frozen per-metric floor and hard gate passing.
-- [ ] A fresh Codex, Claude, and generic agent recover equivalent current work,
+- [ ] A fresh Codex or Claude session recovers equivalent current work,
   decision, blocker, evidence, unknown, and next-action state from the same
   project without full-Vault or full-repository reading.
 - [ ] No unsupported conclusion, stale decision, contested fact, inferred graph
@@ -3809,7 +4206,7 @@ phase and the last phase in the program.
 | 94 | Grounded Synthesis, Abstention And Baron 4.0 Arbitration | Claim-level answers, explicit unknowns, conflict-aware handoff, and deterministic per-query fallback | 7% |
 | 95 | Fresh Wiki Knowledge Graph | Current/stale document identity, cited multi-hop answers, incremental freshness, and rebuild parity | 8% |
 | 96 | Parser-Backed Incremental CodeGraph And Impact Intelligence | Supported-language AST graph, relation confidence, incremental updates, and complete bounded impact evidence | 12% |
-| 97 | Cross-Agent Resume, Adapter Parity And Live Shadow Operation | A new Codex, Claude, or generic agent resumes correctly while 4.2 is evaluated safely in shadow mode | 5% |
+| 97 | Cross-Agent Resume, Adapter Parity And Live Shadow Operation | A new Codex or Claude session resumes correctly while 4.2 is evaluated safely in shadow mode | 5% |
 | 98 | Scale, Concurrency, Fault Injection, Security And Cost | Real long-history load, multi-agent contention, corruption recovery, poisoning defense, and bounded resource proof | 5% |
 | 99 | Integrated 4.2 Acceptance And No-Regression Decision | Sealed holdout, repeated raw-candidate results, per-case 4.1/4.0 comparison, and an honest promote/reject verdict | 3% |
 | 100 | Baron 4.2 Public GitHub Release, README, Reinstall And Rollback | Exact `v4.2.0` source, native assets, public install, data-preserving rollback, final docs, and clean remote state | 3% |
@@ -4380,7 +4777,7 @@ Planned work:
 
 - [x] Integrate the same project-bound context, memory, temporal, Wiki,
   CodeGraph, uncertainty, and fallback contract across Codex, Claude, and the
-  generic agent adapter while preserving user text, hooks, and custom assets.
+  legacy adapter input while preserving user text, hooks, and custom assets.
 - [x] Keep native lifecycle hooks observable and use bounded reconciliation
   when hooks are absent or missed; instruction-only behavior is never reported
   as executed automation.
@@ -4596,7 +4993,7 @@ starts:
   implementation; Phase 99 now passed, so version/README/tag/Release promotion
   is authorized only inside this final phase.
 
-## Baron Reasonix Adapter Compatibility Track (No 4.3)
+## Baron retired adapter Adapter Compatibility Track (No 4.3)
 
 This is the owner-approved seven-phase adapter maintenance plan. The source and
 public release remain `4.2.0`; no intelligence engine, generation selector,
@@ -4607,26 +5004,26 @@ Vault schema, or fallback behavior is being changed.
 Status: `complete`; source and CLI mappings are implemented without changing
 the 4.2.0 intelligence engine.
 
-- [x] Add `reasonix` to the core adapter/config/CLI/capability/context and
+- [x] Add `retired adapter` to the core adapter/config/CLI/capability/context and
   automation mappings.
 - [x] Add a backward-compatible `active_adapter`; switching must not change
   project ID, Vault, memory, Wiki, CodeGraph, plan, proof, trace, or continuity.
 - [x] Add red/green tests for one shared history with adapter provenance.
 
-### Phase 102 - Native Reasonix assets
+### Phase 102 - Native retired adapter assets
 
-Status: `complete`; native payloads and Reasonix command routing are present.
+Status: `complete`; native payloads and retired adapter command routing are present.
 
-- [x] Add managed `REASONIX.md` and `.reasonix/commands` payloads.
-- [x] Route Reasonix startup/context/status instructions through
-  `--adapter reasonix` and `--reasonix`.
-- [x] Preserve existing Codex/Claude/generic files and custom instructions.
+- [x] Add managed legacy instruction and legacy projection command payloads.
+- [x] Route retired adapter startup/context/status instructions through
+  the legacy adapter selection path.
+- [x] Preserve existing Codex/Claude/legacy files and custom instructions.
 
 ### Phase 103 - Non-destructive install and update
 
 Status: `complete`; preserve-first install and managed baselines are wired.
 
-- [x] Preserve unmarked user `REASONIX.md`, settings, hooks, and bridge files.
+- [x] Preserve unmarked user the retired adapter instruction file, settings, hooks, and bridge files.
 - [x] Update only unchanged Baron-managed blocks/baselines.
 - [x] Report malformed or ambiguous conflicts without writing over user data.
 
@@ -4637,7 +5034,7 @@ namespace and record adapter provenance in the shared journal.
 
 - [x] Add `baron adapter status` and `baron adapter switch --to <adapter>`.
 - [x] Checkpoint and record a shared adapter-switch event before activation.
-- [x] Prove Codex -> Reasonix -> Codex reads the same Vault history.
+- [x] Prove Codex -> retired adapter -> Codex reads the same Vault history.
 
 ### Phase 105 - Tests and GoGetSomeFoodFerris compatibility fixture
 
@@ -4645,14 +5042,14 @@ Status: `complete`; focused adapter/core/CLI tests passed, including the
 preservation, malformed-settings, shared-Vault, and identity-mismatch gates.
 
 - [x] Add adapter/config/context/automation/CLI and preservation tests.
-- [x] Add a read-only fixture matching the existing Codex-plus-user-Reasonix
+- [x] Add a read-only fixture matching the existing Codex-plus-user-retired adapter
   project shape; never mutate the user's project during the Baron test.
 - [x] Verify malformed settings and identity mismatch stop before writes.
 
 ### Phase 106 - Documentation and release truth
 
 Status: `complete`; README, command surface, adapter architecture, status JSON,
-and build log describe the shared-brain Reasonix workflow on 4.2.0.
+and build log describe the shared-brain retired adapter workflow on 4.2.0.
 
 - [x] Update README, command surface, adapter architecture, status JSON, and
   build log with the shared-brain switch workflow.
@@ -4663,7 +5060,7 @@ and build log describe the shared-brain Reasonix workflow on 4.2.0.
 Status: `complete`; the adapter-only implementation and closure commits are
 present on the remote `main` and `agent/baron-4-0` refs.
 
-- [x] Run the formatter, affected adapter/core suites, focused Reasonix CLI
+- [x] Run the formatter, affected adapter/core suites, focused retired adapter CLI
   suite, Clippy, locked release build, CLI/adapter smoke, shared-Vault switch,
   conflict/preservation, identity-mismatch, and docs/status checks. The two
   broader Windows installer lifecycle cases are environment-only failures from
@@ -4679,7 +5076,7 @@ present on the remote `main` and `agent/baron-4-0` refs.
 Status: `complete`; daily adapter switching is available from the project root
 without remembering the diagnostic subcommand and path arguments.
 
-- [x] Add `baron --reasonix` and `baron --codex` root shortcuts.
+- [x] Add the retired adapter shortcut and `baron --codex` root shortcuts.
 - [x] Resolve the configured project from the current folder, switch the active
   adapter, install missing managed assets, and retain the shared project/Vault
   namespace.
@@ -4688,7 +5085,7 @@ without remembering the diagnostic subcommand and path arguments.
 
 ## Baron Multi-Agent Core Parity Track (published in 4.2.2)
 
-This track repairs an adapter-boundary gap found after the Reasonix packaging
+This track repairs an adapter-boundary gap found after the retired adapter packaging
 patch. Baron core, Vault, memory, Wiki, CodeGraph, proof, trace, and continuity
 remain shared. The fix makes every adapter materialize the same embedded
 `assets/core` skills and agents while preserving native bridge paths and user
@@ -4703,26 +5100,26 @@ Status: `complete`; the source-of-truth and payload rule are centralized around
 - [x] Keep native bridge and hook formats adapter-specific without creating a
   second engine or asset owner.
 
-### Phase 114 - Full Reasonix core materialization
+### Phase 114 - Full retired adapter core materialization
 
-Status: `complete`; Reasonix now materializes the complete Baron-managed
-skill/agent views and indexes.
+Status: `complete`; the legacy projection then materialized the complete
+Baron-managed skill/agent views and indexes.
 
-- [x] Install `.reasonix/INDEX.md`, `.reasonix/skills/**`, and
-  `.reasonix/agents/**` from the embedded Baron core.
-- [x] Route Reasonix startup/context/status through the same workflow, quality
+- [x] Install the legacy projection index, skill tree, and agent tree from the
+  embedded Baron core.
+- [x] Route retired adapter startup/context/status through the same workflow, quality
   gates, routing, proof, trace, continuity, and autopilot contract as Codex.
-- [x] Preserve existing Reasonix bridge, settings, hooks, and user files.
+- [x] Preserve existing retired adapter bridge, settings, hooks, and user files.
 
 ### Phase 115 - Safe reconciliation and switching
 
 Status: `complete`; managed-baseline and adapter-switch proof passed after core
 materialization.
 
-- [x] Add the Reasonix core view to managed payloads and update reconciliation.
+- [x] Add the legacy core view to managed payloads and update reconciliation.
 - [x] Restore missing managed assets, but preserve changed/unmarked assets and
   report conflicts.
-- [x] Keep Codex, Claude, generic, and Reasonix files available with one
+- [x] Keep Codex, Claude, generic, and retired adapter files available with one
   project ID and one Vault.
 
 ### Phase 116 - Parity and regression proof
@@ -4730,10 +5127,10 @@ materialization.
 Status: `complete`; content, routing, switch, preservation, and regression
 gates passed; parity was not accepted from file presence alone.
 
-- [x] Prove Codex and Reasonix have identical embedded skill/agent inventories,
+- [x] Prove Codex and the legacy projection had identical embedded skill/agent inventories,
   indexes, and mandatory quality-agent contracts.
-- [x] Prove Codex -> Reasonix -> Claude -> Generic -> Codex switching preserves
-  custom files, project identity, and shared history.
+- [x] Prove the historical multi-adapter switching sequence preserved custom
+  files, project identity, and shared history.
 - [x] Run existing adapter, core, CLI, memory, fallback, and release suites.
   Four Windows environment-only gates remain blocked by PowerShell archive
   autoload or WDAC policy; no parity-related gate failed.
@@ -4775,7 +5172,7 @@ Status: `complete`.
 - [x] Record the two Windows-only `Microsoft.PowerShell.Archive` lifecycle
   blocks without weakening a production gate; all engine, memory, adapter,
   CLI, fallback, and release checks passed locally.
-- [x] Confirm the Reasonix shared-core correction is packaged as a `4.2.2`
+- [x] Confirm the retired adapter shared-core correction is packaged as a `4.2.2`
   patch without changing the intelligence engine, Vault, or memory contract.
 
 ### Phase 120 - Immutable GitHub publication and handoff

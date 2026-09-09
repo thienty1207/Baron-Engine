@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 
 use crate::config::{ProjectConfig, ProjectPlatform};
 use crate::platform::platform_name;
+use crate::safe_io::replace_text;
 
 const START: &str = "<!-- baron:architecture:start -->";
 const END: &str = "<!-- baron:architecture:end -->";
@@ -161,6 +162,11 @@ fn areas_for(platform: ProjectPlatform) -> &'static [&'static str] {
             "quality/lineage",
             "backfill/recovery",
         ],
+        ProjectPlatform::Database => &[
+            "relational models and constraints",
+            "queries/indexes/transactions",
+            "versioned migrations and integrity proof",
+        ],
         ProjectPlatform::Cloud => &[
             "infrastructure definitions",
             "services/functions",
@@ -227,8 +233,5 @@ fn upsert(path: &Path, body: &str) -> Result<()> {
         _ if existing.trim().is_empty() => format!("{block}\n"),
         _ => format!("{}\n\n{block}\n", existing.trim_end()),
     };
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, &content).with_context(|| format!("Could not write {}", path.display()))
 }

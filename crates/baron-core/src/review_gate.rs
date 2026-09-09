@@ -1,11 +1,12 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use crate::safe_io::{read_bytes, read_text_required, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -75,6 +76,7 @@ pub fn close_finding(
     fix_evidence: &str,
     verification: &str,
 ) -> Result<()> {
+    let id = safe_component(id, "review finding ID")?;
     let fix_evidence = one_line(fix_evidence);
     let verification = one_line(verification);
     if fix_evidence.is_empty() {
@@ -86,13 +88,13 @@ pub fn close_finding(
     let repo_path = repo_root
         .as_ref()
         .join("docs/baron/reviews/findings")
-        .join(format!("{}.md", id.trim()));
+        .join(format!("{id}.md"));
     let vault_path = vault
         .project_root
         .join("Reviews/Findings")
-        .join(format!("{}.md", id.trim()));
-    let mut content = fs::read_to_string(&repo_path)
-        .with_context(|| format!("Review finding not found: {}", id.trim()))?;
+        .join(format!("{id}.md"));
+    let mut content = read_text_required(&repo_path)
+        .with_context(|| format!("Review finding not found: {id}"))?;
     if content.contains("- Status: `closed`") {
         return Ok(());
     }
@@ -176,24 +178,37 @@ fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Secs, false)
 }
 fn write_if_missing(path: &Path, content: &str) -> Result<()> {
-    if path.exists() {
+    if read_bytes(path)?.is_some() {
         Ok(())
     } else {
         write(path, content)
     }
 }
 fn write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 fn append_index(path: &Path, id: &str, summary: &str) -> Result<()> {
-    let mut content =
-        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Review Findings\n\n".to_string());
+    let mut content = match crate::safe_io::read_text(path)? {
+        Some(content) => content,
+        None => "# Baron Review Findings\n\n".to_string(),
+    };
     if !content.contains(&format!("`{id}`")) {
         content.push_str(&format!("- `{id}` - {summary}\n"));
         write(path, &content)?;
     }
     Ok(())
+}
+
+fn safe_component<'a>(value: &'a str, label: &str) -> Result<&'a str> {
+    let value = value.trim();
+    if value.is_empty()
+        || Path::new(value).is_absolute()
+        || Path::new(value)
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+        || value.contains(['/', '\\'])
+    {
+        bail!("{label} must be one safe path component");
+    }
+    Ok(value)
 }

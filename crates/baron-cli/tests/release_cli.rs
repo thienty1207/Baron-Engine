@@ -6,6 +6,7 @@ use predicates::prelude::*;
 use tempfile::tempdir;
 
 const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+const TEST_SIGNING_SEED_BASE64: &str = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
 
 #[test]
 fn hidden_release_commands_generate_and_verify_metadata() {
@@ -29,6 +30,8 @@ fn hidden_release_commands_generate_and_verify_metadata() {
             "--source-revision",
             SOURCE_REVISION,
         ])
+        .env("BARON_RELEASE_SIGNING_KEY", TEST_SIGNING_SEED_BASE64)
+        .env("BARON_RELEASE_KEY_ID", "baron-debug-test-key")
         .assert()
         .success()
         .stdout(predicate::str::contains("Release metadata generated"))
@@ -45,6 +48,8 @@ fn hidden_release_commands_generate_and_verify_metadata() {
             "--expected-source-revision",
             SOURCE_REVISION,
         ])
+        .env("BARON_RELEASE_SIGNING_KEY", TEST_SIGNING_SEED_BASE64)
+        .env("BARON_RELEASE_KEY_ID", "baron-debug-test-key")
         .assert()
         .success()
         .stdout(predicate::str::contains("Release assets verified"))
@@ -72,6 +77,8 @@ fn release_verify_rejects_an_unapproved_source_identity() {
             "--source-revision",
             SOURCE_REVISION,
         ])
+        .env("BARON_RELEASE_SIGNING_KEY", TEST_SIGNING_SEED_BASE64)
+        .env("BARON_RELEASE_KEY_ID", "baron-debug-test-key")
         .assert()
         .success();
 

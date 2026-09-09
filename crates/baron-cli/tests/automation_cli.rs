@@ -58,7 +58,7 @@ fn automation_reconcile_repairs_only_local_embedded_assets_without_release_autho
         ])
         .assert()
         .success();
-    let missing = repo.join(".codex/skills/superpowers/SKILL.md");
+    let missing = repo.join(".baron/core/skills/superpowers/SKILL.md");
     fs::remove_file(&missing).unwrap();
     let custom = repo.join(".codex/skills/local/SKILL.md");
     fs::create_dir_all(custom.parent().unwrap()).unwrap();
@@ -113,7 +113,13 @@ fn continuity_checkpoint_and_status_are_available_for_ai_resume() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["continuity", "checkpoint", "before editing auth handler"])
+        .args([
+            "continuity",
+            "checkpoint",
+            "before editing auth handler",
+            "--adapter",
+            "codex",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("Baron Continuity Checkpoint"))

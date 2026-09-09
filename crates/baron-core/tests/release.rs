@@ -2,12 +2,18 @@ use std::fs;
 
 use baron_core::release::{
     build_release_manifest, load_and_verify_release_metadata, render_sha256sums,
-    verify_release_assets, verify_release_identity, write_release_metadata, ReleaseArtifactInput,
-    SUPPORTED_RELEASE_TARGETS,
+    verify_release_assets, verify_release_identity, write_release_metadata_with_signing_key,
+    ReleaseArtifactInput, SUPPORTED_RELEASE_TARGETS,
 };
 use tempfile::tempdir;
 
 const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
+
+fn fixture_signer() -> [u8; 32] {
+    // This deterministic public test vector is accepted only by debug builds;
+    // release binaries contain the production public trust anchor only.
+    [7_u8; 32]
+}
 
 #[test]
 fn supported_targets_have_stable_native_archive_names() {
@@ -106,10 +112,19 @@ fn release_metadata_writer_requires_and_verifies_the_complete_platform_set() {
         .unwrap();
     }
 
-    write_release_metadata(temp.path(), "3.2.0", SOURCE_REVISION).unwrap();
+    let seed = fixture_signer();
+    write_release_metadata_with_signing_key(
+        temp.path(),
+        "3.2.0",
+        SOURCE_REVISION,
+        "baron-debug-test-key",
+        &seed,
+    )
+    .unwrap();
 
     assert!(temp.path().join("SHA256SUMS").is_file());
     assert!(temp.path().join("release-manifest.json").is_file());
+    assert!(temp.path().join("release-manifest.sig").is_file());
     let manifest = load_and_verify_release_metadata(temp.path()).unwrap();
     assert_eq!(manifest.schema_version, 1);
     assert_eq!(manifest.artifacts.len(), SUPPORTED_RELEASE_TARGETS.len());
@@ -132,7 +147,15 @@ fn schema_two_metadata_includes_one_raw_candidate_per_supported_target() {
         .unwrap();
     }
 
-    write_release_metadata(temp.path(), "3.4.0", SOURCE_REVISION).unwrap();
+    let seed = fixture_signer();
+    write_release_metadata_with_signing_key(
+        temp.path(),
+        "3.4.0",
+        SOURCE_REVISION,
+        "baron-debug-test-key",
+        &seed,
+    )
+    .unwrap();
 
     let manifest = load_and_verify_release_metadata(temp.path()).unwrap();
     assert_eq!(manifest.schema_version, 2);
@@ -169,9 +192,16 @@ fn metadata_rejects_a_partial_raw_candidate_set() {
     )
     .unwrap();
 
-    let error = write_release_metadata(temp.path(), "3.4.0", SOURCE_REVISION)
-        .unwrap_err()
-        .to_string();
+    let seed = fixture_signer();
+    let error = write_release_metadata_with_signing_key(
+        temp.path(),
+        "3.4.0",
+        SOURCE_REVISION,
+        "baron-debug-test-key",
+        &seed,
+    )
+    .unwrap_err()
+    .to_string();
     assert!(error.contains("partial raw update candidate set"));
 }
 
@@ -184,9 +214,16 @@ fn release_metadata_writer_rejects_a_missing_supported_target() {
     )
     .unwrap();
 
-    let error = write_release_metadata(temp.path(), "3.2.0", SOURCE_REVISION)
-        .unwrap_err()
-        .to_string();
+    let seed = fixture_signer();
+    let error = write_release_metadata_with_signing_key(
+        temp.path(),
+        "3.2.0",
+        SOURCE_REVISION,
+        "baron-debug-test-key",
+        &seed,
+    )
+    .unwrap_err()
+    .to_string();
     assert!(error.contains("missing release artifact"));
 }
 
@@ -200,22 +237,26 @@ fn metadata_verification_rejects_tampered_target_identity() {
         )
         .unwrap();
     }
-    write_release_metadata(temp.path(), "3.2.0", SOURCE_REVISION).unwrap();
+    let seed = fixture_signer();
+    write_release_metadata_with_signing_key(
+        temp.path(),
+        "3.2.0",
+        SOURCE_REVISION,
+        "baron-debug-test-key",
+        &seed,
+    )
+    .unwrap();
 
     let manifest_path = temp.path().join("release-manifest.json");
     let mut json: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
     json["artifacts"][0]["target"] = json["artifacts"][1]["target"].clone();
-    fs::write(
-        &manifest_path,
-        format!("{}\n", serde_json::to_string_pretty(&json).unwrap()),
-    )
-    .unwrap();
+    fs::write(&manifest_path, serde_json::to_vec(&json).unwrap()).unwrap();
 
     let error = load_and_verify_release_metadata(temp.path())
         .unwrap_err()
         .to_string();
-    assert!(error.contains("release manifest target set is invalid"));
+    assert!(error.contains("signature verification failed"));
 }
 
 #[test]

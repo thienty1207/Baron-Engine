@@ -75,8 +75,8 @@ Baron succeeds when an agent can enter a repo and know:
    Verified, likely, stale, cross-project, and unknown memory must be separated.
 
 5. Agent tools are adapters.
-   Codex, Claude, Cursor, and generic agents receive different file shapes from
-   the same Baron core.
+   Codex and Claude receive different file shapes from the same Baron core;
+   unsupported historical adapter values remain opaque migration input.
 
 6. Proof gates completion.
    High-risk work cannot be called done without evidence.
@@ -127,7 +127,6 @@ Builds adapter-specific context bundles:
 
 - `baron context --codex`
 - `baron context --claude`
-- `baron context --agent`
 
 The compiler chooses content by:
 
@@ -190,7 +189,7 @@ Generates and refreshes tool-specific assets:
 
 - Codex: `AGENTS.md`, `.codex/skills`, `.codex/agents`
 - Claude: `CLAUDE.md`, command/import guidance
-- Generic: portable `AGENT.md`/JSON/Markdown contracts
+- Legacy adapter values: opaque compatibility data, never an active projection
 
 ## Core Assets
 
@@ -215,7 +214,6 @@ The first useful Baron release should do less than the final vision but be real:
 - `baron survey`
 - `baron init --codex`
 - `baron init --claude`
-- `baron init --agent`
 - `baron context`
 - basic Project Atlas
 - basic Vault layout

@@ -6,6 +6,8 @@ use chrono::{Local, SecondsFormat};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
+use crate::safe_io::{ensure_directory_chain, read_text, replace_text};
+
 const SKILL_MIN_LINES: usize = 80;
 const AGENT_MIN_LINES: usize = 45;
 
@@ -43,6 +45,8 @@ const MANAGED_SKILLS: &[&str] = &[
     "observability-and-instrumentation",
     "performance-optimization",
     "deprecation-and-migration",
+    "database-engineering",
+    "mobile-application-engineering",
 ];
 
 const MANAGED_AGENTS: &[&str] = &[
@@ -148,17 +152,18 @@ pub fn quarantine_failing_assets(repo_root: impl AsRef<Path>) -> Result<Quaranti
         let quarantine_root = repo_root
             .join(".baron/quarantine/asset-lifecycle")
             .join(&stamp);
+        ensure_directory_chain(&quarantine_root)?;
         let relative = item.path.strip_prefix(repo_root).unwrap_or(&item.path);
         let destination = quarantine_root.join(relative);
         if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent)?;
+            ensure_directory_chain(parent)?;
         }
         if item.kind == AssetKind::Skill {
             let skill_root = item.path.parent().context("Skill file must have parent")?;
             let relative_skill = skill_root.strip_prefix(repo_root).unwrap_or(skill_root);
             let destination_root = quarantine_root.join(relative_skill);
             if let Some(parent) = destination_root.parent() {
-                fs::create_dir_all(parent)?;
+                ensure_directory_chain(parent)?;
             }
             fs::rename(skill_root, &destination_root).with_context(|| {
                 format!(
@@ -205,26 +210,26 @@ pub fn stage_skill_update(
     let root = repo_root
         .join(".baron/skill-lifecycle/pending")
         .join(format!("{folder_stamp}-{skill_name}"));
-    fs::create_dir_all(&root)?;
+    ensure_directory_chain(&root)?;
 
     let runtime_path = find_skill_path(repo_root, &skill_name);
     let current = runtime_path
         .as_ref()
-        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|path| read_text(path).ok().flatten())
         .unwrap_or_else(|| "<missing runtime skill>".to_string());
     let proposal_path = root.join("SKILL.md");
     let diff_path = root.join("DIFF.md");
     let metadata_path = root.join("metadata.json");
-    fs::write(&proposal_path, proposed_skill_body)?;
-    fs::write(
+    replace_text(&proposal_path, proposed_skill_body)?;
+    replace_text(
         &diff_path,
-        format!(
+        &format!(
             "# Skill Update Proposal: {skill_name}\n\n## Reason\n\n{reason}\n\n## Current Runtime Body\n\n```md\n{current}\n```\n\n## Proposed Runtime Body\n\n```md\n{proposed_skill_body}\n```\n"
         ),
     )?;
-    fs::write(
+    replace_text(
         &metadata_path,
-        format!(
+        &format!(
             "{}\n",
             serde_json::to_string_pretty(&json!({
                 "schemaVersion": 1,

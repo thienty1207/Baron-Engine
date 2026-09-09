@@ -7,6 +7,10 @@ use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::safe_io::{
+    acquire_project_lock, ensure_directory_chain, read_bytes, read_text, read_text_required,
+    replace_file,
+};
 use crate::vault::{ensure_vault, project_slug};
 
 const LEGACY_CONFIG: &str = "vault.config.json";
@@ -22,6 +26,8 @@ const BUNDLED_SKILLS: &[&str] = &[
     "binary-reverse-analysis",
     "apk-mobile-analysis",
     "malware-triage",
+    "database-engineering",
+    "mobile-application-engineering",
 ];
 const CORE_AGENTS: &[&str] = &[
     "code-reviewer.toml",
@@ -177,7 +183,7 @@ pub fn inventory_agent_bootstrap(
         .clone()
         .unwrap_or_else(|| source_vault.join("Projects").join(&config.project_slug));
     validate_source_project_root(&source_vault, &source_project_root)?;
-    let manifest = read_legacy_manifest(&repo_root.join(LEGACY_MANIFEST));
+    let manifest = read_legacy_manifest(&repo_root.join(LEGACY_MANIFEST))?;
     let mut items = Vec::new();
 
     push_file_item(
@@ -292,6 +298,7 @@ pub fn execute_agent_bootstrap_migration<F>(
 where
     F: FnOnce(&Path, &Path) -> Result<()>,
 {
+    let _lock = acquire_project_lock(repo_path.as_ref())?;
     let inventory = inventory_agent_bootstrap(repo_path, vault_override)?;
     let destination_vault = vault_override
         .map(Path::to_path_buf)
@@ -300,8 +307,17 @@ where
     let backup_root = destination_vault
         .join("Artifacts/Baron/Migrations")
         .join(&migration_id);
-    if backup_root.exists() {
-        bail!("Migration backup already exists: {}", backup_root.display());
+    match fs::symlink_metadata(&backup_root) {
+        Ok(_) => bail!("Migration backup already exists: {}", backup_root.display()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!(
+                    "Could not inspect migration backup path: {}",
+                    backup_root.display()
+                )
+            })
+        }
     }
 
     let backup_manifest =
@@ -388,10 +404,11 @@ where
 pub fn migration_status(repo_path: impl AsRef<Path>) -> Result<String> {
     let repo_root = canonical_directory(repo_path.as_ref())?;
     let state_path = repo_root.join(BARON_STATE);
-    if !state_path.exists() {
+    let Some(content) = read_text(&state_path)? else {
         return Ok("# Baron Migration Status\n\n- Status: `never_run`\n".to_string());
-    }
-    let state: MigrationState = read_json(&state_path)?;
+    };
+    let state: MigrationState = serde_json::from_str(&content)
+        .with_context(|| format!("Could not parse {}", state_path.display()))?;
     Ok(format!(
         "# Baron Migration Status\n\n- Migration ID: `{}`\n- Status: `{}`\n- Vault: `{}`\n- Backup: `{}`\n- Updated: {}\n",
         state.migration_id,
@@ -407,17 +424,45 @@ pub fn rollback_migration(
     vault_path: impl AsRef<Path>,
     migration_id: &str,
 ) -> Result<RollbackReport> {
+    if !is_safe_component(migration_id) {
+        bail!("unsafe migration id: {migration_id}");
+    }
     let repo_root = canonical_directory(repo_path.as_ref())?;
-    let backup_root = vault_path
-        .as_ref()
+    let _lock = acquire_project_lock(&repo_root)?;
+    let vault_root = vault_path.as_ref().canonicalize().with_context(|| {
+        format!(
+            "Could not resolve migration Vault: {}",
+            vault_path.as_ref().display()
+        )
+    })?;
+    let backup_root = vault_root
         .join("Artifacts/Baron/Migrations")
         .join(migration_id);
     let manifest: BackupManifest = read_json(&backup_root.join("manifest.json"))?;
+    if manifest.migration_id != migration_id {
+        bail!(
+            "Migration manifest id `{}` does not match requested `{migration_id}`",
+            manifest.migration_id
+        );
+    }
     if manifest.repo_root != repo_root {
         bail!(
             "Migration `{migration_id}` belongs to {}, not {}",
             manifest.repo_root.display(),
             repo_root.display()
+        );
+    }
+    let manifest_vault = manifest.vault_root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve migration manifest Vault: {}",
+            manifest.vault_root.display()
+        )
+    })?;
+    if manifest_vault != vault_root {
+        bail!(
+            "Migration `{migration_id}` belongs to Vault {}, not {}",
+            manifest_vault.display(),
+            vault_root.display()
         );
     }
     let restored_count = restore_from_manifest(&manifest, &backup_root)?;
@@ -444,7 +489,7 @@ fn create_backup_manifest(
     backup_root: &Path,
     migration_id: &str,
 ) -> Result<BackupManifest> {
-    fs::create_dir_all(backup_root)?;
+    ensure_directory_chain(backup_root)?;
     if inventory.source_project_root.exists() {
         copy_path(
             &inventory.source_project_root,
@@ -707,7 +752,7 @@ fn append_custom_routes(
     if routes.is_empty() {
         return Ok(());
     }
-    let mut content = fs::read_to_string(path).unwrap_or_default();
+    let mut content = read_text(path)?.unwrap_or_default();
     if !content.ends_with('\n') {
         content.push('\n');
     }
@@ -758,8 +803,8 @@ fn verify_imports(records: &[ImportRecord]) -> Result<()> {
         if record.source_hash == record.destination_hash {
             continue;
         }
-        let source = fs::read_to_string(&record.source).unwrap_or_default();
-        let destination = fs::read_to_string(&record.destination).unwrap_or_default();
+        let source = read_text_required(&record.source)?;
+        let destination = read_text_required(&record.destination)?;
         if source.trim().is_empty() || !destination.contains(source.trim()) {
             bail!(
                 "Migration hash mismatch: {} -> {}",
@@ -775,34 +820,134 @@ fn verify_native_state(repo_root: &Path) -> Result<()> {
     if !repo_root.join(".baron/project.toml").is_file() {
         bail!("Baron verification failed: .baron/project.toml is missing");
     }
-    if repo_root.join("scripts/agent-memory.js").exists() {
+    if read_bytes(repo_root.join("scripts/agent-memory.js"))?.is_some() {
         bail!("Baron verification failed: legacy runtime still exists");
     }
-    if repo_root.join(LEGACY_CONFIG).exists() {
+    if read_bytes(repo_root.join(LEGACY_CONFIG))?.is_some() {
         bail!("Baron verification failed: legacy config still exists");
     }
     Ok(())
 }
 
 fn restore_from_manifest(manifest: &BackupManifest, backup_root: &Path) -> Result<usize> {
-    let mut restored = 0;
-    for entry in manifest.entries.iter().rev() {
+    let mut plan = Vec::with_capacity(manifest.entries.len());
+    for entry in &manifest.entries {
         let (root, backup_scope) = match entry.scope {
             BackupScope::Repo => (&manifest.repo_root, backup_root.join("repo")),
             BackupScope::Vault => (&manifest.vault_root, backup_root.join("vault")),
         };
-        let target = root.join(&entry.relative_path);
-        let backup = backup_scope.join(&entry.relative_path);
+        let target = validate_restore_target(root, &entry.relative_path, "restore target")?;
+        let backup = if entry.existed {
+            Some(validate_restore_target(
+                &backup_scope,
+                &entry.relative_path,
+                "backup copy",
+            )?)
+        } else {
+            None
+        };
+        plan.push((entry, target, backup));
+    }
+
+    let mut restored = 0;
+    for (entry, target, backup) in plan.into_iter().rev() {
         if entry.existed {
             remove_path(&target)?;
-            copy_path(&backup, &target, false, None)?;
+            copy_path(
+                backup
+                    .as_ref()
+                    .context("Migration backup path missing for an existing entry")?,
+                &target,
+                false,
+                None,
+            )?;
             restored += 1;
-        } else if target.exists() {
-            remove_path(&target)?;
-            restored += 1;
+        } else {
+            match fs::symlink_metadata(&target) {
+                Ok(_) => {
+                    remove_path(&target)?;
+                    restored += 1;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
         }
     }
     Ok(restored)
+}
+
+fn validate_restore_target(root: &Path, relative: &str, label: &str) -> Result<PathBuf> {
+    if !is_safe_relative_path(relative) {
+        bail!("Unsafe {label} path in migration manifest: {relative}");
+    }
+    let root_metadata = fs::symlink_metadata(root).with_context(|| {
+        format!(
+            "Could not inspect migration {label} root: {}",
+            root.display()
+        )
+    })?;
+    if root_metadata.file_type().is_symlink() || is_reparse_point(&root_metadata) {
+        bail!(
+            "Migration {label} root cannot be a symlink or reparse point: {}",
+            root.display()
+        );
+    }
+    if !root_metadata.is_dir() {
+        bail!(
+            "Migration {label} root is not a directory: {}",
+            root.display()
+        );
+    }
+    let root = root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve migration {label} root: {}",
+            root.display()
+        )
+    })?;
+    let target = root.join(relative);
+    if !target.starts_with(&root) {
+        bail!("Migration {label} escapes its root: {}", target.display());
+    }
+    validate_existing_parent_chain(&root, target.parent())?;
+    Ok(target)
+}
+
+fn validate_existing_parent_chain(root: &Path, parent: Option<&Path>) -> Result<()> {
+    let Some(parent) = parent else {
+        return Ok(());
+    };
+    let relative = parent.strip_prefix(root).with_context(|| {
+        format!(
+            "Migration restore parent escapes root: {}",
+            parent.display()
+        )
+    })?;
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(part) = component else {
+            bail!("Migration restore parent contains an unsafe path component");
+        };
+        current.push(part);
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+                    bail!(
+                        "Migration restore parent cannot traverse a symlink or reparse point: {}",
+                        current.display()
+                    );
+                }
+                if !metadata.is_dir() {
+                    bail!(
+                        "Migration restore parent is not a directory: {}",
+                        current.display()
+                    );
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
 }
 
 fn scan_custom_skills(repo_root: &Path, items: &mut Vec<MigrationItem>) -> Result<()> {
@@ -874,7 +1019,7 @@ fn scan_custom_agents(repo_root: &Path, items: &mut Vec<MigrationItem>) -> Resul
 fn validate_skill(path: &Path) -> std::result::Result<(), String> {
     let skill = path.join("SKILL.md");
     let content =
-        fs::read_to_string(&skill).map_err(|_| "missing readable SKILL.md".to_string())?;
+        read_text_required(&skill).map_err(|_| "missing readable SKILL.md".to_string())?;
     let lower = content.to_lowercase();
     if !content.starts_with("---") || !lower.contains("\nname:") {
         return Err("skill frontmatter must declare name".to_string());
@@ -892,7 +1037,7 @@ fn validate_skill(path: &Path) -> std::result::Result<(), String> {
 }
 
 fn validate_agent(path: &Path) -> std::result::Result<(), String> {
-    let content = fs::read_to_string(path).map_err(|_| "agent TOML is not readable".to_string())?;
+    let content = read_text_required(path).map_err(|_| "agent TOML is not readable".to_string())?;
     let parsed: toml::Value =
         toml::from_str(&content).map_err(|error| format!("invalid agent TOML: {error}"))?;
     for key in ["name", "description", "developer_instructions"] {
@@ -1000,7 +1145,7 @@ fn push_runtime_item(
     if !path.exists() {
         return Ok(());
     }
-    let content = fs::read_to_string(&path).unwrap_or_default();
+    let content = read_text_required(&path)?;
     let managed = managed_signatures
         .iter()
         .any(|signature| content.contains(signature));
@@ -1028,8 +1173,16 @@ fn copy_path(
     merge: bool,
     mut records: Option<(&Path, &mut Vec<ImportRecord>)>,
 ) -> Result<()> {
-    if source.is_dir() {
-        fs::create_dir_all(destination)?;
+    let metadata = fs::symlink_metadata(source)
+        .with_context(|| format!("Could not inspect migration source: {}", source.display()))?;
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+        bail!(
+            "Migration source cannot be a symlink or reparse point: {}",
+            source.display()
+        );
+    }
+    if metadata.is_dir() {
+        ensure_directory_chain(destination)?;
         for entry in fs::read_dir(source)? {
             let entry = entry?;
             copy_path(
@@ -1043,8 +1196,14 @@ fn copy_path(
         }
         return Ok(());
     }
+    if !metadata.is_file() {
+        bail!(
+            "Migration source is not a regular file: {}",
+            source.display()
+        );
+    }
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_chain(parent)?;
     }
     let source_hash = hash_file(source)?;
     let final_destination = if merge && destination.exists() {
@@ -1052,10 +1211,10 @@ fn copy_path(
         if existing_hash == source_hash {
             destination.to_path_buf()
         } else if is_markdown(source) && is_markdown(destination) {
-            let source_content = fs::read_to_string(source)?;
-            let destination_content = fs::read_to_string(destination)?;
+            let source_content = read_text_required(source)?;
+            let destination_content = read_text_required(destination)?;
             if is_placeholder_markdown(&destination_content) {
-                fs::copy(source, destination)?;
+                copy_file_safe(source, destination)?;
             } else if !destination_content.contains(source_content.trim()) {
                 let merged = format!(
                     "{}\n\n<!-- BARON:LEGACY-IMPORT -->\n\n{}\n",
@@ -1077,13 +1236,12 @@ fn copy_path(
                         .to_string_lossy()
                         .as_ref(),
                 );
-            fs::create_dir_all(conflict.parent().unwrap())?;
-            fs::copy(source, &conflict)?;
+            ensure_directory_chain(conflict.parent().unwrap())?;
+            copy_file_safe(source, &conflict)?;
             conflict
         }
     } else {
-        fs::copy(source, destination)
-            .with_context(|| format!("Could not copy {}", source.display()))?;
+        copy_file_safe(source, destination)?;
         destination.to_path_buf()
     };
     if let Some((_, records)) = records.as_mut() {
@@ -1116,10 +1274,9 @@ fn is_placeholder_markdown(content: &str) -> bool {
 }
 
 fn remove_legacy_managed_block(path: &Path) -> Result<()> {
-    if !path.exists() {
+    let Some(content) = read_text(path)? else {
         return Ok(());
-    }
-    let content = fs::read_to_string(path)?;
+    };
     let Some(start) = content.find(LEGACY_BLOCK_START) else {
         return Ok(());
     };
@@ -1135,36 +1292,68 @@ fn remove_legacy_managed_block(path: &Path) -> Result<()> {
 }
 
 fn remove_path(path: &Path) -> Result<()> {
-    if path.is_dir() {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+        bail!(
+            "Refusing to remove a symlink or reparse point: {}",
+            path.display()
+        );
+    }
+    if metadata.is_dir() {
         fs::remove_dir_all(path)?;
-    } else if path.exists() {
+    } else if metadata.is_file() {
         fs::remove_file(path)?;
+    } else {
+        bail!(
+            "Refusing to remove unsupported filesystem entry: {}",
+            path.display()
+        );
     }
     Ok(())
 }
 
 fn remove_empty_parent(path: &Path, stop: &Path) -> Result<()> {
-    if path != stop && path.is_dir() && fs::read_dir(path)?.next().is_none() {
+    if path == stop {
+        return Ok(());
+    }
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+        bail!(
+            "Refusing to inspect a symlink or reparse point: {}",
+            path.display()
+        );
+    }
+    if metadata.is_dir() && fs::read_dir(path)?.next().is_none() {
         fs::remove_dir(path)?;
     }
     Ok(())
 }
 
 fn file_contains(path: &Path, needle: &str) -> Result<bool> {
-    Ok(fs::read_to_string(path)
-        .unwrap_or_default()
-        .contains(needle))
+    Ok(read_text(path)?.is_some_and(|content| content.contains(needle)))
 }
 
-fn read_legacy_manifest(path: &Path) -> LegacyManifest {
-    read_json(path).unwrap_or(LegacyManifest {
-        entries: BTreeMap::new(),
-    })
+fn read_legacy_manifest(path: &Path) -> Result<LegacyManifest> {
+    match read_text(path)? {
+        Some(content) => serde_json::from_str(&content)
+            .with_context(|| format!("Could not parse legacy manifest: {}", path.display())),
+        None => Ok(LegacyManifest {
+            entries: BTreeMap::new(),
+        }),
+    }
 }
 
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
     let content =
-        fs::read_to_string(path).with_context(|| format!("Could not read {}", path.display()))?;
+        read_text_required(path).with_context(|| format!("Could not read {}", path.display()))?;
     serde_json::from_str(&content).with_context(|| format!("Could not parse {}", path.display()))
 }
 
@@ -1178,24 +1367,41 @@ fn write_state(repo_root: &Path, state: MigrationState) -> Result<()> {
 }
 
 fn atomic_write(path: &Path, content: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+    replace_file(path, content)
+}
+
+fn copy_file_safe(source: &Path, destination: &Path) -> Result<()> {
+    let content = read_bytes(source)?
+        .ok_or_else(|| anyhow::anyhow!("Migration source disappeared: {}", source.display()))?;
+    replace_file(destination, &content).with_context(|| {
+        format!(
+            "Could not publish migration file: {}",
+            destination.display()
+        )
+    })?;
+    if let Ok(metadata) = fs::symlink_metadata(source) {
+        let _ = fs::set_permissions(destination, metadata.permissions());
     }
-    let temp = path.with_extension("baron-migration-tmp");
-    fs::write(&temp, content)?;
-    if path.exists() {
-        remove_path(path)?;
-    }
-    fs::rename(&temp, path)?;
     Ok(())
 }
 
 fn hash_path(path: &Path) -> Result<Option<String>> {
-    if !path.exists() {
-        return Ok(None);
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+        bail!("Cannot hash a symlink or reparse point: {}", path.display());
     }
-    if path.is_file() {
+    if metadata.is_file() {
         return Ok(Some(hash_file(path)?));
+    }
+    if !metadata.is_dir() {
+        bail!(
+            "Cannot hash unsupported filesystem entry: {}",
+            path.display()
+        );
     }
     let mut files = Vec::new();
     collect_files(path, &mut files)?;
@@ -1209,17 +1415,32 @@ fn hash_path(path: &Path) -> Result<Option<String>> {
 }
 
 fn hash_file(path: &Path) -> Result<String> {
-    let content = fs::read(path)?;
+    let content = read_bytes(path)?
+        .ok_or_else(|| anyhow::anyhow!("File disappeared while hashing: {}", path.display()))?;
     Ok(format!("{:x}", Sha256::digest(content)))
 }
 
 fn collect_files(root: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
-    if !root.exists() {
-        return Ok(());
+    let metadata = match fs::symlink_metadata(root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+        bail!(
+            "Cannot traverse a symlink or reparse point: {}",
+            root.display()
+        );
     }
-    if root.is_file() {
+    if metadata.is_file() {
         output.push(root.to_path_buf());
         return Ok(());
+    }
+    if !metadata.is_dir() {
+        bail!(
+            "Cannot traverse unsupported filesystem entry: {}",
+            root.display()
+        );
     }
     for entry in fs::read_dir(root)? {
         let entry = entry?;
@@ -1236,6 +1457,20 @@ fn canonical_directory(path: &Path) -> Result<PathBuf> {
         bail!("Repo path is not a directory: {}", canonical.display());
     }
     Ok(canonical)
+}
+
+fn is_reparse_point(metadata: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+
+        metadata.file_attributes() & 0x0400 != 0
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = metadata;
+        false
+    }
 }
 
 fn validate_source_project_root(vault_root: &Path, project_root: &Path) -> Result<()> {
@@ -1272,6 +1507,7 @@ fn is_safe_component(value: &str) -> bool {
 fn is_safe_relative_path(value: &str) -> bool {
     let path = Path::new(value);
     !path.as_os_str().is_empty()
+        && !value.contains('\\')
         && path
             .components()
             .all(|component| matches!(component, Component::Normal(_)))

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::harness::{current_harness_risk, current_harness_title};
 use crate::proof::latest_proof;
 use crate::risk::RiskLane;
+use crate::safe_io::replace_text;
 use crate::vault::VaultContext;
 
 const SCORE_START: &str = "<!-- BARON:TRACE-SCORE:START -->";
@@ -378,10 +379,7 @@ fn is_baron_managed_path(path: &str) -> bool {
         || path.starts_with(".codex/")
         || path.starts_with(".claude/")
         || path.starts_with("docs/baron/")
-        || matches!(
-            path.as_str(),
-            "AGENTS.md" | "CLAUDE.md" | "AGENT.md" | "baron-context.md" | "baron-context.json"
-        )
+        || matches!(path.as_str(), "AGENTS.md" | "CLAUDE.md")
 }
 
 fn parse_risk(content: &str) -> RiskLane {
@@ -534,10 +532,7 @@ fn append(path: &Path, header: &str, item: &str) -> Result<()> {
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 impl TraceOutcome {

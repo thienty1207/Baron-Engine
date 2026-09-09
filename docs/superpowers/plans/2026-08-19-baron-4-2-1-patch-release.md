@@ -1,12 +1,12 @@
 # Baron 4.2.1 Patch Release Program
 
-Reasonix was implemented after the immutable `v4.2.0` tag. This four-phase
+retired adapter was implemented after the immutable `v4.2.0` tag. This four-phase
 patch program packages that existing adapter in a real downloadable binary;
 it does not create Baron 4.3 or change the intelligence engine.
 
 - [x] Phase 109: release identity and source truth
   - [x] Bump the workspace release to exactly `4.2.1`.
-  - [x] Keep the existing Reasonix CLI/adapter implementation unchanged.
+  - [x] Keep the existing retired adapter CLI/adapter implementation unchanged.
   - [x] Add the patch-release decision and root-cause record.
 - [x] Phase 110: documentation, status, and release metadata
   - [x] Update README, release guide, changelog, architecture, status
@@ -16,11 +16,11 @@ it does not create Baron 4.3 or change the intelligence engine.
     adapter-packaging patch.
 - [x] Phase 111: verification and binary proof
   - [x] Run format, workspace check/library tests, Clippy, locked release
-    build, CLI help, Reasonix adapter tests, and release identity/metadata
+    build, CLI help, legacy adapter tests, and release identity/metadata
     verification. The five local environment-only exceptions are recorded in
     `docs/BARON_STATUS.md`; hosted native CI confirmed the clean matrix.
   - [x] Prove the release binary reports `baron 4.2.1` and exposes both
-    `baron --reasonix` and `baron init --reasonix`.
+    the retired adapter shortcut and the retired adapter init path.
   - [x] Record the local Windows release-binary SHA-256 hash for the narrowly
     scoped WDAC exception; the public raw asset hash will be recorded after
     GitHub promotion.

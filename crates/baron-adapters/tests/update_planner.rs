@@ -2,10 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use baron_adapters::{
-    ensure_managed_baseline, install_adapter, load_managed_baseline, managed_payloads_for_adapter,
-    plan_managed_update, reconcile_installed_managed_assets, record_managed_baseline,
-    replace_managed_baseline, AgentAdapter, ManagedAssetPayload, ManagedMergeKind,
-    UpdateDisposition,
+    core_managed_payloads, core_reconcile_managed_assets, ensure_managed_baseline, install_adapter,
+    load_managed_baseline, managed_payloads_for_adapter, plan_managed_update,
+    reconcile_installed_managed_assets, record_managed_baseline, replace_managed_baseline,
+    AgentAdapter, ManagedAssetPayload, ManagedMergeKind, UpdateDisposition,
 };
 use tempfile::tempdir;
 
@@ -35,18 +35,14 @@ fn local_reconcile_restores_only_a_missing_embedded_managed_asset() {
     let temp = tempdir().unwrap();
     let repo = temp.path();
     install_adapter(repo, AgentAdapter::Codex).unwrap();
-    let missing = repo.join(".codex/skills/superpowers/SKILL.md");
+    let missing = repo.join(".baron/core/skills/superpowers/SKILL.md");
     fs::remove_file(&missing).unwrap();
     let custom = repo.join(".codex/skills/custom/SKILL.md");
     fs::create_dir_all(custom.parent().unwrap()).unwrap();
     fs::write(&custom, "custom user skill").unwrap();
 
-    let report = reconcile_installed_managed_assets(
-        repo,
-        &managed_payloads_for_adapter(AgentAdapter::Codex).unwrap(),
-        "3.3.0",
-    )
-    .unwrap();
+    let report =
+        core_reconcile_managed_assets(repo, &core_managed_payloads().unwrap(), "3.3.0").unwrap();
 
     assert!(report.conflicts.is_empty());
     assert!(report
@@ -91,7 +87,8 @@ fn first_install_records_relative_managed_baseline_copies() {
     install_adapter(repo, AgentAdapter::Codex).unwrap();
 
     let baseline = load_managed_baseline(repo).unwrap();
-    assert_eq!(baseline.schema_version, 1);
+    assert_eq!(baseline.schema_version, 2);
+    assert_eq!(baseline.minimum_writer_schema, Some(2));
     assert!(baseline.records.iter().any(|record| {
         record.relative_path == Path::new("AGENTS.md")
             && record.merge_kind == ManagedMergeKind::MarkerBlock
@@ -116,11 +113,9 @@ fn rendered_candidate_matches_a_fresh_codex_install_without_reading_the_target()
 
     install_adapter(repo, AgentAdapter::Codex).unwrap();
 
-    let plan = plan_managed_update(
-        repo,
-        &managed_payloads_for_adapter(AgentAdapter::Codex).unwrap(),
-    )
-    .unwrap();
+    let mut payloads = core_managed_payloads().unwrap();
+    payloads.extend(managed_payloads_for_adapter(AgentAdapter::Codex).unwrap());
+    let plan = plan_managed_update(repo, &payloads).unwrap();
     assert!(plan
         .actions
         .iter()

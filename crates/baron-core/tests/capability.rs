@@ -263,7 +263,7 @@ fn missing_optional_provider_degrades_cleanly_but_required_gap_is_explicit() {
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
-    initialize_project(&repo, AdapterKind::Generic, &vault).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
 
     let mut optional = provider(
         "optional-linter",
@@ -285,7 +285,7 @@ fn missing_optional_provider_degrades_cleanly_but_required_gap_is_explicit() {
     let state = check_capabilities(
         &repo,
         CheckOptions {
-            adapter: AdapterKind::Generic,
+            adapter: AdapterKind::Codex,
             capability: None,
             allow_network: false,
         },
@@ -294,6 +294,27 @@ fn missing_optional_provider_degrades_cleanly_but_required_gap_is_explicit() {
 
     assert_eq!(state.required_gaps, vec!["deploy-verification"]);
     assert_eq!(state.optional_gaps, vec!["lint"]);
+}
+
+#[test]
+fn historical_capability_state_adapter_is_retained_without_activation() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    fs::create_dir_all(repo.join(".baron/cache")).unwrap();
+    let historical = ['r', 'e', 'a', 's', 'o', 'n', 'i', 'x']
+        .into_iter()
+        .collect::<String>();
+    fs::write(
+        repo.join(".baron/cache/capability-state.json"),
+        format!(
+            r#"{{"schema_version":1,"adapter":"{historical}","checked_at":"2026-09-08T00:00:00Z","observations":[],"required_gaps":[],"optional_gaps":[]}}"#
+        ),
+    )
+    .unwrap();
+
+    let state = load_capability_state(&repo).unwrap().unwrap();
+    assert_eq!(state.adapter.as_str(), historical);
+    assert!(state.adapter.supported().is_none());
 }
 
 #[test]

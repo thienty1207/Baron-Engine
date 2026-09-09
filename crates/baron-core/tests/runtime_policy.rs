@@ -31,7 +31,7 @@ fn runtime_report_flags_unsafe_backend_and_missing_execution_evidence() {
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
-    initialize_project(&repo, AdapterKind::Generic, &vault).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     register_provider(
         &repo,
         provider(
@@ -43,7 +43,7 @@ fn runtime_report_flags_unsafe_backend_and_missing_execution_evidence() {
     )
     .unwrap();
 
-    let report = runtime_backend_report(&repo, AdapterKind::Generic).unwrap();
+    let report = runtime_backend_report(&repo, AdapterKind::Codex).unwrap();
 
     assert!(!report.passed);
     assert_eq!(report.providers[0].safety, BackendSafety::Unsafe);
@@ -59,7 +59,7 @@ fn runtime_report_flags_unsafe_backend_and_missing_execution_evidence() {
 }
 
 #[test]
-fn safe_present_provider_still_requires_execution_evidence_before_completion() {
+fn persisted_summary_evidence_stays_diagnostic_until_a_trusted_receipt_exists() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
@@ -89,12 +89,13 @@ fn safe_present_provider_still_requires_execution_evidence_before_completion() {
             capability: "test-suite".to_string(),
             provider: "cargo-test".to_string(),
             summary: "cargo test --workspace --all-targets passed".to_string(),
+            ..Default::default()
         }],
     )
     .unwrap();
     let after = runtime_backend_report(&repo, AdapterKind::Codex).unwrap();
-    assert!(after.passed);
-    assert_eq!(after.providers[0].execution_evidence, Presence::Present);
+    assert!(!after.passed);
+    assert_eq!(after.providers[0].execution_evidence, Presence::Missing);
 }
 
 #[test]
@@ -103,7 +104,7 @@ fn missing_optional_backend_degrades_without_blocking_release_gate() {
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
-    initialize_project(&repo, AdapterKind::Generic, &vault).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     register_provider(
         &repo,
         provider(
@@ -117,14 +118,14 @@ fn missing_optional_backend_degrades_without_blocking_release_gate() {
     check_capabilities(
         &repo,
         CheckOptions {
-            adapter: AdapterKind::Generic,
+            adapter: AdapterKind::Codex,
             capability: None,
             allow_network: false,
         },
     )
     .unwrap();
 
-    let report = runtime_backend_report(&repo, AdapterKind::Generic).unwrap();
+    let report = runtime_backend_report(&repo, AdapterKind::Codex).unwrap();
 
     assert!(report.passed);
     assert!(report

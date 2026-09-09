@@ -2,9 +2,12 @@ use std::fs;
 
 use baron_core::config::{initialize_project_with_options, AdapterKind, ProjectPlatform};
 use baron_core::context::{compile_context_for_task, ContextTarget};
-use baron_core::platform::{ensure_platform_intelligence, profile_for};
+use baron_core::platform::{ensure_platform_intelligence, profile_for, render_platform_context};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
+
+// Portability: profile and context assertions are cross-platform and avoid
+// platform-specific filesystem semantics.
 
 #[test]
 fn every_public_platform_has_a_deep_baron_profile() {
@@ -17,6 +20,7 @@ fn every_public_platform_has_a_deep_baron_profile() {
         ProjectPlatform::Tool,
         ProjectPlatform::Library,
         ProjectPlatform::Data,
+        ProjectPlatform::Database,
         ProjectPlatform::Cloud,
         ProjectPlatform::Unknown,
     ] {
@@ -31,6 +35,49 @@ fn every_public_platform_has_a_deep_baron_profile() {
         assert!(profile.verification_layers.len() >= 2, "{platform:?}");
         assert!(!profile.release_proof.is_empty(), "{platform:?}");
     }
+}
+
+#[test]
+fn database_and_mobile_profiles_expose_distinct_runtime_affinities() {
+    let database = profile_for(ProjectPlatform::Database);
+    assert!(database
+        .skill_routing
+        .iter()
+        .any(|skill| skill.contains("database-engineering")));
+    assert!(database
+        .verification_layers
+        .iter()
+        .any(|layer| layer.contains("schema")));
+
+    let mobile = profile_for(ProjectPlatform::Mobile);
+    assert!(mobile
+        .skill_routing
+        .iter()
+        .any(|skill| skill.contains("mobile-application-engineering")));
+    assert!(!mobile
+        .skill_routing
+        .iter()
+        .any(|skill| skill.contains("apk-mobile-analysis")));
+}
+
+#[test]
+fn data_pipeline_task_lens_does_not_match_database_orm_substrings() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("data-lens");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let config = initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Codex),
+        &vault,
+        Some(ProjectPlatform::Data),
+    )
+    .unwrap();
+    ensure_platform_intelligence(&repo, &config).unwrap();
+
+    let output = render_platform_context(&repo, Some("transform CSV ingestion pipeline"));
+
+    assert!(output.contains("Task lens: `data`"));
 }
 
 #[test]

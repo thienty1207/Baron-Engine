@@ -336,7 +336,7 @@ fn routes_web_performance_to_optional_agent_without_fabricated_metrics() {
 }
 
 #[test]
-fn mandatory_gate_evidence_must_be_recorded_before_it_counts() {
+fn free_form_gate_evidence_is_retained_as_diagnostic_but_never_counts() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
@@ -363,8 +363,8 @@ fn mandatory_gate_evidence_must_be_recorded_before_it_counts() {
     }
 
     let passed = gate_evidence_status(&repo, &route.mandatory_agents).unwrap();
-    assert!(passed.passed);
-    assert!(passed.missing_agents.is_empty());
+    assert!(!passed.passed);
+    assert_eq!(passed.missing_agents, route.mandatory_agents);
     let repo_evidence = fs::read_to_string(repo.join("docs/baron/control-plane/GATES.md")).unwrap();
     let vault_evidence =
         fs::read_to_string(context.project_root.join("ControlPlane/GATES.md")).unwrap();

@@ -1,9 +1,9 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
+use crate::safe_io::{ensure_directory_chain, read_text_required, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +63,7 @@ pub fn record_fresh_rerun(
     relevant: bool,
     outcome: &str,
 ) -> Result<()> {
+    let id = safe_component(id, "harness experiment ID")?;
     let outcome = one_line(outcome);
     if outcome.is_empty() {
         bail!("Fresh experiment rerun requires an observed outcome");
@@ -70,13 +71,13 @@ pub fn record_fresh_rerun(
     let repo_path = repo_root
         .as_ref()
         .join("docs/baron/harness/experiments")
-        .join(format!("{}.md", id.trim()));
+        .join(format!("{id}.md"));
     let vault_path = vault
         .project_root
         .join("ProductHarness/Experiments")
-        .join(format!("{}.md", id.trim()));
-    let mut content = fs::read_to_string(&repo_path)
-        .with_context(|| format!("Harness experiment not found: {}", id.trim()))?;
+        .join(format!("{id}.md"));
+    let mut content = read_text_required(&repo_path)
+        .with_context(|| format!("Harness experiment not found: {id}"))?;
     content = replace_line(
         &content,
         "- Status: `awaiting_fresh_rerun`",
@@ -118,6 +119,7 @@ pub fn finalize_experiment(
     id: &str,
     decision: &str,
 ) -> Result<()> {
+    let id = safe_component(id, "harness experiment ID")?;
     let decision = one_line(decision).to_lowercase();
     if !["keep", "revise", "remove", "pending"].contains(&decision.as_str()) {
         bail!("Experiment decision must be keep, revise, remove, or pending");
@@ -125,13 +127,13 @@ pub fn finalize_experiment(
     let repo_path = repo_root
         .as_ref()
         .join("docs/baron/harness/experiments")
-        .join(format!("{}.md", id.trim()));
+        .join(format!("{id}.md"));
     let vault_path = vault
         .project_root
         .join("ProductHarness/Experiments")
-        .join(format!("{}.md", id.trim()));
-    let mut content = fs::read_to_string(&repo_path)
-        .with_context(|| format!("Harness experiment not found: {}", id.trim()))?;
+        .join(format!("{id}.md"));
+    let mut content = read_text_required(&repo_path)
+        .with_context(|| format!("Harness experiment not found: {id}"))?;
     if !content.contains("- Status: `rerun_recorded`") && decision != "pending" {
         bail!("Experiment cannot be finalized before a fresh rerun is recorded");
     }
@@ -166,7 +168,21 @@ fn now() -> String {
 }
 fn write(path: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_chain(parent)?;
     }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
+}
+
+fn safe_component<'a>(value: &'a str, label: &str) -> Result<&'a str> {
+    let value = value.trim();
+    if value.is_empty()
+        || Path::new(value).is_absolute()
+        || Path::new(value)
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+        || value.contains(['/', '\\'])
+    {
+        bail!("{label} must be one safe path component");
+    }
+    Ok(value)
 }

@@ -7,6 +7,7 @@ use chrono::{Local, SecondsFormat};
 use crate::domain_language::{ensure_domain_language, DomainLanguageStatus};
 use crate::intent::require_confirmed_intent;
 use crate::risk::{classify_risk, RiskLane};
+use crate::safe_io::replace_text;
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -301,10 +302,7 @@ fn table_cell(value: &str) -> String {
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 fn normalize(path: &Path, root: &Path) -> String {

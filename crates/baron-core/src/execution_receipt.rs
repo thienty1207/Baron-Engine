@@ -2,6 +2,7 @@ use std::fs::{self, OpenOptions};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{atomic::AtomicU64, atomic::Ordering, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
@@ -15,12 +16,62 @@ const RECEIPT_PATH: &str = ".baron/cache/execution-receipts.jsonl";
 const MAX_CAPTURE_BYTES: usize = 64 * 1024;
 const MAX_ARG_BYTES: usize = 16 * 1024;
 
+/// The process-local authority registry retains the exact integrity value that
+/// the trusted runner emitted.  Keeping only receipt IDs would let a caller
+/// rewrite the JSONL record and recompute its unkeyed digest during the same
+/// process, turning an otherwise diagnostic record into false authority.
+static CURRENT_RECEIPTS: OnceLock<Mutex<std::collections::BTreeMap<String, String>>> =
+    OnceLock::new();
+static RECEIPT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionResult {
     Passed,
     Failed,
     TimedOut,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReceiptProvenance {
+    TrustedCurrentOperation,
+    #[default]
+    PersistedDiagnostic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReceiptContext {
+    pub task_id: String,
+    pub operation_id: String,
+    pub adapter: String,
+    pub session_id: String,
+    pub request_id: String,
+    pub gate_kind: String,
+}
+
+impl ReceiptContext {
+    pub fn new(
+        task_id: impl Into<String>,
+        operation_id: impl Into<String>,
+        adapter: impl Into<String>,
+        session_id: impl Into<String>,
+        request_id: impl Into<String>,
+        gate_kind: impl Into<String>,
+    ) -> Self {
+        Self {
+            task_id: task_id.into(),
+            operation_id: operation_id.into(),
+            adapter: adapter.into(),
+            session_id: session_id.into(),
+            request_id: request_id.into(),
+            gate_kind: gate_kind.into(),
+        }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        validate_context(self)
+    }
 }
 
 impl ExecutionResult {
@@ -53,6 +104,23 @@ pub struct ExecutionReceipt {
     pub stdout_excerpt: String,
     pub stderr_excerpt: String,
     pub artifact_digests: Vec<String>,
+    /// The operation binding is optional only for legacy generic executions.
+    /// A gate-authoritative receipt must carry every field and be produced by
+    /// `execute_command_with_context` in the current process.
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub operation_id: Option<String>,
+    #[serde(default)]
+    pub adapter: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub request_id: Option<String>,
+    #[serde(default)]
+    pub gate_kind: Option<String>,
+    #[serde(default)]
+    pub provenance: ReceiptProvenance,
     pub integrity_digest: String,
 }
 
@@ -67,6 +135,21 @@ pub struct ExecutionRequest {
 }
 
 pub fn execute_command(request: ExecutionRequest) -> Result<ExecutionReceipt> {
+    execute_command_internal(request, None)
+}
+
+pub fn execute_command_with_context(
+    request: ExecutionRequest,
+    context: ReceiptContext,
+) -> Result<ExecutionReceipt> {
+    context.validate()?;
+    execute_command_internal(request, Some(context))
+}
+
+fn execute_command_internal(
+    request: ExecutionRequest,
+    context: Option<ReceiptContext>,
+) -> Result<ExecutionReceipt> {
     validate_request(&request)?;
     let repo_root = request.working_directory.canonicalize().with_context(|| {
         format!(
@@ -131,7 +214,13 @@ pub fn execute_command(request: ExecutionRequest) -> Result<ExecutionReceipt> {
         schema_version: 1,
         receipt_id: format!(
             "receipt-{}",
-            digest_hex(format!("{project_id}:{started_at}"), 12)
+            digest_hex(
+                format!(
+                    "{project_id}:{started_at}:{}",
+                    RECEIPT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+                ),
+                16,
+            )
         ),
         project_id,
         source_fingerprint,
@@ -149,10 +238,18 @@ pub fn execute_command(request: ExecutionRequest) -> Result<ExecutionReceipt> {
         stdout_excerpt: redact(&String::from_utf8_lossy(&stdout)),
         stderr_excerpt: redact(&String::from_utf8_lossy(&stderr)),
         artifact_digests: Vec::new(),
+        task_id: context.as_ref().map(|value| value.task_id.clone()),
+        operation_id: context.as_ref().map(|value| value.operation_id.clone()),
+        adapter: context.as_ref().map(|value| value.adapter.clone()),
+        session_id: context.as_ref().map(|value| value.session_id.clone()),
+        request_id: context.as_ref().map(|value| value.request_id.clone()),
+        gate_kind: context.as_ref().map(|value| value.gate_kind.clone()),
+        provenance: ReceiptProvenance::TrustedCurrentOperation,
         integrity_digest: String::new(),
     };
     receipt.integrity_digest = receipt_integrity(&receipt)?;
     append_receipt(&repo_root, &receipt)?;
+    register_current_receipt(&receipt.receipt_id, &receipt.integrity_digest)?;
     Ok(receipt)
 }
 
@@ -186,6 +283,113 @@ pub fn receipt_is_current(repo_root: impl AsRef<Path>, receipt: &ExecutionReceip
         && receipt.source_fingerprint == source_fingerprint(&repo_root)?
         && receipt.result == ExecutionResult::Passed
         && receipt_integrity(receipt)? == receipt.integrity_digest)
+}
+
+/// A receipt is gate-authoritative only while the trusted runner that created
+/// it is still the current Baron operation. Persisted JSONL records are
+/// intentionally diagnostic after process restart; their unkeyed integrity
+/// digest cannot establish authenticity.
+pub fn receipt_is_current_authority(
+    repo_root: impl AsRef<Path>,
+    receipt: &ExecutionReceipt,
+) -> Result<bool> {
+    if receipt.provenance != ReceiptProvenance::TrustedCurrentOperation
+        || receipt
+            .task_id
+            .as_deref()
+            .map(str::is_empty)
+            .unwrap_or(true)
+        || receipt
+            .operation_id
+            .as_deref()
+            .map(str::is_empty)
+            .unwrap_or(true)
+        || receipt
+            .adapter
+            .as_deref()
+            .map(str::is_empty)
+            .unwrap_or(true)
+        || receipt
+            .session_id
+            .as_deref()
+            .map(str::is_empty)
+            .unwrap_or(true)
+        || receipt
+            .request_id
+            .as_deref()
+            .map(str::is_empty)
+            .unwrap_or(true)
+        || receipt
+            .gate_kind
+            .as_deref()
+            .map(str::is_empty)
+            .unwrap_or(true)
+    {
+        return Ok(false);
+    }
+    let Some(registry) = CURRENT_RECEIPTS.get() else {
+        return Ok(false);
+    };
+    let registered = registry
+        .lock()
+        .map(|receipts| {
+            receipts
+                .get(&receipt.receipt_id)
+                .is_some_and(|integrity| integrity == &receipt.integrity_digest)
+        })
+        .unwrap_or(false);
+    Ok(registered && receipt_is_current(repo_root, receipt)?)
+}
+
+pub fn receipt_matches_context(
+    repo_root: impl AsRef<Path>,
+    receipt: &ExecutionReceipt,
+    context: &ReceiptContext,
+) -> Result<bool> {
+    context.validate()?;
+    Ok(receipt_is_current_authority(repo_root, receipt)?
+        && receipt.task_id.as_deref() == Some(context.task_id.trim())
+        && receipt.operation_id.as_deref() == Some(context.operation_id.trim())
+        && receipt.adapter.as_deref() == Some(context.adapter.trim())
+        && receipt.session_id.as_deref() == Some(context.session_id.trim())
+        && receipt.request_id.as_deref() == Some(context.request_id.trim())
+        && receipt.gate_kind.as_deref() == Some(context.gate_kind.trim()))
+}
+
+fn register_current_receipt(receipt_id: &str, integrity_digest: &str) -> Result<()> {
+    let registry = CURRENT_RECEIPTS.get_or_init(|| Mutex::new(std::collections::BTreeMap::new()));
+    registry
+        .lock()
+        .map_err(|_| anyhow::anyhow!("trusted receipt registry was poisoned"))?
+        .insert(receipt_id.to_string(), integrity_digest.to_string());
+    Ok(())
+}
+
+fn validate_context(context: &ReceiptContext) -> Result<()> {
+    for (name, value) in [
+        ("task_id", context.task_id.as_str()),
+        ("operation_id", context.operation_id.as_str()),
+        ("adapter", context.adapter.as_str()),
+        ("session_id", context.session_id.as_str()),
+        ("request_id", context.request_id.as_str()),
+        ("gate_kind", context.gate_kind.as_str()),
+    ] {
+        if value.trim().is_empty()
+            || value.chars().count() > 240
+            || value
+                .chars()
+                .any(|character| matches!(character, '`' | '\n' | '\r'))
+        {
+            bail!("trusted receipt {name} is missing or exceeds the bounded size");
+        }
+    }
+    if !matches!(
+        context.adapter.trim().to_ascii_lowercase().as_str(),
+        "codex" | "claude"
+    ) {
+        bail!("trusted receipt adapter must be codex or claude");
+    }
+    Ok(())
 }
 
 fn validate_request(request: &ExecutionRequest) -> Result<()> {
@@ -264,14 +468,6 @@ fn source_fingerprint(repo_root: &Path) -> Result<String> {
         digest.update(relative.as_bytes());
         digest.update(metadata.len().to_le_bytes());
         digest.update(digest_bytes(&contents).as_bytes());
-        digest.update(
-            metadata
-                .modified()
-                .ok()
-                .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|value| value.as_nanos().to_le_bytes().to_vec())
-                .unwrap_or_default(),
-        );
     }
     Ok(format!("{:x}", digest.finalize()))
 }
@@ -313,6 +509,9 @@ fn collect_source_files(root: &Path, current: &Path, files: &mut Vec<String>) ->
 }
 
 fn receipt_integrity(receipt: &ExecutionReceipt) -> Result<String> {
+    // This digest detects accidental or malformed persisted state only. It is
+    // deliberately not treated as signer authenticity; authority comes from
+    // the in-process trusted runner registry and exact identity binding.
     let mut value = receipt.clone();
     value.integrity_digest.clear();
     Ok(digest_bytes(&serde_json::to_vec(&value)?))
