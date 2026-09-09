@@ -1,9 +1,8 @@
 # Current Build Note
 
-## Phase 16 v5.0.0 Release Candidate (2026-09-09)
+## Phase 16 v5.0.0 Release (2026-09-09)
 
-- Current task: complete the verified Baron Engine 5.0.0 release through the
-  protected hosted signing workflow.
+- Current task: maintain the published Baron Engine 5.0.0 release.
 - Last checkpoint: SEC-03 and SEC-04 are closed locally; fresh native Codex
   Security scan `6312e662-b7ba-45da-b42a-d02fba00193f` reported zero
   reportable findings on the final Windows/Linux snapshot. The clean Windows
@@ -12,16 +11,16 @@
   reports `baron 5.0.0`.
 - Proof status: the post-bump formatter, complete workspace test matrix,
   Clippy, release build, ignored release smoke, final-binary four-way init,
-  mixed Codex/Claude prepare, and diff checks pass with zero unexpected
-  failures. The production signing secret remains only in GitHub Actions.
-- Trace status: the source is an uncommitted 5.0.0 release candidate; no tag,
-  GitHub Release, or hosted result is claimed yet.
+  mixed Codex/Claude prepare, and diff checks passed with zero unexpected
+  failures. Hosted workflow `34350086718` passed all jobs and published
+  `v5.0.0`; the production signing secret remains only in GitHub Actions.
+- Trace status: source commit `cb2940e79fe4ed4cda7c52ea64c46c049b189514`
+  is tagged `v5.0.0` and has a public GitHub Release with nine assets.
 - Persisted-state boundary: release staging has touched source, tests,
   installers, workflow, assets, and documentation only; project and Vault
   data remain outside the repository changes.
-- Safe next action: inspect the final diff, commit the candidate, push `main`,
-  observe required hosted CI and protected signing preflight, then stop if any
-  hosted gate is red.
+- Safe next action: normal Baron 5.0.0 maintenance; do not rewrite the
+  published tag or release assets.
 
 ## Phase 16 SEC-03 Remediation In Progress (2026-09-09)
 

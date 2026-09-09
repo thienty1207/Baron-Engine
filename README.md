@@ -65,6 +65,10 @@ and the staged binary version before replacing an existing executable. See the
 The v5.0.0 release publishes Windows x64 and Linux x64 artifacts. macOS is
 outside this release matrix.
 
+The official release assets are authenticated by the detached Ed25519
+`ReleaseManifestV1` signature for key `baron-release-2026` (fingerprint
+`73a005a12cf79f1fa60612f0e359a13c83d2660806075b610b3d83f4f14c31b4`).
+
 ### Set up the Vault
 
 Choose a folder for long-term memory and run:

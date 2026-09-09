@@ -2,11 +2,11 @@
 
 ## Codex + Claude Core Consolidation - Phase 16
 
-### Security remediation checkpoint (2026-09-09)
+### Phase 16 final release (2026-09-09)
 
-- Scope was limited to SEC-03 release metadata authenticity and SEC-04 proof /
-  gate evidence authority; the product source is now Baron 5.0.0 and is ready
-  for hosted release staging on Windows x64 and Linux x64.
+- Phase 16 completed the SEC-03 release-authenticity remediation and the SEC-04
+  proof/gate authority hardening. Baron Engine `v5.0.0` is published for
+  Windows x64 and Linux x64; macOS is outside this release matrix.
 - SEC-03 is closed in the repaired source: release metadata is a compact,
   deterministic manifest signed with Ed25519; the compiled trust anchor is
   `baron-release-2026` with public-key fingerprint
@@ -31,21 +31,23 @@
   mutation.
 - Focused security tests, the complete post-bump workspace regression sweep,
   formatter, Clippy, release build, final-binary smoke, diff checks, and
-  retired-adapter guards pass with zero unexpected failures. TAC is
-  unavailable on this host and is reported separately. The source is an
-  uncommitted 5.0.0 candidate; commit, push, hosted CI, tag, and GitHub
-  Release remain required.
+  retired-adapter guards passed with zero unexpected failures. Hosted workflow
+  `34350086718` passed candidate verification, Linux/Windows builds, protected
+  signing, assembled-asset verification, installer lifecycle, tag creation, and
+  GitHub Release publication. TAC is unavailable on this host and is reported
+  separately.
 
-- Status: `ready for release staging`; SEC-03 and SEC-04 are closed locally.
+- Status: `released`; SEC-03 and SEC-04 are closed.
 - Authority: `docs/refractor/BARON_CODEX_CLAUDE_CORE_OPTIMIZATION_SPEC.md` and
   the accepted Phase 16 brief.
 - Active plan: `docs/superpowers/plans/2026-09-09-final-adversarial-verification-phase16.md`.
-- Release boundary: local source and clean build are at 5.0.0. Commit, push,
-  hosted CI, annotated tag, and GitHub Release remain required; historical
-  4.2.2 entries below are preserved as release evidence.
-- Current next action: run the final post-bump local matrix, inspect the release
-  diff, commit and push `main`, then wait for the actual hosted CI before tag
-  and GitHub Release publication.
+- Release boundary: verified source commit is
+  `cb2940e79fe4ed4cda7c52ea64c46c049b189514`; annotated tag `v5.0.0` and the
+  public release point to that commit. Nine official assets contain the
+  Windows/Linux archives, raw candidates, signed manifest, checksums, and both
+  authenticated installers. Historical 4.2.2 entries below are preserved as
+  release evidence.
+- Current next action: normal Baron `5.0.0` maintenance.
 
 ### Phase 16 repair checkpoint
 

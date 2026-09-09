@@ -4,7 +4,7 @@
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
-  "releasePromotionStatus": "candidate",
+  "releasePromotionStatus": "released",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "5.0.0",
   "targetReleaseCompletionPercent": 100,
@@ -16,8 +16,8 @@
   ],
   "remainingPhaseCount": 0,
   "currentPhase": "baron-codex-claude-core-phase-16",
-  "currentPhaseStatus": "release candidate",
-  "nextAction": "Push the verified 5.0.0 candidate, wait for required hosted CI, then create and verify the annotated v5.0.0 tag and GitHub Release.",
+  "currentPhaseStatus": "completed",
+  "nextAction": "Normal Baron 5.0.0 maintenance.",
   "securityRemediation": {
     "status": "complete",
     "sec03": "closed",
@@ -34,12 +34,12 @@
   },
   "refactorTrack": {
     "name": "Codex + Claude Core Consolidation",
-    "status": "phase-16-release-candidate",
+    "status": "completed",
     "phase": 16,
     "totalPhases": 16,
     "completionPercent": 100,
     "productionChanges": true,
-    "nextAction": "Publish the verified 5.0.0 candidate through hosted CI and the immutable release workflow.",
+    "nextAction": "Normal Baron 5.0.0 maintenance.",
     "activePlan": "docs/superpowers/plans/2026-09-09-final-adversarial-verification-phase16.md",
     "scope": "Complete the verified 5.0.0 candidate through commit, hosted CI, protected signing preflight, tag, and GitHub Release."
   },
@@ -2075,5 +2075,18 @@
     "docs/specs/2026-06-08-baron-product-spec-1.0.md",
     "docs/roadmap/2026-06-08-implementation-roadmap.md",
     "docs/architecture/ARCHITECTURE.md"
-  ]
+  ],
+  "publishedRelease": {
+    "version": "5.0.0",
+    "commit": "cb2940e79fe4ed4cda7c52ea64c46c049b189514",
+    "tag": "v5.0.0",
+    "workflowRun": 34350086718,
+    "title": "Baron Engine v5.0.0",
+    "assetCount": 9,
+    "targets": [
+      "x86_64-pc-windows-msvc",
+      "x86_64-unknown-linux-gnu"
+    ],
+    "url": "https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.0"
+  }
 }
