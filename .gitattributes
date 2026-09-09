@@ -3,3 +3,4 @@
 *.yaml text eol=lf
 *.ps1 text eol=crlf
 assets/core/skills/superpowers/** text eol=lf
+crates/baron-adapters/tests/fixtures/** text eol=lf
