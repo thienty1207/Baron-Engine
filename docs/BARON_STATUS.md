@@ -21,13 +21,14 @@
   capability/gate summaries, child-agent text, Autopilot candidates, and
   persisted unkeyed receipts remain diagnostic.
 - Fresh Codex Security scan
-  `729e1050-24f9-4a4c-88b5-d135b73a8629` completed against the repaired
-  Windows/Linux snapshot with zero reportable findings. The scan records
-  medium follow-up coverage for installer path-chain and persisted-receipt path
-  hardening; neither weakens signed metadata verification or receipt authority.
-  The remote bootstrap-script self-authentication limit is documented as an
-  explicit trust-boundary limitation; the trusted copy still authenticates
-  release metadata and binaries before mutation.
+  `6312e662-b7ba-45da-b42a-d02fba00193f` completed against the final
+  Windows/Linux snapshot with zero reportable findings. The focused scan
+  covers installer paths, Rust release/updater code, the release workflow, and
+  receipt/gate authority; unrelated repository surfaces remain explicitly
+  deferred. The remote bootstrap-script self-authentication limit is retained
+  as an explicit trust-boundary limitation.
+  The trusted copy still authenticates release metadata and binaries before
+  mutation.
 - Focused security tests, the complete post-bump workspace regression sweep,
   formatter, Clippy, release build, final-binary smoke, diff checks, and
   retired-adapter guards pass with zero unexpected failures. TAC is

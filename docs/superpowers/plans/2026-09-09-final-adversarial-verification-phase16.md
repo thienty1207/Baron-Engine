@@ -56,10 +56,11 @@ the evidence.
   `BARON_RELEASE_SIGNING_KEY` base64 raw-seed contract and checks its derived
   production identity without exposing the seed.
 - Fresh native Codex Security scan
-  `729e1050-24f9-4a4c-88b5-d135b73a8629` completed on the repaired
-  Windows/Linux snapshot with zero reportable findings. Medium follow-up
-  coverage remains for installer path-chain and persisted-receipt path
-  hardening; the remote bootstrap-script self-authentication limitation is
+  `6312e662-b7ba-45da-b42a-d02fba00193f` completed on the final
+  Windows/Linux snapshot with zero reportable findings. The focused scan
+  covers installer path, Rust release/updater, release workflow, and
+  receipt/gate authority surfaces; unrelated repository surfaces are recorded
+  as deferred. The remote bootstrap-script self-authentication limitation is
   documented as an explicit trust boundary.
 - The complete post-bump workspace test matrix, formatter, Clippy with warnings
   denied, release build, final-binary smoke, diff checks, and retired-adapter
