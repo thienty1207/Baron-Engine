@@ -324,7 +324,7 @@ fn unix_unreadable_managed_manifest_is_guarded_by_permission_semantics() {
         include_str!("fixtures/phase1/legacy-managed/manifest.json"),
     );
     let mut permissions = fs::metadata(&manifest).unwrap().permissions();
-    permissions.set_mode(0);
+    permissions.set_mode(0o0);
     fs::set_permissions(&manifest, permissions).unwrap();
 
     // Privileged Unix runners may still read mode-000 files. In that case the
