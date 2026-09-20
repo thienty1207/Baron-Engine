@@ -58,6 +58,17 @@ before `.baron/cache/code-graph/` changes. A missing, stale, malformed, timed
 out, or failed provider leaves the last known-good cache and falls back to the
 Survey Engine.
 
+The supported Graphify `0.9.25` extraction contract receives Baron’s staging
+directory as `--out`; Graphify creates `graphify-out/graph.json` beneath that
+root. Baron validates and promotes that artifact without assuming a nested
+Baron-created `graphify-out` input. Graphify’s `query` command is a
+human-readable traversal with a token/context budget, not a stable JSON result
+API. Baron therefore queries the validated local graph artifact with bounded,
+deterministic results, keeps `max_hits` and `max_chars` as Baron-owned limits,
+and sends every returned source through current-source verification. It does
+not invoke Graphify `query`, pass `--json`, or treat the provider budget as a
+hit count.
+
 ## Automation boundary
 
 The managed Codex and Claude contracts can request a silent capability check as

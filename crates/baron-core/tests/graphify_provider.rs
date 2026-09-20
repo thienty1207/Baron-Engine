@@ -7,7 +7,8 @@ mod windows {
     use std::time::Duration;
 
     use baron_core::code_graph::{
-        code_graph_cache_root, load_code_graph_state, CodeGraphProvider, QueryLimits,
+        code_graph_cache_root, graphify_graph_path, load_code_graph_state, verify_graph_hit_source,
+        CodeGraphProvider, GraphConfidence, QueryLimits, SourceVerificationStatus,
     };
     use baron_core::config::{initialize_project, AdapterKind};
     use baron_core::context::{compile_context_for_task, ContextTarget};
@@ -124,6 +125,8 @@ mod windows {
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0].node_id, "entry");
         assert_eq!(hits[1].node_id, "related");
+        assert_eq!(hits[0].confidence, GraphConfidence::Extracted);
+        assert_eq!(hits[1].relation.as_deref(), Some("calls"));
         assert!(load_code_graph_state(&repo).unwrap().is_some());
         assert!(!cache.starts_with(&vault));
 
@@ -133,8 +136,9 @@ mod windows {
         assert!(log.contains("--code-only"));
         assert!(log.contains("--out"));
         assert!(log.contains("--no-cluster"));
-        assert!(log.contains("query trace entry ownership --graph"));
-        assert!(log.contains("--json --budget 8"));
+        assert!(!log.contains("query trace entry ownership"));
+        assert!(!log.contains("--json --budget 8"));
+        assert!(!log.contains("graphify-out --no-cluster"));
         assert!(log.contains("query_log_disable=1"));
         assert!(log.contains("graphify_api_key_present=False"));
         for forbidden in [
@@ -166,7 +170,13 @@ mod windows {
         let provider = provider();
         let original = provider.refresh(&repo, &cache).unwrap();
 
-        for mode in ["wrong-version", "nonzero", "timeout", "oversized-graph"] {
+        for mode in [
+            "wrong-version",
+            "nonzero",
+            "timeout",
+            "oversized-graph",
+            "malformed",
+        ] {
             std::env::set_var("FAKE_GRAPHIFY_MODE", mode);
             let error = provider.refresh(&repo, &cache).unwrap_err().to_string();
             assert!(
@@ -177,18 +187,15 @@ mod windows {
             assert_eq!(current.graph_sha256, original.graph_sha256, "mode {mode}");
         }
 
-        for mode in ["malformed", "oversized", "nonzero", "timeout"] {
-            std::env::set_var("FAKE_GRAPHIFY_MODE", mode);
-            assert!(provider
-                .query(&repo, &cache, "trace entry", QueryLimits::default())
-                .is_err());
-            let current = load_code_graph_state(&repo).unwrap().unwrap();
-            assert_eq!(current.graph_sha256, original.graph_sha256, "mode {mode}");
-        }
         write(
             &repo.join("src/lib.rs"),
             "pub fn entry() { changed_legacy_implementation(); }\n",
         );
+        assert!(provider
+            .query(&repo, &cache, "trace entry", QueryLimits::default())
+            .is_err());
+        let current = load_code_graph_state(&repo).unwrap().unwrap();
+        assert_eq!(current.graph_sha256, original.graph_sha256);
         let fallback = compile_context_for_task(
             &repo,
             &vault,
@@ -199,6 +206,84 @@ mod windows {
         assert!(fallback.contains("## Project Atlas"));
         assert!(fallback.contains("Local code map is stale"));
         assert!(fallback.contains("Survey remains active"));
+        std::env::remove_var("FAKE_GRAPHIFY_MODE");
+    }
+
+    #[test]
+    fn graphify_queries_the_validated_artifact_with_bounded_deterministic_hits() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let _environment = TestEnvironment::capture();
+        let (_temp, repo, _vault) = project();
+        std::env::remove_var("FAKE_GRAPHIFY_MODE");
+        let provider = provider();
+        let cache = code_graph_cache_root(&repo).unwrap();
+        let state = provider.refresh(&repo, &cache).unwrap();
+
+        let limits = QueryLimits {
+            max_hits: 1,
+            max_chars: 128,
+        };
+        let first = provider
+            .query(&repo, &cache, "trace entry ownership", limits)
+            .unwrap();
+        let second = provider
+            .query(&repo, &cache, "trace entry ownership", limits)
+            .unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].node_id, "entry");
+        assert!(provider
+            .query(
+                &repo,
+                &cache,
+                "trace entry ownership",
+                QueryLimits {
+                    max_hits: 8,
+                    max_chars: 1,
+                },
+            )
+            .unwrap()
+            .is_empty());
+
+        assert!(provider
+            .query(&repo, &cache, "   ", QueryLimits::default())
+            .is_err());
+        assert!(provider
+            .query(
+                &repo,
+                &cache,
+                &"x".repeat(baron_core::code_graph::MAX_QUERY_CHARS + 1),
+                QueryLimits::default(),
+            )
+            .is_err());
+
+        let graph = graphify_graph_path(&repo, &state.source_fingerprint).unwrap();
+        assert!(graph.starts_with(&cache));
+        let verification = verify_graph_hit_source(&repo, &first[0]).unwrap();
+        assert_eq!(verification.status, SourceVerificationStatus::Verified);
+    }
+
+    #[test]
+    fn graphify_rejects_ambiguous_or_unsafe_artifact_records() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let _environment = TestEnvironment::capture();
+        let (_temp, repo, _vault) = project();
+        let cache = code_graph_cache_root(&repo).unwrap();
+        let provider = provider();
+        std::env::remove_var("FAKE_GRAPHIFY_MODE");
+        let original = provider.refresh(&repo, &cache).unwrap();
+
+        for mode in ["duplicate-node", "foreign-source"] {
+            std::env::set_var("FAKE_GRAPHIFY_MODE", mode);
+            let error = provider.refresh(&repo, &cache).unwrap_err().to_string();
+            assert!(
+                error.contains("Survey fallback remains active"),
+                "{mode}: {error}"
+            );
+            let current = load_code_graph_state(&repo).unwrap().unwrap();
+            assert_eq!(current.graph_sha256, original.graph_sha256, "mode {mode}");
+        }
+
         std::env::remove_var("FAKE_GRAPHIFY_MODE");
     }
 

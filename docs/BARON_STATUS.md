@@ -49,6 +49,37 @@
   release evidence.
 - Current next action: normal Baron `5.0.0` maintenance.
 
+## Baron 5.0.1 Stabilization - SPEC-01 Graphify Provider Contract (2026-09-20)
+
+- Status: `implementation complete; verification blockers remain`; the
+  public/stable release remains `5.0.0` and no version bump or release action
+  is part of this SPEC.
+- Baseline: Baron v5.0.0 at release commit
+  `cb2940e79fe4ed4cda7c52ea64c46c049b189514`; supported Graphify is exactly
+  `0.9.25`.
+- Real provider contract: Baron passes a staging root to `graphify extract`;
+  Graphify writes `graphify-out/graph.json` beneath that root. Graphify query
+  is human-readable traversal, so Baron uses the validated local graph artifact
+  for bounded deterministic query results instead of assuming `--json`.
+- Trust boundary: Graphify remains optional and project-local; Survey fallback,
+  last-known-good promotion, current-source verification, and bounded hit/
+  character limits remain active.
+- Certification: `C:\Users\Ty\.local\bin\graphify.exe` reports `0.9.25`;
+  `BARON_REAL_GRAPHIFY=1 cargo test -p baron-core --test graphify_real -- --nocapture`
+  passes. The pinned Hotel Staff fixture was tested from a clean temporary
+  clone: capability check, refresh, and all three required queries passed;
+  its tracked tree stayed clean and its project identity remained unchanged.
+- Verification blockers outside SPEC-01: the final workspace suite still
+  reports two pre-existing/environment-sensitive targets
+  (`lifecycle_scripts` cannot load `Microsoft.PowerShell.Archive`; `prepare_cli`
+  exposes a UTF-8 boundary panic in `session_replay`). The fixture update dry-run is also
+  blocked by its existing managed-baseline hash mismatch; no fixture file was
+  repaired or changed.
+- Active plan:
+  `docs/superpowers/plans/2026-09-20-graphify-provider-contract.md`.
+- Safe next action: resolve the unrelated verification/fixture baseline
+  blockers, rerun the full gate, and keep the public version at `5.0.0`.
+
 ### Phase 16 repair checkpoint
 
 - A Windows junction fixture exposed a pre-rejection write through a linked

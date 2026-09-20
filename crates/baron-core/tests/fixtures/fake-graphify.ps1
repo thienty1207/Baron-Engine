@@ -33,31 +33,35 @@ if ($command -eq "extract") {
         exit 8
     }
     $out = $args[4]
-    New-Item -ItemType Directory -Force -Path $out | Out-Null
-    if ($mode -eq "oversized-graph") {
-        Set-Content -LiteralPath (Join-Path $out "graph.json") -Value ("x" * 4096) -NoNewline
+    if ([System.IO.Path]::GetFileName($out) -eq "graphify-out") {
+        [Console]::Error.WriteLine("--out must be the extraction root, not graphify-out")
+        exit 11
+    }
+    $graphOut = Join-Path $out "graphify-out"
+    New-Item -ItemType Directory -Force -Path $graphOut | Out-Null
+    $graphPath = Join-Path $graphOut "graph.json"
+    if ($mode -eq "malformed") {
+        Set-Content -LiteralPath $graphPath -Value '{not-json' -NoNewline
         exit 0
     }
-    Set-Content -LiteralPath (Join-Path $out "graph.json") -Value '{"nodes":[],"edges":[]}' -NoNewline
+    if ($mode -eq "oversized-graph") {
+        Set-Content -LiteralPath $graphPath -Value ("x" * 4096) -NoNewline
+        exit 0
+    }
+    $sourceFile = "src/lib.rs"
+    if ($mode -eq "foreign-source") {
+        $sourceFile = "../outside.rs"
+    }
+    $duplicate = if ($mode -eq "duplicate-node") { ',{"id":"entry","label":"duplicate","source_file":"src/lib.rs","_origin":"ast"}' } else { "" }
+    $graph = '{"nodes":[{"id":"entry","label":"entry","source_file":"' + $sourceFile + '","_origin":"ast"},{"id":"related","label":"related","source_file":"src/service.rs","_origin":"ast"}' + $duplicate + '],"edges":[{"source":"entry","target":"related","relation":"calls","confidence":"EXTRACTED","source_file":"src/lib.rs","source_location":"L1","weight":1.0}],"input_tokens":0,"output_tokens":0}'
+    Set-Content -LiteralPath $graphPath -Value $graph -NoNewline
     Write-Output "extracted"
     exit 0
 }
 
 if ($command -eq "query") {
-    if ($args.Count -ne 7 -or $args[2] -ne "--graph" -or $args[4] -ne "--json" -or $args[5] -ne "--budget") {
-        [Console]::Error.WriteLine("unexpected query command")
-        exit 9
-    }
-    if ($mode -eq "oversized") {
-        Write-Output ("x" * 4096)
-        exit 0
-    }
-    if ($mode -eq "malformed") {
-        Write-Output "{not-json"
-        exit 0
-    }
-    Write-Output '[{"node_id":"entry","label":"entry","source_file":"src/lib.rs","relation":"calls","confidence":"EXTRACTED","explanation":"entry calls service","score":0.9},{"node_id":"related","label":"related","source_file":"src/service.rs","relation":"depends_on","confidence":"INFERRED","explanation":"provider inferred relation","score":0.4}]'
-    exit 0
+    [Console]::Error.WriteLine("Graphify 0.9.25 query is human-readable traversal, not a Baron JSON contract")
+    exit 9
 }
 
 [Console]::Error.WriteLine("unexpected command")

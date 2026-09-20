@@ -5,7 +5,7 @@
 //! backend. A missing or incompatible provider is a diagnostic, not a failure
 //! of Baron itself.
 
-use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::ErrorKind;
@@ -16,7 +16,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
-use serde_json::Value;
 use wait_timeout::ChildExt;
 
 use crate::code_graph::{
@@ -81,26 +80,48 @@ struct ProcessCapture {
     stdout: Vec<u8>,
 }
 
-#[derive(Debug, Deserialize)]
-struct RawGraphHit {
-    node_id: String,
+#[derive(Debug, Clone, Deserialize)]
+struct RawGraphNode {
+    id: String,
     label: String,
     #[serde(default)]
     source_file: Option<String>,
+    #[serde(rename = "_origin", default)]
+    origin: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RawGraphEdge {
+    source: String,
+    target: String,
     #[serde(default)]
     relation: Option<String>,
     #[serde(default)]
     confidence: Option<String>,
-    explanation: String,
-    #[serde(default)]
-    score: Option<f64>,
 }
 
 #[derive(Debug)]
-struct ScoredHit {
-    score: f64,
+struct GraphQueryCandidate {
+    distance: usize,
+    match_score: usize,
     hit: CodeGraphHit,
 }
+
+#[derive(Debug, Deserialize)]
+struct GraphArtifact {
+    nodes: Vec<RawGraphNode>,
+    edges: Vec<RawGraphEdge>,
+}
+
+#[derive(Debug, Clone)]
+struct GraphNeighbor {
+    node_id: String,
+    relation: Option<String>,
+    confidence: GraphConfidence,
+}
+
+const MAX_GRAPH_QUERY_DEPTH: usize = 2;
+const MAX_GRAPH_QUERY_VISITS: usize = 4_096;
 
 impl GraphifyProvider {
     pub fn new(program: impl Into<PathBuf>) -> Self {
@@ -255,7 +276,7 @@ impl GraphifyProvider {
         let cache_root = ensure_code_graph_cache_root(repo_root)?;
         let graph_path = staging.join(GRAPH_OUTPUT_DIRECTORY).join(GRAPH_FILE_NAME);
         validate_code_graph_cache_path(repo_root, &graph_path)?;
-        validate_graph_json(&graph_path, self.limits.max_graph_bytes)?;
+        validate_graph_json(repo_root, &graph_path, self.limits.max_graph_bytes)?;
 
         let provider_root =
             ensure_relative_directory(repo_root, &cache_root, Path::new(GRAPHIFY_DIR))?;
@@ -318,13 +339,12 @@ impl CodeGraphProvider for GraphifyProvider {
         let _cache_root = ensure_code_graph_cache_root(&repo_root)?;
         let source_fingerprint = compute_code_source_fingerprint(&repo_root)?;
         let staging = create_owned_directory(&repo_root, STAGING_PREFIX)?;
-        let graph_output = staging.join(GRAPH_OUTPUT_DIRECTORY);
         let args = vec![
             OsString::from("extract"),
             provider_path(&repo_root),
             OsString::from("--code-only"),
             OsString::from("--out"),
-            provider_path(&graph_output),
+            provider_path(&staging),
             OsString::from("--no-cluster"),
         ];
         let result = self.run_command(&repo_root, &args, self.limits.refresh_timeout, &staging);
@@ -379,25 +399,13 @@ impl CodeGraphProvider for GraphifyProvider {
             bail!("Local code map is stale; Survey fallback remains active");
         }
         let graph_path = validate_code_graph_artifact(&repo_root, &state)?;
-        let run_dir = create_owned_directory(&repo_root, QUERY_PREFIX)?;
+        // Graphify 0.9.25 exposes human-readable traversal for `query`, not a
+        // stable machine-readable result contract. Option B keeps that provider
+        // boundary honest by querying the validated local artifact in Baron.
+        // `QueryLimits` therefore remains Baron's output bound; it is never
+        // forwarded as Graphify's token/context budget.
         let limits = limits.bounded();
-        let args = vec![
-            OsString::from("query"),
-            OsString::from(question),
-            OsString::from("--graph"),
-            provider_path(&graph_path),
-            OsString::from("--json"),
-            OsString::from("--budget"),
-            OsString::from(limits.max_hits.to_string()),
-        ];
-        let result = self.run_command(&repo_root, &args, self.limits.query_timeout, &run_dir);
-        let cleanup = remove_owned_directory(&repo_root, &run_dir);
-        let capture = result?;
-        cleanup?;
-        if !capture.status.success() {
-            bail!("Graphify query did not complete successfully; Survey fallback remains active");
-        }
-        parse_query_hits(&repo_root, &capture.stdout, limits)
+        query_graph_artifact(&repo_root, &graph_path, question, limits)
     }
 }
 
@@ -412,54 +420,148 @@ fn parse_version(stdout: &[u8]) -> Option<String> {
     })
 }
 
-fn parse_query_hits(
+fn query_graph_artifact(
     repo_root: &Path,
-    stdout: &[u8],
+    graph_path: &Path,
+    question: &str,
     limits: QueryLimits,
 ) -> Result<Vec<CodeGraphHit>> {
-    let value: Value = serde_json::from_slice(stdout)
-        .context("Graphify query returned malformed JSON; Survey fallback remains active")?;
-    let raw_hits: Vec<RawGraphHit> = match value {
-        Value::Array(_) => serde_json::from_value(value)?,
-        Value::Object(mut object) => {
-            let results = object
-                .remove("results")
-                .or_else(|| object.remove("hits"))
-                .context("Graphify query JSON has no results array")?;
-            serde_json::from_value(results)?
+    if limits.max_hits == 0 || limits.max_chars == 0 {
+        return Ok(Vec::new());
+    }
+    let content = read_bounded_file(graph_path, MAX_GRAPH_BYTES, "Graphify graph")?;
+    let artifact: GraphArtifact = serde_json::from_slice(&content).context(
+        "Graphify graph is not a supported local graph artifact; Survey fallback remains active",
+    )?;
+
+    let mut nodes = BTreeMap::new();
+    for mut node in artifact.nodes {
+        node.id = required_graph_label(&node.id, "Graphify graph node id")?;
+        node.label = required_graph_label(&node.label, "Graphify graph node label")?;
+        if nodes.insert(node.id.clone(), node).is_some() {
+            bail!("Graphify graph contains duplicate node ids; Survey fallback remains active");
         }
-        _ => bail!("Graphify query JSON must be an array or contain a results array"),
-    };
-    let mut scored = Vec::new();
-    for raw in raw_hits {
-        let candidate = CodeGraphHit {
-            node_id: raw.node_id,
-            label: raw.label,
-            source_file: raw.source_file,
-            relation: raw.relation,
-            confidence: parse_confidence(raw.confidence.as_deref()),
-            explanation: raw.explanation,
-        };
-        let mut normalized = normalize_code_graph_hits(
-            repo_root,
-            vec![candidate],
-            QueryLimits {
-                max_hits: 1,
-                max_chars: limits.max_chars,
-            },
-        )?;
-        if let Some(hit) = normalized.pop() {
-            scored.push(ScoredHit {
-                score: raw.score.filter(|score| score.is_finite()).unwrap_or(0.0),
-                hit,
+    }
+
+    let mut adjacency: BTreeMap<String, Vec<GraphNeighbor>> = BTreeMap::new();
+    for edge in artifact.edges {
+        let source = edge.source.trim();
+        let target = edge.target.trim();
+        if source.is_empty() || target.is_empty() || source == target {
+            continue;
+        }
+        if !nodes.contains_key(source) || !nodes.contains_key(target) {
+            continue;
+        }
+        let relation = normalize_graph_relation(edge.relation);
+        let confidence = parse_confidence(edge.confidence.as_deref());
+        adjacency
+            .entry(source.to_string())
+            .or_default()
+            .push(GraphNeighbor {
+                node_id: target.to_string(),
+                relation: relation.clone(),
+                confidence,
+            });
+        adjacency
+            .entry(target.to_string())
+            .or_default()
+            .push(GraphNeighbor {
+                node_id: source.to_string(),
+                relation,
+                confidence,
+            });
+    }
+    for neighbors in adjacency.values_mut() {
+        neighbors.sort_by(|left, right| {
+            left.node_id
+                .cmp(&right.node_id)
+                .then_with(|| left.relation.cmp(&right.relation))
+                .then_with(|| {
+                    confidence_order(left.confidence).cmp(&confidence_order(right.confidence))
+                })
+        });
+        neighbors.dedup_by(|left, right| {
+            left.node_id == right.node_id
+                && left.relation == right.relation
+                && left.confidence == right.confidence
+        });
+    }
+
+    let terms = query_terms(question);
+    let mut direct = BTreeMap::new();
+    for (node_id, node) in &nodes {
+        if let Some(node_match) = node_match(node, &terms) {
+            direct.insert(node_id.clone(), node_match);
+        }
+    }
+
+    let mut queue = VecDeque::new();
+    let mut distances = BTreeMap::new();
+    let mut candidates = Vec::new();
+    for (node_id, node_match) in &direct {
+        distances.insert(node_id.clone(), 0);
+        queue.push_back((node_id.clone(), 0usize));
+        let node = nodes.get(node_id).expect("direct match node exists");
+        candidates.push(GraphQueryCandidate {
+            distance: 0,
+            match_score: node_match.score,
+            hit: graph_node_hit(
+                node,
+                None,
+                graph_node_confidence(node),
+                format!(
+                    "graph node matched query terms: {}",
+                    node_match.terms.join(", ")
+                ),
+            ),
+        });
+    }
+
+    let mut visits = 0usize;
+    while let Some((node_id, distance)) = queue.pop_front() {
+        visits += 1;
+        if visits >= MAX_GRAPH_QUERY_VISITS || distance >= MAX_GRAPH_QUERY_DEPTH {
+            continue;
+        }
+        for neighbor in adjacency.get(&node_id).into_iter().flatten() {
+            if distances.contains_key(&neighbor.node_id) {
+                continue;
+            }
+            let next_distance = distance + 1;
+            distances.insert(neighbor.node_id.clone(), next_distance);
+            queue.push_back((neighbor.node_id.clone(), next_distance));
+            let node = nodes
+                .get(&neighbor.node_id)
+                .expect("validated graph edge target exists");
+            let confidence = if neighbor.confidence == GraphConfidence::Extracted
+                && graph_node_confidence(node) == GraphConfidence::Extracted
+            {
+                GraphConfidence::Extracted
+            } else {
+                GraphConfidence::Inferred
+            };
+            let relation = neighbor.relation.clone();
+            let explanation = relation
+                .as_deref()
+                .map(|relation| {
+                    format!(
+                        "graph node reached through `{relation}` at graph distance {next_distance}"
+                    )
+                })
+                .unwrap_or_else(|| format!("graph node reached at graph distance {next_distance}"));
+            candidates.push(GraphQueryCandidate {
+                distance: next_distance,
+                match_score: 0,
+                hit: graph_node_hit(node, relation, confidence, explanation),
             });
         }
     }
-    scored.sort_by(|left, right| {
-        right
-            .score
-            .partial_cmp(&left.score)
-            .unwrap_or(Ordering::Equal)
+
+    candidates.sort_by(|left, right| {
+        left.distance
+            .cmp(&right.distance)
+            .then_with(|| right.match_score.cmp(&left.match_score))
             .then_with(|| {
                 confidence_order(left.hit.confidence).cmp(&confidence_order(right.hit.confidence))
             })
@@ -467,24 +569,157 @@ fn parse_query_hits(
             .then_with(|| left.hit.label.cmp(&right.hit.label))
             .then_with(|| left.hit.node_id.cmp(&right.hit.node_id))
     });
-    let mut seen = std::collections::BTreeSet::new();
+
+    let mut seen = BTreeSet::new();
     let mut hits = Vec::new();
-    for scored_hit in scored {
+    let mut total_chars = 0usize;
+    for candidate in candidates {
+        let mut normalized = normalize_code_graph_hits(
+            repo_root,
+            vec![candidate.hit],
+            QueryLimits {
+                max_hits: 1,
+                max_chars: limits.max_chars,
+            },
+        )?;
+        let Some(hit) = normalized.pop() else {
+            continue;
+        };
         let key = format!(
             "{}\0{}\0{}\0{:?}",
-            scored_hit.hit.node_id,
-            scored_hit.hit.source_file.as_deref().unwrap_or_default(),
-            scored_hit.hit.relation.as_deref().unwrap_or_default(),
-            scored_hit.hit.confidence
+            hit.node_id,
+            hit.source_file.as_deref().unwrap_or_default(),
+            hit.relation.as_deref().unwrap_or_default(),
+            hit.confidence
         );
         if seen.insert(key) {
-            hits.push(scored_hit.hit);
+            let rendered_chars = graph_hit_rendered_chars(&hit);
+            if rendered_chars > limits.max_chars
+                || total_chars.saturating_add(rendered_chars) > limits.max_chars
+            {
+                break;
+            }
+            total_chars += rendered_chars;
+            hits.push(hit);
         }
         if hits.len() >= limits.max_hits {
             break;
         }
     }
     Ok(hits)
+}
+
+#[derive(Debug)]
+struct NodeMatch {
+    score: usize,
+    terms: Vec<String>,
+}
+
+fn query_terms(question: &str) -> Vec<String> {
+    let mut terms = BTreeSet::new();
+    for term in question.split(|character: char| !character.is_alphanumeric() && character != '_') {
+        let term = term.trim().to_ascii_lowercase();
+        if !term.is_empty() {
+            terms.insert(term);
+        }
+    }
+    terms.into_iter().collect()
+}
+
+fn node_match(node: &RawGraphNode, terms: &[String]) -> Option<NodeMatch> {
+    let id = node.id.to_ascii_lowercase();
+    let label = node.label.to_ascii_lowercase();
+    let source = node
+        .source_file
+        .as_deref()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let mut matched = Vec::new();
+    let mut score = 0usize;
+    for term in terms {
+        let in_id = id.contains(term);
+        let in_label = label.contains(term);
+        let in_source = source.contains(term);
+        if !(in_id || in_label || in_source) {
+            continue;
+        }
+        matched.push(term.clone());
+        score += 100;
+        if id == *term || label == *term {
+            score += 50;
+        }
+        if in_label {
+            score += 10;
+        }
+    }
+    (!matched.is_empty()).then_some(NodeMatch {
+        score,
+        terms: matched,
+    })
+}
+
+fn graph_node_confidence(node: &RawGraphNode) -> GraphConfidence {
+    match node.origin.as_deref().map(str::trim) {
+        Some(origin) if origin.eq_ignore_ascii_case("ast") => GraphConfidence::Extracted,
+        other => parse_confidence(other),
+    }
+}
+
+fn graph_node_hit(
+    node: &RawGraphNode,
+    relation: Option<String>,
+    confidence: GraphConfidence,
+    explanation: String,
+) -> CodeGraphHit {
+    CodeGraphHit {
+        node_id: node.id.clone(),
+        label: node.label.clone(),
+        source_file: normalize_graph_source_file(node.source_file.clone()),
+        relation,
+        confidence,
+        explanation,
+    }
+}
+
+fn normalize_graph_source_file(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let value = value.trim();
+        (!value.is_empty()).then(|| value.to_string())
+    })
+}
+
+fn required_graph_label(value: &str, label: &str) -> Result<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        bail!("{label} must not be empty");
+    }
+    Ok(value.to_string())
+}
+
+fn normalize_graph_relation(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let value = value.trim();
+        (!value.is_empty()).then(|| value.to_string())
+    })
+}
+
+fn graph_hit_rendered_chars(hit: &CodeGraphHit) -> usize {
+    let source = hit.source_file.as_deref().unwrap_or("source unknown");
+    let relation = hit
+        .relation
+        .as_deref()
+        .map(|relation| format!(" ({relation})"))
+        .unwrap_or_default();
+    let confidence = match hit.confidence {
+        GraphConfidence::Extracted => "extracted",
+        GraphConfidence::Inferred => "inferred",
+    };
+    format!(
+        "- [{confidence}] {}{} - {source} - {}\n",
+        hit.label, relation, hit.explanation
+    )
+    .chars()
+    .count()
 }
 
 fn parse_confidence(value: Option<&str>) -> GraphConfidence {
@@ -504,16 +739,47 @@ fn confidence_order(confidence: GraphConfidence) -> u8 {
     }
 }
 
-fn validate_graph_json(path: &Path, max_graph_bytes: u64) -> Result<()> {
+fn validate_graph_json(repo_root: &Path, path: &Path, max_graph_bytes: u64) -> Result<()> {
     let content = read_bounded_file(path, max_graph_bytes, "Graphify graph")?;
-    let value: Value =
-        serde_json::from_slice(&content).context("Graphify graph is not valid JSON")?;
-    let object = value
-        .as_object()
-        .context("Graphify graph JSON must be an object")?;
-    for key in ["nodes", "edges"] {
-        if object.contains_key(key) && !object[key].is_array() {
-            bail!("Graphify graph field `{key}` must be an array when present");
+    let artifact: GraphArtifact = serde_json::from_slice(&content).context(
+        "Graphify graph is not a supported local graph artifact; Survey fallback remains active",
+    )?;
+    let mut node_ids = BTreeSet::new();
+    for node in artifact.nodes {
+        let node_id =
+            required_graph_label(&node.id, "Graphify graph node id").with_context(|| {
+                "Graphify graph contains malformed node records; Survey fallback remains active"
+            })?;
+        required_graph_label(&node.label, "Graphify graph node label").with_context(|| {
+            "Graphify graph contains malformed node records; Survey fallback remains active"
+        })?;
+        if !node_ids.insert(node_id) {
+            bail!("Graphify graph contains duplicate node ids; Survey fallback remains active");
+        }
+        let confidence = graph_node_confidence(&node);
+        if let Some(source_file) = normalize_graph_source_file(node.source_file.clone()) {
+            let source_display = source_file.clone();
+            let hit = CodeGraphHit {
+                node_id: node.id,
+                label: node.label,
+                source_file: Some(source_file),
+                relation: None,
+                confidence,
+                explanation: "validated Graphify graph source".to_string(),
+            };
+            normalize_code_graph_hits(
+                repo_root,
+                vec![hit],
+                QueryLimits {
+                    max_hits: 1,
+                    max_chars: crate::code_graph::MAX_QUERY_CHARS,
+                },
+            )
+            .with_context(|| {
+                format!(
+                    "Graphify graph contains an unsafe source path `{source_display}`; Survey fallback remains active"
+                )
+            })?;
         }
     }
     Ok(())

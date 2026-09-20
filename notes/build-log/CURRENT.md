@@ -1,5 +1,32 @@
 # Current Build Note
 
+## Baron 5.0.1 Stabilization - SPEC-01 (2026-09-20)
+
+- Current task: align the optional Baron Graphify provider with real Graphify
+  `0.9.25` without changing the public version or any Hotel Staff files.
+- Last checkpoint: real extraction evidence shows Graphify writes
+  `<out>/graphify-out/graph.json`; the fake-provider RED suite caught Baron’s
+  old nested output root and unsupported JSON query invocation. The provider
+  now passes the staging root and queries the validated local artifact with
+  bounded deterministic results.
+- Proof status: focused Graphify provider tests pass `6/6`; the opt-in real
+  Graphify certification passes with `BARON_REAL_GRAPHIFY=1`; the pinned Hotel
+  Staff fixture capability/refresh/three-query check passes from a clean clone
+  and leaves its tracked tree unchanged.
+- Trace status: no version bump, commit, push, tag, release, or Hotel Staff
+  fixture mutation has occurred.
+- Persisted-state boundary: only Baron Graphify source/tests and current
+  maintained status/plan/build-log documentation are in scope; project/Vault
+  data and external fixtures remain untouched.
+- Full workspace verification ran but reports two unrelated blockers:
+  `lifecycle_scripts` cannot load the host `Microsoft.PowerShell.Archive`
+  module and `prepare_cli` reaches the existing UTF-8 boundary panic in
+  `session_replay`. `phase10_adapter_authority` passed in the final workspace
+  run. The Hotel Staff update dry-run is separately blocked by its existing
+  managed-baseline hash mismatch; no fixture repair was attempted.
+- Safe next action: resolve those external/pre-existing blockers, rerun the
+  full gate, and keep the public version at `5.0.0`.
+
 ## Phase 16 v5.0.0 Release (2026-09-09)
 
 - Current task: maintain the published Baron Engine 5.0.0 release.
