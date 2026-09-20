@@ -55,6 +55,14 @@ missing, untrusted, skipped, or returns a soft failure. Event keys are
 deduplicated under the project lock, so repeated initialization does not
 duplicate entries or run two prepare operations for one event.
 
+The current Codex bridge forwards the host hook payload through stdin and the
+Baron contract consumes `task`, `session_id`, and `request_id`; the generated
+bridge exposes no separate stable host delivery ID. Identified deliveries with
+the same adapter, event, session, request, and task are retry-idempotent.
+Anonymous deliveries have no retry-idempotency guarantee: Baron synthesizes a
+new session/request pair for each delivery, preserving the task ID while
+creating a distinct operation and event key.
+
 ## Preservation and update boundary
 
 User AGENTS text outside Baron markers, custom skills and agents, Codex settings,

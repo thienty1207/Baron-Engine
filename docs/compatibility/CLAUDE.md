@@ -51,6 +51,14 @@ unknown keys. Claude hooks are optional accelerators over the canonical Core.
 returns a soft failure. Hook event keys are deduplicated under the project
 lock, and hook execution is never inferred from configuration alone.
 
+The current Claude bridge forwards the host hook payload through stdin and the
+Baron contract consumes `task`, `session_id`, and `request_id`; the generated
+bridge exposes no separate stable host delivery ID. Identified deliveries with
+the same adapter, event, session, request, and task are retry-idempotent.
+Anonymous deliveries have no retry-idempotency guarantee: Baron synthesizes a
+new session/request pair for each delivery, preserving the task ID while
+creating a distinct operation and event key.
+
 Claude host auto memory remains host-local context. It is not Baron trusted
 memory and cannot override Core intent, decisions, continuity, recovery, or
 proof. Existing personal skills, commands, settings, and text outside Baron

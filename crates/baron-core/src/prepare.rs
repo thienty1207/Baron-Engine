@@ -18,8 +18,8 @@ use crate::control_plane::{
 use crate::harness::harness_status;
 use crate::intent::intent_status;
 use crate::operation::{
-    canonical_task_text, operation_id_for_parts, task_id_for_task, LifecycleIdentity,
-    OperationContext, OperationIdentityError, SupportedAdapter,
+    canonical_task_text, task_id_for_task, LifecycleIdentity, OperationContext,
+    OperationIdentityError, SupportedAdapter,
 };
 use crate::plan::plan_status;
 use crate::platform::{platform_name, render_platform_context};
@@ -646,15 +646,36 @@ pub fn operation_id_for_request(
     project_id: &str,
     adapter: SupportedAdapter,
     request: &PrepareRequestV1,
-) -> String {
-    let task_id = task_id_for_request(project_id, request);
-    operation_id_for_parts(
+) -> Result<String, OperationIdentityError> {
+    let session_id = request
+        .session_id
+        .as_deref()
+        .ok_or_else(|| invalid_request_identity("session_id"))?;
+    let request_id = request
+        .request_id
+        .as_deref()
+        .ok_or_else(|| invalid_request_identity("request_id"))?;
+    if session_id.trim().is_empty() {
+        return Err(invalid_request_identity("session_id"));
+    }
+    if request_id.trim().is_empty() {
+        return Err(invalid_request_identity("request_id"));
+    }
+    let identity = LifecycleIdentity::resolve(
         project_id,
-        &task_id,
+        &request.task,
         adapter,
-        request.session_id.as_deref().unwrap_or_default(),
-        request.request_id.as_deref().unwrap_or_default(),
-    )
+        Some(session_id),
+        Some(request_id),
+    )?;
+    Ok(identity.operation_id().to_string())
+}
+
+fn invalid_request_identity(field: &str) -> OperationIdentityError {
+    OperationIdentityError::InvalidField {
+        field: field.to_string(),
+        reason: "is required for operation identity derivation".to_string(),
+    }
 }
 
 fn task_summary(task: &str) -> String {

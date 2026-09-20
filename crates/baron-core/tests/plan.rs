@@ -52,7 +52,10 @@ fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContex
     .unwrap();
 }
 
-fn passing_execution(repo: &std::path::Path) -> baron_core::execution_receipt::ExecutionReceipt {
+fn passing_execution(
+    repo: &std::path::Path,
+    binding: &ReceiptContext,
+) -> baron_core::execution_receipt::ExecutionReceipt {
     #[cfg(windows)]
     let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
     #[cfg(not(windows))]
@@ -66,14 +69,7 @@ fn passing_execution(repo: &std::path::Path) -> baron_core::execution_receipt::E
             working_directory: repo.to_path_buf(),
             timeout: Duration::from_secs(5),
         },
-        ReceiptContext::new(
-            "task-backend-login-security",
-            "operation-proof",
-            "codex",
-            "session-proof",
-            "request-proof",
-            "proof",
-        ),
+        binding.clone(),
     )
     .unwrap()
 }
@@ -81,6 +77,7 @@ fn passing_execution(repo: &std::path::Path) -> baron_core::execution_receipt::E
 fn passing_gate_execution(
     repo: &std::path::Path,
     agent: &str,
+    identity: &LifecycleIdentity,
 ) -> (
     baron_core::execution_receipt::ExecutionReceipt,
     ReceiptContext,
@@ -90,11 +87,11 @@ fn passing_gate_execution(
     #[cfg(not(windows))]
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
     let binding = ReceiptContext::new(
-        "task-backend-login-security",
-        "operation-proof",
-        "codex",
-        "session-proof",
-        "request-proof",
+        identity.task_id(),
+        identity.operation_id(),
+        identity.adapter().as_str(),
+        identity.session_id(),
+        identity.request_id(),
         format!("quality:{agent}"),
     );
     let receipt = execute_command_with_context(
@@ -153,13 +150,12 @@ fn identified_plan_persists_exact_identity_and_rejects_hijack() {
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
-    let identity = LifecycleIdentity::new(
+    let identity = LifecycleIdentity::resolve(
         &context.project_id,
-        "task-dashboard",
-        "operation-dashboard-1",
+        "frontend dashboard",
         SupportedAdapter::Codex,
-        "session-dashboard",
-        "request-dashboard-1",
+        Some("session-dashboard"),
+        Some("request-dashboard-1"),
     )
     .unwrap();
 
@@ -169,14 +165,14 @@ fn identified_plan_persists_exact_identity_and_rejects_hijack() {
     let current_content = fs::read_to_string(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
     let vault_content = fs::read_to_string(&first.vault_path).unwrap();
     for content in [&repo_content, &vault_content] {
-        assert!(content.contains("task_id: task-dashboard"));
-        assert!(content.contains("operation_id: operation-dashboard-1"));
+        assert!(content.contains(&format!("task_id: {}", identity.task_id())));
+        assert!(content.contains(&format!("operation_id: {}", identity.operation_id())));
         assert!(content.contains("adapter: codex"));
         assert!(content.contains("session_id: session-dashboard"));
         assert!(content.contains("request_id: request-dashboard-1"));
     }
-    assert!(current_content.contains("Task ID: `task-dashboard`"));
-    assert!(current_content.contains("Operation ID: `operation-dashboard-1`"));
+    assert!(current_content.contains(&format!("Task ID: `{}`", identity.task_id())));
+    assert!(current_content.contains(&format!("Operation ID: `{}`", identity.operation_id())));
     assert!(current_content.contains("Adapter: `codex`"));
     assert!(current_content.contains("Session ID: `session-dashboard`"));
     assert!(current_content.contains("Request ID: `request-dashboard-1`"));
@@ -186,13 +182,12 @@ fn identified_plan_persists_exact_identity_and_rejects_hijack() {
             .unwrap();
     assert!(resumed.resumed);
 
-    let hijacker = LifecycleIdentity::new(
+    let hijacker = LifecycleIdentity::resolve(
         &context.project_id,
-        "task-dashboard",
-        "operation-dashboard-2",
+        "frontend dashboard",
         SupportedAdapter::Codex,
-        "session-dashboard",
-        "request-dashboard-2",
+        Some("session-dashboard"),
+        Some("request-dashboard-2"),
     )
     .unwrap();
     let error = start_or_resume_plan_for_identity(&repo, &context, "frontend dashboard", &hijacker)
@@ -221,6 +216,124 @@ fn incomplete_operation_cannot_write_a_plan() {
         .unwrap()
         .next()
         .is_none());
+}
+
+#[test]
+fn forged_operation_context_cannot_write_a_plan() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let task_id =
+        baron_core::operation::task_id_for_task(&context.project_id, "frontend dashboard").unwrap();
+    let operation = OperationContext::new(SupportedAdapter::Codex)
+        .with_task_id(task_id)
+        .with_operation_id("operation-FAKE")
+        .with_session_id("session-a")
+        .with_request_id("request-a");
+
+    let error =
+        start_or_resume_plan_for_operation(&repo, &context, "frontend dashboard", &operation)
+            .unwrap_err();
+
+    assert!(error.to_string().contains("does not match"));
+    assert!(!repo.join("docs/baron/plans/CURRENT.md").exists());
+    assert!(fs::read_dir(context.project_root.join("Plans"))
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
+fn task_id_mismatch_is_rejected_before_plan_writes() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        "different canonical task",
+        SupportedAdapter::Claude,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+
+    let error =
+        start_or_resume_plan_for_identity(&repo, &context, "requested plan task", &identity)
+            .unwrap_err();
+
+    assert!(error.to_string().contains("task_id"));
+    assert!(!repo.join("docs/baron/plans/CURRENT.md").exists());
+    assert!(fs::read_dir(context.project_root.join("Plans"))
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
+fn wrong_project_identity_is_rejected_before_plan_writes() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = LifecycleIdentity::resolve(
+        "other-project",
+        "frontend dashboard",
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+
+    let error = start_or_resume_plan_for_identity(&repo, &context, "frontend dashboard", &identity)
+        .unwrap_err();
+
+    assert!(error.to_string().contains("does not match Vault project"));
+    assert!(!repo.join("docs/baron/plans/CURRENT.md").exists());
+    assert!(fs::read_dir(context.project_root.join("Plans"))
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
+fn identified_start_cannot_authorize_a_legacy_unbound_plan() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let legacy = start_or_resume_plan(&repo, &context, "frontend dashboard").unwrap();
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        "frontend dashboard",
+        SupportedAdapter::Claude,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+
+    let error = start_or_resume_plan_for_identity(&repo, &context, "frontend dashboard", &identity)
+        .unwrap_err();
+
+    assert!(error.to_string().contains("legacy unbound plan"));
+    assert_eq!(legacy.repo_path, active_plan_path(&repo));
+    let current = fs::read_to_string(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    assert!(!current.contains("Operation ID:"));
+}
+
+fn active_plan_path(repo: &std::path::Path) -> std::path::PathBuf {
+    let current = fs::read_to_string(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    let path = current
+        .lines()
+        .find_map(|line| line.strip_prefix("- Plan: `"))
+        .and_then(|value| value.strip_suffix('`'))
+        .unwrap();
+    repo.join(path)
 }
 
 #[test]
@@ -333,28 +446,32 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         .unwrap();
     fs::write(repo.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
-    let operation = OperationContext::new(SupportedAdapter::Codex)
-        .with_task_id("task-backend-login-security")
-        .with_operation_id("operation-proof")
-        .with_session_id("session-proof")
-        .with_request_id("request-proof");
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        "backend login security",
+        SupportedAdapter::Codex,
+        Some("session-proof"),
+        Some("request-proof"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
     let plan =
         start_or_resume_plan_for_operation(&repo, &context, "backend login security", &operation)
             .unwrap();
     confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
-    let receipt = passing_execution(&repo);
     let proof_binding = ReceiptContext::new(
-        "task-backend-login-security",
-        "operation-proof",
-        "codex",
-        "session-proof",
-        "request-proof",
+        identity.task_id(),
+        identity.operation_id(),
+        identity.adapter().as_str(),
+        identity.session_id(),
+        identity.request_id(),
         "proof",
     );
+    let receipt = passing_execution(&repo, &proof_binding);
     record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &proof_binding).unwrap();
     for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
-        let (gate_receipt, binding) = passing_gate_execution(&repo, agent);
+        let (gate_receipt, binding) = passing_gate_execution(&repo, agent, &identity);
         record_gate_evidence_with_receipt_bound(
             &repo,
             &context,

@@ -71,6 +71,35 @@ fn plan_start_requires_atomic_complete_identity_before_any_write() {
 }
 
 #[test]
+fn plan_start_rejects_empty_identity_values_before_any_write() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("plan-identity-empty");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    init(&repo, &vault);
+
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args([
+            "plan",
+            "start",
+            "frontend dashboard",
+            "--adapter",
+            "codex",
+            "--session-id",
+            "",
+            "--request-id",
+            "request-a",
+        ])
+        .current_dir(&repo)
+        .assert()
+        .failure();
+
+    assert!(!repo.join("docs/baron/plans/CURRENT.md").exists());
+    assert!(vault_plan_contents(&vault).is_empty());
+}
+
+#[test]
 fn plan_start_persists_the_supplied_complete_identity() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("plan-identity");

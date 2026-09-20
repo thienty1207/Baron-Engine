@@ -114,6 +114,12 @@ pub struct LifecycleIdentity {
 }
 
 impl LifecycleIdentity {
+    /// Reconstruct a lifecycle identity from persisted or compatibility parts.
+    ///
+    /// This validates the complete operation tuple, but parts alone cannot
+    /// prove that `task_id` was derived from the original task text. Callers
+    /// that have the canonical task text must also call [`Self::validate_task`]
+    /// before using the identity for authority-bearing writes.
     pub fn new(
         project_id: impl Into<String>,
         task_id: impl Into<String>,
@@ -122,13 +128,47 @@ impl LifecycleIdentity {
         session_id: impl Into<String>,
         request_id: impl Into<String>,
     ) -> Result<Self, OperationIdentityError> {
-        Ok(Self {
-            project_id: validate_identifier("project_id", project_id.into())?,
-            task_id: validate_identifier("task_id", task_id.into())?,
-            operation_id: validate_identifier("operation_id", operation_id.into())?,
+        Self::from_parts_checked(
+            project_id,
+            task_id,
+            operation_id,
             adapter,
-            session_id: validate_identifier("session_id", session_id.into())?,
-            request_id: validate_identifier("request_id", request_id.into())?,
+            session_id,
+            request_id,
+        )
+    }
+
+    /// Reconstruct a lifecycle identity only when its operation ID matches
+    /// the canonical operation tuple. This is the checked compatibility path
+    /// for serialized or externally supplied identity parts.
+    pub fn from_parts_checked(
+        project_id: impl Into<String>,
+        task_id: impl Into<String>,
+        operation_id: impl Into<String>,
+        adapter: SupportedAdapter,
+        session_id: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> Result<Self, OperationIdentityError> {
+        let project_id = validate_identifier("project_id", project_id.into())?;
+        let task_id = validate_identifier("task_id", task_id.into())?;
+        let operation_id = validate_identifier("operation_id", operation_id.into())?;
+        let session_id = validate_identifier("session_id", session_id.into())?;
+        let request_id = validate_identifier("request_id", request_id.into())?;
+        let expected_operation_id =
+            operation_id_for_parts(&project_id, &task_id, adapter, &session_id, &request_id);
+        if operation_id != expected_operation_id {
+            return Err(invalid_field(
+                "operation_id",
+                "does not match the canonical operation tuple",
+            ));
+        }
+        Ok(Self {
+            project_id,
+            task_id,
+            operation_id,
+            adapter,
+            session_id,
+            request_id,
         })
     }
 
@@ -148,7 +188,7 @@ impl LifecycleIdentity {
         let request_id = resolve_optional_identifier("request_id", request_id)?;
         let operation_id =
             operation_id_for_parts(&project_id, &task_id, adapter, &session_id, &request_id);
-        Self::new(
+        Self::from_parts_checked(
             project_id,
             task_id,
             operation_id,
@@ -156,6 +196,20 @@ impl LifecycleIdentity {
             session_id,
             request_id,
         )
+    }
+
+    /// Verify that this identity's task ID was derived from the supplied
+    /// canonical task text. Parts-only reconstruction cannot perform this
+    /// check because the original task text is not persisted in the identity.
+    pub fn validate_task(&self, task: &str) -> Result<(), OperationIdentityError> {
+        let expected_task_id = task_id_for_task(&self.project_id, task)?;
+        if self.task_id != expected_task_id {
+            return Err(invalid_field(
+                "task_id",
+                "does not match the canonical task text",
+            ));
+        }
+        Ok(())
     }
 
     pub fn project_id(&self) -> &str {
@@ -369,7 +423,7 @@ impl OperationContext {
             .operation_id
             .as_deref()
             .ok_or_else(|| invalid_field("operation_id", "is required"))?;
-        LifecycleIdentity::new(
+        LifecycleIdentity::from_parts_checked(
             project_id,
             task_id,
             operation_id,
@@ -377,5 +431,15 @@ impl OperationContext {
             session_id,
             request_id,
         )
+    }
+
+    pub fn lifecycle_identity_for_task(
+        &self,
+        project_id: &str,
+        task: &str,
+    ) -> Result<LifecycleIdentity, OperationIdentityError> {
+        let identity = self.lifecycle_identity(project_id)?;
+        identity.validate_task(task)?;
+        Ok(identity)
     }
 }

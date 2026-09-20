@@ -1,7 +1,8 @@
 use baron_core::operation::{
-    operation_id_for_parts, task_id_for_task, LifecycleIdentity, SupportedAdapter,
-    MAX_IDENTIFIER_CHARS,
+    operation_id_for_parts, task_id_for_task, LifecycleIdentity, OperationContext,
+    SupportedAdapter, MAX_IDENTIFIER_CHARS,
 };
+use baron_core::prepare::{operation_id_for_request, PrepareRequestV1};
 
 #[test]
 fn task_identity_ignores_session_request_and_line_ending_representation() {
@@ -12,23 +13,15 @@ fn task_identity_ignores_session_request_and_line_ending_representation() {
 
 #[test]
 fn operation_identity_is_stable_only_for_the_same_complete_tuple() {
-    let task = task_id_for_task("project-1", "Review API").unwrap();
-    let operation_id = operation_id_for_parts(
+    let first = LifecycleIdentity::resolve(
         "project-1",
-        &task,
+        "Review API",
         SupportedAdapter::Codex,
-        "session-a",
-        "request-a",
-    );
-    let first = LifecycleIdentity::new(
-        "project-1",
-        task.clone(),
-        operation_id,
-        SupportedAdapter::Codex,
-        "session-a",
-        "request-a",
+        Some("session-a"),
+        Some("request-a"),
     )
     .unwrap();
+    let task = first.task_id().to_string();
     let same = operation_id_for_parts(
         first.project_id(),
         first.task_id(),
@@ -51,12 +44,114 @@ fn operation_identity_is_stable_only_for_the_same_complete_tuple() {
         operation_id_for_parts(
             "project-1",
             &task,
+            SupportedAdapter::Codex,
+            "session-b",
+            "request-a",
+        ),
+        first.operation_id()
+    );
+    assert_ne!(
+        operation_id_for_parts(
+            "project-1",
+            &task,
             SupportedAdapter::Claude,
             "session-a",
             "request-a",
         ),
         first.operation_id()
     );
+}
+
+#[test]
+fn checked_identity_reconstruction_rejects_forged_operation_id() {
+    let task_id = task_id_for_task("project-1", "Review API").unwrap();
+    let expected = operation_id_for_parts(
+        "project-1",
+        &task_id,
+        SupportedAdapter::Codex,
+        "session-a",
+        "request-a",
+    );
+
+    let valid = LifecycleIdentity::from_parts_checked(
+        "project-1",
+        &task_id,
+        &expected,
+        SupportedAdapter::Codex,
+        "session-a",
+        "request-a",
+    )
+    .unwrap();
+    assert_eq!(valid.operation_id(), expected);
+
+    let error = LifecycleIdentity::from_parts_checked(
+        "project-1",
+        &task_id,
+        "operation-FAKE",
+        SupportedAdapter::Codex,
+        "session-a",
+        "request-a",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("does not match"));
+}
+
+#[test]
+fn forged_operation_context_is_rejected() {
+    let task_id = task_id_for_task("project-1", "Review API").unwrap();
+    let context = OperationContext::new(SupportedAdapter::Codex)
+        .with_task_id(task_id)
+        .with_operation_id("operation-FAKE")
+        .with_session_id("session-a")
+        .with_request_id("request-a");
+
+    let error = context.lifecycle_identity("project-1").unwrap_err();
+    assert!(error.to_string().contains("does not match"));
+}
+
+#[test]
+fn operation_id_for_request_requires_present_non_blank_identity() {
+    let request = |session_id: Option<&str>, request_id: Option<&str>| PrepareRequestV1 {
+        schema_version: 1,
+        task: "Review API".to_string(),
+        session_id: session_id.map(str::to_string),
+        request_id: request_id.map(str::to_string),
+    };
+
+    let valid = operation_id_for_request(
+        "project-1",
+        SupportedAdapter::Codex,
+        &request(Some("session-a"), Some("request-a")),
+    )
+    .unwrap();
+    assert_eq!(
+        valid,
+        operation_id_for_parts(
+            "project-1",
+            &task_id_for_task("project-1", "Review API").unwrap(),
+            SupportedAdapter::Codex,
+            "session-a",
+            "request-a",
+        )
+    );
+
+    for (session_id, request_id) in [
+        (None, Some("request-a")),
+        (Some("session-a"), None),
+        (None, None),
+        (Some("  "), Some("request-a")),
+        (Some("session-a"), Some("\n")),
+    ] {
+        assert!(
+            operation_id_for_request(
+                "project-1",
+                SupportedAdapter::Codex,
+                &request(session_id, request_id),
+            )
+            .is_err(),
+            "incomplete request identity must fail closed"
+        );
+    }
 }
 
 #[test]

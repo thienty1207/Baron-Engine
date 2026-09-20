@@ -165,7 +165,7 @@ fn user_prompt_submit_uses_structured_prepare_and_deduplicates() {
 }
 
 #[test]
-fn anonymous_hooks_share_task_identity_and_isolate_operations() {
+fn anonymous_hook_deliveries_are_intentionally_non_idempotent_without_delivery_id() {
     let (_temp, repo, vault) = project(AdapterKind::Codex);
     let payload = r#"{"task":"same anonymous lifecycle task"}"#;
 
@@ -225,6 +225,62 @@ fn anonymous_hooks_share_task_identity_and_isolate_operations() {
         packet.operation_id.as_deref(),
         first["baron"]["operation_id"].as_str()
     );
+}
+
+#[test]
+fn identified_hook_retry_is_idempotent_but_new_request_is_distinct() {
+    let (_temp, repo, vault) = project(AdapterKind::Codex);
+    let first_payload = serde_json::json!({
+        "task": "same identified lifecycle task",
+        "session_id": "identified-session",
+        "request_id": "identified-request-a"
+    })
+    .to_string();
+    let first = handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::PreCompact,
+        &first_payload,
+    )
+    .unwrap();
+    let retry = handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::PreCompact,
+        &first_payload,
+    )
+    .unwrap();
+    assert_eq!(first, retry);
+    assert_eq!(journal(&vault).lines().count(), 1);
+
+    let second_payload = serde_json::json!({
+        "task": "same identified lifecycle task",
+        "session_id": "identified-session",
+        "request_id": "identified-request-b"
+    })
+    .to_string();
+    let second = json(
+        &handle_hook(
+            &repo,
+            &vault,
+            HookAdapter::Codex,
+            AutomationEvent::PreCompact,
+            &second_payload,
+        )
+        .unwrap(),
+    );
+    assert_eq!(second["baron"]["task_id"], json(&first)["baron"]["task_id"]);
+    assert_ne!(
+        second["baron"]["operation_id"],
+        json(&first)["baron"]["operation_id"]
+    );
+    assert_ne!(
+        second["baron"]["event_key"],
+        json(&first)["baron"]["event_key"]
+    );
+    assert_eq!(journal(&vault).lines().count(), 2);
 }
 
 #[test]

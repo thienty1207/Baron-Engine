@@ -209,7 +209,11 @@ impl Drop for ActiveHookGuard {
 /// Handle one native lifecycle delivery. The hook path consumes structured
 /// stdin, performs one Core operation, and returns a bounded host projection.
 /// The project lock spans journal, continuity, and dedup writes so retries
-/// cannot create competing state.
+/// cannot create competing state when the host supplies the same session and
+/// request identity. Current Codex and Claude bridge payloads do not expose a
+/// stable delivery ID beyond those fields; anonymous deliveries therefore
+/// receive fresh synthesized identity and intentionally have no retry-
+/// idempotency guarantee.
 pub fn handle_hook(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,

@@ -65,7 +65,7 @@ pub fn start_or_resume_plan_for_operation(
     operation: &OperationContext,
 ) -> Result<PlanRecord> {
     let identity = operation
-        .lifecycle_identity(&vault.project_id)
+        .lifecycle_identity_for_task(&vault.project_id, title)
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     start_or_resume_plan_for_identity(repo_root, vault, title, &identity)
 }
@@ -86,6 +86,9 @@ pub fn start_or_resume_plan_for_identity(
             vault.project_id
         );
     }
+    identity
+        .validate_task(title)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let binding = PlanOperationBinding::from_identity(identity);
     start_or_resume_plan_internal(repo_root.as_ref(), vault, title, Some(&binding))
 }

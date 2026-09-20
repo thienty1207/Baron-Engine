@@ -2621,6 +2621,9 @@ fn run() -> Result<()> {
                 let adapter = adapter.expect("validated complete plan adapter");
                 let session_id = session_id.expect("validated complete plan session ID");
                 let request_id = request_id.expect("validated complete plan request ID");
+                if session_id.trim().is_empty() || request_id.trim().is_empty() {
+                    bail!("plan start identity values must not be empty");
+                }
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let config = load_project_config(&repo_root)?;
                 let supported_adapter = match adapter {
