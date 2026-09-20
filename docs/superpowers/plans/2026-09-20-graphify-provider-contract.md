@@ -192,3 +192,6 @@
   `Microsoft.PowerShell.Archive` availability and the existing
   `session_replay` UTF-8 boundary panic. Hotel Staff was not tested or modified
   in this review-fix pass.
+- Git checkpoint: review-fix commit `bac54f3` is pushed on
+  `codex/spec-01-graphify-provider-contract`; context/spec files supplied by
+  the user remain outside the commit.

@@ -17,9 +17,10 @@
   Graphify `1/1`, workflow `actionlint` clean. The two known full-workspace
   blockers remain outside SPEC-01: `Microsoft.PowerShell.Archive` and the
   existing `session_replay` UTF-8 boundary panic.
-- Safe next action: commit and push the verified review-fix files on the
-  SPEC-01 branch, then observe the protected certification gate on any release
-  attempt.
+- Git checkpoint: review-fix commit `bac54f3` is pushed on
+  `codex/spec-01-graphify-provider-contract`.
+- Safe next action: observe the protected certification gate on any release
+  attempt and defer the two unrelated full-workspace blockers.
 
 ## Phase 16 v5.0.0 release candidate checkpoint
 

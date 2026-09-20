@@ -54,6 +54,8 @@
       "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
     ],
     "activePlan": "docs/superpowers/plans/2026-09-20-graphify-provider-contract.md",
+    "reviewFixCommit": "bac54f3",
+    "reviewFixBranch": "codex/spec-01-graphify-provider-contract",
     "nextAction": "Observe the protected release certification gate, resolve unrelated verification and fixture-baseline blockers in later work, and keep the public version at 5.0.0."
   },
   "securityRemediation": {

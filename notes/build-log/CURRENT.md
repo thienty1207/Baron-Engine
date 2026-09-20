@@ -16,9 +16,9 @@
   certification passes with `BARON_REAL_GRAPHIFY=1`, and release workflow
   `actionlint` passes. The protected gate provisions exactly `graphifyy==0.9.25`
   and blocks the release dependency chain on failure.
-- Trace status: no version bump, tag, release, or Hotel Staff fixture mutation
-  is authorized; the verified review-fix branch update is ready for the next
-  explicitly authorized commit/push.
+- Trace status: review-fix commit `bac54f3` is pushed on
+  `codex/spec-01-graphify-provider-contract`; no version bump, tag, release,
+  or Hotel Staff fixture mutation occurred.
 - Persisted-state boundary: only Baron Graphify source/tests and current
   maintained status/plan/build-log documentation are in scope; project/Vault
   data and external fixtures remain untouched.
@@ -28,9 +28,8 @@
   `session_replay`. `phase10_adapter_authority` passed in the final workspace
   run. The Hotel Staff update dry-run is separately blocked by its existing
   managed-baseline hash mismatch; no fixture repair was attempted.
-- Safe next action: commit and push the verified review-fix files, then observe
-  the protected Graphify certification gate; keep the public version at
-  `5.0.0` and defer the unrelated blockers.
+- Safe next action: observe the protected Graphify certification gate; keep the
+  public version at `5.0.0` and defer the unrelated blockers.
 
 ## Phase 16 v5.0.0 Release (2026-09-09)
 

@@ -76,6 +76,8 @@
   `graphifyy==0.9.25` package in an isolated venv, checks `graphify 0.9.25`,
   runs the same real-provider test, and blocks the release dependency chain if
   that certification fails.
+- Git checkpoint: review-fix commit `bac54f3` is pushed on
+  `codex/spec-01-graphify-provider-contract`; no tag or release was created.
 - Verification blockers outside SPEC-01: the final workspace suite still
   reports two pre-existing/environment-sensitive targets
   (`lifecycle_scripts` cannot load `Microsoft.PowerShell.Archive`; `prepare_cli`
