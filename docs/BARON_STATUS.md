@@ -51,7 +51,7 @@
 
 ## Baron 5.0.1 Stabilization - SPEC-01 Graphify Provider Contract (2026-09-20)
 
-- Status: `implementation complete; verification blockers remain`; the
+- Status: `final review fix implemented; unrelated verification blockers remain`; the
   public/stable release remains `5.0.0` and no version bump or release action
   is part of this SPEC.
 - Baseline: Baron v5.0.0 at release commit
@@ -64,11 +64,18 @@
 - Trust boundary: Graphify remains optional and project-local; Survey fallback,
   last-known-good promotion, current-source verification, and bounded hit/
   character limits remain active.
+- Final review fixes: direct AST node matches may remain `Extracted`, but every
+  traversal/neighbor result is forced to `Inferred`; current-source verification
+  therefore returns `Verified` only for the direct node and `Advisory` for the
+  traversed relation. The missing-provider CLI test now runs with a test-local
+  PATH that cannot resolve Graphify, so its `survey_fallback` assertion is
+  independent of host installation.
 - Certification: `C:\Users\Ty\.local\bin\graphify.exe` reports `0.9.25`;
   `BARON_REAL_GRAPHIFY=1 cargo test -p baron-core --test graphify_real -- --nocapture`
-  passes. The pinned Hotel Staff fixture was tested from a clean temporary
-  clone: capability check, refresh, and all three required queries passed;
-  its tracked tree stayed clean and its project identity remained unchanged.
+  passes. `.github/workflows/release.yml` now provisions the official
+  `graphifyy==0.9.25` package in an isolated venv, checks `graphify 0.9.25`,
+  runs the same real-provider test, and blocks the release dependency chain if
+  that certification fails.
 - Verification blockers outside SPEC-01: the final workspace suite still
   reports two pre-existing/environment-sensitive targets
   (`lifecycle_scripts` cannot load `Microsoft.PowerShell.Archive`; `prepare_cli`
@@ -77,8 +84,9 @@
   repaired or changed.
 - Active plan:
   `docs/superpowers/plans/2026-09-20-graphify-provider-contract.md`.
-- Safe next action: resolve the unrelated verification/fixture baseline
-  blockers, rerun the full gate, and keep the public version at `5.0.0`.
+- Safe next action: observe the mandatory release certification on its protected
+  workflow path, resolve unrelated blockers in their later stabilization work,
+  and keep the public version at `5.0.0`.
 
 ### Phase 16 repair checkpoint
 

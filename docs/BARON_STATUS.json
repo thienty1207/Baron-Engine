@@ -17,12 +17,12 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-codex-claude-core-phase-16",
   "currentPhaseStatus": "completed",
-  "nextAction": "Resolve SPEC-01 verification blockers without changing the public 5.0.0 release.",
+  "nextAction": "Observe the mandatory Graphify 0.9.25 release certification and resolve unrelated verification blockers without changing the public 5.0.0 release.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-01",
     "name": "Graphify Provider Contract",
-    "status": "implemented_with_verification_blockers",
+    "status": "final_review_fix_implemented_with_unrelated_verification_blockers",
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "supportedGraphifyVersion": "0.9.25",
@@ -31,8 +31,17 @@
     "realGraphify": {
       "executable": "C:\\Users\\Ty\\.local\\bin\\graphify.exe",
       "version": "0.9.25",
-      "certification": "passed_opt_in",
-      "command": "BARON_REAL_GRAPHIFY=1 cargo test -p baron-core --test graphify_real -- --nocapture"
+      "certification": "passed_opt_in_local; mandatory_release_gate_added",
+      "command": "BARON_REAL_GRAPHIFY=1 cargo test -p baron-core --test graphify_real -- --nocapture",
+      "workflow": ".github/workflows/release.yml",
+      "provisioning": "python3 -m venv $RUNNER_TEMP/graphify-venv && $RUNNER_TEMP/graphify-venv/bin/python -m pip install --no-cache-dir graphifyy==0.9.25",
+      "releaseGate": "graphify-certification is required before build-native, sign-release, and publish"
+    },
+    "finalReviewFixes": {
+      "relationTraversalConfidence": "traversal results are always inferred; direct AST matches may remain extracted",
+      "sourceVerification": "direct node is Verified when current source contains the symbol; traversal result remains Advisory",
+      "missingProviderCli": "test-local PATH excludes Graphify and always asserts graphify-local absent plus survey_fallback",
+      "hotelStaffScope": "not tested or modified in this review-fix pass"
     },
     "hotelStaffFixture": {
       "commit": "1153c0d8363e212a00511859e2c94ce535844722",
@@ -45,7 +54,7 @@
       "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
     ],
     "activePlan": "docs/superpowers/plans/2026-09-20-graphify-provider-contract.md",
-    "nextAction": "Resolve unrelated verification and fixture-baseline blockers, then rerun the full gate without a public version bump."
+    "nextAction": "Observe the protected release certification gate, resolve unrelated verification and fixture-baseline blockers in later work, and keep the public version at 5.0.0."
   },
   "securityRemediation": {
     "status": "complete",

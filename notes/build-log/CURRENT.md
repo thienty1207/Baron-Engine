@@ -4,17 +4,21 @@
 
 - Current task: align the optional Baron Graphify provider with real Graphify
   `0.9.25` without changing the public version or any Hotel Staff files.
-- Last checkpoint: real extraction evidence shows Graphify writes
+- Last checkpoint: the final review-fix pass now hardens relation trust, makes
+  the missing-provider CLI test independent of host PATH, and adds a mandatory
+  real-provider release gate. The earlier real extraction evidence shows Graphify writes
   `<out>/graphify-out/graph.json`; the fake-provider RED suite caught Baron’s
   old nested output root and unsupported JSON query invocation. The provider
   now passes the staging root and queries the validated local artifact with
   bounded deterministic results.
-- Proof status: focused Graphify provider tests pass `6/6`; the opt-in real
-  Graphify certification passes with `BARON_REAL_GRAPHIFY=1`; the pinned Hotel
-  Staff fixture capability/refresh/three-query check passes from a clean clone
-  and leaves its tracked tree unchanged.
-- Trace status: no version bump, commit, push, tag, release, or Hotel Staff
-  fixture mutation has occurred.
+- Proof status: final review-fix focused Graphify provider tests pass `6/6`,
+  deterministic CLI code-map tests pass `1/1`, the opt-in real Graphify
+  certification passes with `BARON_REAL_GRAPHIFY=1`, and release workflow
+  `actionlint` passes. The protected gate provisions exactly `graphifyy==0.9.25`
+  and blocks the release dependency chain on failure.
+- Trace status: no version bump, tag, release, or Hotel Staff fixture mutation
+  is authorized; the verified review-fix branch update is ready for the next
+  explicitly authorized commit/push.
 - Persisted-state boundary: only Baron Graphify source/tests and current
   maintained status/plan/build-log documentation are in scope; project/Vault
   data and external fixtures remain untouched.
@@ -24,8 +28,9 @@
   `session_replay`. `phase10_adapter_authority` passed in the final workspace
   run. The Hotel Staff update dry-run is separately blocked by its existing
   managed-baseline hash mismatch; no fixture repair was attempted.
-- Safe next action: resolve those external/pre-existing blockers, rerun the
-  full gate, and keep the public version at `5.0.0`.
+- Safe next action: commit and push the verified review-fix files, then observe
+  the protected Graphify certification gate; keep the public version at
+  `5.0.0` and defer the unrelated blockers.
 
 ## Phase 16 v5.0.0 Release (2026-09-09)
 

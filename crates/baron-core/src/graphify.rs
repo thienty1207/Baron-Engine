@@ -534,13 +534,12 @@ fn query_graph_artifact(
             let node = nodes
                 .get(&neighbor.node_id)
                 .expect("validated graph edge target exists");
-            let confidence = if neighbor.confidence == GraphConfidence::Extracted
-                && graph_node_confidence(node) == GraphConfidence::Extracted
-            {
-                GraphConfidence::Extracted
-            } else {
-                GraphConfidence::Inferred
-            };
+            // Traversal proves only that the graph connected this node to the
+            // direct match. The current-source verifier checks the target
+            // symbol, not the source-to-target relation, so a neighbor must
+            // remain advisory even when Graphify marked both the edge and the
+            // target node as AST-extracted.
+            let confidence = GraphConfidence::Inferred;
             let relation = neighbor.relation.clone();
             let explanation = relation
                 .as_deref()

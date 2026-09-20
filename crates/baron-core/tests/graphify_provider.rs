@@ -127,6 +127,15 @@ mod windows {
         assert_eq!(hits[1].node_id, "related");
         assert_eq!(hits[0].confidence, GraphConfidence::Extracted);
         assert_eq!(hits[1].relation.as_deref(), Some("calls"));
+        assert_eq!(hits[1].confidence, GraphConfidence::Inferred);
+        assert_eq!(
+            verify_graph_hit_source(&repo, &hits[0]).unwrap().status,
+            SourceVerificationStatus::Verified
+        );
+        assert_eq!(
+            verify_graph_hit_source(&repo, &hits[1]).unwrap().status,
+            SourceVerificationStatus::Advisory
+        );
         assert!(load_code_graph_state(&repo).unwrap().is_some());
         assert!(!cache.starts_with(&vault));
 

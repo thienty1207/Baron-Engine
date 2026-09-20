@@ -3,17 +3,23 @@
 ## Baron 5.0.1 Stabilization - SPEC-01 (2026-09-20)
 
 - Active spec: Graphify Provider Contract Stabilization.
-- Status: `implementation complete; verification blockers remain`; the
-  source/public version remains `5.0.0` and no release, tag, push, or version
-  bump is authorized by this work.
+- Status: `final review fix implemented; unrelated verification blockers remain`;
+  the source/public version remains `5.0.0` and no release, tag, or version
+  bump is authorized by this work. The user has explicitly authorized the
+  SPEC-01 branch commit and push after verification.
 - Plan: `docs/superpowers/plans/2026-09-20-graphify-provider-contract.md`.
 - Evidence: real Graphify `0.9.25` writes
   `<out>/graphify-out/graph.json`; Baron now has RED tests for that boundary
-  and the Option B local-artifact query design is selected. Opt-in real
-  certification and the pinned Hotel Staff functional checks pass without
-  changing the fixture tree.
-- Safe next action: resolve the unrelated full-gate and fixture-baseline
-  blockers, then rerun verification before closing the stabilization record.
+  and the Option B local-artifact query design is selected. Final review fixes
+  harden traversal confidence, isolate the missing-provider CLI test from host
+  PATH, and add a mandatory `graphifyy==0.9.25` protected release gate.
+- Focused evidence: Graphify provider `6/6`, CLI code-map `1/1`, real local
+  Graphify `1/1`, workflow `actionlint` clean. The two known full-workspace
+  blockers remain outside SPEC-01: `Microsoft.PowerShell.Archive` and the
+  existing `session_replay` UTF-8 boundary panic.
+- Safe next action: commit and push the verified review-fix files on the
+  SPEC-01 branch, then observe the protected certification gate on any release
+  attempt.
 
 ## Phase 16 v5.0.0 release candidate checkpoint
 
@@ -30,7 +36,7 @@
   push without force, then observe the actual hosted workflows before tagging
   or publishing.
 
-Last updated: 2026-09-09
+Last updated: 2026-09-20
 
 ## Current Refactor Track
 

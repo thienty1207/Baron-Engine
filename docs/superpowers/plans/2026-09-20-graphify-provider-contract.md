@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Align Baron’s optional Graphify provider with the real Graphify 0.9.25 extraction contract and replace the unsupported query invocation with a bounded, deterministic query over the validated local graph artifact.
+**Goal:** Align Baron’s optional Graphify provider with the real Graphify 0.9.25 extraction contract, keep graph trust conservative across traversal, and protect the validated local graph artifact path with deterministic fallback and mandatory real-provider certification.
 
 **Architecture:** Baron will pass the staging directory as Graphify’s `--out` root and continue validating/promoting the provider-created `graphify-out/graph.json`. Querying will use Option B from SPEC-01: read the checksum-validated local artifact, match query terms against graph nodes, traverse bounded graph edges deterministically, normalize hits through the existing path/identity boundary, and leave source verification to the existing caller. Baron will never assume Graphify’s unsupported JSON query mode or map `max_hits` to Graphify’s token budget.
 
@@ -87,7 +87,12 @@
 
 - [x] **Step 4: Keep confidence and source boundaries honest.**
 
-  Treat `_origin: "ast"` and edge `confidence: "EXTRACTED"` as extracted; treat missing/other values as inferred. Preserve relative source paths for the existing `verify_graph_hit_source` call and reject unsafe paths through the existing normalizer.
+  A direct query match with `_origin: "ast"` may be `Extracted`. Every
+  traversal/neighbor result is `Inferred`, even when its edge confidence and
+  target node origin are both `EXTRACTED`, because source verification proves
+  the target symbol but not the source-to-target relation. Preserve relative
+  source paths for the existing `verify_graph_hit_source` call and reject
+  unsafe paths through the existing normalizer.
 
 - [x] **Step 5: Run the focused provider tests to verify GREEN.**
 
@@ -105,12 +110,13 @@
 - Modify: `docs/architecture/CAPABILITY_REGISTRY.md`
 - Modify: `docs/BARON_STATUS.md`
 - Modify: `docs/BARON_STATUS.json`
+- Modify: `.github/workflows/release.yml`
 - Modify: `notes/build-log/CURRENT.md`
 - Modify: `docs/superpowers/plans/CURRENT.md`
 
 **Interfaces:**
 - Consumes: the proven Option B contract and Task 1 real-provider test.
-- Produces: maintained documentation stating the actual 0.9.25 extraction/query boundary and a durable SPEC-01 completion checkpoint without a version bump.
+- Produces: maintained documentation stating the actual 0.9.25 extraction/query boundary, a mandatory protected release certification gate, and a durable SPEC-01 completion checkpoint without a version bump.
 
 - [x] **Step 1: Document the real provider contract.**
 
@@ -144,7 +150,11 @@
 
   Run the real certification test with `BARON_REAL_GRAPHIFY=1`; inspect `git status`, `git diff`, and exact changed paths. Verify no Hotel Staff path, source file, historical record, version metadata, or public release artifact changed.
 
-- [x] **Step 5: Leave the worktree uncommitted unless the user separately requests a commit.**
+- [x] **Step 5: Stage exact files and commit/push after final verification.**
+
+  The user explicitly requested that each completed spec is committed and pushed
+  once. Preserve unrelated untracked context/spec files and do not create a
+  tag or release.
 
 ## Verification result
 
@@ -160,3 +170,25 @@
   not repaired, and its tracked tree stayed clean after the Graphify checks.
 
   Report the exact files, test outcomes, real-provider evidence, Hotel Staff status (not modified), remaining later-SPEC blockers, and commit status.
+
+## Final review-fix checkpoint (2026-09-20)
+
+- FIX-01: direct AST matches remain `Extracted`; every graph traversal result
+  is forced to `Inferred`. The regression fixture contains an extracted
+  `entry --calls--> related` edge and proves direct source verification is
+  `Verified` while the traversed target is `Advisory`.
+- FIX-02: `crates/baron-cli/tests/code_map_cli.rs` supplies a test-local empty
+  provider PATH and always asserts `present=false`, `action=survey_fallback`,
+  safe refresh failure, and no provider graph artifact. Host Graphify presence
+  cannot change this result.
+- FIX-03: `.github/workflows/release.yml` provisions the official
+  `graphifyy==0.9.25` package in `$RUNNER_TEMP/graphify-venv`, checks the exact
+  `graphify 0.9.25` version, exports `BARON_REAL_GRAPHIFY=1`, and runs
+  `cargo test -p baron-core --test graphify_real -- --nocapture`. The dedicated
+  job is required by the release build/sign/publish dependency chain.
+- Fresh focused evidence: `graphify_provider` `6/6`, `code_map_cli` `1/1`,
+  opt-in local real Graphify `1/1`, and `actionlint` for both workflows pass.
+- Known unrelated full-gate blockers remain recorded only: host
+  `Microsoft.PowerShell.Archive` availability and the existing
+  `session_replay` UTF-8 boundary panic. Hotel Staff was not tested or modified
+  in this review-fix pass.
