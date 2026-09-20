@@ -2,12 +2,13 @@
 
 ## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
 
-- Status: `closed; implementation and verification complete; unrelated host
+- Status: `closed; final review fixes implemented and verified; unrelated host
   blockers remain`; SPEC-01 Graphify Provider Contract is closed on the
   pushed `adccb6e` baseline.
-- Scope: one validated lifecycle identity; complete Prepare ingress identity;
-  one canonical task-ID algorithm; operation-ID isolation; Task State parity;
-  Codex/Claude hook parity; and operation-bound CLI plan creation.
+- Scope: checked canonical lifecycle identity reconstruction; complete Prepare
+  ingress identity; one canonical task-ID algorithm; operation-ID isolation;
+  Task State and Plan task validation; Codex/Claude hook retry semantics; and
+  operation-bound CLI plan creation.
 - Baseline branch: `codex/spec-02-operation-identity`, based on
   `codex/spec-01-graphify-provider-contract` at `adccb6e`.
 - Constraints: public version remains `5.0.0`; no schema bump, tag, release,
@@ -16,19 +17,23 @@
   `Microsoft.PowerShell.Archive` on the host and the existing
   `session_replay` UTF-8 boundary panic.
 - Active plan:
-  `docs/superpowers/plans/2026-09-20-operation-identity-lifecycle-wiring.md`.
-- Evidence: Core all-targets, identity/Prepare/Task State/context,
+  `docs/superpowers/plans/2026-09-20-spec-02-final-review-fix.md`.
+- Evidence: final review tests cover forged operation/context identities,
+  task mismatch before Plan writes, missing/blank request identity, identified
+  hook retry idempotence, anonymous delivery isolation, and empty CLI identity
+  values. Core all-targets, focused identity/Prepare/Task State/context,
   automation/hooks, plan, control-plane, CLI plan/execution/control-plane,
-  formatter, warnings-denied Clippy, release build, binary version smoke, and
-  diff checks pass. The full workspace retains only the two listed unrelated
-  blockers: three installer tests cannot load `Microsoft.PowerShell.Archive`,
-  and one Prepare CLI test reaches the existing `session_replay` UTF-8
-  boundary panic.
+  formatter, warnings-denied Clippy, locked release build, binary version
+  smoke, and diff checks pass. The full workspace retains only the two listed
+  unrelated blockers: three installer tests cannot load
+  `Microsoft.PowerShell.Archive`, and one Prepare CLI test reaches the existing
+  `session_replay` UTF-8 boundary panic. The adversarial closure scan found no
+  remaining SPEC-02-owned issue.
 - Implementation commits: `b58c701`, `4ee56e4`, `3771df8`, `95a98a7`,
-  `1df57ef`, plus
-  the final identity regression test and closure documentation commits.
-- Next action: push the completed SPEC-02 branch once; no release, tag, public
-  version bump, Hotel Staff change, SPEC-03, or SPEC-04 work is authorized.
+  `1df57ef`, `9b589ec`, plus the final status/build-log documentation commit.
+- Next action: push the completed SPEC-02 final review-fix branch once; no
+  release, tag, public version bump, Hotel Staff change, SPEC-03, or SPEC-04
+  work is authorized.
 
 ## Codex + Claude Core Consolidation - Phase 16
 

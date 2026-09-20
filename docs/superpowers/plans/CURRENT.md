@@ -3,31 +3,35 @@
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 
 - Active spec: Operation Identity & Lifecycle Wiring.
-- Status: `closed; implementation and verification complete; unrelated host
+- Status: `closed; final review fixes implemented and verified; unrelated host
   blockers remain`; the source/public version remains `5.0.0` and no release,
   tag, or version bump is authorized by this work.
 - Baseline: completed SPEC-01 branch HEAD `adccb6e`; work is isolated on
   `codex/spec-02-operation-identity`.
-- Scope: introduce one validated lifecycle identity, resolve missing Prepare
-  IDs once at ingress, unify task identity with Task State, preserve Codex and
-  Claude native-hook parity, and require complete identity for supported CLI
-  plan creation.
+- Scope: introduce one checked lifecycle identity, resolve missing Prepare IDs
+  once at ingress, unify task identity with Task State and Plan writes, preserve
+  Codex and Claude native-hook parity, make request operation derivation fail
+  closed, and require complete non-blank identity for supported CLI plan
+  creation.
 - Known unrelated verification blockers carried forward: the host cannot load
   `Microsoft.PowerShell.Archive`, and `session_replay` has an existing UTF-8
   boundary panic. Neither is part of SPEC-02.
 - Active plan:
-  `docs/superpowers/plans/2026-09-20-operation-identity-lifecycle-wiring.md`.
-- Verification: Core all-targets, identity/Prepare/plan/automation/hooks/
-  control-plane focused suites, CLI plan/execution/control-plane suites,
-  formatter, warnings-denied Clippy, release build, binary version smoke, and
-  diff checks pass. The full workspace retains only the two known blockers:
-  three installer tests cannot load `Microsoft.PowerShell.Archive`, and one
-  Prepare CLI test reaches the existing `session_replay` UTF-8 boundary panic.
+  `docs/superpowers/plans/2026-09-20-spec-02-final-review-fix.md`.
+- Verification: final review suites cover forged operation/context identity,
+  task mismatch before Plan writes, incomplete request identity, identified
+  hook retries, anonymous delivery isolation, and empty CLI IDs. Core
+  all-targets, identity/Prepare/plan/automation/hooks/control-plane focused
+  suites, CLI plan/execution/control-plane suites, formatter, warnings-denied
+  Clippy, locked release build, binary version smoke, and diff checks pass. The
+  full workspace retains only the two known blockers: three installer tests
+  cannot load `Microsoft.PowerShell.Archive`, and one Prepare CLI test reaches
+  the existing `session_replay` UTF-8 boundary panic. The adversarial closure
+  scan found no remaining SPEC-02-owned issue.
 - Implementation commits: `b58c701`, `4ee56e4`, `3771df8`, `95a98a7`,
-  `1df57ef`, plus
-  the final identity regression test and closure documentation commits.
-- Safe next action: push the completed SPEC-02 branch once; do not release,
-  tag, bump the version, or begin SPEC-03/SPEC-04.
+  `1df57ef`, and `9b589ec`.
+- Safe next action: push the completed SPEC-02 final review-fix branch once; do
+  not release, tag, bump the version, or begin SPEC-03/SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-01 (closed, 2026-09-20)
 

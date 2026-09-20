@@ -2,24 +2,28 @@
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 
-- Current task: close the canonical Operation Identity & Lifecycle Wiring
-  contract from SPEC-02 on top of the pushed SPEC-01 baseline `adccb6e`.
-- Checkpoint: SPEC-01 is closed and SPEC-02 implementation is complete on
-  `codex/spec-02-operation-identity`; the typed identity now spans Prepare,
-  Task State/context, Codex/Claude hooks, and CLI plan creation.
-- Proof status: Core all-targets and the required focused Core/CLI suites pass;
-  formatter, warnings-denied Clippy, release build, binary version smoke, and
-  diff checks pass. The full workspace retains only the known
+- Current task: close the final review gaps in the canonical Operation Identity
+  & Lifecycle Wiring contract from SPEC-02 on top of the pushed SPEC-01
+  baseline `adccb6e`.
+- Checkpoint: SPEC-01 is closed and SPEC-02 final review fixes are complete on
+  `codex/spec-02-operation-identity`; checked identity reconstruction now
+  protects operation tuples and task text before Plan writes, request identity
+  derivation fails closed, and Codex/Claude hook retry semantics are explicit.
+- Proof status: final review identity, Plan, hook, Prepare, automation,
+  context, trusted-memory, control-plane, and CLI suites pass; formatter,
+  warnings-denied Clippy, locked release build, binary version smoke, and diff
+  checks pass. The full workspace retains only the known
   `Microsoft.PowerShell.Archive` installer blocker and existing
-  `session_replay` UTF-8 boundary panic.
-- Trace status: implementation commits `b58c701`, `4ee56e4`, `3771df8`,
-  `95a98a7`, and `1df57ef` are present; public version remains `5.0.0`, with
-  no tag or release action.
-- Persisted-state boundary: new identity tests, Core/CLI lifecycle wiring, and
-  maintained status/plan/build-log docs only; user project/Vault data and
-  unrelated untracked files remain untouched.
-- Safe next action: push the completed SPEC-02 branch once; do not release,
-  tag, bump the version, or start SPEC-03/SPEC-04.
+  `session_replay` UTF-8 boundary panic. The adversarial closure scan found no
+  remaining SPEC-02-owned issue.
+- Trace status: review-fix commit `9b589ec` is present after implementation
+  commits `b58c701`, `4ee56e4`, `3771df8`, `95a98a7`, and `1df57ef`; public
+  version remains `5.0.0`, with no tag or release action.
+- Persisted-state boundary: only SPEC-02 source/tests, compatibility docs,
+  final-review plan, and maintained status/build-log docs changed; user
+  project/Vault data and unrelated untracked files remain untouched.
+- Safe next action: push the completed SPEC-02 final review-fix branch once; do
+  not release, tag, bump the version, or start SPEC-03/SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-01 (closed, 2026-09-20)
 

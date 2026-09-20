@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-codex-claude-core-phase-16",
   "currentPhaseStatus": "completed",
-  "nextAction": "Push the completed SPEC-02 identity/lifecycle wiring branch once without changing the public 5.0.0 release.",
+  "nextAction": "Push the completed SPEC-02 final review-fix branch once; do not release, tag, bump the version, or start SPEC-03/SPEC-04.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-02",
@@ -28,7 +28,7 @@
     "publicVersionBump": false,
     "baselineCommit": "adccb6ecd2f950712b6bf21efb68a79549240a65",
     "branch": "codex/spec-02-operation-identity",
-    "scope": "canonical lifecycle identity, Prepare ingress resolution, Task State parity, native hook parity, and identified CLI plan creation",
+    "scope": "checked canonical lifecycle identity reconstruction, fail-closed Prepare request operation derivation, Task State and Plan task validation, native hook retry semantics, and identified CLI plan creation",
     "previousSpec": {
       "spec": "SPEC-01",
       "name": "Graphify Provider Contract",
@@ -49,7 +49,8 @@
       "4ee56e4",
       "3771df8",
       "95a98a7",
-      "1df57ef"
+      "1df57ef",
+      "9b589ec"
     ],
     "verification": {
       "coreAllTargets": "passed",
@@ -60,13 +61,14 @@
       "releaseBuild": "passed",
       "binaryVersion": "baron 5.0.0",
       "diffCheck": "passed",
+      "adversarialClosureScan": "passed: no SPEC-02-owned issue remains; empty CLI identity guard fixed",
       "workspaceKnownFailures": [
         "baron-cli lifecycle_scripts: Microsoft.PowerShell.Archive unavailable",
         "baron-cli prepare_cli: existing session_replay UTF-8 boundary panic"
       ]
     },
-    "activePlan": "docs/superpowers/plans/2026-09-20-operation-identity-lifecycle-wiring.md",
-    "nextAction": "Push the completed SPEC-02 branch once; do not release, tag, bump the version, or start SPEC-03/SPEC-04."
+    "activePlan": "docs/superpowers/plans/2026-09-20-spec-02-final-review-fix.md",
+    "nextAction": "Push the completed SPEC-02 final review-fix branch once; do not release, tag, bump the version, or start SPEC-03/SPEC-04."
   },
   "securityRemediation": {
     "status": "complete",
