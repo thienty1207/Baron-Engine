@@ -10,16 +10,13 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use crate::autopilot::housekeep_candidates;
-use crate::context::compile_context_for_operation;
+use crate::context::compile_context_for_lifecycle_identity;
 use crate::continuity::{
     record_continuity_checkpoint, record_continuity_checkpoint_for_event,
     record_continuity_checkpoint_for_operation,
 };
-use crate::operation::{OperationContext, SupportedAdapter};
-use crate::prepare::{
-    operation_id_for_request, prepare, task_id_for_request, PreparePacketV1, PrepareRequestV1,
-    PREPARE_MAX_INPUT_BYTES,
-};
+use crate::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use crate::prepare::{prepare, PreparePacketV1, PrepareRequestV1, PREPARE_MAX_INPUT_BYTES};
 use crate::proof::latest_proof;
 use crate::safe_io::{acquire_project_lock, append_text, read_bytes, read_text, replace_text};
 use crate::trace::latest_trace_score;
@@ -232,8 +229,8 @@ pub fn handle_hook(
     } else {
         serde_json::from_str(payload_text).context("Could not parse native hook payload")?
     };
-    let session_id = payload_identifier(&payload, &["session_id", "sessionId"]);
-    let request_id = payload_identifier(&payload, &["request_id", "requestId"]);
+    let supplied_session_id = payload_identifier(&payload, &["session_id", "sessionId"]);
+    let supplied_request_id = payload_identifier(&payload, &["request_id", "requestId"]);
     let task = payload_task(&payload);
     let child_id = payload_identifier(&payload, &["child_id", "childId", "agent_id", "agentId"]);
     let parent_task_id = payload_identifier(&payload, &["parent_task_id", "parentTaskId"]);
@@ -249,6 +246,37 @@ pub fn handle_hook(
     } else {
         false
     };
+    let supported_adapter = match adapter {
+        HookAdapter::Codex => Some(SupportedAdapter::Codex),
+        HookAdapter::Claude => Some(SupportedAdapter::Claude),
+        HookAdapter::Neutral => None,
+    };
+    let identity = supported_adapter
+        .map(|adapter| {
+            LifecycleIdentity::resolve(
+                &vault.project_id,
+                &task,
+                adapter,
+                supplied_session_id.as_deref(),
+                supplied_request_id.as_deref(),
+            )
+        })
+        .transpose()?;
+    let (session_id, request_id, task_id, operation) = if let Some(identity) = identity.as_ref() {
+        (
+            Some(identity.session_id().to_string()),
+            Some(identity.request_id().to_string()),
+            identity.task_id().to_string(),
+            Some(OperationContext::from_identity(identity)),
+        )
+    } else {
+        (
+            supplied_session_id,
+            supplied_request_id,
+            crate::operation::task_id_for_task(&vault.project_id, &task)?,
+            None,
+        )
+    };
     let request = PrepareRequestV1 {
         schema_version: payload
             .get("schema_version")
@@ -259,27 +287,6 @@ pub fn handle_hook(
         session_id: session_id.clone(),
         request_id: request_id.clone(),
     };
-    let task_id = task_id_for_request(&vault.project_id, &request);
-    let operation_id = match adapter {
-        HookAdapter::Codex => Some(operation_id_for_request(
-            &vault.project_id,
-            SupportedAdapter::Codex,
-            &request,
-        )),
-        HookAdapter::Claude => Some(operation_id_for_request(
-            &vault.project_id,
-            SupportedAdapter::Claude,
-            &request,
-        )),
-        HookAdapter::Neutral => None,
-    };
-    let operation = supported_operation(adapter, session_id.clone(), request_id.clone())
-        .zip(operation_id)
-        .map(|(operation, operation_id)| {
-            operation
-                .with_task_id(task_id.clone())
-                .with_operation_id(operation_id)
-        });
     let event_kind = normalized_event_kind(event, stop_hook_active);
     let key = LifecycleEventKey {
         project_id: vault.project_id.clone(),
@@ -372,8 +379,15 @@ pub fn handle_hook(
                 let operation = operation
                     .as_ref()
                     .context("adapter-neutral hooks cannot compile host-specific context")?;
-                let context =
-                    compile_context_for_operation(repo_root, &vault.vault_root, operation, None)?;
+                let context_identity = identity
+                    .as_ref()
+                    .context("host-specific hooks require a complete lifecycle identity")?;
+                let context = compile_context_for_lifecycle_identity(
+                    repo_root,
+                    &vault.vault_root,
+                    context_identity,
+                    Some(&task),
+                )?;
                 let context = bounded_bytes(&context, HOOK_MAX_CONTEXT_CHARS);
                 record_continuity_checkpoint_for_event(
                     repo_root,
@@ -388,7 +402,7 @@ pub fn handle_hook(
                         "hookEventName": "SessionStart",
                         "additionalContext": context
                     },
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, false)
+                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
                 })
             }
             AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt => {
@@ -415,7 +429,7 @@ pub fn handle_hook(
                         "hookEventName": "UserPromptSubmit",
                         "additionalContext": context
                     },
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, false)
+                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
                 })
             }
             AutomationEvent::PreCompact | AutomationEvent::Checkpoint => {
@@ -428,7 +442,7 @@ pub fn handle_hook(
                 )?;
                 json!({
                     "continue": true,
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, false)
+                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
                 })
             }
             AutomationEvent::Stop => {
@@ -448,8 +462,15 @@ pub fn handle_hook(
                     repo_root, vault, note, operation, &event_key,
                 )?;
                 let report = reconcile(repo_root)?;
-                let metadata =
-                    hook_metadata(vault, adapter, event_kind, &event_key, &task_id, false);
+                let metadata = hook_metadata(
+                    vault,
+                    adapter,
+                    event_kind,
+                    &event_key,
+                    &task_id,
+                    identity.as_ref(),
+                    false,
+                );
                 if !report.passed && !stop_hook_active {
                     json!({
                         "decision": "block",
@@ -464,6 +485,9 @@ pub fn handle_hook(
                             "event": metadata["event"],
                             "event_key": metadata["event_key"],
                             "task_id": metadata["task_id"],
+                            "operation_id": metadata["operation_id"],
+                            "session_id": metadata["session_id"],
+                            "request_id": metadata["request_id"],
                             "stop_is_completion": false,
                             "reconciliation_passed": false
                         }
@@ -483,6 +507,9 @@ pub fn handle_hook(
                             "event": metadata["event"],
                             "event_key": metadata["event_key"],
                             "task_id": metadata["task_id"],
+                            "operation_id": metadata["operation_id"],
+                            "session_id": metadata["session_id"],
+                            "request_id": metadata["request_id"],
                             "stop_is_completion": false,
                             "reconciliation_passed": report.passed
                         }
@@ -507,7 +534,7 @@ pub fn handle_hook(
                 }
                 json!({
                     "continue": true,
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, false)
+                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
                 })
             }
         }
@@ -732,16 +759,23 @@ fn hook_metadata(
     event_kind: &str,
     event_key: &str,
     task_id: &str,
+    identity: Option<&LifecycleIdentity>,
     child: bool,
 ) -> Value {
-    json!({
+    let mut metadata = json!({
         "project_id": vault.project_id,
         "adapter": adapter_name(adapter),
         "event": event_kind,
         "event_key": event_key,
         "task_id": task_id,
         "child": child,
-    })
+    });
+    if let Some(identity) = identity {
+        metadata["operation_id"] = json!(identity.operation_id());
+        metadata["session_id"] = json!(identity.session_id());
+        metadata["request_id"] = json!(identity.request_id());
+    }
+    metadata
 }
 
 fn recursion_depth(payload: &Value) -> u64 {
@@ -955,25 +989,6 @@ fn hook_adapter(adapter: SupportedAdapter) -> HookAdapter {
         SupportedAdapter::Codex => HookAdapter::Codex,
         SupportedAdapter::Claude => HookAdapter::Claude,
     }
-}
-
-fn supported_operation(
-    adapter: HookAdapter,
-    session_id: Option<String>,
-    request_id: Option<String>,
-) -> Option<OperationContext> {
-    let adapter = match adapter {
-        HookAdapter::Codex => SupportedAdapter::Codex,
-        HookAdapter::Claude => SupportedAdapter::Claude,
-        HookAdapter::Neutral => return None,
-    };
-    Some(OperationContext {
-        adapter,
-        session_id,
-        request_id,
-        task_id: None,
-        operation_id: None,
-    })
 }
 
 fn now() -> String {

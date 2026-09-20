@@ -51,7 +51,7 @@ fn repeated_checkpoint_events_are_throttled() {
             &context,
             HookAdapter::Codex,
             AutomationEvent::Checkpoint,
-            r#"{"session_id":"session-1"}"#,
+            r#"{"session_id":"session-1","request_id":"checkpoint-1"}"#,
         )
         .unwrap();
     }

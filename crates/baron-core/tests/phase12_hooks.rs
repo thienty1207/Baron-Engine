@@ -165,6 +165,69 @@ fn user_prompt_submit_uses_structured_prepare_and_deduplicates() {
 }
 
 #[test]
+fn anonymous_hooks_share_task_identity_and_isolate_operations() {
+    let (_temp, repo, vault) = project(AdapterKind::Codex);
+    let payload = r#"{"task":"same anonymous lifecycle task"}"#;
+
+    let first = json(
+        &handle_hook(
+            &repo,
+            &vault,
+            HookAdapter::Codex,
+            AutomationEvent::PreCompact,
+            payload,
+        )
+        .unwrap(),
+    );
+    let second = json(
+        &handle_hook(
+            &repo,
+            &vault,
+            HookAdapter::Codex,
+            AutomationEvent::PreCompact,
+            payload,
+        )
+        .unwrap(),
+    );
+
+    assert_eq!(first["baron"]["task_id"], second["baron"]["task_id"]);
+    assert!(first["baron"]["operation_id"]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
+    assert!(first["baron"]["session_id"]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
+    assert!(first["baron"]["request_id"]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
+    assert_ne!(
+        first["baron"]["operation_id"],
+        second["baron"]["operation_id"]
+    );
+    assert_ne!(first["baron"]["session_id"], second["baron"]["session_id"]);
+    assert_ne!(first["baron"]["request_id"], second["baron"]["request_id"]);
+    assert_eq!(journal(&vault).lines().count(), 2);
+
+    let packet = prepare(
+        PrepareRequestV1 {
+            schema_version: 1,
+            task: "same anonymous lifecycle task".into(),
+            session_id: first["baron"]["session_id"].as_str().map(str::to_string),
+            request_id: first["baron"]["request_id"].as_str().map(str::to_string),
+        },
+        "codex",
+        &repo,
+        Some(vault.vault_root.clone()),
+    )
+    .unwrap();
+    assert_eq!(packet.task.id, first["baron"]["task_id"]);
+    assert_eq!(
+        packet.operation_id.as_deref(),
+        first["baron"]["operation_id"].as_str()
+    );
+}
+
+#[test]
 fn legacy_prompt_and_checkpoint_names_normalize_to_canonical_events() {
     let (_temp, repo, vault) = project(AdapterKind::Claude);
     handle_hook(
