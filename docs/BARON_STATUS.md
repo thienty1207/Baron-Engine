@@ -2,8 +2,9 @@
 
 ## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
 
-- Status: `implementation in progress`; SPEC-01 Graphify Provider Contract is
-  closed on the pushed `adccb6e` baseline.
+- Status: `closed; implementation and verification complete; unrelated host
+  blockers remain`; SPEC-01 Graphify Provider Contract is closed on the
+  pushed `adccb6e` baseline.
 - Scope: one validated lifecycle identity; complete Prepare ingress identity;
   one canonical task-ID algorithm; operation-ID isolation; Task State parity;
   Codex/Claude hook parity; and operation-bound CLI plan creation.
@@ -16,8 +17,18 @@
   `session_replay` UTF-8 boundary panic.
 - Active plan:
   `docs/superpowers/plans/2026-09-20-operation-identity-lifecycle-wiring.md`.
-- Next action: complete the RED/GREEN implementation and run the required
-  focused plus full verification matrix.
+- Evidence: Core all-targets, identity/Prepare/Task State/context,
+  automation/hooks, plan, control-plane, CLI plan/execution/control-plane,
+  formatter, warnings-denied Clippy, release build, binary version smoke, and
+  diff checks pass. The full workspace retains only the two listed unrelated
+  blockers: three installer tests cannot load `Microsoft.PowerShell.Archive`,
+  and one Prepare CLI test reaches the existing `session_replay` UTF-8
+  boundary panic.
+- Implementation commits: `b58c701`, `4ee56e4`, `3771df8`, `95a98a7`,
+  `1df57ef`, plus
+  the final identity regression test and closure documentation commits.
+- Next action: push the completed SPEC-02 branch once; no release, tag, public
+  version bump, Hotel Staff change, SPEC-03, or SPEC-04 work is authorized.
 
 ## Codex + Claude Core Consolidation - Phase 16
 

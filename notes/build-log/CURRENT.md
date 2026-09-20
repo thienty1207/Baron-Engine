@@ -2,21 +2,24 @@
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 
-- Current task: implement the canonical Operation Identity & Lifecycle Wiring
+- Current task: close the canonical Operation Identity & Lifecycle Wiring
   contract from SPEC-02 on top of the pushed SPEC-01 baseline `adccb6e`.
-- Checkpoint: SPEC-01 is closed. The dedicated branch is
-  `codex/spec-02-operation-identity`; the plan and SDD ledger are active.
-- Proof status: baseline focused Core lifecycle targets are available; the
-  full workspace baseline carries only the known PowerShell archive-module
-  blocker and the existing `session_replay` UTF-8 boundary panic.
-- Trace status: no SPEC-02 production commit yet; public version remains
-  `5.0.0`, with no tag or release action.
+- Checkpoint: SPEC-01 is closed and SPEC-02 implementation is complete on
+  `codex/spec-02-operation-identity`; the typed identity now spans Prepare,
+  Task State/context, Codex/Claude hooks, and CLI plan creation.
+- Proof status: Core all-targets and the required focused Core/CLI suites pass;
+  formatter, warnings-denied Clippy, release build, binary version smoke, and
+  diff checks pass. The full workspace retains only the known
+  `Microsoft.PowerShell.Archive` installer blocker and existing
+  `session_replay` UTF-8 boundary panic.
+- Trace status: implementation commits `b58c701`, `4ee56e4`, `3771df8`,
+  `95a98a7`, and `1df57ef` are present; public version remains `5.0.0`, with
+  no tag or release action.
 - Persisted-state boundary: new identity tests, Core/CLI lifecycle wiring, and
   maintained status/plan/build-log docs only; user project/Vault data and
   unrelated untracked files remain untouched.
-- Safe next action: write RED tests first, then implement ingress identity
-  resolution, Task State parity, native-hook parity, and atomic CLI plan
-  binding.
+- Safe next action: push the completed SPEC-02 branch once; do not release,
+  tag, bump the version, or start SPEC-03/SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-01 (closed, 2026-09-20)
 
