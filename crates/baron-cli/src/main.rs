@@ -59,7 +59,7 @@ use baron_core::evaluation42::{
     freeze_contract42, run_acceptance42, run_benchmark42, run_holdout42, write_phase88_audit,
 };
 use baron_core::execution_receipt::{
-    execute_command, ExecutionRequest, ExecutionResult, ReceiptContext,
+    execute_command_with_context, ExecutionRequest, ExecutionResult, ReceiptContext,
 };
 use baron_core::firewall::{compact_memory_brief, render_recall, trusted_recall_current};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
@@ -72,6 +72,7 @@ use baron_core::harness_improvement::{
     audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
     verify_open_stories,
 };
+use baron_core::identity::project_id_for_path;
 use baron_core::intelligence::{
     experimental_generation_enabled, next_generation_enabled, route_security_task,
     run_integrated_acceptance, run_local_benchmark, run_security_regression,
@@ -689,9 +690,18 @@ enum ProofCommands {
         capability: String,
         #[arg(long)]
         provider: String,
+        #[arg(long)]
         repo_path: Option<PathBuf>,
         #[arg(long, default_value_t = 120)]
         timeout_seconds: u64,
+        #[arg(long)]
+        task: String,
+        #[arg(long, value_enum)]
+        adapter: AdapterArg,
+        #[arg(long)]
+        session_id: String,
+        #[arg(long)]
+        request_id: String,
         command: String,
         #[arg(last = true)]
         arguments: Vec<String>,
@@ -2923,20 +2933,50 @@ fn run() -> Result<()> {
                 provider,
                 repo_path,
                 timeout_seconds,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 command,
                 arguments,
             } => {
                 let repo_root = configured_repo(repo_path)?;
-                let receipt = execute_command(ExecutionRequest {
-                    capability,
-                    provider,
-                    executable: command,
-                    arguments,
-                    working_directory: repo_root,
-                    timeout: std::time::Duration::from_secs(timeout_seconds),
-                })?;
+                if session_id.trim().is_empty() || request_id.trim().is_empty() {
+                    bail!("proof execute identity values must not be blank");
+                }
+                let supported_adapter = match adapter {
+                    AdapterArg::Codex => SupportedAdapter::Codex,
+                    AdapterArg::Claude => SupportedAdapter::Claude,
+                };
+                let project_id = project_id_for_path(&repo_root)?;
+                let identity = LifecycleIdentity::resolve(
+                    &project_id,
+                    &task,
+                    supported_adapter,
+                    Some(&session_id),
+                    Some(&request_id),
+                )
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                let binding = ReceiptContext::for_identity(&identity, "proof")?;
+                let receipt = execute_command_with_context(
+                    ExecutionRequest {
+                        capability,
+                        provider,
+                        executable: command,
+                        arguments,
+                        working_directory: repo_root,
+                        timeout: std::time::Duration::from_secs(timeout_seconds),
+                    },
+                    binding,
+                )?;
                 println!("# Baron Trusted Execution\n");
                 println!("- Receipt: `{}`", receipt.receipt_id);
+                println!("- Task ID: `{}`", identity.task_id());
+                println!("- Operation ID: `{}`", identity.operation_id());
+                println!("- Adapter: `{}`", identity.adapter().as_str());
+                println!("- Session ID: `{}`", identity.session_id());
+                println!("- Request ID: `{}`", identity.request_id());
+                println!("- Gate kind: `proof`");
                 println!("- Result: `{}`", receipt.result.as_str());
                 println!(
                     "- Exit code: `{}`",

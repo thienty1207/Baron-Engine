@@ -1,5 +1,33 @@
 # Current Baron Build Plan
 
+## Baron 5.0.1 Stabilization - SPEC-03 (2026-09-20)
+
+- Active spec: Trusted Execution Receipt Architecture.
+- Status: `implementation complete; READY FOR ADVERSARIAL REVIEW`; closure is
+  intentionally deferred to a separate review pass. The public/source version
+  remains `5.0.0`, with no tag, release, or version bump.
+- Baseline/branch: `3a52668b2fba53de3579b2f3ae77fcc848e759be` on
+  `codex/spec-03-trusted-receipt-architecture`.
+- Delivered: machine-local Ed25519 receipt authority outside repositories and
+  Vaults; race-safe seed creation; signed schema-v2 receipts; raw versus
+  `VerifiedExecutionReceipt` APIs; CSPRNG IDs; project-lock plus `safe_io`
+  durable append; duplicate/link/reparse/non-regular rejection; verified proof,
+  gate, capability, and runtime consumers; and typed SPEC-02 identity for CLI
+  `proof execute`.
+- Cross-process evidence: eight independent child writers converge on one
+  temporary machine key, produce eight complete unique JSONL records, and a
+  separate verifier process accepts all eight. Separate CLI processes prove
+  exact proof recording and reject tamper, stale source, foreign key, and
+  binding mismatches.
+- Verification: Core all-targets and warnings-denied Clippy pass; focused
+  receipt/authority/proof/gate/runtime/plan/CLI suites pass. The full workspace
+  retains only the host `Microsoft.PowerShell.Archive` installer failures and
+  the existing `session_replay` UTF-8 boundary panic in `prepare_cli`.
+- Active plan:
+  `docs/superpowers/plans/2026-09-20-spec-03-trusted-receipt-architecture.md`.
+- Next action: push this implementation once, then obtain the separate
+  adversarial review. Do not mark SPEC-03 closed or start SPEC-04.
+
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 
 - Active spec: Operation Identity & Lifecycle Wiring.

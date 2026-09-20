@@ -14,7 +14,8 @@ use baron_core::control_plane::{
     record_gate_evidence_with_receipt_bound, GateReceiptBinding,
 };
 use baron_core::execution_receipt::{
-    execute_command_with_context, receipt_is_current_authority, ExecutionRequest, ReceiptContext,
+    execute_command, execute_command_with_context, load_receipts, load_verified_receipt,
+    load_verified_receipts, receipt_is_current_authority, ExecutionRequest, ReceiptContext,
     ReceiptProvenance,
 };
 use baron_core::operation::{OperationContext, SupportedAdapter};
@@ -571,4 +572,228 @@ fn proof_receipt_cannot_cross_task_or_use_the_unbound_legacy_api() {
         record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &task_b).is_err()
     );
     assert!(record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &task_a).is_ok());
+}
+
+#[test]
+fn persisted_receipt_authority_survives_the_creator_process_boundary() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    fs::create_dir_all(&repo).unwrap();
+    let binding = ReceiptContext::new(
+        "task-cross-process",
+        "operation-cross-process",
+        "codex",
+        "session-cross-process",
+        "request-cross-process",
+        "proof",
+    );
+    let receipt = execute_command_with_context(command(&repo), binding).unwrap();
+    let verified = load_verified_receipt(&repo, &receipt.receipt_id).unwrap();
+    assert_eq!(verified.receipt_id, receipt.receipt_id);
+}
+
+#[cfg(unix)]
+#[test]
+fn receipt_append_rejects_a_symlink_target_before_writing_outside_the_project() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let outside = temp.path().join("outside.jsonl");
+    fs::create_dir_all(repo.join(".baron/cache")).unwrap();
+    fs::write(&outside, "outside-before\n").unwrap();
+    symlink(&outside, repo.join(".baron/cache/execution-receipts.jsonl")).unwrap();
+    let binding = ReceiptContext::new(
+        "task-symlink",
+        "operation-symlink",
+        "codex",
+        "session-symlink",
+        "request-symlink",
+        "proof",
+    );
+
+    assert!(execute_command_with_context(command(&repo), binding).is_err());
+    assert_eq!(fs::read_to_string(outside).unwrap(), "outside-before\n");
+}
+
+#[test]
+fn duplicate_receipt_ids_fail_closed_during_raw_load() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    fs::create_dir_all(repo.join(".baron/cache")).unwrap();
+    let binding = ReceiptContext::new(
+        "task-duplicate",
+        "operation-duplicate",
+        "codex",
+        "session-duplicate",
+        "request-duplicate",
+        "proof",
+    );
+    let receipt = execute_command_with_context(command(&repo), binding).unwrap();
+    let line = serde_json::to_string(&receipt).unwrap();
+    fs::write(
+        repo.join(".baron/cache/execution-receipts.jsonl"),
+        format!("{line}\n{line}\n"),
+    )
+    .unwrap();
+
+    assert!(baron_core::execution_receipt::load_receipts(&repo).is_err());
+}
+
+#[test]
+fn schema_v1_receipts_remain_diagnostic_only() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    fs::create_dir_all(&repo).unwrap();
+    let receipt = execute_command(command(&repo)).unwrap();
+    assert_eq!(receipt.schema_version, 1);
+    assert!(load_verified_receipts(&repo).unwrap().is_empty());
+    assert!(load_verified_receipt(&repo, &receipt.receipt_id).is_err());
+}
+
+#[test]
+fn historical_schema_v1_without_authority_fields_remains_readable() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    fs::create_dir_all(&repo).unwrap();
+    let receipt = execute_command(command(&repo)).unwrap();
+    let mut historical = receipt.clone();
+    historical.authority_key_id = None;
+    historical.authority_signature = None;
+    historical.integrity_digest.clear();
+    historical.integrity_digest = format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&historical).unwrap())
+    );
+    fs::write(
+        repo.join(".baron/cache/execution-receipts.jsonl"),
+        format!("{}\n", serde_json::to_string(&historical).unwrap()),
+    )
+    .unwrap();
+
+    let loaded = load_receipts(&repo).unwrap();
+    assert_eq!(loaded, vec![historical]);
+    assert!(load_verified_receipts(&repo).unwrap().is_empty());
+}
+
+#[test]
+fn receipt_append_rejects_a_non_regular_target() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    fs::create_dir_all(repo.join(".baron/cache/execution-receipts.jsonl")).unwrap();
+    let binding = ReceiptContext::new(
+        "task-directory-target",
+        "operation-directory-target",
+        "codex",
+        "session-directory-target",
+        "request-directory-target",
+        "proof",
+    );
+
+    assert!(execute_command_with_context(command(&repo), binding).is_err());
+}
+
+#[test]
+fn failed_timed_out_and_foreign_project_receipts_never_verify_as_authority() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let foreign_repo = temp.path().join("foreign-repo");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&foreign_repo).unwrap();
+
+    let failed_binding = ReceiptContext::new(
+        "task-failed",
+        "operation-failed",
+        "codex",
+        "session-failed",
+        "request-failed",
+        "proof",
+    );
+    let mut failed_request = command(&repo);
+    #[cfg(windows)]
+    {
+        failed_request.arguments = vec!["/C".to_string(), "exit 7".to_string()];
+    }
+    #[cfg(not(windows))]
+    {
+        failed_request.arguments = vec!["-c".to_string(), "exit 7".to_string()];
+    }
+    let failed = execute_command_with_context(failed_request, failed_binding).unwrap();
+    assert_eq!(
+        failed.result,
+        baron_core::execution_receipt::ExecutionResult::Failed
+    );
+    assert!(load_verified_receipt(&repo, &failed.receipt_id).is_err());
+
+    let timed_out_binding = ReceiptContext::new(
+        "task-timeout",
+        "operation-timeout",
+        "codex",
+        "session-timeout",
+        "request-timeout",
+        "proof",
+    );
+    let mut timeout_request = command(&repo);
+    timeout_request.timeout = Duration::from_millis(1);
+    #[cfg(windows)]
+    {
+        timeout_request.arguments = vec!["/C".to_string(), "ping -n 6 127.0.0.1 >NUL".to_string()];
+    }
+    #[cfg(not(windows))]
+    {
+        timeout_request.arguments = vec!["-c".to_string(), "sleep 1".to_string()];
+    }
+    let timed_out = execute_command_with_context(timeout_request, timed_out_binding).unwrap();
+    assert_eq!(
+        timed_out.result,
+        baron_core::execution_receipt::ExecutionResult::TimedOut
+    );
+    assert!(load_verified_receipt(&repo, &timed_out.receipt_id).is_err());
+
+    let source = repo.join(".baron/cache/execution-receipts.jsonl");
+    let destination = foreign_repo.join(".baron/cache/execution-receipts.jsonl");
+    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+    fs::copy(source, &destination).unwrap();
+    assert!(load_verified_receipt(&foreign_repo, &failed.receipt_id).is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn receipt_append_rejects_a_windows_reparse_target() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let outside = temp.path().join("outside");
+    let target = repo.join(".baron/cache/execution-receipts.jsonl");
+    fs::create_dir_all(repo.join(".baron/cache")).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+
+    let linked = std::os::windows::fs::symlink_dir(&outside, &target).is_ok();
+    let linked = if linked {
+        true
+    } else {
+        let script = format!(
+            "New-Item -ItemType Junction -Path '{}' -Target '{}' | Out-Null",
+            target.display().to_string().replace('\'', "''"),
+            outside.display().to_string().replace('\'', "''")
+        );
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .status()
+            .map(|status| status.success() && target.is_dir())
+            .unwrap_or(false)
+    };
+    if !linked {
+        return;
+    }
+
+    let binding = ReceiptContext::new(
+        "task-reparse-target",
+        "operation-reparse-target",
+        "codex",
+        "session-reparse-target",
+        "request-reparse-target",
+        "proof",
+    );
+    assert!(execute_command_with_context(command(&repo), binding).is_err());
+    assert!(fs::read_dir(&outside).unwrap().next().is_none());
 }

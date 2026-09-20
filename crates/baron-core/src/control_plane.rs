@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::capability::load_capability_state;
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
 use crate::execution_receipt::{
-    load_receipts, receipt_is_current, receipt_matches_context, ReceiptContext,
+    load_verified_receipt, load_verified_receipts, receipt_matches_verified_context, ReceiptContext,
 };
 use crate::operation::OperationContext;
 use crate::platform::platform_name;
@@ -1407,11 +1407,8 @@ pub fn record_gate_evidence_with_receipt_bound(
             agent.trim()
         );
     }
-    let receipt = load_receipts(repo_root)?
-        .into_iter()
-        .find(|receipt| receipt.receipt_id == receipt_id.trim())
-        .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
-    if !receipt_matches_context(repo_root, &receipt, binding)? {
+    let receipt = load_verified_receipt(repo_root, receipt_id)?;
+    if !receipt_matches_verified_context(&receipt, binding)? {
         bail!(
             "Gate receipt `{}` is stale, failed, mismatched, replayed, or not current-operation evidence",
             receipt.receipt_id
@@ -1590,7 +1587,7 @@ fn gate_evidence_status_strict_for_context_and_scope(
     let repo_root = repo_root.as_ref();
     let content =
         fs::read_to_string(repo_root.join("docs/baron/control-plane/GATES.md")).unwrap_or_default();
-    let receipts = load_receipts(repo_root)?;
+    let receipts = load_verified_receipts(repo_root)?;
     let mut missing_agents = Vec::new();
     for agent in required_agents {
         let needle = format!("`{}`", agent.trim());
@@ -1608,15 +1605,10 @@ fn gate_evidence_status_strict_for_context_and_scope(
                 .iter()
                 .find(|receipt| receipt.receipt_id == receipt_id.trim())
                 .map(|receipt| {
-                    let current = receipt_is_current(repo_root, receipt).unwrap_or(false)
-                        && receipt.provenance
-                            == crate::execution_receipt::ReceiptProvenance::TrustedCurrentOperation;
                     let binding_matches = if let Some(expected) = expected_context {
-                        receipt_matches_context(repo_root, receipt, expected).unwrap_or(false)
+                        receipt_matches_verified_context(receipt, expected).unwrap_or(false)
                     } else if let Some((expected_task, expected_adapter)) = expected_scope {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
-                            && receipt.task_id.as_deref() == Some(expected_task)
+                        receipt.task_id.as_deref() == Some(expected_task)
                             && receipt.adapter.as_deref() == Some(expected_adapter)
                     } else if let Some((
                         expected_task,
@@ -1625,9 +1617,7 @@ fn gate_evidence_status_strict_for_context_and_scope(
                         expected_request,
                     )) = expected_request
                     {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
-                            && receipt.task_id.as_deref() == Some(expected_task)
+                        receipt.task_id.as_deref() == Some(expected_task)
                             && receipt.adapter.as_deref() == Some(expected_adapter)
                             && receipt.session_id.as_deref() == Some(expected_session)
                             && receipt.request_id.as_deref() == Some(expected_request)
@@ -1639,16 +1629,13 @@ fn gate_evidence_status_strict_for_context_and_scope(
                         expected_operation,
                     )) = expected_operation
                     {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
-                            && receipt.task_id.as_deref() == Some(expected_task)
+                        receipt.task_id.as_deref() == Some(expected_task)
                             && receipt.adapter.as_deref() == Some(expected_adapter)
                             && receipt.session_id.as_deref() == Some(expected_session)
                             && receipt.request_id.as_deref() == Some(expected_request)
                             && receipt.operation_id.as_deref() == Some(expected_operation)
                     } else {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
+                        true
                     };
                     let line_matches = parse_gate_binding(line)
                         .map(|binding| {
@@ -1665,7 +1652,7 @@ fn gate_evidence_status_strict_for_context_and_scope(
                                     == receipt.request_id.clone().unwrap_or_default()
                         })
                         .unwrap_or(false);
-                    current && binding_matches && line_matches
+                    binding_matches && line_matches
                 })
                 .unwrap_or(false)
         });

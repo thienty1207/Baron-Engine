@@ -10,7 +10,10 @@ use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 
 use crate::config::{load_project_config, AdapterKind, ConfiguredAdapter};
-use crate::execution_receipt::{load_receipts, receipt_matches_context, ReceiptContext};
+use crate::execution_receipt::{
+    load_verified_receipts, receipt_matches_verified_context, ReceiptContext,
+    VerifiedExecutionReceipt,
+};
 use crate::operation::OperationContext;
 use crate::safe_io::{ensure_directory_chain, read_text, replace_text};
 
@@ -441,7 +444,7 @@ fn evaluate_execution_evidence_internal(
         .filter(|provider| provider.requirement == Requirement::Required)
         .map(|provider| provider.capability.clone())
         .collect::<BTreeSet<_>>();
-    let receipts = load_receipts(repo_root)?;
+    let receipts = load_verified_receipts(repo_root)?;
     let mut gaps = Vec::new();
     for capability in required_capabilities {
         let present_providers = matching_state
@@ -502,7 +505,7 @@ fn evaluate_execution_evidence_internal(
                         .iter()
                         .find(|receipt| receipt.receipt_id == receipt_id.trim())
                         .map(|receipt| {
-                            receipt_matches_context(repo_root, receipt, &binding).unwrap_or(false)
+                            receipt_matches_verified_context(receipt, &binding).unwrap_or(false)
                                 && receipt.capability
                                     == normalize_identifier(&item.capability).unwrap_or_default()
                                 && receipt.provider
@@ -606,7 +609,7 @@ fn runtime_backend_report_internal(
         .as_ref()
         .filter(|state| state.adapter.supported() == Some(adapter));
     let _runtime_evidence = load_runtime_execution(repo_root)?;
-    let receipts = load_receipts(repo_root)?;
+    let receipts = load_verified_receipts(repo_root)?;
     let mut providers = Vec::new();
     let mut blocking_gaps = Vec::new();
     let mut warnings = Vec::new();
@@ -626,7 +629,6 @@ fn runtime_backend_report_internal(
             .unwrap_or_else(|| "presence check has not been run for this adapter".to_string());
         let safety = backend_safety(provider);
         let execution_evidence = if has_authoritative_execution_evidence(
-            repo_root,
             &receipts,
             &provider.capability,
             &provider.name,
@@ -840,8 +842,7 @@ fn load_runtime_execution(repo_root: &Path) -> Result<Vec<RuntimeExecutionEntry>
 }
 
 fn has_authoritative_execution_evidence(
-    repo_root: &Path,
-    receipts: &[crate::execution_receipt::ExecutionReceipt],
+    receipts: &[VerifiedExecutionReceipt],
     capability: &str,
     provider: &str,
     operation: Option<&OperationContext>,
@@ -870,7 +871,7 @@ fn has_authoritative_execution_evidence(
         "capability_execution",
     );
     receipts.iter().any(|receipt| {
-        receipt_matches_context(repo_root, receipt, &context).unwrap_or(false)
+        receipt_matches_verified_context(receipt, &context).unwrap_or(false)
             && capability.as_deref() == Some(receipt.capability.as_str())
             && provider.as_deref() == Some(receipt.provider.as_str())
             && receipt.result == crate::execution_receipt::ExecutionResult::Passed

@@ -8,7 +8,10 @@ use crate::capability::{
     evaluate_execution_evidence, evaluate_execution_evidence_for_operation, load_capability_state,
     record_runtime_execution, CapabilityExecutionEvidence,
 };
-use crate::execution_receipt::{load_receipts, receipt_matches_context, ReceiptContext};
+use crate::execution_receipt::{
+    load_verified_receipt, receipt_matches_verified_context, ReceiptContext,
+    VerifiedExecutionReceipt,
+};
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
 use crate::operation::OperationContext;
 use crate::risk::RiskLane;
@@ -60,11 +63,8 @@ pub fn record_proof_from_receipt_bound(
             binding.gate_kind.trim()
         );
     }
-    let receipt = load_receipts(repo_root)?
-        .into_iter()
-        .find(|receipt| receipt.receipt_id == receipt_id.trim())
-        .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
-    if !receipt_matches_context(repo_root, &receipt, binding)? {
+    let receipt = load_verified_receipt(repo_root, receipt_id)?;
+    if !receipt_matches_verified_context(&receipt, binding)? {
         bail!(
             "Trusted execution receipt `{}` is stale, failed, mismatched, replayed, or tampered",
             receipt.receipt_id,
@@ -373,13 +373,10 @@ pub fn proof_has_current_receipt(repo_root: &Path, proof: &ProofRecord) -> Resul
     let Some((receipt_id, binding)) = proof_receipt_context(proof)? else {
         return Ok(false);
     };
-    let Some(receipt) = load_receipts(repo_root)?
-        .into_iter()
-        .find(|receipt| receipt.receipt_id == receipt_id)
-    else {
+    let Ok(receipt) = load_verified_receipt(repo_root, &receipt_id) else {
         return Ok(false);
     };
-    receipt_matches_context(repo_root, &receipt, &binding)
+    receipt_matches_verified_context(&receipt, &binding)
 }
 
 /// Read the explicit receipt binding recorded in a proof.  A proof without a
@@ -416,7 +413,7 @@ fn field_value(content: &str, prefix: &str) -> Result<String> {
 
 fn append_receipt_reference(
     path: &Path,
-    receipt: &crate::execution_receipt::ExecutionReceipt,
+    receipt: &VerifiedExecutionReceipt,
     binding: &ReceiptContext,
 ) -> Result<()> {
     let mut content = fs::read_to_string(path)?;

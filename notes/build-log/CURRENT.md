@@ -1,5 +1,36 @@
 # Current Build Note
 
+## SPEC-03 Trusted Execution Receipt Architecture — implementation checkpoint (2026-09-20)
+
+- Current task: replace process-local receipt authority with a machine-local,
+  cross-process Ed25519 authority while binding CLI proof execution to the
+  SPEC-02 lifecycle identity.
+- Checkpoint: branch
+  `codex/spec-03-trusted-receipt-architecture`, based on
+  `3a52668b2fba53de3579b2f3ae77fcc848e759be`; public version remains `5.0.0`.
+- Proof status: schema-v2 receipts carry an Ed25519 key ID/signature over a
+  deterministic payload and complete operation/gate identity. Raw JSONL is
+  diagnostic; `load_verified_receipt(s)` is the authority boundary. Key loss
+  or rotation demotes old records to diagnostic history.
+- Persistence status: seed creation is atomic and race-safe under the machine
+  authority root; receipt writes acquire the existing project lock only after
+  child completion, then use safe append with flush/sync. Receipt IDs are
+  128-bit OS-random values and duplicate IDs fail closed.
+- Test status: eight separate child writers plus a separate verifier prove
+  lossless multiprocess append and one shared key. CLI process A/B proof flow
+  passes with exact binding; tamper, stale source, foreign key, wrong identity,
+  wrong gate, duplicate, schema-v1, and unsafe filesystem cases reject.
+- Trace status: implementation trace is complete for SPEC-03, but external
+  adversarial review is still required. SPEC-03 is not closed.
+- Verification blockers: the host cannot load `Microsoft.PowerShell.Archive`
+  for three installer lifecycle tests; one `prepare_cli` fixture reaches the
+  existing `session_replay` UTF-8 boundary panic. These are unrelated and were
+  not modified.
+- Safe next action: push the exact implementation branch once, preserve the
+  user-owned untracked files, and wait for separate adversarial review before
+  closure. Do not release, tag, bump the version, modify Hotel Staff, or start
+  SPEC-04.
+
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 
 - Current task: close the final review gaps in the canonical Operation Identity

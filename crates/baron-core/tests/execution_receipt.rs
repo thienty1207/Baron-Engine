@@ -3,7 +3,8 @@ use std::time::Duration;
 
 #[cfg(windows)]
 use baron_core::execution_receipt::{
-    execute_command, load_receipts, receipt_is_current, ExecutionRequest, ExecutionResult,
+    execute_command, execute_command_with_context, load_receipts, load_verified_receipt,
+    receipt_is_current, ExecutionRequest, ExecutionResult, ReceiptContext,
 };
 
 #[cfg(windows)]
@@ -22,6 +23,41 @@ fn trusted_runner_records_current_passing_receipt() {
     assert_eq!(receipt.result, ExecutionResult::Passed);
     assert!(receipt_is_current(temp.path(), &receipt).unwrap());
     assert_eq!(load_receipts(temp.path()).unwrap().len(), 1);
+    assert_eq!(
+        receipt.receipt_id.strip_prefix("receipt-").unwrap().len(),
+        32
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn authoritative_receipt_is_signed_schema_v2_and_verifiable_after_reload() {
+    let temp = tempfile::tempdir().unwrap();
+    let binding = ReceiptContext::new(
+        "task-receipt",
+        "operation-receipt",
+        "codex",
+        "session-receipt",
+        "request-receipt",
+        "proof",
+    );
+    let receipt = execute_command_with_context(
+        ExecutionRequest {
+            capability: "test".to_string(),
+            provider: "cmd".to_string(),
+            executable: "cmd".to_string(),
+            arguments: vec!["/C".to_string(), "exit 0".to_string()],
+            working_directory: temp.path().to_path_buf(),
+            timeout: Duration::from_secs(5),
+        },
+        binding,
+    )
+    .unwrap();
+    assert_eq!(receipt.schema_version, 2);
+    assert!(receipt.authority_key_id.is_some());
+    assert!(receipt.authority_signature.is_some());
+    let verified = load_verified_receipt(temp.path(), &receipt.receipt_id).unwrap();
+    assert_eq!(verified.receipt_id, receipt.receipt_id);
 }
 
 #[cfg(windows)]

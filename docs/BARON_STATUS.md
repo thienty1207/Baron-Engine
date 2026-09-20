@@ -1,5 +1,46 @@
 # Baron Build Status
 
+## Baron 5.0.1 Stabilization - SPEC-03 Trusted Execution Receipt Architecture (2026-09-20)
+
+- Status: `implementation complete; READY FOR ADVERSARIAL REVIEW`; SPEC-03 is
+  intentionally not closed in this implementation pass. The source/public
+  version remains `5.0.0`; no tag, release, version bump, or hosted-CI claim
+  is part of this checkpoint.
+- Baseline: `3a52668b2fba53de3579b2f3ae77fcc848e759be`; branch:
+  `codex/spec-03-trusted-receipt-architecture`.
+- Authority architecture: a dedicated Ed25519 seed is stored outside project
+  repositories and Vaults at
+  `<BARON_HOME>/authority/execution-receipt-ed25519.seed`, with the existing
+  `USERPROFILE/.baron` or `HOME/.baron` fallback. Atomic `create_new`, OS
+  randomness, bounded race reads, safe parent-chain checks, and Unix `0600`
+  creation permissions converge concurrent first starts on one machine key.
+- Receipt trust: authoritative executions emit signed schema-v2 receipts with
+  a public-key fingerprint, random 128-bit receipt ID, complete task/
+  operation/adapter/session/request/gate binding, current project/source
+  checks, and durable lock-protected `safe_io` append. Raw
+  `ExecutionReceipt` values remain diagnostic; only `VerifiedExecutionReceipt`
+  returned by the verification APIs can satisfy proof, gate, or capability
+  authority. Losing or changing the machine seed demotes older receipts to
+  diagnostics; compromise of the OS account or seed remains outside the
+  project-content trust boundary.
+- CLI contract: `proof execute` requires `--task`, `--adapter`,
+  `--session-id`, and `--request-id`, resolves one `LifecycleIdentity`, and
+  persists a bound `proof` receipt before a later process runs
+  `proof record`. Blank identity fails before the child command starts.
+- Evidence: focused receipt, authority, proof, gate, capability, runtime,
+  plan, CLI, and multiprocess suites pass. The multiprocess fixture runs eight
+  child writers against one temporary machine home and verifies eight complete,
+  unique, signed JSONL records from a separate verifier process. Core
+  all-targets and warnings-denied Clippy pass.
+- Known unrelated workspace blockers: `baron-cli` installer lifecycle tests
+  cannot load the host `Microsoft.PowerShell.Archive` module, and one Prepare
+  CLI fixture reaches the existing `session_replay` UTF-8 boundary panic.
+- Active plan:
+  `docs/superpowers/plans/2026-09-20-spec-03-trusted-receipt-architecture.md`.
+- Safe next action: perform a separate adversarial review of the pushed SPEC-03
+  diff and apply any review fixes before considering closure; do not start
+  SPEC-04, release, tag, or version work.
+
 ## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
 
 - Status: `closed; final review fixes implemented and verified; unrelated host

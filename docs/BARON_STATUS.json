@@ -15,26 +15,26 @@
     "claude"
   ],
   "remainingPhaseCount": 0,
-  "currentPhase": "baron-codex-claude-core-phase-16",
-  "currentPhaseStatus": "completed",
-  "nextAction": "Push the completed SPEC-02 final review-fix branch once; do not release, tag, bump the version, or start SPEC-03/SPEC-04.",
+  "currentPhase": "baron-5.0.1-stabilization-spec-03",
+  "currentPhaseStatus": "implementation-complete-ready-for-adversarial-review",
+  "nextAction": "Run a separate adversarial review of the pushed SPEC-03 diff; do not close SPEC-03 or start SPEC-04.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
-    "spec": "SPEC-02",
-    "name": "Operation Identity & Lifecycle Wiring",
-    "status": "closed",
+    "spec": "SPEC-03",
+    "name": "Trusted Execution Receipt Architecture",
+    "status": "ready_for_adversarial_review",
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "publicVersionBump": false,
-    "baselineCommit": "adccb6ecd2f950712b6bf21efb68a79549240a65",
-    "branch": "codex/spec-02-operation-identity",
-    "scope": "checked canonical lifecycle identity reconstruction, fail-closed Prepare request operation derivation, Task State and Plan task validation, native hook retry semantics, and identified CLI plan creation",
+    "baselineCommit": "3a52668b2fba53de3579b2f3ae77fcc848e759be",
+    "branch": "codex/spec-03-trusted-receipt-architecture",
+    "scope": "machine-local Ed25519 receipt authority, signed schema-v2 receipts, typed raw versus verified boundary, CSPRNG IDs, hardened lock-protected append, and operation-bound CLI proof execution",
     "previousSpec": {
-      "spec": "SPEC-01",
-      "name": "Graphify Provider Contract",
+      "spec": "SPEC-02",
+      "name": "Operation Identity & Lifecycle Wiring",
       "status": "closed",
-      "finalCommit": "adccb6e",
-      "branch": "codex/spec-01-graphify-provider-contract",
+      "finalCommit": "3a52668",
+      "branch": "codex/spec-02-operation-identity",
       "knownBlockers": [
         "lifecycle_scripts cannot load Microsoft.PowerShell.Archive in the host PowerShell",
         "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
@@ -45,30 +45,26 @@
       "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
     ],
     "implementationCommits": [
-      "b58c701",
-      "4ee56e4",
-      "3771df8",
-      "95a98a7",
-      "1df57ef",
-      "9b589ec"
+      "pending-local-commit"
     ],
     "verification": {
+      "receiptAuthorityAndMultiprocess": "passed",
+      "focusedProofGateCapabilityRuntimePlan": "passed",
+      "cliExecution": "passed",
       "coreAllTargets": "passed",
-      "focusedIdentityPreparePlanAutomationHooksControlPlane": "passed",
-      "cliPlanExecutionControlPlane": "passed",
       "format": "passed",
       "clippyWarningsDenied": "passed",
       "releaseBuild": "passed",
       "binaryVersion": "baron 5.0.0",
       "diffCheck": "passed",
-      "adversarialClosureScan": "passed: no SPEC-02-owned issue remains; empty CLI identity guard fixed",
+      "adversarialSelfScan": "passed: no SPEC-03-owned issue remains; external adversarial review required",
       "workspaceKnownFailures": [
         "baron-cli lifecycle_scripts: Microsoft.PowerShell.Archive unavailable",
         "baron-cli prepare_cli: existing session_replay UTF-8 boundary panic"
       ]
     },
-    "activePlan": "docs/superpowers/plans/2026-09-20-spec-02-final-review-fix.md",
-    "nextAction": "Push the completed SPEC-02 final review-fix branch once; do not release, tag, bump the version, or start SPEC-03/SPEC-04."
+    "activePlan": "docs/superpowers/plans/2026-09-20-spec-03-trusted-receipt-architecture.md",
+    "nextAction": "Run a separate adversarial review after the implementation branch is pushed; do not mark SPEC-03 closed."
   },
   "securityRemediation": {
     "status": "complete",
