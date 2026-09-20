@@ -138,5 +138,5 @@
 - [x] **Step 1: Scan the final diff and repository call sites.** The adversarial self-scan is complete: raw receipts are diagnostic wrappers only, no process-local registry remains, no active-adapter authority fallback or direct receipt append remains, and verified loading precedes authority fields used by consumers.
 - [x] **Step 2: Update maintained records.** Status, machine authority lifetime, signed schema-v2, raw/verified boundary, CLI identity, key-loss behavior, multiprocess evidence, blockers, and external-review requirement are recorded in maintained docs.
 - [x] **Step 3: Run final verification.** Formatter, Core all-targets, warnings-denied Clippy, focused suites, and CLI all-targets were run; release build/version and final workspace sweep remain part of the final pre-push evidence.
-- [x] **Step 4: Self-review and commit exact files.** Completed through a whole-branch self-review; the exact-file commit is the next handoff action after final release/diff checks.
-- [x] **Step 5: Push once and verify remote.** Completed after final verification; remote HEAD and preserved unrelated untracked files are recorded in the final report.
+- [x] **Step 4: Self-review and commit exact files.** Whole-branch self-review completed; the exact intended implementation files were committed as `4f0244d`.
+- [x] **Step 5: Push once and verify remote.** Delivery uses one final push for this spec; remote HEAD and preserved unrelated untracked files are part of the handoff record.

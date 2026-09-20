@@ -45,7 +45,7 @@
       "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
     ],
     "implementationCommits": [
-      "pending-local-commit"
+      "4f0244d"
     ],
     "verification": {
       "receiptAuthorityAndMultiprocess": "passed",
