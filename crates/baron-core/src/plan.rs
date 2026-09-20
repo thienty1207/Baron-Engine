@@ -5,7 +5,7 @@ use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::control_plane::gate_evidence_status_strict_for_operation;
-use crate::operation::OperationContext;
+use crate::operation::{LifecycleIdentity, OperationContext};
 use crate::proof::{
     latest_proof, proof_has_current_receipt, proof_receipt_context, proof_satisfies_risk,
 };
@@ -36,31 +36,14 @@ pub struct PlanOperationBinding {
 }
 
 impl PlanOperationBinding {
-    fn from_operation(operation: &OperationContext) -> Result<Self> {
-        let (Some(task_id), Some(operation_id), Some(session_id), Some(request_id)) = (
-            operation.task_id.clone(),
-            operation.operation_id.clone(),
-            operation.session_id.clone(),
-            operation.request_id.clone(),
-        ) else {
-            bail!(
-                "plan operation binding requires task, operation, session, and request identities"
-            );
-        };
-        if task_id.trim().is_empty()
-            || operation_id.trim().is_empty()
-            || session_id.trim().is_empty()
-            || request_id.trim().is_empty()
-        {
-            bail!("plan operation binding requires non-empty identities");
+    fn from_identity(identity: &LifecycleIdentity) -> Self {
+        Self {
+            task_id: identity.task_id().to_string(),
+            operation_id: identity.operation_id().to_string(),
+            adapter: identity.adapter().as_str().to_string(),
+            session_id: identity.session_id().to_string(),
+            request_id: identity.request_id().to_string(),
         }
-        Ok(Self {
-            task_id,
-            operation_id,
-            adapter: operation.adapter.as_str().to_string(),
-            session_id,
-            request_id,
-        })
     }
 }
 
@@ -81,7 +64,29 @@ pub fn start_or_resume_plan_for_operation(
     title: &str,
     operation: &OperationContext,
 ) -> Result<PlanRecord> {
-    let binding = PlanOperationBinding::from_operation(operation)?;
+    let identity = operation
+        .lifecycle_identity(&vault.project_id)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    start_or_resume_plan_for_identity(repo_root, vault, title, &identity)
+}
+
+/// Start or resume a plan from one complete canonical lifecycle identity.
+/// Legacy title-only plan files remain readable, but this entry point never
+/// upgrades an unbound plan by inference.
+pub fn start_or_resume_plan_for_identity(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    title: &str,
+    identity: &LifecycleIdentity,
+) -> Result<PlanRecord> {
+    if identity.project_id() != vault.project_id {
+        bail!(
+            "plan lifecycle identity project `{}` does not match Vault project `{}`",
+            identity.project_id(),
+            vault.project_id
+        );
+    }
+    let binding = PlanOperationBinding::from_identity(identity);
     start_or_resume_plan_internal(repo_root.as_ref(), vault, title, Some(&binding))
 }
 

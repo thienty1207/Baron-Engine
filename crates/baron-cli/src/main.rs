@@ -93,9 +93,9 @@ use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
     render_migration_inventory, rollback_migration,
 };
-use baron_core::operation::{OperationContext, SupportedAdapter};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::{
-    complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
+    complete_plan, interrupt_plan, plan_status, start_or_resume_plan_for_identity, update_plan,
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
 use baron_core::prepare::{
@@ -543,6 +543,12 @@ enum PlanCommands {
     },
     Start {
         title: String,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
     Update {
@@ -2592,10 +2598,51 @@ fn run() -> Result<()> {
                 let repo_root = configured_repo(repo_path)?;
                 print!("{}", plan_status(repo_root)?);
             }
-            PlanCommands::Start { title, repo_path } => {
+            PlanCommands::Start {
+                title,
+                adapter,
+                session_id,
+                request_id,
+                repo_path,
+            } => {
+                let supplied_identity_fields = [
+                    adapter.is_some(),
+                    session_id.is_some(),
+                    request_id.is_some(),
+                ];
+                if supplied_identity_fields
+                    .iter()
+                    .filter(|field| **field)
+                    .count()
+                    != 3
+                {
+                    bail!("plan start requires --adapter, --session-id, and --request-id together");
+                }
+                let adapter = adapter.expect("validated complete plan adapter");
+                let session_id = session_id.expect("validated complete plan session ID");
+                let request_id = request_id.expect("validated complete plan request ID");
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let plan = start_or_resume_plan(&repo_root, &vault, &title)?;
-                record_lifecycle_event_neutral(&vault, AutomationEvent::PlanStarted)?;
+                let config = load_project_config(&repo_root)?;
+                let supported_adapter = match adapter {
+                    AdapterArg::Codex => SupportedAdapter::Codex,
+                    AdapterArg::Claude => SupportedAdapter::Claude,
+                };
+                let identity = LifecycleIdentity::resolve(
+                    &config.project_id,
+                    &title,
+                    supported_adapter,
+                    Some(&session_id),
+                    Some(&request_id),
+                )
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                let operation = OperationContext::from_identity(&identity);
+                let plan =
+                    start_or_resume_plan_for_identity(&repo_root, &vault, &title, &identity)?;
+                record_lifecycle_event_for_operation(
+                    &vault,
+                    &operation,
+                    AutomationEvent::PlanStarted,
+                )?;
                 println!("# Baron Plan Start\n");
                 println!("- Title: {}", plan.title);
                 println!("- Risk: `{}`", plan.risk.as_str());

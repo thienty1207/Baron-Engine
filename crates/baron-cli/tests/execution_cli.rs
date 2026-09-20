@@ -31,7 +31,17 @@ fn plan_commands_work_from_nested_directory() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&nested)
-        .args(["plan", "start", "frontend dashboard"])
+        .args([
+            "plan",
+            "start",
+            "frontend dashboard",
+            "--adapter",
+            "codex",
+            "--session-id",
+            "plan-session",
+            "--request-id",
+            "plan-request",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("Risk: `medium`"));
@@ -132,7 +142,17 @@ fn proof_and_trace_commands_support_a_complete_low_risk_flow() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["plan", "start", "fix README typo"])
+        .args([
+            "plan",
+            "start",
+            "fix README typo",
+            "--adapter",
+            "codex",
+            "--session-id",
+            "proof-session",
+            "--request-id",
+            "proof-request",
+        ])
         .assert()
         .success();
     Command::cargo_bin("baron")
@@ -195,7 +215,17 @@ fn execution_command_rejects_identity_mismatch_without_repairing_vault_state() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["plan", "start", "must not be created"])
+        .args([
+            "plan",
+            "start",
+            "must not be created",
+            "--adapter",
+            "codex",
+            "--session-id",
+            "mismatch-session",
+            "--request-id",
+            "mismatch-request",
+        ])
         .assert()
         .failure()
         .stderr(predicate::str::contains("identity mismatch"))
@@ -231,7 +261,17 @@ fn high_risk_completion_is_rejected_without_evidence() {
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
-        .args(["plan", "start", "backend login security"])
+        .args([
+            "plan",
+            "start",
+            "backend login security",
+            "--adapter",
+            "codex",
+            "--session-id",
+            "high-risk-session",
+            "--request-id",
+            "high-risk-request",
+        ])
         .assert()
         .success();
     Command::cargo_bin("baron")

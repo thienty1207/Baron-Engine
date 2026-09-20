@@ -8,10 +8,10 @@ use baron_core::execution_receipt::{
 };
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
-use baron_core::operation::{OperationContext, SupportedAdapter};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan,
-    start_or_resume_plan_for_operation, update_plan,
+    start_or_resume_plan_for_identity, start_or_resume_plan_for_operation, update_plan,
 };
 use baron_core::proof::record_proof_from_receipt_bound;
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
@@ -144,6 +144,83 @@ fn repeated_start_resumes_matching_plan() {
 
     assert_eq!(first.repo_path, second.repo_path);
     assert!(second.resumed);
+}
+
+#[test]
+fn identified_plan_persists_exact_identity_and_rejects_hijack() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = LifecycleIdentity::new(
+        &context.project_id,
+        "task-dashboard",
+        "operation-dashboard-1",
+        SupportedAdapter::Codex,
+        "session-dashboard",
+        "request-dashboard-1",
+    )
+    .unwrap();
+
+    let first = start_or_resume_plan_for_identity(&repo, &context, "frontend dashboard", &identity)
+        .unwrap();
+    let repo_content = fs::read_to_string(&first.repo_path).unwrap();
+    let current_content = fs::read_to_string(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    let vault_content = fs::read_to_string(&first.vault_path).unwrap();
+    for content in [&repo_content, &vault_content] {
+        assert!(content.contains("task_id: task-dashboard"));
+        assert!(content.contains("operation_id: operation-dashboard-1"));
+        assert!(content.contains("adapter: codex"));
+        assert!(content.contains("session_id: session-dashboard"));
+        assert!(content.contains("request_id: request-dashboard-1"));
+    }
+    assert!(current_content.contains("Task ID: `task-dashboard`"));
+    assert!(current_content.contains("Operation ID: `operation-dashboard-1`"));
+    assert!(current_content.contains("Adapter: `codex`"));
+    assert!(current_content.contains("Session ID: `session-dashboard`"));
+    assert!(current_content.contains("Request ID: `request-dashboard-1`"));
+
+    let resumed =
+        start_or_resume_plan_for_identity(&repo, &context, "frontend dashboard", &identity)
+            .unwrap();
+    assert!(resumed.resumed);
+
+    let hijacker = LifecycleIdentity::new(
+        &context.project_id,
+        "task-dashboard",
+        "operation-dashboard-2",
+        SupportedAdapter::Codex,
+        "session-dashboard",
+        "request-dashboard-2",
+    )
+    .unwrap();
+    let error = start_or_resume_plan_for_identity(&repo, &context, "frontend dashboard", &hijacker)
+        .unwrap_err();
+    assert!(error.to_string().contains("different operation identity"));
+}
+
+#[test]
+fn incomplete_operation_cannot_write_a_plan() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let error = start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "frontend dashboard",
+        &OperationContext::new(SupportedAdapter::Codex),
+    )
+    .unwrap_err();
+
+    assert!(error.to_string().contains("session_id"));
+    assert!(!repo.join("docs/baron/plans/CURRENT.md").exists());
+    assert!(fs::read_dir(context.project_root.join("Plans"))
+        .unwrap()
+        .next()
+        .is_none());
 }
 
 #[test]
