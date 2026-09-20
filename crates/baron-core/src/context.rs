@@ -18,7 +18,7 @@ use crate::intelligence41::{
 };
 use crate::knowledge::render_resume_brief;
 use crate::memory::{analyze_memory_consolidation, build_memory_index};
-use crate::operation::OperationContext;
+use crate::operation::{LifecycleIdentity, OperationContext};
 use crate::operations::{load_runbook, relevant_to_task, render_bounded_context};
 use crate::platform::render_platform_context;
 use crate::review_gate::review_status;
@@ -61,6 +61,16 @@ pub fn compile_context_for_task(
     target: ContextTarget,
     task: Option<&str>,
 ) -> Result<String> {
+    compile_context_for_task_with_identity(repo_path, vault_path, target, task, None)
+}
+
+fn compile_context_for_task_with_identity(
+    repo_path: impl AsRef<Path>,
+    vault_path: impl AsRef<Path>,
+    target: ContextTarget,
+    task: Option<&str>,
+    identity: Option<&LifecycleIdentity>,
+) -> Result<String> {
     let repo_path = repo_path.as_ref();
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
@@ -95,7 +105,12 @@ pub fn compile_context_for_task(
     };
     let consolidation = analyze_memory_consolidation(&vault)?;
     let risk = classify_risk(task, &survey);
-    let task_state = compile_task_state(repo_path, &vault, task)?;
+    let task_state = match identity {
+        Some(identity) => {
+            crate::task_state::compile_task_state_for_operation(repo_path, &vault, identity, task)?
+        }
+        None => compile_task_state(repo_path, &vault, task)?,
+    };
 
     let mut output = String::new();
     output.push_str(&format!("# Baron Context Bundle - {}\n\n", target.title()));
@@ -230,6 +245,21 @@ pub fn compile_context_for_operation(
         crate::operation::SupportedAdapter::Claude => ContextTarget::Claude,
     };
     compile_context_for_task(repo_path, vault_path, target, task)
+}
+
+/// Compile context using the complete ingress identity so Task State and all
+/// bounded context projections retain the same canonical task ID as Prepare.
+pub fn compile_context_for_lifecycle_identity(
+    repo_path: impl AsRef<Path>,
+    vault_path: impl AsRef<Path>,
+    identity: &LifecycleIdentity,
+    task: Option<&str>,
+) -> Result<String> {
+    let target = match identity.adapter() {
+        crate::operation::SupportedAdapter::Codex => ContextTarget::Codex,
+        crate::operation::SupportedAdapter::Claude => ContextTarget::Claude,
+    };
+    compile_context_for_task_with_identity(repo_path, vault_path, target, task, Some(identity))
 }
 
 fn render_review_gate(repo_path: &Path) -> String {

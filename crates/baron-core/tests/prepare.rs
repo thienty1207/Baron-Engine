@@ -3,10 +3,13 @@ use std::fs;
 use baron_core::config::{
     initialize_project, initialize_project_with_options, AdapterKind, ProjectPlatform,
 };
+use baron_core::operation::{LifecycleIdentity, SupportedAdapter};
 use baron_core::prepare::{
     decode_request, prepare, PrepareError, PrepareErrorCode, PrepareRequestV1,
     PREPARE_MAX_INPUT_BYTES,
 };
+use baron_core::task_state::compile_task_state_for_operation;
+use baron_core::vault::ensure_vault;
 use serde_json::json;
 use tempfile::tempdir;
 
@@ -150,4 +153,90 @@ fn prepare_v1_consumes_profile_aware_database_route() {
         .any(|skill| skill.name == "database-engineering"));
     assert!(packet.route.explanation.contains("schema-integrity"));
     assert!(packet.route.explanation.contains("work_shape="));
+}
+
+#[test]
+fn anonymous_prepare_resolves_and_returns_complete_identity() {
+    let (_temp, repo) = initialized_project(AdapterKind::Codex);
+    let first = prepare(
+        PrepareRequestV1 {
+            schema_version: 1,
+            task: "same logical task".into(),
+            session_id: None,
+            request_id: None,
+        },
+        "codex",
+        &repo,
+        None,
+    )
+    .unwrap();
+    let second = prepare(
+        PrepareRequestV1 {
+            schema_version: 1,
+            task: "same logical task".into(),
+            session_id: None,
+            request_id: None,
+        },
+        "codex",
+        &repo,
+        None,
+    )
+    .unwrap();
+    assert_eq!(first.task.id, second.task.id);
+    assert!(first.session_id.as_deref().is_some_and(|id| !id.is_empty()));
+    assert!(first.request_id.as_deref().is_some_and(|id| !id.is_empty()));
+    assert!(first
+        .operation_id
+        .as_deref()
+        .is_some_and(|id| !id.is_empty()));
+    assert_ne!(first.operation_id, second.operation_id);
+}
+
+#[test]
+fn prepare_task_id_matches_operation_task_state() {
+    let (temp, repo) = initialized_project(AdapterKind::Codex);
+    let vault = ensure_vault(&temp.path().join("Vault"), &repo).unwrap();
+    let packet = prepare(
+        PrepareRequestV1 {
+            schema_version: 1,
+            task: "  same task\r\nwith lines  ".into(),
+            session_id: Some("session-1".into()),
+            request_id: Some("request-1".into()),
+        },
+        "codex",
+        &repo,
+        None,
+    )
+    .unwrap();
+    let identity = LifecycleIdentity::resolve(
+        &packet.project_id,
+        "same task\nwith lines",
+        SupportedAdapter::Codex,
+        packet.session_id.as_deref(),
+        packet.request_id.as_deref(),
+    )
+    .unwrap();
+    let state =
+        compile_task_state_for_operation(&repo, &vault, &identity, Some("same task\nwith lines"))
+            .unwrap();
+    assert_eq!(packet.task.id, state.task_id);
+}
+
+#[test]
+fn prepare_rejects_unsafe_or_overlong_supplied_identity_before_writes() {
+    let (_temp, repo) = initialized_project(AdapterKind::Codex);
+    let error = prepare(
+        PrepareRequestV1 {
+            schema_version: 1,
+            task: "task".into(),
+            session_id: Some("bad\nvalue".into()),
+            request_id: Some("request-1".into()),
+        },
+        "codex",
+        &repo,
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, PrepareErrorCode::InvalidInput);
+    assert!(!repo.join("docs/baron/plans/CURRENT.md").exists());
 }

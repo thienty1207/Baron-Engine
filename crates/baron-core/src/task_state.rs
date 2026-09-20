@@ -2,14 +2,14 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::config::load_project_config;
 use crate::continuity::continuity_status;
 use crate::control_plane::route_task;
 use crate::intent::intent_status;
+use crate::operation::{canonical_task_text, task_id_for_task, LifecycleIdentity};
 use crate::plan::plan_status;
 use crate::proof::latest_proof;
 use crate::trace::latest_trace_score;
@@ -63,12 +63,53 @@ pub fn compile_task_state(
     vault: &VaultContext,
     task: Option<&str>,
 ) -> Result<TaskStateProjection> {
-    let repo_root = repo_root.as_ref();
     let task = task
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or("current repository state");
-    let task_id = task_id(&vault.project_id, task);
+    let task = canonical_task_text(task).map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let task_id = task_id_for_task(&vault.project_id, &task)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    compile_task_state_with_id(repo_root, vault, &task, task_id)
+}
+
+pub fn compile_task_state_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    identity: &LifecycleIdentity,
+    task: Option<&str>,
+) -> Result<TaskStateProjection> {
+    if identity.project_id() != vault.project_id {
+        bail!(
+            "lifecycle identity project `{}` does not match Vault project `{}`",
+            identity.project_id(),
+            vault.project_id
+        );
+    }
+    let task = task
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("current repository state");
+    let task = canonical_task_text(task).map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let expected_task_id = task_id_for_task(&vault.project_id, &task)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    if expected_task_id != identity.task_id() {
+        bail!(
+            "lifecycle identity task `{}` does not match canonical task `{}`",
+            identity.task_id(),
+            expected_task_id
+        );
+    }
+    compile_task_state_with_id(repo_root, vault, &task, identity.task_id().to_string())
+}
+
+fn compile_task_state_with_id(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    task: &str,
+    task_id: String,
+) -> Result<TaskStateProjection> {
+    let repo_root = repo_root.as_ref();
     let intent_source = intent_status(repo_root).unwrap_or_default();
     let plan_source = plan_status(repo_root).unwrap_or_default();
     let continuity_source = continuity_status(repo_root, vault).unwrap_or_default();
@@ -388,20 +429,6 @@ pub fn render_task_state(state: &TaskStateProjection, max_chars: usize) -> Strin
         );
     }
     output
-}
-
-fn task_id(project_id: &str, task: &str) -> String {
-    let mut digest = Sha256::new();
-    digest.update(project_id.as_bytes());
-    digest.update([0]);
-    digest.update(task.as_bytes());
-    let digest = digest.finalize();
-    let suffix = digest
-        .iter()
-        .take(10)
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    format!("task-{suffix}")
 }
 
 fn bounded(value: &str) -> String {
