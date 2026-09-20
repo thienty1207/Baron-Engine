@@ -1,6 +1,24 @@
 # Current Build Note
 
-## Baron 5.0.1 Stabilization - SPEC-01 (2026-09-20)
+## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
+
+- Current task: implement the canonical Operation Identity & Lifecycle Wiring
+  contract from SPEC-02 on top of the pushed SPEC-01 baseline `adccb6e`.
+- Checkpoint: SPEC-01 is closed. The dedicated branch is
+  `codex/spec-02-operation-identity`; the plan and SDD ledger are active.
+- Proof status: baseline focused Core lifecycle targets are available; the
+  full workspace baseline carries only the known PowerShell archive-module
+  blocker and the existing `session_replay` UTF-8 boundary panic.
+- Trace status: no SPEC-02 production commit yet; public version remains
+  `5.0.0`, with no tag or release action.
+- Persisted-state boundary: new identity tests, Core/CLI lifecycle wiring, and
+  maintained status/plan/build-log docs only; user project/Vault data and
+  unrelated untracked files remain untouched.
+- Safe next action: write RED tests first, then implement ingress identity
+  resolution, Task State parity, native-hook parity, and atomic CLI plan
+  binding.
+
+## Baron 5.0.1 Stabilization - SPEC-01 (closed, 2026-09-20)
 
 - Current task: align the optional Baron Graphify provider with real Graphify
   `0.9.25` without changing the public version or any Hotel Staff files.

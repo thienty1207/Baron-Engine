@@ -1,5 +1,24 @@
 # Baron Build Status
 
+## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
+
+- Status: `implementation in progress`; SPEC-01 Graphify Provider Contract is
+  closed on the pushed `adccb6e` baseline.
+- Scope: one validated lifecycle identity; complete Prepare ingress identity;
+  one canonical task-ID algorithm; operation-ID isolation; Task State parity;
+  Codex/Claude hook parity; and operation-bound CLI plan creation.
+- Baseline branch: `codex/spec-02-operation-identity`, based on
+  `codex/spec-01-graphify-provider-contract` at `adccb6e`.
+- Constraints: public version remains `5.0.0`; no schema bump, tag, release,
+  Hotel Staff change, SPEC-03, or SPEC-04 work.
+- Known unrelated blockers carried forward: unavailable
+  `Microsoft.PowerShell.Archive` on the host and the existing
+  `session_replay` UTF-8 boundary panic.
+- Active plan:
+  `docs/superpowers/plans/2026-09-20-operation-identity-lifecycle-wiring.md`.
+- Next action: complete the RED/GREEN implementation and run the required
+  focused plus full verification matrix.
+
 ## Codex + Claude Core Consolidation - Phase 16
 
 ### Phase 16 final release (2026-09-09)
@@ -49,9 +68,9 @@
   release evidence.
 - Current next action: normal Baron `5.0.0` maintenance.
 
-## Baron 5.0.1 Stabilization - SPEC-01 Graphify Provider Contract (2026-09-20)
+## Baron 5.0.1 Stabilization - SPEC-01 Graphify Provider Contract (closed, 2026-09-20)
 
-- Status: `final review fix implemented; unrelated verification blockers remain`; the
+- Status: `closed; final review fix implemented; unrelated verification blockers remain`; the
   public/stable release remains `5.0.0` and no version bump or release action
   is part of this SPEC.
 - Baseline: Baron v5.0.0 at release commit

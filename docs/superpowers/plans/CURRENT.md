@@ -1,9 +1,28 @@
 # Current Baron Build Plan
 
-## Baron 5.0.1 Stabilization - SPEC-01 (2026-09-20)
+## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
+
+- Active spec: Operation Identity & Lifecycle Wiring.
+- Status: `implementation in progress`; the source/public version remains
+  `5.0.0` and no release, tag, or version bump is authorized by this work.
+- Baseline: completed SPEC-01 branch HEAD `adccb6e`; work is isolated on
+  `codex/spec-02-operation-identity`.
+- Scope: introduce one validated lifecycle identity, resolve missing Prepare
+  IDs once at ingress, unify task identity with Task State, preserve Codex and
+  Claude native-hook parity, and require complete identity for supported CLI
+  plan creation.
+- Known unrelated verification blockers carried forward: the host cannot load
+  `Microsoft.PowerShell.Archive`, and `session_replay` has an existing UTF-8
+  boundary panic. Neither is part of SPEC-02.
+- Active plan:
+  `docs/superpowers/plans/2026-09-20-operation-identity-lifecycle-wiring.md`.
+- Safe next action: finish RED/GREEN identity, Prepare, hook, and CLI plan
+  tests, then run the full acceptance matrix without changing release state.
+
+## Baron 5.0.1 Stabilization - SPEC-01 (closed, 2026-09-20)
 
 - Active spec: Graphify Provider Contract Stabilization.
-- Status: `final review fix implemented; unrelated verification blockers remain`;
+- Status: `closed; final review fix implemented; unrelated verification blockers remain`;
   the source/public version remains `5.0.0` and no release, tag, or version
   bump is authorized by this work. The user has explicitly authorized the
   SPEC-01 branch commit and push after verification.
