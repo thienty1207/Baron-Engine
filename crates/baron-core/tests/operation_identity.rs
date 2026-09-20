@@ -75,7 +75,7 @@ fn identity_validation_rejects_unsafe_and_overlong_authority_fields() {
         "task-1",
         "operation-1",
         SupportedAdapter::Codex,
-        &"x".repeat(MAX_IDENTIFIER_CHARS + 1),
+        "x".repeat(MAX_IDENTIFIER_CHARS + 1),
         "request-1",
     )
     .is_err());
@@ -103,4 +103,21 @@ fn resolving_anonymous_identity_generates_distinct_operations() {
     assert_ne!(first.operation_id(), second.operation_id());
     assert_ne!(first.session_id(), second.session_id());
     assert_ne!(first.request_id(), second.request_id());
+}
+
+#[test]
+fn resolving_blank_optional_ids_synthesizes_safe_values() {
+    let identity = LifecycleIdentity::resolve(
+        "project-1",
+        "same task",
+        SupportedAdapter::Claude,
+        Some("  "),
+        Some("\r\n"),
+    )
+    .unwrap();
+
+    assert!(identity.session_id().starts_with("baron-session_id-"));
+    assert!(identity.request_id().starts_with("baron-request_id-"));
+    assert!(!identity.session_id().chars().any(char::is_control));
+    assert!(!identity.request_id().chars().any(char::is_control));
 }

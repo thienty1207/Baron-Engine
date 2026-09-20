@@ -364,6 +364,11 @@ fn child_events_record_bounded_evidence_without_parent_lifecycle_mutation() {
     .unwrap();
     let value = json(&response);
     assert_eq!(value["baron"]["child"], true);
+    assert_eq!(value["baron"]["session_id"], "child-session");
+    assert_eq!(value["baron"]["request_id"], "child-request");
+    assert!(value["baron"]["operation_id"]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
     assert!(value["hookSpecificOutput"].is_null());
     assert!(!continuity.exists());
     let content = journal(&vault);
@@ -396,6 +401,11 @@ fn recursion_guard_does_not_enter_core_lifecycle() {
     .unwrap();
     let value = json(&response);
     assert_eq!(value["baron"]["recursion_guard"], true);
+    assert_eq!(value["baron"]["session_id"], "recursive");
+    assert_eq!(value["baron"]["request_id"], "recursive-1");
+    assert!(value["baron"]["operation_id"]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
     assert_eq!(journal(&vault), "");
     assert!(!repo.join("docs/baron/continuity/CURRENT.md").exists());
 }

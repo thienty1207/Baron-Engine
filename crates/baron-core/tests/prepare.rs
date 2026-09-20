@@ -195,7 +195,7 @@ fn anonymous_prepare_resolves_and_returns_complete_identity() {
 #[test]
 fn prepare_task_id_matches_operation_task_state() {
     let (temp, repo) = initialized_project(AdapterKind::Codex);
-    let vault = ensure_vault(&temp.path().join("Vault"), &repo).unwrap();
+    let vault = ensure_vault(temp.path().join("Vault"), &repo).unwrap();
     let packet = prepare(
         PrepareRequestV1 {
             schema_version: 1,

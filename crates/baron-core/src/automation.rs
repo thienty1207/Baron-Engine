@@ -301,17 +301,19 @@ pub fn handle_hook(
     let event_key = key.stable_id();
 
     if recursion_depth(&payload) > 0 {
+        let mut metadata = hook_metadata(
+            vault,
+            adapter,
+            event_kind,
+            &event_key,
+            &task_id,
+            identity.as_ref(),
+            is_child,
+        );
+        metadata["recursion_guard"] = json!(true);
         return Ok(serde_json::to_string(&json!({
             "continue": true,
-            "baron": {
-                "project_id": vault.project_id,
-                "adapter": adapter_name(adapter),
-                "event": event_kind,
-                "event_key": event_key,
-                "task_id": task_id,
-                "recursion_guard": true,
-                "child": is_child
-            }
+            "baron": metadata
         }))?);
     }
 
@@ -320,17 +322,19 @@ pub fn handle_hook(
     {
         let mut active = active.lock().unwrap_or_else(|poison| poison.into_inner());
         if !active.insert(event_key.clone()) {
+            let mut metadata = hook_metadata(
+                vault,
+                adapter,
+                event_kind,
+                &event_key,
+                &task_id,
+                identity.as_ref(),
+                is_child,
+            );
+            metadata["recursion_guard"] = json!(true);
             return Ok(serde_json::to_string(&json!({
                 "continue": true,
-                "baron": {
-                    "project_id": vault.project_id,
-                    "adapter": adapter_name(adapter),
-                    "event": event_kind,
-                    "event_key": event_key,
-                    "task_id": task_id,
-                    "recursion_guard": true,
-                    "child": is_child
-                }
+                "baron": metadata
             }))?);
         }
     }
@@ -361,17 +365,19 @@ pub fn handle_hook(
 
     let response_value = if is_child {
         append_journal_locked(vault, &entry)?;
+        let mut metadata = hook_metadata(
+            vault,
+            adapter,
+            event_kind,
+            &event_key,
+            &task_id,
+            identity.as_ref(),
+            true,
+        );
+        metadata["evidence_recorded"] = json!(entry.evidence.is_some());
         json!({
             "continue": true,
-            "baron": {
-                "project_id": vault.project_id,
-                "adapter": adapter_name(adapter),
-                "event": event_kind,
-                "event_key": event_key,
-                "task_id": task_id,
-                "child": true,
-                "evidence_recorded": entry.evidence.is_some()
-            }
+            "baron": metadata
         })
     } else {
         match event {
