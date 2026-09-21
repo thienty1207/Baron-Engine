@@ -3,9 +3,13 @@ use std::time::Duration;
 
 #[cfg(windows)]
 use baron_core::execution_receipt::{
-    execute_command, execute_command_with_context, load_receipts, load_verified_receipt,
+    execute_command, execute_command_for_identity, load_receipts, load_verified_receipt,
     receipt_is_current, ExecutionRequest, ExecutionResult, ReceiptContext,
 };
+#[cfg(windows)]
+use baron_core::identity::project_id_for_path;
+#[cfg(windows)]
+use baron_core::operation::{LifecycleIdentity, SupportedAdapter};
 
 #[cfg(windows)]
 #[test]
@@ -33,15 +37,16 @@ fn trusted_runner_records_current_passing_receipt() {
 #[test]
 fn authoritative_receipt_is_signed_schema_v2_and_verifiable_after_reload() {
     let temp = tempfile::tempdir().unwrap();
-    let binding = ReceiptContext::new(
-        "task-receipt",
-        "operation-receipt",
-        "codex",
-        "session-receipt",
-        "request-receipt",
-        "proof",
+    let identity = LifecycleIdentity::resolve(
+        &project_id_for_path(temp.path()).unwrap(),
+        "receipt fixture",
+        SupportedAdapter::Codex,
+        Some("session-receipt"),
+        Some("request-receipt"),
     );
-    let receipt = execute_command_with_context(
+    let identity = identity.unwrap();
+    let binding = ReceiptContext::for_identity(&identity, "proof").unwrap();
+    let receipt = execute_command_for_identity(
         ExecutionRequest {
             capability: "test".to_string(),
             provider: "cmd".to_string(),
@@ -50,7 +55,8 @@ fn authoritative_receipt_is_signed_schema_v2_and_verifiable_after_reload() {
             working_directory: temp.path().to_path_buf(),
             timeout: Duration::from_secs(5),
         },
-        binding,
+        &identity,
+        &binding.gate_kind,
     )
     .unwrap();
     assert_eq!(receipt.schema_version, 2);

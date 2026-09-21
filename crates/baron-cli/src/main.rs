@@ -59,7 +59,7 @@ use baron_core::evaluation42::{
     freeze_contract42, run_acceptance42, run_benchmark42, run_holdout42, write_phase88_audit,
 };
 use baron_core::execution_receipt::{
-    execute_command_with_context, ExecutionRequest, ExecutionResult, ReceiptContext,
+    execute_command_for_identity, ExecutionRequest, ExecutionResult, ReceiptContext,
 };
 use baron_core::firewall::{compact_memory_brief, render_recall, trusted_recall_current};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
@@ -2957,8 +2957,7 @@ fn run() -> Result<()> {
                     Some(&request_id),
                 )
                 .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-                let binding = ReceiptContext::for_identity(&identity, "proof")?;
-                let receipt = execute_command_with_context(
+                let receipt = execute_command_for_identity(
                     ExecutionRequest {
                         capability,
                         provider,
@@ -2967,7 +2966,8 @@ fn run() -> Result<()> {
                         working_directory: repo_root,
                         timeout: std::time::Duration::from_secs(timeout_seconds),
                     },
-                    binding,
+                    &identity,
+                    "proof",
                 )?;
                 println!("# Baron Trusted Execution\n");
                 println!("- Receipt: `{}`", receipt.receipt_id);

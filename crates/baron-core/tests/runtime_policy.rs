@@ -8,9 +8,10 @@ use baron_core::capability::{
 };
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::execution_receipt::{
-    execute_command_with_context, ExecutionRequest, ReceiptContext,
+    execute_command_for_identity, ExecutionRequest, ReceiptContext,
 };
-use baron_core::operation::{OperationContext, SupportedAdapter};
+use baron_core::identity::project_id_for_path;
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use tempfile::tempdir;
 
 fn provider(name: &str, capability: &str, command: &str, required: bool) -> CapabilityProvider {
@@ -173,7 +174,16 @@ fn runtime_report_requires_the_exact_current_operation_receipt() {
     let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
     #[cfg(not(windows))]
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
-    execute_command_with_context(
+    let identity = LifecycleIdentity::resolve(
+        &project_id_for_path(&repo).unwrap(),
+        "runtime execution evidence",
+        SupportedAdapter::Codex,
+        Some("runtime-session"),
+        Some("runtime-request"),
+    )
+    .unwrap();
+    let binding = ReceiptContext::for_identity(&identity, "capability_execution").unwrap();
+    execute_command_for_identity(
         ExecutionRequest {
             capability: "test-suite".to_string(),
             provider: "test-runner".to_string(),
@@ -182,22 +192,12 @@ fn runtime_report_requires_the_exact_current_operation_receipt() {
             working_directory: repo.clone(),
             timeout: Duration::from_secs(5),
         },
-        ReceiptContext::new(
-            "task-a",
-            "operation-a",
-            "codex",
-            "session-a",
-            "request-a",
-            "capability_execution",
-        ),
+        &identity,
+        &binding.gate_kind,
     )
     .unwrap();
 
-    let operation_a = OperationContext::new(SupportedAdapter::Codex)
-        .with_task_id("task-a")
-        .with_operation_id("operation-a")
-        .with_session_id("session-a")
-        .with_request_id("request-a");
+    let operation_a = OperationContext::from_identity(&identity);
     let report_a = runtime_backend_report_for_operation(&repo, &operation_a).unwrap();
     assert_eq!(report_a.providers[0].execution_evidence, Presence::Present);
     assert!(report_a.passed);

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{load_project_config, AdapterKind, ConfiguredAdapter};
 use crate::execution_receipt::{
-    load_verified_receipts, receipt_matches_verified_context, ReceiptContext,
+    load_verified_receipts_strict, receipt_matches_verified_context, ReceiptContext,
     VerifiedExecutionReceipt,
 };
 use crate::operation::OperationContext;
@@ -444,7 +444,7 @@ fn evaluate_execution_evidence_internal(
         .filter(|provider| provider.requirement == Requirement::Required)
         .map(|provider| provider.capability.clone())
         .collect::<BTreeSet<_>>();
-    let receipts = load_verified_receipts(repo_root)?;
+    let receipts = load_verified_receipts_strict(repo_root)?;
     let mut gaps = Vec::new();
     for capability in required_capabilities {
         let present_providers = matching_state
@@ -609,7 +609,7 @@ fn runtime_backend_report_internal(
         .as_ref()
         .filter(|state| state.adapter.supported() == Some(adapter));
     let _runtime_evidence = load_runtime_execution(repo_root)?;
-    let receipts = load_verified_receipts(repo_root)?;
+    let receipts = load_verified_receipts_strict(repo_root)?;
     let mut providers = Vec::new();
     let mut blocking_gaps = Vec::new();
     let mut warnings = Vec::new();

@@ -454,6 +454,34 @@ pub fn resolve_vault_path_for_repo(
         })
 }
 
+/// Returns a configured Vault path when one is already available without
+/// creating or inventing project state. Receipt authority uses this optional
+/// value only to enforce the machine-root boundary.
+pub fn configured_vault_path_if_available(repo_root: impl AsRef<Path>) -> Result<Option<PathBuf>> {
+    if let Ok(path) = std::env::var("BARON_VAULT") {
+        if !path.trim().is_empty() {
+            return Ok(Some(PathBuf::from(path)));
+        }
+    }
+
+    let repo_root = repo_root.as_ref();
+    let local_path = repo_root.join(LOCAL_CONFIG_PATH);
+    if read_bytes(&local_path)?.is_some() {
+        let vault_path = load_local_config(repo_root)?.vault_path;
+        return Ok(Some(if vault_path.is_absolute() {
+            vault_path
+        } else {
+            repo_root.join(vault_path)
+        }));
+    }
+
+    let machine_path = machine_config_path()?;
+    if read_bytes(&machine_path)?.is_some() {
+        return Ok(Some(load_machine_config()?.default_vault_path));
+    }
+    Ok(None)
+}
+
 pub fn load_project_from(start_path: impl AsRef<Path>) -> Result<(PathBuf, ProjectConfig)> {
     let root = find_project_root(start_path)?;
     let config = load_project_config(&root)?;

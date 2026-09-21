@@ -1,35 +1,43 @@
 # Current Build Note
 
-## SPEC-03 Trusted Execution Receipt Architecture — implementation checkpoint (2026-09-20)
+## SPEC-03 Trusted Execution Receipt Architecture — final review-fix checkpoint (2026-09-21)
 
-- Current task: replace process-local receipt authority with a machine-local,
-  cross-process Ed25519 authority while binding CLI proof execution to the
-  SPEC-02 lifecycle identity.
+- Current task: close the SPEC-03 final-review findings for machine authority
+  scope, canonical lifecycle identity, first-start seed activation, strict bulk
+  verification, and deterministic multiprocess proof.
 - Checkpoint: branch
   `codex/spec-03-trusted-receipt-architecture`, based on
   `3a52668b2fba53de3579b2f3ae77fcc848e759be`; public version remains `5.0.0`.
-- Proof status: schema-v2 receipts carry an Ed25519 key ID/signature over a
-  deterministic payload and complete operation/gate identity. Raw JSONL is
-  diagnostic; `load_verified_receipt(s)` is the authority boundary. Key loss
-  or rotation demotes old records to diagnostic history.
-- Persistence status: seed creation is atomic and race-safe under the machine
-  authority root; receipt writes acquire the existing project lock only after
-  child completion, then use safe append with flush/sync. Receipt IDs are
-  128-bit OS-random values and duplicate IDs fail closed.
-- Test status: eight separate child writers plus a separate verifier prove
-  lossless multiprocess append and one shared key. CLI process A/B proof flow
-  passes with exact binding; tamper, stale source, foreign key, wrong identity,
-  wrong gate, duplicate, schema-v1, and unsafe filesystem cases reject.
-- Trace status: implementation trace is complete for SPEC-03, but external
-  adversarial review is still required. SPEC-03 is not closed.
-- Verification blockers: the host cannot load `Microsoft.PowerShell.Archive`
-  for three installer lifecycle tests; one `prepare_cli` fixture reaches the
-  existing `session_replay` UTF-8 boundary panic. These are unrelated and were
-  not modified.
-- Safe next action: push the exact implementation branch once, preserve the
-  user-owned untracked files, and wait for separate adversarial review before
-  closure. Do not release, tag, bump the version, modify Hotel Staff, or start
-  SPEC-04.
+- Proof status: only typed `LifecycleIdentity` execution emits schema-v2
+  authority. Raw JSONL, compatibility contexts, and provenance labels remain
+  diagnostic; strict consumers fail on invalid schema-v2 authority records.
+- Persistence status: canonical external authority scope rejects repo/Vault and
+  link/reparse containment before creation. A complete staged seed is activated
+  with no-replace hard-link semantics and parent sync; receipt writes retain the
+  existing project lock and safe append durability.
+- Test status: eight separate child writers cross a ready/release barrier before
+  first authority creation and a separate verifier proves one shared key. CLI
+  process A/B proof flow passes with exact binding; forged operation IDs,
+  tampered records, stale source, foreign key, wrong identity, wrong gate,
+  duplicate, schema-v1 diagnostic, partial-seed, and unsafe-root cases reject.
+- Trace status: implementation trace and the separate adversarial self-review
+  are complete for SPEC-03. The raw/strict/diagnostic boundary, canonical
+  operation-ID check, external Vault alias boundary, no-replace seed
+  activation, and deterministic first-start barrier are classified PASS; no
+  SPEC-03-owned BUG or WARNING remains. No reviewer/subagent tool was
+  available in this session.
+- Verification: formatter, warnings-denied Clippy, locked release build,
+  focused forged-operation/boundary unit tests, proof trace, and runtime-policy
+  tests pass. Focused receipt/authority/multiprocess/proof/plan/CLI suites
+  passed where the host allowed their binaries to execute. The full workspace
+  also exposes the unrelated `Microsoft.PowerShell.Archive` installer blocker,
+  the existing `session_replay` UTF-8 boundary panic, and intermittent Windows
+  Application Control blocks before some test/version binaries start
+  (`os error 4551`).
+- Safe next action: stage exact intended files, commit and push the review-fix
+  branch once, preserve the user-owned untracked files, and then return to
+  normal Baron 5.0.0 maintenance. Do not release, tag, bump the version,
+  modify Hotel Staff, or start SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 

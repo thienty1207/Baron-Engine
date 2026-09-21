@@ -8,11 +8,11 @@ use baron_core::capability::{
 };
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::execution_receipt::{
-    execute_command_with_context, ExecutionRequest, ReceiptContext,
+    execute_command_for_identity, ExecutionRequest, ReceiptContext,
 };
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
-use baron_core::operation::{OperationContext, SupportedAdapter};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities_for_operation};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome, TraceTier};
 use baron_core::vault::ensure_vault;
@@ -334,15 +334,16 @@ fn structured_execution_evidence_satisfies_present_required_capability() {
     let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
     #[cfg(not(windows))]
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
-    let binding = ReceiptContext::new(
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
         "task-proof",
-        "operation-proof",
-        "codex",
-        "session-proof",
-        "request-proof",
-        "capability_execution",
-    );
-    let receipt = execute_command_with_context(
+        SupportedAdapter::Codex,
+        Some("session-proof"),
+        Some("request-proof"),
+    )
+    .unwrap();
+    let binding = ReceiptContext::for_identity(&identity, "capability_execution").unwrap();
+    let receipt = execute_command_for_identity(
         ExecutionRequest {
             capability: "source-control".to_string(),
             provider: "git-cli".to_string(),
@@ -351,7 +352,8 @@ fn structured_execution_evidence_satisfies_present_required_capability() {
             working_directory: repo.clone(),
             timeout: Duration::from_secs(5),
         },
-        binding.clone(),
+        &identity,
+        &binding.gate_kind,
     )
     .unwrap();
     let proof = record_proof_with_capabilities_for_operation(

@@ -9,8 +9,9 @@ use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::config::configured_vault_path_if_available;
 use crate::identity::project_id_for_path;
-use crate::operation::LifecycleIdentity;
+use crate::operation::{operation_id_for_parts, LifecycleIdentity, SupportedAdapter};
 use crate::receipt_authority::{hex_encode, ReceiptAuthority};
 use crate::safe_io::{acquire_project_lock, append_text, read_text};
 
@@ -32,7 +33,11 @@ pub enum ExecutionResult {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReceiptProvenance {
+    /// Legacy serialized issuance metadata. It is diagnostic context only;
+    /// signature verification, canonical identity, and freshness establish
+    /// authority instead.
     TrustedCurrentOperation,
+    /// Explicitly diagnostic persisted metadata.
     #[default]
     PersistedDiagnostic,
 }
@@ -118,8 +123,8 @@ pub struct ExecutionReceipt {
     pub stderr_excerpt: String,
     pub artifact_digests: Vec<String>,
     /// The operation binding is optional only for legacy generic executions.
-    /// A gate-authoritative receipt must carry every field and be produced by
-    /// `execute_command_with_context` in the current process.
+    /// A gate-authoritative receipt carries every field and is produced only
+    /// through the typed [`LifecycleIdentity`] boundary.
     #[serde(default)]
     pub task_id: Option<String>,
     #[serde(default)]
@@ -132,6 +137,8 @@ pub struct ExecutionReceipt {
     pub request_id: Option<String>,
     #[serde(default)]
     pub gate_kind: Option<String>,
+    /// Issuance metadata retained for compatibility; never an authority
+    /// decision by itself.
     #[serde(default)]
     pub provenance: ReceiptProvenance,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -171,7 +178,7 @@ pub struct ExecutionRequest {
 }
 
 pub fn execute_command(request: ExecutionRequest) -> Result<ExecutionReceipt> {
-    execute_command_internal(request, None)
+    execute_command_internal(request, None, None)
 }
 
 pub fn execute_command_with_context(
@@ -179,18 +186,47 @@ pub fn execute_command_with_context(
     context: ReceiptContext,
 ) -> Result<ExecutionReceipt> {
     context.validate()?;
-    execute_command_internal(request, Some(context))
+    // This compatibility API intentionally remains diagnostic. A free-form
+    // context cannot prove that task_id came from canonical task text, so it
+    // must never mint a schema-v2 authority receipt.
+    execute_command_internal(request, Some(context), None)
+}
+
+/// Execute one command with the canonical lifecycle identity resolved at the
+/// authority-bearing ingress. Only this typed path can create a schema-v2
+/// signed receipt.
+pub fn execute_command_for_identity(
+    request: ExecutionRequest,
+    identity: &LifecycleIdentity,
+    gate_kind: &str,
+) -> Result<ExecutionReceipt> {
+    validate_request(&request)?;
+    let repo_root = request.working_directory.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve execution working directory: {}",
+            request.working_directory.display()
+        )
+    })?;
+    if !repo_root.is_dir() {
+        bail!("Execution working directory is not a directory");
+    }
+    let project_id = project_id_for_path(&repo_root)?;
+    if identity.project_id() != project_id {
+        bail!("Lifecycle identity project ID does not match the execution repository");
+    }
+    let context = ReceiptContext::for_identity(identity, gate_kind)?;
+    let vault_root = configured_vault_path_if_available(&repo_root)?;
+    let authority =
+        ReceiptAuthority::load_or_create_for_project(&repo_root, vault_root.as_deref())?;
+    execute_command_internal(request, Some(context), Some(authority))
 }
 
 fn execute_command_internal(
     request: ExecutionRequest,
     context: Option<ReceiptContext>,
+    authority: Option<ReceiptAuthority>,
 ) -> Result<ExecutionReceipt> {
     validate_request(&request)?;
-    let authority = context
-        .as_ref()
-        .map(|_| ReceiptAuthority::load_or_create())
-        .transpose()?;
     let repo_root = request.working_directory.canonicalize().with_context(|| {
         format!(
             "Could not resolve execution working directory: {}",
@@ -251,7 +287,7 @@ fn execute_command_internal(
     };
     let exit_code = status.and_then(|value| value.code());
     let mut receipt = ExecutionReceipt {
-        schema_version: if context.is_some() {
+        schema_version: if authority.is_some() {
             RECEIPT_SCHEMA_V2
         } else {
             RECEIPT_SCHEMA_V1
@@ -279,7 +315,7 @@ fn execute_command_internal(
         session_id: context.as_ref().map(|value| value.session_id.clone()),
         request_id: context.as_ref().map(|value| value.request_id.clone()),
         gate_kind: context.as_ref().map(|value| value.gate_kind.clone()),
-        provenance: if context.is_some() {
+        provenance: if authority.is_some() {
             ReceiptProvenance::TrustedCurrentOperation
         } else {
             ReceiptProvenance::PersistedDiagnostic
@@ -337,10 +373,10 @@ pub fn load_verified_receipt(
     verify_receipt_authority(repo_root, &receipt)
 }
 
-/// Loads only receipts that can become current authority. Historical or
-/// invalid records remain available through [`load_receipts`] as diagnostics
-/// and are skipped here rather than promoted.
-pub fn load_verified_receipts(
+/// Loads receipts that pass the authority verifier for diagnostic reporting.
+/// Invalid records are intentionally skipped and must never be used by a
+/// correctness consumer.
+pub fn load_valid_receipts_for_diagnostics(
     repo_root: impl AsRef<Path>,
 ) -> Result<Vec<VerifiedExecutionReceipt>> {
     let repo_root = repo_root.as_ref();
@@ -351,10 +387,43 @@ pub fn load_verified_receipts(
     Ok(verified)
 }
 
+/// Compatibility alias for the historical bulk API. It remains diagnostic
+/// filtering only; correctness-sensitive callers must use
+/// [`load_verified_receipts_strict`].
+#[deprecated(
+    note = "use load_verified_receipts_strict for authority or load_valid_receipts_for_diagnostics for diagnostics"
+)]
+pub fn load_verified_receipts(
+    repo_root: impl AsRef<Path>,
+) -> Result<Vec<VerifiedExecutionReceipt>> {
+    load_valid_receipts_for_diagnostics(repo_root)
+}
+
+/// Loads every schema-v2 persisted receipt as authority evidence. Known
+/// schema-v1 diagnostic records are ignored, but unlike the diagnostic loader,
+/// one invalid schema-v2 record fails the whole operation so callers cannot
+/// silently hide corruption.
+pub fn load_verified_receipts_strict(
+    repo_root: impl AsRef<Path>,
+) -> Result<Vec<VerifiedExecutionReceipt>> {
+    let repo_root = repo_root.as_ref();
+    load_receipts(repo_root)?
+        .into_iter()
+        .filter(|receipt| receipt.schema_version != RECEIPT_SCHEMA_V1)
+        .map(|receipt| verify_receipt_authority(repo_root, &receipt))
+        .collect()
+}
+
 pub fn verify_receipt_authority(
     repo_root: impl AsRef<Path>,
     receipt: &ExecutionReceipt,
 ) -> Result<VerifiedExecutionReceipt> {
+    let repo_root = repo_root.as_ref().canonicalize().with_context(|| {
+        format!(
+            "Could not resolve execution repository for receipt verification: {}",
+            repo_root.as_ref().display()
+        )
+    })?;
     if receipt.schema_version != RECEIPT_SCHEMA_V2 {
         bail!(
             "execution receipt schema {} is diagnostic-only; schema v2 is required for authority",
@@ -371,7 +440,14 @@ pub fn verify_receipt_authority(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
         .context("authoritative receipt signature is missing")?;
-    ReceiptAuthority::verify(key_id, signature, &canonical_receipt_bytes(receipt)?)?;
+    let vault_root = configured_vault_path_if_available(&repo_root)?;
+    ReceiptAuthority::verify_for_project(
+        &repo_root,
+        vault_root.as_deref(),
+        key_id,
+        signature,
+        &canonical_receipt_bytes(receipt)?,
+    )?;
     if receipt_integrity(receipt)? != receipt.integrity_digest {
         bail!(
             "Execution receipt integrity check failed for {}",
@@ -380,7 +456,19 @@ pub fn verify_receipt_authority(
     }
     let context = authoritative_context(receipt)?;
     context.validate()?;
-    if !receipt_is_current(repo_root, receipt)? {
+    let adapter = SupportedAdapter::parse(&context.adapter)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let expected_operation = operation_id_for_parts(
+        &receipt.project_id,
+        &context.task_id,
+        adapter,
+        &context.session_id,
+        &context.request_id,
+    );
+    if receipt.operation_id.as_deref() != Some(expected_operation.as_str()) {
+        bail!("authoritative receipt operation ID does not match the canonical operation ID");
+    }
+    if !receipt_is_current(&repo_root, receipt)? {
         bail!(
             "Execution receipt `{}` is stale, failed, or bound to another project",
             receipt.receipt_id
@@ -398,10 +486,9 @@ pub fn receipt_is_current(repo_root: impl AsRef<Path>, receipt: &ExecutionReceip
         && receipt_integrity(receipt)? == receipt.integrity_digest)
 }
 
-/// A receipt is gate-authoritative only while the trusted runner that created
-/// it is still the current Baron operation. Persisted JSONL records are
-/// intentionally diagnostic after process restart; their unkeyed integrity
-/// digest cannot establish authenticity.
+/// A receipt remains gate-authoritative across process boundaries when its
+/// machine-local signature, exact lifecycle binding, freshness, and project
+/// scope all verify. The unkeyed integrity digest alone is diagnostic only.
 pub fn receipt_is_current_authority(
     repo_root: impl AsRef<Path>,
     receipt: &ExecutionReceipt,
@@ -718,4 +805,73 @@ fn redact(value: &str) -> String {
 
 fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Millis, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity::project_id_for_path;
+    use crate::operation::SupportedAdapter;
+    use std::env;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn valid_signature_with_forged_operation_id_is_rejected() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let machine_home = temp.path().join("machine-home");
+        fs::create_dir_all(&repo).unwrap();
+        let previous_home = env::var_os("BARON_HOME");
+        let previous_vault = env::var_os("BARON_VAULT");
+        env::set_var("BARON_HOME", &machine_home);
+        env::remove_var("BARON_VAULT");
+
+        let project_id = project_id_for_path(&repo).unwrap();
+        let identity = LifecycleIdentity::resolve(
+            &project_id,
+            "canonical operation fixture",
+            SupportedAdapter::Codex,
+            Some("session-forged-operation"),
+            Some("request-forged-operation"),
+        )
+        .unwrap();
+        let request = ExecutionRequest {
+            capability: "security-review".to_string(),
+            provider: "trusted-runner".to_string(),
+            executable: if cfg!(windows) {
+                "cmd".to_string()
+            } else {
+                "sh".to_string()
+            },
+            arguments: if cfg!(windows) {
+                vec!["/C".to_string(), "exit 0".to_string()]
+            } else {
+                vec!["-c".to_string(), "exit 0".to_string()]
+            },
+            working_directory: repo.clone(),
+            timeout: Duration::from_secs(5),
+        };
+        let receipt = execute_command_for_identity(request, &identity, "proof").unwrap();
+        let authority = ReceiptAuthority::load_existing_for_project(&repo, None).unwrap();
+        let mut forged = receipt;
+        forged.operation_id = Some("operation-forged-but-signed".to_string());
+        forged.authority_signature =
+            Some(authority.sign(&canonical_receipt_bytes(&forged).unwrap()));
+        forged.integrity_digest = receipt_integrity(&forged).unwrap();
+
+        let error = verify_receipt_authority(&repo, &forged)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("canonical operation ID"), "{error}");
+
+        match previous_home {
+            Some(value) => env::set_var("BARON_HOME", value),
+            None => env::remove_var("BARON_HOME"),
+        }
+        match previous_vault {
+            Some(value) => env::set_var("BARON_VAULT", value),
+            None => env::remove_var("BARON_VAULT"),
+        }
+    }
 }

@@ -526,6 +526,68 @@ fn proof_execute_blank_identity_fails_before_child_side_effect() {
 }
 
 #[test]
+fn proof_execute_rejects_repository_local_authority_before_child_side_effect() {
+    let (_temp, repo, _vault) = init_project();
+    let sentinel = repo.join("repo-local-authority-sentinel.txt");
+    let repo_local_home = repo.join(".baron/machine-home");
+    #[cfg(windows)]
+    let (command, arguments) = (
+        "cmd",
+        vec!["/C".to_string(), format!("echo ran>{}", sentinel.display())],
+    );
+    #[cfg(not(windows))]
+    let (command, arguments) = (
+        "sh",
+        vec![
+            "-c".to_string(),
+            format!("printf ran > '{}'", sentinel.display()),
+        ],
+    );
+    let mut args = vec![
+        "proof",
+        "execute",
+        "--capability",
+        "test",
+        "--provider",
+        "trusted-runner",
+        "--task",
+        "repository local authority boundary",
+        "--adapter",
+        "codex",
+        "--session-id",
+        "repo-local-session",
+        "--request-id",
+        "repo-local-request",
+        command,
+        "--",
+    ];
+    args.extend(arguments.iter().map(String::as_str));
+
+    let output = Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .env("BARON_HOME", &repo_local_home)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "unexpected success\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("outside the repository boundary"),
+        "unexpected stderr: {stderr}"
+    );
+    assert!(!sentinel.exists());
+    assert!(!repo_local_home
+        .join("authority/execution-receipt-ed25519.seed")
+        .exists());
+}
+
+#[test]
 fn proof_execute_and_record_cross_process_with_exact_binding() {
     let (temp, repo, vault) = init_project();
     let machine_home = temp.path().join("machine-home");

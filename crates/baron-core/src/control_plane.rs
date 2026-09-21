@@ -9,7 +9,8 @@ use serde::Deserialize;
 use crate::capability::load_capability_state;
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
 use crate::execution_receipt::{
-    load_verified_receipt, load_verified_receipts, receipt_matches_verified_context, ReceiptContext,
+    load_verified_receipt, load_verified_receipts_strict, receipt_matches_verified_context,
+    ReceiptContext,
 };
 use crate::operation::OperationContext;
 use crate::platform::platform_name;
@@ -1587,7 +1588,7 @@ fn gate_evidence_status_strict_for_context_and_scope(
     let repo_root = repo_root.as_ref();
     let content =
         fs::read_to_string(repo_root.join("docs/baron/control-plane/GATES.md")).unwrap_or_default();
-    let receipts = load_verified_receipts(repo_root)?;
+    let receipts = load_verified_receipts_strict(repo_root)?;
     let mut missing_agents = Vec::new();
     for agent in required_agents {
         let needle = format!("`{}`", agent.trim());

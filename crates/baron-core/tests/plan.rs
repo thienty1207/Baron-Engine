@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
 use baron_core::execution_receipt::{
-    execute_command_with_context, ExecutionRequest, ReceiptContext,
+    execute_command_for_identity, ExecutionRequest, ReceiptContext,
 };
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
@@ -54,13 +54,14 @@ fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContex
 
 fn passing_execution(
     repo: &std::path::Path,
-    binding: &ReceiptContext,
+    identity: &LifecycleIdentity,
+    gate_kind: &str,
 ) -> baron_core::execution_receipt::ExecutionReceipt {
     #[cfg(windows)]
     let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
     #[cfg(not(windows))]
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
-    execute_command_with_context(
+    execute_command_for_identity(
         ExecutionRequest {
             capability: "security-authorization".to_string(),
             provider: "test-runner".to_string(),
@@ -69,7 +70,8 @@ fn passing_execution(
             working_directory: repo.to_path_buf(),
             timeout: Duration::from_secs(5),
         },
-        binding.clone(),
+        identity,
+        gate_kind,
     )
     .unwrap()
 }
@@ -94,7 +96,7 @@ fn passing_gate_execution(
         identity.request_id(),
         format!("quality:{agent}"),
     );
-    let receipt = execute_command_with_context(
+    let receipt = execute_command_for_identity(
         ExecutionRequest {
             capability: "security-authorization".to_string(),
             provider: "test-runner".to_string(),
@@ -103,7 +105,8 @@ fn passing_gate_execution(
             working_directory: repo.to_path_buf(),
             timeout: Duration::from_secs(5),
         },
-        binding.clone(),
+        identity,
+        &binding.gate_kind,
     )
     .unwrap();
     (receipt, binding)
@@ -468,7 +471,7 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         identity.request_id(),
         "proof",
     );
-    let receipt = passing_execution(&repo, &proof_binding);
+    let receipt = passing_execution(&repo, &identity, "proof");
     record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &proof_binding).unwrap();
     for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
         let (gate_receipt, binding) = passing_gate_execution(&repo, agent, &identity);
