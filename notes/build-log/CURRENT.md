@@ -1,30 +1,28 @@
 # Current Build Note
 
-## SPEC-03 Trusted Execution Receipt Architecture — canonical task and seed alias follow-up (2026-09-21)
+## SPEC-03 Trusted Execution Receipt Architecture — canonical task and seed alias follow-up (closed, 2026-09-21)
 
-- Current task: fix only the remaining canonical-task authority and hard-link
-  staging-alias findings from the supplied SPEC-03 prompt.
+- Current task: perform fresh executable verification for BUG-01 canonical
+  authority identity and WARN-01 safe staging-alias cleanup.
 - Checkpoint: branch
-  `codex/spec-03-trusted-receipt-architecture`, baseline
-  `df1e2341ab18edc23657d8a291754ba4105962c6`; public version remains `5.0.0`.
-- Proof status: the new RED tests distinguish parts-only reconstruction from
-  canonical task proof and cover crash-window alias cleanup, unrelated files,
-  links, and missing-final behavior. The trusted issuance API is being migrated
-  to `AuthoritativeLifecycleIdentity`; no follow-up GREEN result is claimed yet.
-- Persistence status: previous external authority-root and no-replace seed
-  guarantees remain in place. The follow-up cleanup runs only after a valid final
-  seed is read and never promotes a stale staging file.
-- Trace status: persisted-state boundary is Baron source/tests and maintained
-  records only; no project/Vault data has been changed. Self-review and the
-  mandatory full verification matrix remain open. Follow-up checkpoint
-  `994ce18a92eff57be497d3b99420c8bde6078c99` is pushed on the branch.
-- Verification status: focused compile/test attempts are currently blocked by
-  host Windows Application Control before build-script/test execution
-  (`os error 4551`). The known PowerShell Archive and session-replay UTF-8
-  blockers remain separately classified.
-- Safe next action: obtain fresh runnable GREEN evidence for the follow-up and
-  update closure records when host Application Control permits execution. Do not
-  release, tag, bump the version, modify Hotel Staff, or start SPEC-04.
+  `codex/spec-03-trusted-receipt-architecture` at
+  `c77c83d6e9214c40822a408f2a0483c9016c7b15`; implementation checkpoint
+  `994ce18a92eff57be497d3b99420c8bde6078c99` is pushed; public version remains
+  `5.0.0`.
+- Proof status: all nine focused suites pass with 80/80 tests, including
+  canonical task authority, reconstructed-identity rejection before side
+  effects, exact staging-alias cleanup, link/reparse protection, stale-stage
+  non-promotion, strict loading, receipt persistence, and cross-process
+  authority.
+- Persistence status: Core all-targets, warnings-denied Clippy, locked release
+  build, `baron 5.0.0` smoke, formatter, diff check, and status JSON parsing
+  pass. No project/Vault data changed.
+- Trace status: the full workspace run retains only the known unrelated
+  `Microsoft.PowerShell.Archive` installer blocker and existing
+  `session_replay` UTF-8 boundary panic. No new SPEC-03-owned failure exists;
+  SPEC-03 is closed.
+- Safe next action: normal Baron `5.0.0` maintenance. Do not release, tag, bump
+  the version, modify Hotel Staff, or start SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 

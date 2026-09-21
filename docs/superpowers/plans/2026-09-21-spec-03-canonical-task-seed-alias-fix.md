@@ -40,7 +40,7 @@
 - [x] Change schema-v2 `execute_command_for_identity` to accept the stronger type; an unproven identity fails at the wrapper boundary before authority resolution, key load/create, child spawn, and receipt append.
 - [x] Migrate the CLI proof path and all authority-bearing tests/callers; diagnostic-only `LifecycleIdentity` and `ReceiptContext` paths remain compatible.
 - [x] Retain `operation_id_for_parts` verification and document the issuance/verification split in code comments and maintained records.
-- [ ] Run focused operation, execution, receipt-authority, proof, gate, capability/runtime, plan, CLI, and multiprocess tests; record GREEN evidence.
+- [x] Run focused operation, execution, receipt-authority, proof, gate, capability/runtime, plan, CLI, and multiprocess tests; fresh evidence is 80/80 passing: operation identity 10, execution receipt 5, receipt authority 28, receipt multiprocess 4, trusted proof 1, proof/trace 11, runtime policy 4, plan 12, and CLI execution 15.
 
 ## Task 3: Safely clean completed staging aliases
 
@@ -50,7 +50,7 @@
 - [x] After a valid final seed is loaded, remove only matching regular non-link files whose metadata size is exactly 32 bytes and whose bytes match the loaded final seed; fail closed on staging links/reparse points and preserve unrelated names, independently written stages, wrong-size files, directories, and missing races.
 - [x] Never run cleanup when the final seed is absent or malformed; stale staging material cannot become a trust root.
 - [x] Preserve current first-start cleanup, no-replace hard-link activation, permissions, malformed-final rejection, and concurrent convergence behavior.
-- [ ] Run the seed/authority and multiprocess focused suites and record runnable alias-protection evidence.
+- [x] Run the seed/authority and multiprocess focused suites and record runnable alias-protection evidence: receipt authority 28/28 and receipt multiprocess 4/4 pass, including exact-name cleanup, unrelated-file preservation, link/reparse rejection, missing-final non-promotion, and cross-process authority.
 
 ## Task 4: Fresh adversarial review and maintained records
 
@@ -60,15 +60,20 @@
 - [x] Classify all authority issuance paths and confirm no reconstructed-only path remains; confirm cleanup has no broad delete, recursion, link following, final-seed removal, or stale-stage promotion.
 - [x] Confirm all previously correct SPEC-03 behaviors remain covered and separate unrelated PowerShell Archive, session-replay UTF-8, and Windows Application Control blockers.
 - [x] Perform a separate self-review because no reviewer/subagent tool is available; record PASS/WARNING/BUG/OUT-OF-SCOPE rulings in the SDD ledger.
-- [x] Update maintained records with the current evidence and keep status `NOT CLOSED` while the new required tests cannot execute.
+- [x] Update maintained records with the current evidence; the fresh executable matrix now supports `SPEC-03: CLOSED`, with only the two known unrelated workspace blockers retained.
 
 ## Task 5: Full verification, commit, push, and remote proof
 
-- [x] Run the prompt-listed focused tests and mandatory repository commands where the host permits them:
+- [x] Run the prompt-listed focused tests and mandatory repository commands:
   `cargo fmt --all -- --check`,
   `cargo test --workspace --all-targets --no-fail-fast`,
   `cargo clippy --workspace --all-targets -- -D warnings`,
-  release build/version smoke where executable, JSON/status parsing, and `git diff --check`.
+  `cargo build --release --locked -p baron-cli`, `target/release/baron --version`,
+  JSON/status parsing, and `git diff --check`. Focused/core/Clippy/release/
+  version/format/diff gates are green; workspace retains only the known
+  PowerShell Archive and session-replay UTF-8 blockers.
 - [x] Report exact pass/fail/blocker evidence; do not relabel unexpected failures as expected.
 - [x] Stage only intended tracked implementation/tests/docs/plan files, commit the follow-up, push `codex/spec-03-trusted-receipt-architecture`, and verify local/remote SHA equality at `994ce18a92eff57be497d3b99420c8bde6078c99`.
-- [ ] Mark the plan complete and use final verdict `SPEC-03: CLOSED` only if BUG-01, WARN-01, regression, and verification closure requirements all pass; otherwise use `SPEC-03: NOT CLOSED` with the blocked closure evidence.
+- [x] Mark the plan complete with final verdict `SPEC-03: CLOSED`: BUG-01,
+  WARN-01, regression, and executable verification closure requirements pass;
+  the two remaining workspace failures are unchanged and unrelated.

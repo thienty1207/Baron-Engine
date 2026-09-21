@@ -1,46 +1,41 @@
 # Baron Build Status
 
-## Baron 5.0.1 Stabilization - SPEC-03 Canonical Task and Seed Alias Follow-up (2026-09-21)
+## Baron 5.0.1 Stabilization - SPEC-03 Canonical Task and Seed Alias Follow-up (closed, 2026-09-21)
 
-- Status: `follow-up in progress; SPEC-03 is not closed`; the source/public
+- Status: `closed; fresh executable verification complete`; the source/public
   version remains `5.0.0`; no tag, release, version bump, or hosted-CI claim is
-  part of this checkpoint.
-- Baseline: `df1e2341ab18edc23657d8a291754ba4105962c6`; branch:
-  `codex/spec-03-trusted-receipt-architecture`.
-- Follow-up checkpoint: `994ce18a92eff57be497d3b99420c8bde6078c99` is pushed to
-  the branch. The implementation is delivered, but SPEC-03 remains `NOT
-  CLOSED` until the new focused tests and mandatory matrix execute.
-- Owned scope: BUG-01 must prevent schema-v2 authority from a parts-only
-  `LifecycleIdentity`; WARN-01 must safely remove only completed Baron staging
+  part of this closure.
+- Verified checkout: branch
+  `codex/spec-03-trusted-receipt-architecture` at
+  `c77c83d6e9214c40822a408f2a0483c9016c7b15`; implementation checkpoint
+  `994ce18a92eff57be497d3b99420c8bde6078c99` is pushed.
+- Owned scope: BUG-01 prevents schema-v2 authority from a parts-only
+  `LifecycleIdentity`; WARN-01 safely removes only completed Baron staging
   aliases left after hard-link activation. SPEC-04 and unrelated defects remain
   out of scope.
-- Current implementation direction: retain `LifecycleIdentity` for checked
-  reconstruction/comparison and require `AuthoritativeLifecycleIdentity`, built
-  only with canonical task text, at the schema-v2 issuance boundary. Schema-v2
-  still omits task text: issuance proves task canonicality and verification
-  independently recomputes the canonical operation ID.
-- Seed cleanup direction: after a valid final seed is loaded, inspect only the
-  exact generated Baron staging-name pattern in the already validated external
-  authority directory; remove only a regular non-link exact-32-byte file whose
-  bytes match that loaded final seed. The content match avoids deleting an
-  independently written staging file from a concurrent creator. Missing/
-  malformed final seeds never trigger cleanup or staging promotion, and
-  unrelated stage-like files remain untouched.
-- Proof status: follow-up RED tests are present; the first focused build
-  attempts were blocked before test execution by host Windows Application
-  Control (`os error 4551`). Fresh GREEN evidence and the full verification
-  matrix are still required.
-- Known unrelated workspace/environment blockers carried forward:
-  `baron-cli` installer lifecycle tests cannot load the host
-  `Microsoft.PowerShell.Archive` module, one Prepare CLI fixture reaches the
-  existing `session_replay` UTF-8 boundary panic, and Windows Application
-  Control can block test/version binaries before process start.
+- Authority boundary: `AuthoritativeLifecycleIdentity` is constructed only
+  with canonical task text at schema-v2 issuance; checked reconstruction remains
+  comparison-only, while verification independently recomputes the canonical
+  operation ID.
+- Seed cleanup boundary: after a valid final seed is loaded, only the exact
+  generated Baron staging-name pattern in the validated external authority
+  directory is inspected. Cleanup removes only a regular non-link exact-32-byte
+  file matching the loaded final seed; malformed/missing finals never promote
+  stale stages, and unrelated stage-like files remain untouched.
+- Fresh evidence: the nine focused suites pass with 80/80 tests; Core
+  all-targets, warnings-denied Clippy, locked release build, `baron 5.0.0`
+  binary smoke, formatter, `git diff --check`, and status JSON parsing pass.
+  The adversarial SPEC-03 matrix has no new owned failure.
+- Known unrelated workspace blockers remain unchanged: `baron-cli`
+  `lifecycle_scripts` cannot load the host `Microsoft.PowerShell.Archive`
+  module, and one `prepare_cli` fixture reaches the existing
+  `session_replay` UTF-8 boundary panic. They are outside SPEC-03 and do not
+  change its closure.
 - Active plan:
-  `docs/superpowers/plans/2026-09-21-spec-03-canonical-task-seed-alias-fix.md`.
-- Safe next action: rerun the focused implementation tests and full repository
-  checks when host Application Control permits execution. Keep SPEC-03 `NOT
-  CLOSED` until every owned requirement is evidenced; do not release, tag, bump
-  the version, modify Hotel Staff, or start SPEC-04.
+  `docs/superpowers/plans/2026-09-21-spec-03-canonical-task-seed-alias-fix.md`
+  is complete.
+- Safe next action: normal Baron `5.0.0` maintenance; do not release, tag, bump
+  the version, modify Hotel Staff, or start SPEC-04 from this task.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
 
