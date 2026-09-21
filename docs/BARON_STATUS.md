@@ -1,5 +1,47 @@
 # Baron Build Status
 
+## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for adversarial review, 2026-09-21)
+
+- Status: `ready for adversarial review`; SPEC-04 implementation is complete on
+  branch `codex/spec-04-proof-trace-gate-completion-integrity`. This pass does
+  not claim `CLOSED`, bump the public version, create a tag/release, modify
+  Hotel Staff, or start SPEC-05.
+- Baseline: `fa1bd91c162f38800070d1cfded69a3a68d474e0`; public version remains
+  `5.0.0`.
+- B-17 proof publication: receipt-bound proofs are rendered completely in
+  memory with Proof ID, Receipt ID, Task/Operation identity, adapter, session,
+  request, gate kind, source fingerprint, capability gate, and evidence before
+  the first authoritative write. Exact receipt/source validation and narrow
+  publication preflight prevent a repository proof or validation promotion on
+  the injected write failure path.
+- B-08 operation-bound trace: typed trace records and scores carry the five
+  identity fields plus exact Proof ID. Bound recording/scoring verifies exact
+  proof and current receipt authority for Medium/High risk while preserving
+  Low Minimal, Medium Standard, and High Detailed tiers; legacy global-newest
+  APIs remain diagnostic/status-only.
+- B-32 scoped correctness: `complete_plan` and `plan_status` share one
+  operation-scoped completion evaluator. Identified completion requires the
+  active plan, proof, trace, strict operation-scoped gates, and receipt chain
+  to match exactly, including `trace.proof_id == proof.id`; legacy unbound and
+  newer unrelated artifacts cannot authorize completion. Prepare correctness
+  reads use the same scoped selectors.
+- Proof status: focused SPEC-04 matrix passes — `trusted_proof` 1/1,
+  `proof_trace` 14/14, `plan` 15/15, `control_plane` 9/9,
+  `runtime_policy` 4/4, `execution_receipt` 5/5, `operation_identity` 10/10,
+  and CLI `execution_cli` 15/15. Core all-targets passes; warnings-denied
+  Clippy, formatter, locked release build, `baron 5.0.0` smoke, and diff check
+  pass.
+- Full workspace verification retains exactly two unrelated host/fixture
+  blockers: `baron-cli` `lifecycle_scripts` cannot load
+  `Microsoft.PowerShell.Archive`, and `baron-cli` `prepare_cli` reaches the
+  existing `session_replay` UTF-8 boundary panic. No SPEC-04-owned failure was
+  observed.
+- Active plan:
+  `docs/superpowers/plans/2026-09-21-spec-04-proof-trace-gate-completion-integrity.md`.
+- Safe next action: adversarial review of the pushed SPEC-04 branch. Keep the
+  public version at `5.0.0`; do not release, tag, or mark SPEC-04 closed from
+  this implementation pass.
+
 ## Baron 5.0.1 Stabilization - SPEC-03 Canonical Task and Seed Alias Follow-up (closed, 2026-09-21)
 
 - Status: `closed; fresh executable verification complete`; the source/public

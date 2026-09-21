@@ -98,13 +98,17 @@ use baron_core::operation::{
     AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
 };
 use baron_core::plan::{
-    complete_plan, interrupt_plan, plan_status, start_or_resume_plan_for_identity, update_plan,
+    active_plan_operation_binding, complete_plan, interrupt_plan, plan_status,
+    start_or_resume_plan_for_identity, update_plan,
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
 use baron_core::prepare::{
     decode_request, prepare, PrepareError, PreparePacketV1, PREPARE_MAX_INPUT_BYTES,
 };
-use baron_core::proof::{proof_status, record_proof, record_proof_from_receipt_bound};
+use baron_core::proof::{
+    proof_for_operation, proof_status, record_proof, record_proof_for_operation,
+    record_proof_from_receipt_bound,
+};
 use baron_core::release::{
     load_and_verify_release_metadata, verify_release_identity, write_release_metadata,
 };
@@ -115,7 +119,10 @@ use baron_core::session_replay::{
 };
 use baron_core::state_guard::require_coherent_execution_state;
 use baron_core::survey::{render_project_atlas, survey_repository};
-use baron_core::trace::{record_trace, score_trace, TraceOutcome};
+use baron_core::trace::{
+    record_trace, record_trace_for_operation, score_trace, trace_for_operation,
+    TraceOperationBinding, TraceOutcome,
+};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
 use baron_core::work_shape::decide_work_shape;
 use baron_core::{phase, product_name};
@@ -2873,7 +2880,19 @@ fn run() -> Result<()> {
                 gate_kind,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let operation = operation_context_from_arg(adapter)?;
+                let explicit_operation = operation_context_from_arg(adapter)?;
+                let active_operation = active_plan_operation_binding(&repo_root)?
+                    .as_ref()
+                    .map(|binding| binding.to_operation_context())
+                    .transpose()?;
+                if let (Some(explicit), Some(active)) =
+                    (explicit_operation.as_ref(), active_operation.as_ref())
+                {
+                    if explicit.adapter != active.adapter {
+                        bail!("explicit adapter identity does not match the active plan operation");
+                    }
+                }
+                let operation = explicit_operation.clone().or(active_operation.clone());
                 let proof = if let Some(receipt_id) = receipt {
                     if !capability_evidence.is_empty() {
                         bail!("Use either --receipt or --capability-evidence, not both");
@@ -2893,9 +2912,16 @@ fn run() -> Result<()> {
                         .map(|value| parse_capability_evidence(value))
                         .collect::<Result<Vec<_>>>()?;
                     if capability_evidence.is_empty() {
-                        record_proof(&repo_root, &vault, &summary)?
+                        if let Some(operation) = active_operation.as_ref() {
+                            record_proof_for_operation(&repo_root, &vault, operation, &summary)?
+                        } else {
+                            record_proof(&repo_root, &vault, &summary)?
+                        }
                     } else {
-                        let operation = operation.as_ref().context(
+                        let operation = active_operation
+                            .as_ref()
+                            .or(explicit_operation.as_ref())
+                            .context(
                             "explicit adapter identity is required for capability evidence",
                         )?;
                         baron_core::proof::record_proof_with_capabilities_for_operation(
@@ -3003,14 +3029,48 @@ fn run() -> Result<()> {
                 outcome,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let trace = record_trace(&repo_root, &vault, &summary, outcome.into())?;
+                let trace = if let Some(plan_binding) = active_plan_operation_binding(&repo_root)? {
+                    let operation = plan_binding.to_operation_context()?;
+                    let proof = proof_for_operation(&repo_root, &plan_binding.proof_binding())?
+                        .context("operation-bound trace proof is missing")?;
+                    let trace_binding =
+                        TraceOperationBinding::from_operation(&operation, &proof.id)?;
+                    record_trace_for_operation(
+                        &repo_root,
+                        &vault,
+                        &summary,
+                        outcome.into(),
+                        &trace_binding,
+                    )?
+                } else {
+                    record_trace(&repo_root, &vault, &summary, outcome.into())?
+                };
                 println!("# Baron Trace Record\n");
                 println!("- Trace ID: `{}`", trace.id);
                 println!("- Score status: `unscored`");
             }
             TraceCommands::Score { repo_path, id } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let score = score_trace(&repo_root, &vault, id.as_deref())?;
+                let scoped_id = if id.is_none() {
+                    if let Some(plan_binding) = active_plan_operation_binding(&repo_root)? {
+                        let operation = plan_binding.to_operation_context()?;
+                        let proof = proof_for_operation(&repo_root, &plan_binding.proof_binding())?
+                            .context("operation-bound trace proof is missing")?;
+                        let trace_binding =
+                            TraceOperationBinding::from_operation(&operation, &proof.id)?;
+                        Some(
+                            trace_for_operation(&repo_root, &trace_binding)?
+                                .context("operation-bound trace is missing")?
+                                .id,
+                        )
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let selected_id = id.as_deref().or(scoped_id.as_deref());
+                let score = score_trace(&repo_root, &vault, selected_id)?;
                 record_lifecycle_event_neutral(&vault, AutomationEvent::TraceScored)?;
                 println!("# Baron Trace Score\n");
                 println!("- Achieved: `{}`", score.achieved.as_str());

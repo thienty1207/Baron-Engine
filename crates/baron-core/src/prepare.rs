@@ -15,6 +15,7 @@ use crate::continuity::continuity_status;
 use crate::control_plane::{
     gate_evidence_status_strict_for_operation, route_task_for_operation, validate_control_plane,
 };
+use crate::execution_receipt::ReceiptContext;
 use crate::harness::harness_status;
 use crate::intent::intent_status;
 use crate::operation::{
@@ -23,9 +24,9 @@ use crate::operation::{
 };
 use crate::plan::plan_status;
 use crate::platform::{platform_name, render_platform_context};
-use crate::proof::latest_proof;
+use crate::proof::proof_for_operation;
 use crate::risk::RiskLane;
-use crate::trace::latest_trace_score;
+use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding};
 use crate::vault::ensure_vault;
 use crate::work_shape::{decide_work_shape, DurabilityNeed, JudgmentNeed, LifecycleDepth};
 
@@ -396,8 +397,17 @@ pub fn prepare(
         Some(identity.request_id()),
     )
     .map_err(project_error)?;
-    let proof = latest_proof(&repo_root).map_err(project_error)?;
-    let trace = latest_trace_score(&repo_root).map_err(project_error)?;
+    let proof_binding = ReceiptContext::for_identity(&identity, "proof").map_err(project_error)?;
+    let proof = proof_for_operation(&repo_root, &proof_binding).map_err(project_error)?;
+    let trace = proof
+        .as_ref()
+        .map(|proof| {
+            let binding = TraceOperationBinding::from_operation(&operation, &proof.id)
+                .map_err(project_error)?;
+            latest_trace_score_for_operation(&repo_root, &binding).map_err(project_error)
+        })
+        .transpose()?
+        .flatten();
     let runtime =
         runtime_backend_report_for_operation(&repo_root, &operation).map_err(project_error)?;
 

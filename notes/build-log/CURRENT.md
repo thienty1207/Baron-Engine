@@ -1,5 +1,40 @@
 # Current Build Note
 
+## SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for adversarial review, 2026-09-21)
+
+- Current task: implement SPEC-04 on the SPEC-03 baseline without changing
+  release metadata or starting SPEC-05.
+- Checkpoint: branch
+  `codex/spec-04-proof-trace-gate-completion-integrity` on baseline
+  `fa1bd91c162f38800070d1cfded69a3a68d474e0`; public version remains `5.0.0`.
+- Proof status: receipt-bound proof publication now builds the complete final
+  artifact before authority writes and preflights the narrow Repo/Vault path.
+  The bound-write failure regression confirms no repo proof or validation
+  evidence is promoted. Proof records expose exact ID and operation selectors;
+  legacy unbound artifacts remain diagnostic-only.
+- Trace status: operation-bound trace recording and scoring enforce exact
+  task/operation/adapter/session/request plus Proof ID binding, current
+  receipt authority for Medium/High risk, and strict operation-scoped gate
+  evidence. Low/Medium/High trace tiers remain Minimal/Standard/Detailed.
+- Completion status: `complete_plan` and `plan_status` use one scoped evaluator;
+  active plan, proof, trace, gates, and receipt must form one exact chain.
+  Newer unrelated artifacts, cross-operation proof/gates, and legacy unbound
+  artifacts cannot authorize identified completion. Prepare correctness no
+  longer selects repository-global newest proof/trace.
+- Focused proof: `trusted_proof` 1/1, `proof_trace` 14/14, `plan` 15/15,
+  `control_plane` 9/9, `runtime_policy` 4/4, `execution_receipt` 5/5,
+  `operation_identity` 10/10, and CLI `execution_cli` 15/15 pass. Core
+  all-targets, formatter, warnings-denied Clippy, locked release build,
+  `baron 5.0.0`, and diff check pass.
+- Workspace trace: the complete workspace run has only the known unrelated
+  `Microsoft.PowerShell.Archive` installer-module failure and existing
+  `session_replay` UTF-8 boundary panic; no SPEC-04-owned failure appeared.
+- Persisted-state boundary: only SPEC-04 source/tests, the active plan, and
+  maintained status/build-log evidence are in scope; project/Vault data and
+  unrelated user files remain untouched.
+- Safe next action: push once, verify local/remote SHA, then hand off for
+  adversarial review. Do not release, tag, bump the version, or claim closure.
+
 ## SPEC-03 Trusted Execution Receipt Architecture — canonical task and seed alias follow-up (closed, 2026-09-21)
 
 - Current task: perform fresh executable verification for BUG-01 canonical

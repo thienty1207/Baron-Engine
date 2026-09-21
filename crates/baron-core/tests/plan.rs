@@ -1,5 +1,6 @@
 use std::fs;
 use std::process::Command;
+use std::thread;
 use std::time::Duration;
 
 use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
@@ -15,8 +16,12 @@ use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan,
     start_or_resume_plan_for_identity, start_or_resume_plan_for_operation, update_plan,
 };
-use baron_core::proof::record_proof_from_receipt_bound;
-use baron_core::trace::{record_trace, score_trace, TraceOutcome};
+use baron_core::proof::{
+    record_proof, record_proof_for_operation, record_proof_from_receipt_bound,
+};
+use baron_core::trace::{
+    record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
+};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
@@ -474,7 +479,9 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         "proof",
     );
     let receipt = passing_execution(&repo, &identity, "proof");
-    record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &proof_binding).unwrap();
+    let proof =
+        record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &proof_binding)
+            .unwrap();
     for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
         let (gate_receipt, binding) = passing_gate_execution(&repo, agent, &identity);
         record_gate_evidence_with_receipt_bound(
@@ -487,11 +494,13 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         )
         .unwrap();
     }
-    let trace = record_trace(
+    let trace_binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
         &repo,
         &context,
         "Implemented backend login security",
         TraceOutcome::Completed,
+        &trace_binding,
     )
     .unwrap();
     assert!(
@@ -519,4 +528,217 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         assert!(index.contains("backend login security"));
         assert!(index.contains("status: `completed`"));
     }
+}
+
+#[test]
+fn completion_ignores_newer_unrelated_proof_and_trace_artifacts() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first = LifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README typo",
+        SupportedAdapter::Codex,
+        Some("first-session"),
+        Some("first-request"),
+    )
+    .unwrap();
+    let first_operation = OperationContext::from_identity(&first);
+    start_or_resume_plan_for_operation(&repo, &context, "fix README typo", &first_operation)
+        .unwrap();
+    let first_proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &first_operation,
+        "README verification passed",
+    )
+    .unwrap();
+    let first_trace_binding =
+        TraceOperationBinding::from_operation(&first_operation, &first_proof.id).unwrap();
+    let first_trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+        &first_trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&first_trace.id))
+            .unwrap()
+            .passed
+    );
+
+    thread::sleep(Duration::from_millis(5));
+    let unrelated = LifecycleIdentity::resolve(
+        &context.project_id,
+        "unrelated documentation task",
+        SupportedAdapter::Claude,
+        Some("unrelated-session"),
+        Some("unrelated-request"),
+    )
+    .unwrap();
+    let unrelated_operation = OperationContext::from_identity(&unrelated);
+    let unrelated_proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &unrelated_operation,
+        "Unrelated verification passed",
+    )
+    .unwrap();
+    let unrelated_trace_binding =
+        TraceOperationBinding::from_operation(&unrelated_operation, &unrelated_proof.id).unwrap();
+    let unrelated_trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Unrelated documentation task completed",
+        TraceOutcome::Completed,
+        &unrelated_trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&unrelated_trace.id))
+            .unwrap()
+            .passed
+    );
+
+    complete_plan(&repo, &context, "README verification passed").unwrap();
+    assert!(plan_status(&repo).unwrap().contains("Status: `completed`"));
+}
+
+#[test]
+fn legacy_unbound_proof_and_trace_are_diagnostic_only_for_identified_completion() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README typo",
+        SupportedAdapter::Codex,
+        Some("identified-session"),
+        Some("identified-request"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, "fix README typo", &identity).unwrap();
+    record_proof(&repo, &context, "README verification passed").unwrap();
+    let trace = record_trace(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let error = complete_plan(&repo, &context, "README verification passed").unwrap_err();
+    assert!(error.to_string().contains("proof is missing"));
+    assert!(plan_status(&repo)
+        .unwrap()
+        .contains("Status: `in_progress`"));
+}
+
+#[test]
+fn cross_operation_quality_gates_cannot_complete_the_active_operation() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join("src")).unwrap();
+    setup_git(&repo);
+    fs::write(repo.join("README.md"), "# Demo\n").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    fs::write(repo.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let active = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "backend login security",
+        SupportedAdapter::Codex,
+        Some("active-session"),
+        Some("active-request"),
+    )
+    .unwrap();
+    let active_operation = OperationContext::from_identity(&active);
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "backend login security",
+        &active_operation,
+    )
+    .unwrap();
+    confirm_intent(&repo, &context, "backend login security");
+    start_or_resume_intake(&repo, &context, "backend login security").unwrap();
+    let proof_binding = ReceiptContext::new(
+        active.task_id(),
+        active.operation_id(),
+        active.adapter().as_str(),
+        active.session_id(),
+        active.request_id(),
+        "proof",
+    );
+    let proof_receipt = passing_execution(&repo, &active, "proof");
+    let proof =
+        record_proof_from_receipt_bound(&repo, &context, &proof_receipt.receipt_id, &proof_binding)
+            .unwrap();
+    let trace_binding =
+        TraceOperationBinding::from_operation(&active_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Implemented backend login security",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        !score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let unrelated = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "backend login security",
+        SupportedAdapter::Codex,
+        Some("other-session"),
+        Some("other-request"),
+    )
+    .unwrap();
+    for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
+        let (gate_receipt, binding) = passing_gate_execution(&repo, agent, &unrelated);
+        record_gate_evidence_with_receipt_bound(
+            &repo,
+            &context,
+            agent,
+            &format!("{agent} reviewed the unrelated operation"),
+            &gate_receipt.receipt_id,
+            &binding,
+        )
+        .unwrap();
+    }
+
+    let error = complete_plan(
+        &repo,
+        &context,
+        "cargo test auth passed with authorization review",
+    )
+    .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("trusted quality-gate receipts are missing"));
 }

@@ -5,13 +5,14 @@ use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::control_plane::gate_evidence_status_strict_for_operation;
+use crate::execution_receipt::ReceiptContext;
 use crate::operation::{LifecycleIdentity, OperationContext};
 use crate::proof::{
-    latest_proof, proof_has_current_receipt, proof_receipt_context, proof_satisfies_risk,
+    proof_for_operation, proof_has_current_receipt, proof_operation_binding, proof_satisfies_risk,
 };
 use crate::risk::{classify_risk, RiskLane};
 use crate::safe_io::{read_text, read_text_required, replace_text};
-use crate::trace::{latest_trace_score, TraceTier};
+use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding, TraceTier};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,6 +46,51 @@ impl PlanOperationBinding {
             request_id: identity.request_id().to_string(),
         }
     }
+
+    pub fn to_operation_context(&self) -> Result<OperationContext> {
+        let adapter =
+            self.adapter
+                .parse()
+                .map_err(|error: crate::operation::OperationIdentityError| {
+                    anyhow::anyhow!(error.to_string())
+                })?;
+        Ok(OperationContext::new(adapter)
+            .with_task_id(self.task_id.clone())
+            .with_operation_id(self.operation_id.clone())
+            .with_session_id(self.session_id.clone())
+            .with_request_id(self.request_id.clone()))
+    }
+
+    pub fn proof_binding(&self) -> ReceiptContext {
+        ReceiptContext::new(
+            self.task_id.clone(),
+            self.operation_id.clone(),
+            self.adapter.clone(),
+            self.session_id.clone(),
+            self.request_id.clone(),
+            "proof",
+        )
+    }
+
+    fn trace_binding(&self, proof_id: &str) -> TraceOperationBinding {
+        TraceOperationBinding {
+            task_id: self.task_id.clone(),
+            operation_id: self.operation_id.clone(),
+            adapter: self.adapter.clone(),
+            session_id: self.session_id.clone(),
+            request_id: self.request_id.clone(),
+            proof_id: proof_id.to_string(),
+        }
+    }
+}
+
+/// Return the active plan's persisted operation binding for ingress adapters.
+/// Missing bindings remain explicit instead of being inferred from the latest
+/// repository artifact.
+pub fn active_plan_operation_binding(
+    repo_root: impl AsRef<Path>,
+) -> Result<Option<PlanOperationBinding>> {
+    Ok(active_plan(repo_root.as_ref())?.and_then(|plan| plan.binding))
 }
 
 pub fn start_or_resume_plan(
@@ -260,66 +306,11 @@ pub fn complete_plan(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let active = require_active_plan(repo_root)?;
-    let proof = latest_proof(repo_root)?.context(
-        "Plan completion blocked: proof is missing. Run `baron proof record \"<verification>\"`.",
-    )?;
-    if !proof_satisfies_risk(&proof.summary, active.risk) {
-        bail!(
-            "Plan completion blocked: proof does not satisfy `{}` risk requirements.",
-            active.risk.as_str()
-        );
-    }
-    if active.risk != RiskLane::Low && !proof_has_current_receipt(repo_root, &proof)? {
-        bail!(
-            "Plan completion blocked: medium/high-risk proof must reference a current trusted execution receipt."
-        );
-    }
-    if active.risk != RiskLane::Low {
-        let required_agents = [
-            "code-reviewer".to_string(),
-            "security-auditor".to_string(),
-            "test-engineer".to_string(),
-        ];
-        let (_, proof_binding) = proof_receipt_context(&proof)?
-            .context("Plan completion blocked: proof receipt binding is missing.")?;
-        let expected_binding = active.binding.as_ref().context(
-            "Plan completion blocked: active plan has no complete operation binding; restart it through an identified Baron operation.",
-        )?;
-        if proof_binding.task_id != expected_binding.task_id
-            || proof_binding.operation_id != expected_binding.operation_id
-            || proof_binding.adapter != expected_binding.adapter
-            || proof_binding.session_id != expected_binding.session_id
-            || proof_binding.request_id != expected_binding.request_id
-        {
-            bail!(
-                "Plan completion blocked: proof receipt identity does not match the active plan operation.",
-            );
-        }
-        let gate_status = gate_evidence_status_strict_for_operation(
-            repo_root,
-            &required_agents,
-            &proof_binding.task_id,
-            &proof_binding.operation_id,
-            &proof_binding.adapter,
-            Some(&proof_binding.session_id),
-            Some(&proof_binding.request_id),
-        )?;
-        if !gate_status.passed {
-            bail!(
-                "Plan completion blocked: trusted quality-gate receipts are missing for {}.",
-                gate_status.missing_agents.join(", ")
-            );
-        }
-    }
-    let trace = latest_trace_score(repo_root)?.context(
-        "Plan completion blocked: scored trace is missing. Run `baron trace record` and `baron trace score`.",
-    )?;
-    let required = required_tier(active.risk);
-    if !trace.passed || trace.achieved < required {
-        bail!(
-            "Plan completion blocked: trace quality must pass `{}`.",
-            required.as_str()
-        );
+    if let Some(issue) = completion_evidence_issues(repo_root, &active)?
+        .into_iter()
+        .next()
+    {
+        bail!("Plan completion blocked: {issue}.");
     }
     if verification_summary.trim().is_empty() {
         bail!("Plan completion requires a non-empty verification summary.");
@@ -354,6 +345,89 @@ pub fn complete_plan(
             binding: active.binding.as_ref(),
         },
     )
+}
+
+/// Evaluate every completion-sensitive artifact from one active plan scope.
+/// Both completion and post-completion integrity diagnostics call this helper
+/// so they cannot disagree about which proof, trace, or gates are authoritative.
+fn completion_evidence_issues(repo_root: &Path, active: &ActivePlan) -> Result<Vec<String>> {
+    let mut issues = Vec::new();
+    let Some(expected_binding) = active.binding.as_ref() else {
+        issues.push("proof is missing".to_string());
+        issues.push("passing trace is missing".to_string());
+        issues.push("active plan operation binding is missing".to_string());
+        return Ok(issues);
+    };
+
+    let proof_binding = expected_binding.proof_binding();
+    let proof = proof_for_operation(repo_root, &proof_binding)?;
+    if let Some(proof) = proof.as_ref() {
+        if !proof_satisfies_risk(&proof.summary, active.risk) {
+            issues.push(format!(
+                "proof does not satisfy `{}` risk requirements",
+                active.risk.as_str()
+            ));
+        }
+        let Some(actual_binding) = proof_operation_binding(proof) else {
+            issues.push("proof operation identity does not match the active plan".to_string());
+            return Ok(issues);
+        };
+        if !same_operation_binding(&actual_binding, &proof_binding)
+            || actual_binding.gate_kind.trim() != "proof"
+        {
+            issues.push("proof operation identity does not match the active plan".to_string());
+        }
+        if active.risk != RiskLane::Low && !proof_has_current_receipt(repo_root, proof)? {
+            issues.push(
+                "medium/high-risk proof must reference a current trusted execution receipt"
+                    .to_string(),
+            );
+        }
+    } else {
+        issues.push("proof is missing".to_string());
+    }
+
+    if active.risk != RiskLane::Low {
+        let required_agents = [
+            "code-reviewer".to_string(),
+            "security-auditor".to_string(),
+            "test-engineer".to_string(),
+        ];
+        let gate_status = gate_evidence_status_strict_for_operation(
+            repo_root,
+            &required_agents,
+            &expected_binding.task_id,
+            &expected_binding.operation_id,
+            &expected_binding.adapter,
+            Some(&expected_binding.session_id),
+            Some(&expected_binding.request_id),
+        )?;
+        if !gate_status.passed {
+            issues.push(format!(
+                "trusted quality-gate receipts are missing for {}",
+                gate_status.missing_agents.join(", ")
+            ));
+        }
+    }
+
+    if let Some(proof) = proof {
+        let trace_binding = expected_binding.trace_binding(&proof.id);
+        match latest_trace_score_for_operation(repo_root, &trace_binding)? {
+            Some(trace) if trace.passed && trace.achieved >= required_tier(active.risk) => {}
+            _ => issues.push("passing trace is missing".to_string()),
+        }
+    } else {
+        issues.push("passing trace is missing".to_string());
+    }
+    Ok(issues)
+}
+
+fn same_operation_binding(left: &ReceiptContext, right: &ReceiptContext) -> bool {
+    left.task_id == right.task_id
+        && left.operation_id == right.operation_id
+        && left.adapter == right.adapter
+        && left.session_id == right.session_id
+        && left.request_id == right.request_id
 }
 
 pub fn plan_status(repo_root: impl AsRef<Path>) -> Result<String> {
@@ -399,66 +473,7 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
             if plan_verification.trim().is_empty() || plan_verification.trim() == "not_run" {
                 issues.push("plan verification evidence is missing".to_string());
             }
-            match latest_proof(repo_root)? {
-                Some(proof) => {
-                    let trusted =
-                        plan.risk == RiskLane::Low || proof_has_current_receipt(repo_root, &proof)?;
-                    if !proof_satisfies_risk(&proof.summary, plan.risk) || !trusted {
-                        issues.push("proof does not satisfy the plan risk".to_string());
-                    }
-                    if plan.risk != RiskLane::Low {
-                        match (plan.binding.as_ref(), proof_receipt_context(&proof)?) {
-                            (Some(expected), Some((_, binding)))
-                                if binding.task_id == expected.task_id
-                                    && binding.operation_id == expected.operation_id
-                                    && binding.adapter == expected.adapter
-                                    && binding.session_id == expected.session_id
-                                    && binding.request_id == expected.request_id => {}
-                            _ => issues.push(
-                                "proof operation identity does not match the active plan"
-                                    .to_string(),
-                            ),
-                        }
-                    }
-                }
-                None => issues.push("proof is missing".to_string()),
-            }
-            if plan.risk != RiskLane::Low {
-                let required_agents = [
-                    "code-reviewer".to_string(),
-                    "security-auditor".to_string(),
-                    "test-engineer".to_string(),
-                ];
-                let gate_scope = latest_proof(repo_root)?
-                    .as_ref()
-                    .map(proof_receipt_context)
-                    .transpose()?
-                    .flatten();
-                let gates_passed = gate_scope
-                    .as_ref()
-                    .map(|(_, binding)| {
-                        gate_evidence_status_strict_for_operation(
-                            repo_root,
-                            &required_agents,
-                            &binding.task_id,
-                            &binding.operation_id,
-                            &binding.adapter,
-                            Some(&binding.session_id),
-                            Some(&binding.request_id),
-                        )
-                        .map(|status| status.passed)
-                    })
-                    .transpose()?
-                    .unwrap_or(false);
-                if !gates_passed {
-                    issues.push("trusted quality-gate evidence is missing".to_string());
-                }
-            }
-            let required = required_tier(plan.risk);
-            match latest_trace_score(repo_root)? {
-                Some(trace) if trace.passed && trace.achieved >= required => {}
-                _ => issues.push("passing trace is missing".to_string()),
-            }
+            issues.extend(completion_evidence_issues(repo_root, &plan)?);
         }
         _ => issues.push("linked plan file is missing".to_string()),
     }

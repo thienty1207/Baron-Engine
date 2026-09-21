@@ -13,7 +13,7 @@ use crate::execution_receipt::{
     VerifiedExecutionReceipt,
 };
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
-use crate::operation::OperationContext;
+use crate::operation::{OperationContext, SupportedAdapter};
 use crate::risk::RiskLane;
 use crate::safe_io::replace_text;
 use crate::vault::VaultContext;
@@ -27,6 +27,9 @@ pub struct ProofRecord {
     pub capability_gate_passed: bool,
     pub capability_gaps: Vec<String>,
     pub capability_warnings: Vec<String>,
+    pub receipt_id: Option<String>,
+    pub source_fingerprint: Option<String>,
+    pub binding: Option<ReceiptContext>,
 }
 
 pub fn record_proof(
@@ -34,7 +37,7 @@ pub fn record_proof(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<ProofRecord> {
-    record_proof_internal(repo_root, vault, None, summary, &[])
+    record_proof_internal(repo_root, vault, None, summary, &[], None, None)
 }
 
 pub fn record_proof_from_receipt(
@@ -70,17 +73,41 @@ pub fn record_proof_from_receipt_bound(
             receipt.receipt_id,
         );
     }
-    let proof = record_proof(
+    let operation = operation_from_binding(binding)?;
+    record_proof_internal(
         repo_root,
         vault,
+        Some(&operation),
         &format!(
             "trusted execution receipt {} passed for {} via {}",
             receipt.receipt_id, receipt.capability, receipt.provider
         ),
-    )?;
-    append_receipt_reference(&proof.repo_path, &receipt, binding)?;
-    append_receipt_reference(&proof.vault_path, &receipt, binding)?;
-    Ok(proof)
+        &[],
+        Some((&receipt, binding)),
+        Some(binding),
+    )
+}
+
+/// Record proof with a complete operation binding but without a trusted
+/// execution receipt. This is suitable for Low-risk operation evidence; a
+/// Medium/High completion still requires a current receipt-bound proof.
+pub fn record_proof_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    operation: &OperationContext,
+    summary: &str,
+) -> Result<ProofRecord> {
+    let binding = complete_operation_binding(vault, operation)?
+        .context("complete operation identity is required for bound proof recording")?;
+    record_proof_internal(
+        repo_root,
+        vault,
+        Some(operation),
+        summary,
+        &[],
+        None,
+        Some(&binding),
+    )
 }
 
 pub fn record_proof_with_capabilities(
@@ -102,12 +129,15 @@ pub fn record_proof_with_capabilities_for_operation(
     summary: &str,
     capability_evidence: &[CapabilityExecutionEvidence],
 ) -> Result<ProofRecord> {
+    let binding = complete_operation_binding(vault, operation)?;
     record_proof_internal(
         repo_root,
         vault,
         Some(operation),
         summary,
         capability_evidence,
+        None,
+        binding.as_ref(),
     )
 }
 
@@ -117,6 +147,8 @@ fn record_proof_internal(
     operation: Option<&OperationContext>,
     summary: &str,
     capability_evidence: &[CapabilityExecutionEvidence],
+    trusted_receipt: Option<(&VerifiedExecutionReceipt, &ReceiptContext)>,
+    binding: Option<&ReceiptContext>,
 ) -> Result<ProofRecord> {
     let repo_root = repo_root.as_ref();
     let id = Local::now().format("%Y%m%d%H%M%S%3f").to_string();
@@ -145,18 +177,24 @@ fn record_proof_internal(
             warnings: Vec::new(),
         }
     };
-    record_runtime_execution(repo_root, capability_evidence)?;
-    let content = render_proof(
-        &id,
+    let binding = binding
+        .or_else(|| trusted_receipt.map(|(_, binding)| binding))
+        .cloned();
+    let content = render_proof(ProofView {
+        id: &id,
         summary,
         capability_evidence,
-        capability_gate.passed,
-        &capability_gate.gaps,
-        &capability_gate.warnings,
+        gate_passed: capability_gate.passed,
+        gaps: &capability_gate.gaps,
+        warnings: &capability_gate.warnings,
         operation,
-    );
-    write(&repo_path, &content)?;
+        binding: binding.as_ref(),
+        trusted_receipt: trusted_receipt.map(|(receipt, _)| receipt),
+    });
+    preflight_publication_paths(repo_root, vault, &repo_path, &vault_path)?;
+    record_runtime_execution(repo_root, capability_evidence)?;
     write(&vault_path, &content)?;
+    write(&repo_path, &content)?;
     append(
         &repo_root.join("docs/baron/proofs/INDEX.md"),
         "# Baron Proof Index\n\n",
@@ -178,6 +216,9 @@ fn record_proof_internal(
         capability_gate_passed: capability_gate.passed,
         capability_gaps: capability_gate.gaps,
         capability_warnings: capability_gate.warnings,
+        receipt_id: trusted_receipt.map(|(receipt, _)| receipt.receipt_id.clone()),
+        source_fingerprint: trusted_receipt.map(|(receipt, _)| receipt.source_fingerprint.clone()),
+        binding,
     })
 }
 
@@ -199,58 +240,109 @@ pub fn latest_proof(repo_root: &Path) -> Result<Option<ProofRecord>> {
     if path.file_name().and_then(|value| value.to_str()) == Some("INDEX.md") {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)?;
-    let id = content
-        .lines()
-        .find_map(|line| line.strip_prefix("- Proof ID: `"))
-        .and_then(|value| value.strip_suffix('`'))
-        .unwrap_or("unknown")
-        .to_string();
-    let summary = section_body(&content, "## Evidence");
-    let capability_gate_passed = !content.contains("- Capability gate: `failed`");
-    let capability_gaps = bullet_section(&content, "## Capability Gaps");
-    let capability_warnings = bullet_section(&content, "## Capability Warnings");
-    Ok(Some(ProofRecord {
-        id,
-        summary,
-        repo_path: path,
-        vault_path: PathBuf::new(),
-        capability_gate_passed,
-        capability_gaps,
-        capability_warnings,
-    }))
+    Ok(Some(parse_proof(&path)?))
 }
 
-fn render_proof(
-    id: &str,
-    summary: &str,
-    capability_evidence: &[CapabilityExecutionEvidence],
+/// Find a proof by its exact persisted ID. This is an authority selector;
+/// unlike [`latest_proof`], it never falls back to a repository-global newest
+/// artifact.
+pub fn proof_by_id(repo_root: &Path, proof_id: &str) -> Result<Option<ProofRecord>> {
+    let proof_id = proof_id.trim();
+    if proof_id.is_empty() {
+        return Ok(None);
+    }
+    for path in proof_paths(repo_root)? {
+        if path.file_stem().and_then(|value| value.to_str()) == Some(proof_id) {
+            return Ok(Some(parse_proof(&path)?));
+        }
+        let proof = parse_proof(&path)?;
+        if proof.id == proof_id {
+            return Ok(Some(proof));
+        }
+    }
+    Ok(None)
+}
+
+/// Find the newest proof that carries the exact operation binding. Unbound
+/// and partially bound legacy records are intentionally excluded.
+pub fn proof_for_operation(
+    repo_root: &Path,
+    expected: &ReceiptContext,
+) -> Result<Option<ProofRecord>> {
+    expected.validate()?;
+    let mut paths = proof_paths(repo_root)?;
+    paths.sort();
+    for path in paths.into_iter().rev() {
+        let proof = parse_proof(&path)?;
+        let Some(binding) = proof.binding.as_ref() else {
+            continue;
+        };
+        if operation_binding_matches(binding, expected) && binding.gate_kind.trim() == "proof" {
+            return Ok(Some(proof));
+        }
+    }
+    Ok(None)
+}
+
+/// Return the complete operation binding persisted in a proof. A legacy
+/// proof returns `None` and remains diagnostic-only.
+pub fn proof_operation_binding(proof: &ProofRecord) -> Option<ReceiptContext> {
+    proof.binding.clone()
+}
+
+struct ProofView<'a> {
+    id: &'a str,
+    summary: &'a str,
+    capability_evidence: &'a [CapabilityExecutionEvidence],
     gate_passed: bool,
-    gaps: &[String],
-    warnings: &[String],
-    operation: Option<&OperationContext>,
-) -> String {
-    let operation_identity = operation
-        .map(|operation| {
-            format!(
-                "- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
-                operation.adapter.as_str(),
-                operation.session_id.as_deref().unwrap_or("none"),
-                operation.request_id.as_deref().unwrap_or("none")
-            )
-        })
-        .unwrap_or_default();
+    gaps: &'a [String],
+    warnings: &'a [String],
+    operation: Option<&'a OperationContext>,
+    binding: Option<&'a ReceiptContext>,
+    trusted_receipt: Option<&'a VerifiedExecutionReceipt>,
+}
+
+fn render_proof(view: ProofView<'_>) -> String {
+    let operation_identity = if let Some(binding) = view.binding {
+        format!(
+            "- Receipt ID: `{}`\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Gate kind: `{}`\n- Source fingerprint: `{}`\n",
+            view.trusted_receipt
+                .map(|receipt| receipt.receipt_id.as_str())
+                .unwrap_or("none"),
+            binding.task_id.trim(),
+            binding.operation_id.trim(),
+            binding.adapter.trim(),
+            binding.session_id.trim(),
+            binding.request_id.trim(),
+            binding.gate_kind.trim(),
+            view.trusted_receipt
+                .map(|receipt| receipt.source_fingerprint.as_str())
+                .unwrap_or("none"),
+        )
+    } else {
+        view.operation
+            .map(|operation| {
+                format!(
+                    "- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
+                    operation.adapter.as_str(),
+                    operation.session_id.as_deref().unwrap_or("none"),
+                    operation.request_id.as_deref().unwrap_or("none")
+                )
+            })
+            .unwrap_or_default()
+    };
     let mut content = format!(
-        "# Baron Proof\n\n- Proof ID: `{id}`\n- Recorded: {}\n- Capability gate: `{}`\n{}\n## Evidence\n\n{}\n\n## Capability Execution Evidence\n\n",
+        "# Baron Proof\n\n- Proof ID: `{}`\n- Recorded: {}\n- Capability gate: `{}`\n{}\n## Evidence\n\n{}\n\n## Capability Execution Evidence\n\n",
+        view.id,
         now(),
-        if gate_passed { "passed" } else { "failed" },
+        if view.gate_passed { "passed" } else { "failed" },
         operation_identity,
-        summary.trim()
+        view.summary.trim()
     );
-    if capability_evidence.is_empty() {
+    if view.capability_evidence.is_empty() {
         content.push_str("- none recorded\n");
     } else {
-        for evidence in capability_evidence {
+        for evidence in view.capability_evidence {
             content.push_str(&format!(
                 "- `{}` via `{}` - {}\n",
                 evidence.capability.trim(),
@@ -260,9 +352,22 @@ fn render_proof(
         }
     }
     content.push_str("\n## Capability Gaps\n\n");
-    push_bullets(&mut content, gaps);
+    push_bullets(&mut content, view.gaps);
     content.push_str("\n## Capability Warnings\n\n");
-    push_bullets(&mut content, warnings);
+    push_bullets(&mut content, view.warnings);
+    if let Some(receipt) = view.trusted_receipt {
+        content.push_str(&format!(
+            "\n## Trusted Execution Receipt\n\n- Receipt ID: `{}`\n- Source: Baron-owned execution runner\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Gate kind: `{}`\n- Source fingerprint: `{}`\n",
+            receipt.receipt_id,
+            receipt.task_id.as_deref().unwrap_or("none"),
+            receipt.operation_id.as_deref().unwrap_or("none"),
+            receipt.adapter.as_deref().unwrap_or("none"),
+            receipt.session_id.as_deref().unwrap_or("none"),
+            receipt.request_id.as_deref().unwrap_or("none"),
+            receipt.gate_kind.as_deref().unwrap_or("none"),
+            receipt.source_fingerprint,
+        ));
+    }
     content
 }
 
@@ -384,51 +489,187 @@ pub fn proof_has_current_receipt(repo_root: &Path, proof: &ProofRecord) -> Resul
 /// a medium/high-risk completion or provide a task scope for quality gates.
 pub fn proof_receipt_context(proof: &ProofRecord) -> Result<Option<(String, ReceiptContext)>> {
     let content = fs::read_to_string(&proof.repo_path)?;
-    let Some(receipt_id) = content
-        .lines()
-        .find_map(|line| line.strip_prefix("- Receipt ID: `"))
-        .and_then(|value| value.strip_suffix('`'))
-    else {
+    let Some(receipt_id) = parse_receipt_id(&content) else {
         return Ok(None);
     };
-    let binding = ReceiptContext::new(
-        field_value(&content, "- Task ID: `")?,
-        field_value(&content, "- Operation ID: `")?,
-        field_value(&content, "- Adapter: `")?,
-        field_value(&content, "- Session ID: `")?,
-        field_value(&content, "- Request ID: `")?,
-        field_value(&content, "- Gate kind: `")?,
-    );
-    Ok(Some((receipt_id.to_string(), binding)))
+    let binding =
+        parse_operation_binding(&content)?.context("proof receipt binding fields are missing")?;
+    Ok(Some((receipt_id, binding)))
 }
 
-fn field_value(content: &str, prefix: &str) -> Result<String> {
+fn parse_proof(path: &Path) -> Result<ProofRecord> {
+    let content = fs::read_to_string(path)?;
+    let id = content
+        .lines()
+        .find_map(|line| line.strip_prefix("- Proof ID: `"))
+        .and_then(|value| value.strip_suffix('`'))
+        .unwrap_or("unknown")
+        .to_string();
+    let summary = section_body(&content, "## Evidence");
+    let capability_gate_passed = !content.contains("- Capability gate: `failed`");
+    let capability_gaps = bullet_section(&content, "## Capability Gaps");
+    let capability_warnings = bullet_section(&content, "## Capability Warnings");
+    Ok(ProofRecord {
+        id,
+        summary,
+        repo_path: path.to_path_buf(),
+        vault_path: PathBuf::new(),
+        capability_gate_passed,
+        capability_gaps,
+        capability_warnings,
+        receipt_id: parse_receipt_id(&content),
+        source_fingerprint: optional_field_value(&content, "- Source fingerprint: `"),
+        binding: parse_operation_binding(&content)?,
+    })
+}
+
+fn parse_receipt_id(content: &str) -> Option<String> {
+    optional_field_value(content, "- Receipt ID: `").filter(|value| value != "none")
+}
+
+fn parse_operation_binding(content: &str) -> Result<Option<ReceiptContext>> {
+    let fields = [
+        optional_field_value(content, "- Task ID: `"),
+        optional_field_value(content, "- Operation ID: `"),
+        optional_field_value(content, "- Adapter: `"),
+        optional_field_value(content, "- Session ID: `"),
+        optional_field_value(content, "- Request ID: `"),
+        optional_field_value(content, "- Gate kind: `"),
+    ];
+    let present = fields.iter().filter(|value| value.is_some()).count();
+    if present == 0 {
+        return Ok(None);
+    }
+    if present != fields.len() {
+        bail!("proof operation binding is incomplete");
+    }
+    let [task_id, operation_id, adapter, session_id, request_id, gate_kind] = fields;
+    let binding = ReceiptContext::new(
+        task_id.expect("checked task ID"),
+        operation_id.expect("checked operation ID"),
+        adapter.expect("checked adapter"),
+        session_id.expect("checked session ID"),
+        request_id.expect("checked request ID"),
+        gate_kind.expect("checked gate kind"),
+    );
+    binding.validate()?;
+    Ok(Some(binding))
+}
+
+fn optional_field_value(content: &str, prefix: &str) -> Option<String> {
     content
         .lines()
         .find_map(|line| line.strip_prefix(prefix))
         .and_then(|value| value.strip_suffix('`'))
         .map(str::to_string)
-        .with_context(|| format!("proof receipt binding field is missing: {prefix}"))
 }
 
-fn append_receipt_reference(
-    path: &Path,
-    receipt: &VerifiedExecutionReceipt,
-    binding: &ReceiptContext,
+fn complete_operation_binding(
+    vault: &VaultContext,
+    operation: &OperationContext,
+) -> Result<Option<ReceiptContext>> {
+    let (Some(task_id), Some(operation_id), Some(session_id), Some(request_id)) = (
+        operation.task_id.as_deref(),
+        operation.operation_id.as_deref(),
+        operation.session_id.as_deref(),
+        operation.request_id.as_deref(),
+    ) else {
+        return Ok(None);
+    };
+    let binding = ReceiptContext::new(
+        task_id,
+        operation_id,
+        operation.adapter.as_str(),
+        session_id,
+        request_id,
+        "proof",
+    );
+    binding.validate()?;
+    operation
+        .lifecycle_identity(&vault.project_id)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    Ok(Some(binding))
+}
+
+fn operation_from_binding(binding: &ReceiptContext) -> Result<OperationContext> {
+    let adapter = SupportedAdapter::parse(&binding.adapter)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    Ok(OperationContext::new(adapter)
+        .with_task_id(binding.task_id.clone())
+        .with_operation_id(binding.operation_id.clone())
+        .with_session_id(binding.session_id.clone())
+        .with_request_id(binding.request_id.clone()))
+}
+
+fn operation_binding_matches(left: &ReceiptContext, right: &ReceiptContext) -> bool {
+    left.task_id == right.task_id
+        && left.operation_id == right.operation_id
+        && left.adapter == right.adapter
+        && left.session_id == right.session_id
+        && left.request_id == right.request_id
+}
+
+fn proof_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
+    let root = repo_root.join("docs/baron/proofs");
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    let root_metadata = fs::symlink_metadata(&root)?;
+    if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut paths = Vec::new();
+    collect_markdown(&root, &mut paths)?;
+    paths.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
+    Ok(paths)
+}
+
+fn preflight_publication_paths(
+    repo_root: &Path,
+    vault: &VaultContext,
+    repo_path: &Path,
+    vault_path: &Path,
 ) -> Result<()> {
-    let mut content = fs::read_to_string(path)?;
-    content.push_str(&format!(
-        "\n## Trusted Execution Receipt\n\n- Receipt ID: `{}`\n- Source: Baron-owned execution runner\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Gate kind: `{}`\n- Source fingerprint: `{}`\n",
-        receipt.receipt_id,
-        binding.task_id.trim(),
-        binding.operation_id.trim(),
-        binding.adapter.trim(),
-        binding.session_id.trim(),
-        binding.request_id.trim(),
-        binding.gate_kind.trim(),
-        receipt.source_fingerprint,
-    ));
-    write(path, &content)
+    let paths = vec![
+        repo_path.to_path_buf(),
+        vault_path.to_path_buf(),
+        repo_root.join("docs/baron/proofs/INDEX.md"),
+        vault.project_root.join("Proofs/INDEX.md"),
+        repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
+        vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
+    ];
+    for path in paths {
+        validate_publication_path(&path)?;
+    }
+    Ok(())
+}
+
+fn validate_publication_path(path: &Path) -> Result<()> {
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            bail!(
+                "Proof publication target is not a regular file: {}",
+                path.display()
+            );
+        }
+    }
+    let mut current = path.parent();
+    while let Some(parent) = current {
+        match fs::symlink_metadata(parent) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                    bail!(
+                        "Proof publication parent is not a real directory: {}",
+                        parent.display()
+                    )
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        current = parent.parent();
+    }
+    Ok(())
 }
 
 fn now() -> String {

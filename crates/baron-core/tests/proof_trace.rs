@@ -13,8 +13,14 @@ use baron_core::execution_receipt::{
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
-use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities_for_operation};
-use baron_core::trace::{record_trace, score_trace, TraceOutcome, TraceTier};
+use baron_core::proof::{
+    proof_status, record_proof, record_proof_for_operation, record_proof_from_receipt_bound,
+    record_proof_with_capabilities_for_operation,
+};
+use baron_core::trace::{
+    record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
+    TraceTier,
+};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
@@ -462,4 +468,158 @@ fn missing_optional_capability_does_not_block_proof_or_trace() {
             .unwrap()
             .passed
     );
+}
+
+fn passing_proof_receipt(
+    repo: &std::path::Path,
+    identity: &AuthoritativeLifecycleIdentity,
+) -> (
+    baron_core::execution_receipt::ExecutionReceipt,
+    ReceiptContext,
+) {
+    let binding = ReceiptContext::for_identity(identity, "proof").unwrap();
+    #[cfg(windows)]
+    let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
+    #[cfg(not(windows))]
+    let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
+    let receipt = execute_command_for_identity(
+        ExecutionRequest {
+            capability: "proof".to_string(),
+            provider: "test-runner".to_string(),
+            executable: executable.to_string(),
+            arguments,
+            working_directory: repo.to_path_buf(),
+            timeout: Duration::from_secs(5),
+        },
+        identity,
+        &binding.gate_kind,
+    )
+    .unwrap();
+    (receipt, binding)
+}
+
+#[test]
+fn receipt_bound_proof_is_complete_on_first_publication() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "receipt-bound proof publication",
+        SupportedAdapter::Codex,
+        Some("proof-session"),
+        Some("proof-request"),
+    )
+    .unwrap();
+    let (receipt, binding) = passing_proof_receipt(&repo, &identity);
+
+    let proof =
+        record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &binding).unwrap();
+    let content = fs::read_to_string(&proof.repo_path).unwrap();
+
+    for expected in [
+        format!("- Proof ID: `{}`", proof.id),
+        format!("- Receipt ID: `{}`", receipt.receipt_id),
+        format!("- Task ID: `{}`", identity.task_id()),
+        format!("- Operation ID: `{}`", identity.operation_id()),
+        "- Adapter: `codex`".to_string(),
+        "- Session ID: `proof-session`".to_string(),
+        "- Request ID: `proof-request`".to_string(),
+        "- Gate kind: `proof`".to_string(),
+        format!("- Source fingerprint: `{}`", receipt.source_fingerprint),
+    ] {
+        assert!(content.contains(&expected), "missing {expected}");
+    }
+    assert_eq!(content.matches("## Trusted Execution Receipt").count(), 1);
+    assert_eq!(
+        proof.receipt_id.as_deref(),
+        Some(receipt.receipt_id.as_str())
+    );
+}
+
+#[test]
+fn bound_proof_write_failure_does_not_promote_repo_or_validation_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    confirm_intent(&repo, &context, "fix README typo");
+    start_or_resume_intake(&repo, &context, "fix README typo").unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README typo",
+        SupportedAdapter::Codex,
+        Some("failure-session"),
+        Some("failure-request"),
+    )
+    .unwrap();
+    let (receipt, binding) = passing_proof_receipt(&repo, &identity);
+
+    fs::create_dir_all(repo.join("docs/baron")).unwrap();
+    fs::write(repo.join("docs/baron/proofs"), "injected write failure").unwrap();
+    assert!(
+        record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &binding,).is_err()
+    );
+
+    assert!(repo.join("docs/baron/proofs").is_file());
+    let proof_files = fs::read_dir(context.project_root.join("Proofs"))
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|entry| entry.path().is_file() && entry.file_name() != "INDEX.md")
+                .count()
+        })
+        .unwrap_or_default();
+    assert_eq!(proof_files, 0);
+    let matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    assert!(!matrix.contains("| fix README typo | low | verified |"));
+}
+
+#[test]
+fn operation_bound_trace_rejects_a_cross_operation_proof_reference() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "trace operation one",
+        SupportedAdapter::Codex,
+        Some("trace-session-one"),
+        Some("trace-request-one"),
+    )
+    .unwrap();
+    let second = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "trace operation two",
+        SupportedAdapter::Codex,
+        Some("trace-session-two"),
+        Some("trace-request-two"),
+    )
+    .unwrap();
+    let first_operation = OperationContext::from_identity(&first);
+    let second_operation = OperationContext::from_identity(&second);
+    let first_proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &first_operation,
+        "README verification passed",
+    )
+    .unwrap();
+    let second_binding =
+        TraceOperationBinding::from_operation(&second_operation, &first_proof.id).unwrap();
+
+    let error = record_trace_for_operation(
+        &repo,
+        &context,
+        "Cross-operation trace must fail",
+        TraceOutcome::Completed,
+        &second_binding,
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("proof"));
 }

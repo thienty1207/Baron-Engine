@@ -2,12 +2,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 
+use crate::control_plane::gate_evidence_status_strict_for_operation;
 use crate::harness::{current_harness_risk, current_harness_title};
-use crate::proof::latest_proof;
+use crate::operation::OperationContext;
+use crate::proof::{
+    latest_proof, proof_by_id, proof_has_current_receipt, proof_operation_binding,
+    proof_satisfies_risk, ProofRecord,
+};
 use crate::risk::RiskLane;
 use crate::safe_io::replace_text;
 use crate::vault::VaultContext;
@@ -38,15 +43,72 @@ pub struct TraceRecord {
     pub id: String,
     pub repo_path: PathBuf,
     pub vault_path: PathBuf,
+    pub proof_id: Option<String>,
+    pub binding: Option<TraceOperationBinding>,
+}
+
+/// Exact operation identity carried by a correctness-sensitive trace. The
+/// proof ID is part of the binding so a trace cannot silently use a newer or
+/// unrelated proof for the same repository.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraceOperationBinding {
+    pub task_id: String,
+    pub operation_id: String,
+    pub adapter: String,
+    pub session_id: String,
+    pub request_id: String,
+    pub proof_id: String,
+}
+
+impl TraceOperationBinding {
+    pub fn from_operation(operation: &OperationContext, proof_id: &str) -> Result<Self> {
+        let binding = Self {
+            task_id: operation.task_id.clone().unwrap_or_default(),
+            operation_id: operation.operation_id.clone().unwrap_or_default(),
+            adapter: operation.adapter.as_str().to_string(),
+            session_id: operation.session_id.clone().unwrap_or_default(),
+            request_id: operation.request_id.clone().unwrap_or_default(),
+            proof_id: proof_id.trim().to_string(),
+        };
+        binding.validate()?;
+        Ok(binding)
+    }
+
+    fn validate(&self) -> Result<()> {
+        for (field, value) in [
+            ("task_id", self.task_id.as_str()),
+            ("operation_id", self.operation_id.as_str()),
+            ("adapter", self.adapter.as_str()),
+            ("session_id", self.session_id.as_str()),
+            ("request_id", self.request_id.as_str()),
+            ("proof_id", self.proof_id.as_str()),
+        ] {
+            if value.trim().is_empty() {
+                bail!("trace operation binding field `{field}` is missing");
+            }
+        }
+        Ok(())
+    }
+
+    fn matches_identity(&self, other: &Self) -> bool {
+        self.task_id == other.task_id
+            && self.operation_id == other.operation_id
+            && self.adapter == other.adapter
+            && self.session_id == other.session_id
+            && self.request_id == other.request_id
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraceScore {
+    pub trace_id: String,
     pub achieved: TraceTier,
     pub required: TraceTier,
     pub passed: bool,
     pub missing_fields: Vec<String>,
     pub warnings: Vec<String>,
+    pub proof_id: Option<String>,
+    pub binding: Option<TraceOperationBinding>,
 }
 
 pub fn record_trace(
@@ -55,18 +117,74 @@ pub fn record_trace(
     summary: &str,
     outcome: TraceOutcome,
 ) -> Result<TraceRecord> {
+    record_trace_internal(repo_root.as_ref(), vault, summary, outcome, None, None)
+}
+
+/// Record a trace bound to one exact proof and operation. This path never
+/// consults repository-global newest-proof selection.
+pub fn record_trace_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    summary: &str,
+    outcome: TraceOutcome,
+    binding: &TraceOperationBinding,
+) -> Result<TraceRecord> {
+    binding.validate()?;
     let repo_root = repo_root.as_ref();
+    let proof = proof_by_id(repo_root, &binding.proof_id)?
+        .context("operation-bound trace proof is missing")?;
+    let proof_binding = proof_operation_binding(&proof)
+        .context("operation-bound trace proof has no complete operation binding")?;
+    if proof_binding.gate_kind.trim() != "proof"
+        || proof_binding.task_id != binding.task_id
+        || proof_binding.operation_id != binding.operation_id
+        || proof_binding.adapter != binding.adapter
+        || proof_binding.session_id != binding.session_id
+        || proof_binding.request_id != binding.request_id
+    {
+        bail!("operation-bound trace proof binding does not match the trace operation");
+    }
+    let risk = current_plan_risk(repo_root);
+    if risk != RiskLane::Low && !proof_has_current_receipt(repo_root, &proof)? {
+        bail!("operation-bound trace requires a current trusted receipt for medium/high risk");
+    }
+    if !proof_satisfies_risk(&proof.summary, risk) {
+        bail!("operation-bound trace proof does not satisfy plan risk requirements");
+    }
+    record_trace_internal(
+        repo_root,
+        vault,
+        summary,
+        outcome,
+        Some(binding),
+        Some(&proof),
+    )
+}
+
+fn record_trace_internal(
+    repo_root: &Path,
+    vault: &VaultContext,
+    summary: &str,
+    outcome: TraceOutcome,
+    binding: Option<&TraceOperationBinding>,
+    bound_proof: Option<&ProofRecord>,
+) -> Result<TraceRecord> {
     let now = Local::now();
     let id = now.format("%Y%m%d%H%M%S%3f").to_string();
     let date = now.format("%Y-%m-%d").to_string();
-    let risk = if repo_root.join("docs/baron/harness/CURRENT.md").exists() {
+    let risk = if binding.is_some() {
+        current_plan_risk(repo_root)
+    } else if repo_root.join("docs/baron/harness/CURRENT.md").exists() {
         current_harness_risk(repo_root)
     } else {
         current_plan_risk(repo_root)
     };
     let story = current_harness_title(repo_root);
     let plan = current_plan_title(repo_root);
-    let proof = latest_proof(repo_root)?;
+    let proof = match bound_proof {
+        Some(proof) => Some(proof.clone()),
+        None => latest_proof(repo_root)?,
+    };
     let files = changed_files(repo_root);
     let repo_path = repo_root
         .join("docs/baron/traces")
@@ -85,6 +203,8 @@ pub fn record_trace(
         plan: plan.as_deref(),
         story: story.as_deref(),
         proof: proof.as_ref().map(|value| value.summary.as_str()),
+        proof_id: proof.as_ref().map(|value| value.id.as_str()),
+        binding,
         capability_gate_passed: proof
             .as_ref()
             .map(|value| value.capability_gate_passed)
@@ -111,6 +231,8 @@ pub fn record_trace(
         id,
         repo_path,
         vault_path,
+        proof_id: proof.map(|value| value.id),
+        binding: binding.cloned(),
     })
 }
 
@@ -123,6 +245,9 @@ pub fn score_trace(
     let repo_path = find_trace(repo_root, trace_id)?;
     let content = fs::read_to_string(&repo_path)?;
     let risk = parse_risk(&content);
+    let trace_id = trace_field(&content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string());
+    let binding = parse_trace_binding(&content)?;
+    let proof_id = trace_field(&content, "- Proof ID: `");
     let mut missing = Vec::new();
     if !content.contains("## Task Summary\n\n") || content.contains("## Task Summary\n\n\n") {
         missing.push("task summary".to_string());
@@ -132,7 +257,45 @@ pub fn score_trace(
     }
     let has_plan = !content.contains("- Current plan: `missing`");
     let has_story = !content.contains("- Current story: `missing`");
-    let has_proof = !content.contains("- Proof: `missing`");
+    let bound_proof = if let Some(binding) = binding.as_ref() {
+        match proof_id.as_deref() {
+            Some(proof_id) => match proof_by_id(repo_root, proof_id)? {
+                Some(proof) => {
+                    let matches = proof_operation_binding(&proof)
+                        .map(|proof_binding| {
+                            proof_binding.gate_kind.trim() == "proof"
+                                && proof_binding.task_id == binding.task_id
+                                && proof_binding.operation_id == binding.operation_id
+                                && proof_binding.adapter == binding.adapter
+                                && proof_binding.session_id == binding.session_id
+                                && proof_binding.request_id == binding.request_id
+                        })
+                        .unwrap_or(false);
+                    if !matches || proof.id != binding.proof_id {
+                        missing.push("bound proof binding".to_string());
+                        None
+                    } else {
+                        Some(proof)
+                    }
+                }
+                None => {
+                    missing.push("bound proof".to_string());
+                    None
+                }
+            },
+            None => {
+                missing.push("bound proof".to_string());
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let has_proof = if binding.is_some() {
+        bound_proof.is_some()
+    } else {
+        !content.contains("- Proof: `missing`")
+    };
     let has_files = content
         .split("## Files Changed")
         .nth(1)
@@ -169,6 +332,32 @@ pub fn score_trace(
     if !proof_valid {
         missing.push("security/data-impact proof".to_string());
     }
+    if let Some(proof) = bound_proof.as_ref() {
+        if risk != RiskLane::Low && !proof_has_current_receipt(repo_root, proof)? {
+            missing.push("current trusted execution receipt".to_string());
+        }
+    }
+    if risk != RiskLane::Low {
+        if let Some(binding) = binding.as_ref() {
+            let required_agents = [
+                "code-reviewer".to_string(),
+                "security-auditor".to_string(),
+                "test-engineer".to_string(),
+            ];
+            let gate_status = gate_evidence_status_strict_for_operation(
+                repo_root,
+                &required_agents,
+                &binding.task_id,
+                &binding.operation_id,
+                &binding.adapter,
+                Some(&binding.session_id),
+                Some(&binding.request_id),
+            )?;
+            if !gate_status.passed {
+                missing.push("trusted quality-gate receipts".to_string());
+            }
+        }
+    }
     if content.contains("- Capability gate: `failed`") {
         missing.push("required capability execution evidence".to_string());
     }
@@ -177,11 +366,14 @@ pub fn score_trace(
     missing.dedup();
     let passed = achieved >= required && missing.is_empty();
     let score = TraceScore {
+        trace_id: trace_id.clone(),
         achieved,
         required,
         passed,
         missing_fields: missing,
         warnings,
+        proof_id: proof_id.clone(),
+        binding: binding.clone(),
     };
     let updated = replace_score(&content, &score);
     write(&repo_path, &updated)?;
@@ -190,7 +382,6 @@ pub fn score_trace(
         .unwrap_or(&repo_path);
     let vault_path = vault.project_root.join("Traces").join(relative);
     write(&vault_path, &updated)?;
-    let trace_id = trace_field(&content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string());
     let outcome = trace_field(&content, "- Outcome: `").unwrap_or_else(|| "unknown".to_string());
     let summary = trace_summary(&content);
     update_trace_index(
@@ -216,35 +407,66 @@ pub fn latest_trace_score(repo_root: impl AsRef<Path>) -> Result<Option<TraceSco
         Err(_) => return Ok(None),
     };
     let content = fs::read_to_string(path)?;
-    let Some(section) = content.split(SCORE_START).nth(1) else {
+    let Some(_section) = content.split(SCORE_START).nth(1) else {
         return Ok(None);
     };
-    let achieved = parse_tier_line(section, "- Achieved: `");
-    let required = parse_tier_line(section, "- Required: `");
-    let passed = section.contains("- Passed: `yes`");
-    let missing = section
-        .lines()
-        .find_map(|line| line.strip_prefix("- Missing: "))
-        .unwrap_or("none")
-        .split(", ")
-        .filter(|value| *value != "none")
-        .map(str::to_string)
-        .collect();
-    let warnings = section
-        .lines()
-        .find_map(|line| line.strip_prefix("- Warnings: "))
-        .unwrap_or("none")
-        .split(", ")
-        .filter(|value| *value != "none")
-        .map(str::to_string)
-        .collect();
-    Ok(Some(TraceScore {
-        achieved,
-        required,
-        passed,
-        missing_fields: missing,
-        warnings,
-    }))
+    Ok(Some(parse_score(&content)?))
+}
+
+/// Find a scored trace for one exact operation and proof. Global newest trace
+/// selection is intentionally not used for completion authority.
+pub fn latest_trace_score_for_operation(
+    repo_root: &Path,
+    expected: &TraceOperationBinding,
+) -> Result<Option<TraceScore>> {
+    let Some(trace) = trace_for_operation(repo_root, expected)? else {
+        return Ok(None);
+    };
+    let content = fs::read_to_string(trace.repo_path)?;
+    if !content.contains(SCORE_START) {
+        return Ok(None);
+    }
+    let score = parse_score(&content)?;
+    if score.binding.as_ref() == Some(expected)
+        && score.proof_id.as_deref() == Some(expected.proof_id.as_str())
+    {
+        Ok(Some(score))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Return the newest trace whose complete binding matches the expected
+/// operation and proof ID.
+pub fn trace_for_operation(
+    repo_root: &Path,
+    expected: &TraceOperationBinding,
+) -> Result<Option<TraceRecord>> {
+    expected.validate()?;
+    let mut paths = trace_paths(repo_root)?;
+    paths.sort();
+    for path in paths.into_iter().rev() {
+        let content = fs::read_to_string(&path)?;
+        let Some(binding) = parse_trace_binding(&content)? else {
+            continue;
+        };
+        if binding.matches_identity(expected) && binding.proof_id == expected.proof_id {
+            let id = trace_field(&content, "- Trace ID: `").unwrap_or_else(|| {
+                path.file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into()
+            });
+            return Ok(Some(TraceRecord {
+                id,
+                repo_path: path,
+                vault_path: PathBuf::new(),
+                proof_id: Some(binding.proof_id.clone()),
+                binding: Some(binding),
+            }));
+        }
+    }
+    Ok(None)
 }
 
 fn render_trace(view: TraceView<'_>) -> String {
@@ -257,6 +479,8 @@ fn render_trace(view: TraceView<'_>) -> String {
 - Current plan: `{}`\n\
 - Current story: `{}`\n\
 - Proof: `{}`\n\
+- Proof ID: `{}`\n\
+{}\n\
 - Capability gate: `{}`\n\
 - Capability warnings: {}\n\
 - Score status: `unscored`\n\n\
@@ -269,6 +493,8 @@ fn render_trace(view: TraceView<'_>) -> String {
         view.plan.unwrap_or("missing"),
         view.story.unwrap_or("missing"),
         view.proof.unwrap_or("missing"),
+        view.proof_id.unwrap_or("missing"),
+        render_binding(view.binding),
         if view.capability_gate_passed {
             "passed"
         } else {
@@ -299,16 +525,30 @@ struct TraceView<'a> {
     plan: Option<&'a str>,
     story: Option<&'a str>,
     proof: Option<&'a str>,
+    proof_id: Option<&'a str>,
+    binding: Option<&'a TraceOperationBinding>,
     capability_gate_passed: bool,
     capability_warnings: &'a [String],
     files: &'a [String],
 }
 
+fn render_binding(binding: Option<&TraceOperationBinding>) -> String {
+    binding
+        .map(|binding| {
+            format!(
+                "- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
+                binding.task_id,
+                binding.operation_id,
+                binding.adapter,
+                binding.session_id,
+                binding.request_id,
+            )
+        })
+        .unwrap_or_default()
+}
+
 fn find_trace(repo_root: &Path, trace_id: Option<&str>) -> Result<PathBuf> {
-    let root = repo_root.join("docs/baron/traces");
-    let mut files = Vec::new();
-    collect_markdown(&root, &mut files)?;
-    files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
+    let mut files = trace_paths(repo_root)?;
     files.sort();
     if let Some(id) = trace_id {
         return files
@@ -317,6 +557,14 @@ fn find_trace(repo_root: &Path, trace_id: Option<&str>) -> Result<PathBuf> {
             .with_context(|| format!("Trace not found: {id}"));
     }
     files.pop().context("No Baron trace found")
+}
+
+fn trace_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
+    let root = repo_root.join("docs/baron/traces");
+    let mut files = Vec::new();
+    collect_markdown(&root, &mut files)?;
+    files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
+    Ok(files)
 }
 
 fn collect_markdown(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
@@ -510,6 +758,68 @@ fn update_trace_index(
     content = lines.join("\n");
     content.push('\n');
     write(path, &content)
+}
+
+fn parse_score(content: &str) -> Result<TraceScore> {
+    let section = content
+        .split(SCORE_START)
+        .nth(1)
+        .context("Trace quality score is missing")?;
+    let missing = section
+        .lines()
+        .find_map(|line| line.strip_prefix("- Missing: "))
+        .unwrap_or("none")
+        .split(", ")
+        .filter(|value| *value != "none")
+        .map(str::to_string)
+        .collect();
+    let warnings = section
+        .lines()
+        .find_map(|line| line.strip_prefix("- Warnings: "))
+        .unwrap_or("none")
+        .split(", ")
+        .filter(|value| *value != "none")
+        .map(str::to_string)
+        .collect();
+    Ok(TraceScore {
+        trace_id: trace_field(content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string()),
+        achieved: parse_tier_line(section, "- Achieved: `"),
+        required: parse_tier_line(section, "- Required: `"),
+        passed: section.contains("- Passed: `yes`"),
+        missing_fields: missing,
+        warnings,
+        proof_id: trace_field(content, "- Proof ID: `"),
+        binding: parse_trace_binding(content)?,
+    })
+}
+
+fn parse_trace_binding(content: &str) -> Result<Option<TraceOperationBinding>> {
+    let fields = [
+        trace_field(content, "- Task ID: `"),
+        trace_field(content, "- Operation ID: `"),
+        trace_field(content, "- Adapter: `"),
+        trace_field(content, "- Session ID: `"),
+        trace_field(content, "- Request ID: `"),
+        trace_field(content, "- Proof ID: `"),
+    ];
+    let identity_present = fields[..5].iter().filter(|value| value.is_some()).count();
+    if identity_present == 0 {
+        return Ok(None);
+    }
+    if identity_present != 5 || fields[5].is_none() {
+        bail!("trace operation binding is incomplete");
+    }
+    let [task_id, operation_id, adapter, session_id, request_id, proof_id] = fields;
+    let binding = TraceOperationBinding {
+        task_id: task_id.expect("checked task ID"),
+        operation_id: operation_id.expect("checked operation ID"),
+        adapter: adapter.expect("checked adapter"),
+        session_id: session_id.expect("checked session ID"),
+        request_id: request_id.expect("checked request ID"),
+        proof_id: proof_id.expect("checked proof ID"),
+    };
+    binding.validate()?;
+    Ok(Some(binding))
 }
 
 fn parse_tier_line(content: &str, prefix: &str) -> TraceTier {
