@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::control_plane::gate_evidence_status_strict_for_operation;
 use crate::harness::{current_harness_risk, current_harness_title};
 use crate::operation::OperationContext;
+use crate::plan::{active_plan_authority, ActivePlanAuthority};
 use crate::proof::{
     latest_proof, proof_by_id, proof_has_current_receipt, proof_operation_binding,
     proof_satisfies_risk, ProofRecord,
@@ -117,7 +118,15 @@ pub fn record_trace(
     summary: &str,
     outcome: TraceOutcome,
 ) -> Result<TraceRecord> {
-    record_trace_internal(repo_root.as_ref(), vault, summary, outcome, None, None)
+    record_trace_internal(
+        repo_root.as_ref(),
+        vault,
+        summary,
+        outcome,
+        None,
+        None,
+        None,
+    )
 }
 
 /// Record a trace bound to one exact proof and operation. This path never
@@ -144,7 +153,14 @@ pub fn record_trace_for_operation(
     {
         bail!("operation-bound trace proof binding does not match the trace operation");
     }
-    let risk = current_plan_risk(repo_root);
+    let plan_authority = active_plan_authority(repo_root)?;
+    if plan_authority.is_none() && repo_root.join("docs/baron/plans/CURRENT.md").exists() {
+        bail!("operation-bound trace requires a validated active plan");
+    }
+    let risk = plan_authority
+        .as_ref()
+        .map(|authority| authority.risk)
+        .unwrap_or_else(|| current_plan_risk(repo_root));
     if risk != RiskLane::Low && !proof_has_current_receipt(repo_root, &proof)? {
         bail!("operation-bound trace requires a current trusted receipt for medium/high risk");
     }
@@ -158,6 +174,7 @@ pub fn record_trace_for_operation(
         outcome,
         Some(binding),
         Some(&proof),
+        plan_authority.as_ref(),
     )
 }
 
@@ -168,19 +185,28 @@ fn record_trace_internal(
     outcome: TraceOutcome,
     binding: Option<&TraceOperationBinding>,
     bound_proof: Option<&ProofRecord>,
+    plan_authority: Option<&ActivePlanAuthority>,
 ) -> Result<TraceRecord> {
     let now = Local::now();
     let id = now.format("%Y%m%d%H%M%S%3f").to_string();
     let date = now.format("%Y-%m-%d").to_string();
     let risk = if binding.is_some() {
-        current_plan_risk(repo_root)
+        plan_authority
+            .map(|authority| authority.risk)
+            .unwrap_or_else(|| current_plan_risk(repo_root))
     } else if repo_root.join("docs/baron/harness/CURRENT.md").exists() {
         current_harness_risk(repo_root)
     } else {
         current_plan_risk(repo_root)
     };
     let story = current_harness_title(repo_root);
-    let plan = current_plan_title(repo_root);
+    let plan = if binding.is_some() {
+        plan_authority
+            .map(|authority| authority.title.clone())
+            .or_else(|| current_plan_title(repo_root))
+    } else {
+        current_plan_title(repo_root)
+    };
     let proof = match bound_proof {
         Some(proof) => Some(proof.clone()),
         None => latest_proof(repo_root)?,

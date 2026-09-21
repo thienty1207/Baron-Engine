@@ -1,9 +1,10 @@
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-use baron_core::automation::reconcile;
+use baron_core::automation::{handle_hook, reconcile, AutomationEvent, HookAdapter};
 use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
 use baron_core::execution_receipt::{
     execute_command_for_identity, ExecutionRequest, ReceiptContext,
@@ -23,8 +24,8 @@ use baron_core::proof::{
 use baron_core::trace::{
     record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
 };
-use baron_core::vault::ensure_vault;
-use tempfile::tempdir;
+use baron_core::vault::{ensure_vault, VaultContext};
+use tempfile::{tempdir, TempDir};
 
 fn setup_git(repo: &std::path::Path) {
     Command::new("git").arg("init").arg(repo).output().unwrap();
@@ -347,6 +348,390 @@ fn active_plan_path(repo: &std::path::Path) -> std::path::PathBuf {
     repo.join(path)
 }
 
+fn identified_plan_fixture(
+    title: &str,
+    adapter: SupportedAdapter,
+    session_id: &str,
+    request_id: &str,
+) -> (
+    TempDir,
+    PathBuf,
+    VaultContext,
+    AuthoritativeLifecycleIdentity,
+    PathBuf,
+) {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        adapter,
+        Some(session_id),
+        Some(request_id),
+    )
+    .unwrap();
+    let plan = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+    (temp, repo, context, identity, plan.repo_path)
+}
+
+fn assert_stop_blocks(
+    repo: &Path,
+    context: &VaultContext,
+    title: &str,
+    identity: &AuthoritativeLifecycleIdentity,
+) {
+    let adapter = match identity.adapter() {
+        SupportedAdapter::Codex => HookAdapter::Codex,
+        SupportedAdapter::Claude => HookAdapter::Claude,
+    };
+    let stop = handle_hook(
+        repo,
+        context,
+        adapter,
+        AutomationEvent::Stop,
+        &format!(
+            r#"{{"task":"{title}","session_id":"{}","request_id":"{}","stop_hook_active":false}}"#,
+            identity.session_id(),
+            identity.request_id()
+        ),
+    )
+    .unwrap();
+    assert!(
+        stop.contains(r#""decision":"block""#),
+        "Stop hook unexpectedly allowed the mismatched plan: {stop}"
+    );
+}
+
+fn assert_current_metadata_mismatch_blocks<F>(mutate: F)
+where
+    F: FnOnce(String, &AuthoritativeLifecycleIdentity) -> String,
+{
+    let (_temp, repo, context, identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&current_path).unwrap();
+    fs::write(&current_path, mutate(current, &identity)).unwrap();
+
+    let error = complete_plan(&repo, &context, "verification attempted").unwrap_err();
+    assert!(error.to_string().contains("authority mismatch"));
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .any(|gap| gap.contains("CURRENT")));
+    assert_stop_blocks(&repo, &context, "backend login security", &identity);
+    assert!(fs::read_to_string(plan_path)
+        .unwrap()
+        .contains("status: in_progress"));
+}
+
+#[test]
+fn current_risk_mismatch_fails_closed() {
+    assert_current_metadata_mismatch_blocks(|current, _| {
+        current.replace("- Risk: `high`", "- Risk: `low`")
+    });
+}
+
+#[test]
+fn current_task_id_mismatch_fails_closed() {
+    assert_current_metadata_mismatch_blocks(|current, identity| {
+        current.replace(
+            &format!("- Task ID: `{}`", identity.task_id()),
+            "- Task ID: `tampered-task`",
+        )
+    });
+}
+
+#[test]
+fn current_operation_id_mismatch_fails_closed() {
+    assert_current_metadata_mismatch_blocks(|current, identity| {
+        current.replace(
+            &format!("- Operation ID: `{}`", identity.operation_id()),
+            "- Operation ID: `tampered-operation`",
+        )
+    });
+}
+
+#[test]
+fn current_adapter_mismatch_fails_closed() {
+    assert_current_metadata_mismatch_blocks(|current, _| {
+        current.replace("- Adapter: `codex`", "- Adapter: `claude`")
+    });
+}
+
+#[test]
+fn current_session_id_mismatch_fails_closed() {
+    assert_current_metadata_mismatch_blocks(|current, identity| {
+        current.replace(
+            &format!("- Session ID: `{}`", identity.session_id()),
+            "- Session ID: `tampered-session`",
+        )
+    });
+}
+
+#[test]
+fn current_request_id_mismatch_fails_closed() {
+    assert_current_metadata_mismatch_blocks(|current, identity| {
+        current.replace(
+            &format!("- Request ID: `{}`", identity.request_id()),
+            "- Request ID: `tampered-request`",
+        )
+    });
+}
+
+#[test]
+fn current_title_mismatch_fails_closed() {
+    assert_current_metadata_mismatch_blocks(|current, _| {
+        current.replace("- Title: backend login security", "- Title: unrelated task")
+    });
+}
+
+#[test]
+fn current_risk_and_operation_swap_cannot_authorize_low_risk_evidence() {
+    let (_temp, repo, context, active, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let unrelated = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README typo",
+        SupportedAdapter::Claude,
+        Some("other-session"),
+        Some("other-request"),
+    )
+    .unwrap();
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current_a = fs::read_to_string(&current_path).unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, "fix README typo", &unrelated).unwrap();
+
+    let unrelated_operation = OperationContext::from_identity(&unrelated);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &unrelated_operation,
+        "README verification passed",
+    )
+    .unwrap();
+    let trace_binding =
+        TraceOperationBinding::from_operation(&unrelated_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let tampered = current_a
+        .replace("- Risk: `high`", "- Risk: `low`")
+        .replace(
+            &format!("- Task ID: `{}`", active.task_id()),
+            &format!("- Task ID: `{}`", unrelated.task_id()),
+        )
+        .replace(
+            &format!("- Operation ID: `{}`", active.operation_id()),
+            &format!("- Operation ID: `{}`", unrelated.operation_id()),
+        )
+        .replace("- Adapter: `codex`", "- Adapter: `claude`")
+        .replace(
+            &format!("- Session ID: `{}`", active.session_id()),
+            &format!("- Session ID: `{}`", unrelated.session_id()),
+        )
+        .replace(
+            &format!("- Request ID: `{}`", active.request_id()),
+            &format!("- Request ID: `{}`", unrelated.request_id()),
+        );
+    fs::write(&current_path, tampered).unwrap();
+
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .any(|gap| gap.contains("risk") || gap.contains("binding")));
+    assert_stop_blocks(&repo, &context, "fix README typo", &unrelated);
+    assert!(complete_plan(&repo, &context, "verification attempted").is_err());
+    assert!(fs::read_to_string(plan_path)
+        .unwrap()
+        .contains("status: in_progress"));
+}
+
+#[test]
+fn current_pointer_cannot_combine_metadata_with_another_valid_plan() {
+    let (_temp, repo, context, active, active_path) = identified_plan_fixture(
+        "fix README typo",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let active_operation = OperationContext::from_identity(&active);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &active_operation,
+        "README verification passed",
+    )
+    .unwrap();
+    let trace_binding =
+        TraceOperationBinding::from_operation(&active_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current_a = fs::read_to_string(&current_path).unwrap();
+    let other = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "copy README typo",
+        SupportedAdapter::Claude,
+        Some("other-session"),
+        Some("other-request"),
+    )
+    .unwrap();
+    let other_plan =
+        start_or_resume_plan_for_identity(&repo, &context, "copy README typo", &other).unwrap();
+    let other_relative = other_plan
+        .repo_path
+        .strip_prefix(&repo)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    let current_plan_line = current_a
+        .lines()
+        .find(|line| line.starts_with("- Plan: `"))
+        .unwrap();
+    let switched = current_a.replace(current_plan_line, &format!("- Plan: `{other_relative}`"));
+    fs::write(&current_path, switched).unwrap();
+
+    assert!(!reconcile(&repo).unwrap().passed);
+    assert_stop_blocks(&repo, &context, "fix README typo", &active);
+    assert!(complete_plan(&repo, &context, "verification attempted").is_err());
+    assert!(fs::read_to_string(other_plan.repo_path)
+        .unwrap()
+        .contains("status: in_progress"));
+    assert!(fs::read_to_string(active_path)
+        .unwrap()
+        .contains("status: in_progress"));
+}
+
+#[test]
+fn identified_and_legacy_plan_metadata_states_cannot_cross_authorize() {
+    let (_temp, repo, context, plan_path) = {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("demo");
+        let vault = temp.path().join("Vault");
+        fs::create_dir_all(&repo).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let plan = start_or_resume_plan(&repo, &context, "fix README typo").unwrap();
+        let identity = AuthoritativeLifecycleIdentity::resolve(
+            &context.project_id,
+            "fix README typo",
+            SupportedAdapter::Claude,
+            Some("identified-session"),
+            Some("identified-request"),
+        )
+        .unwrap();
+        let operation = OperationContext::from_identity(&identity);
+        let proof =
+            record_proof_for_operation(&repo, &context, &operation, "README verification passed")
+                .unwrap();
+        let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+        let trace = record_trace_for_operation(
+            &repo,
+            &context,
+            "README typo corrected",
+            TraceOutcome::Completed,
+            &binding,
+        )
+        .unwrap();
+        assert!(
+            score_trace(&repo, &context, Some(&trace.id))
+                .unwrap()
+                .passed
+        );
+        let current_path = repo.join("docs/baron/plans/CURRENT.md");
+        let current = fs::read_to_string(&current_path).unwrap();
+        let identified = current.replace(
+            "- Verification: not_run",
+            &format!(
+                "- Operation ID: `{}`\n- Adapter: `claude`\n- Session ID: `identified-session`\n- Request ID: `identified-request`\n- Verification: not_run",
+                identity.operation_id()
+            ),
+        );
+        fs::write(&current_path, identified).unwrap();
+        assert!(complete_plan(&repo, &context, "verification attempted").is_err());
+        let reconciliation = reconcile(&repo).unwrap();
+        assert!(!reconciliation.passed);
+        assert!(reconciliation
+            .gaps
+            .iter()
+            .any(|gap| gap.contains("binding state")));
+        assert_stop_blocks(&repo, &context, "fix README typo", &identity);
+        assert!(fs::read_to_string(&plan.repo_path)
+            .unwrap()
+            .contains("status: in_progress"));
+        (temp, repo, context, plan.repo_path)
+    };
+    let _ = (_temp, repo, context, plan_path);
+
+    let (_temp, repo, context, _identity, plan_path) = identified_plan_fixture(
+        "fix README typo",
+        SupportedAdapter::Codex,
+        "identified-session",
+        "identified-request",
+    );
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&current_path).unwrap();
+    let legacy = current
+        .lines()
+        .filter(|line| {
+            !line.starts_with("- Operation ID: ")
+                && !line.starts_with("- Adapter: ")
+                && !line.starts_with("- Session ID: ")
+                && !line.starts_with("- Request ID: ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&current_path, format!("{legacy}\n")).unwrap();
+    assert!(complete_plan(&repo, &context, "verification attempted").is_err());
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .any(|gap| gap.contains("binding state")));
+    assert_stop_blocks(&repo, &context, "fix README typo", &_identity);
+    assert!(fs::read_to_string(plan_path)
+        .unwrap()
+        .contains("status: in_progress"));
+}
+
 #[test]
 fn update_and_interrupt_preserve_last_known_state() {
     let temp = tempdir().unwrap();
@@ -529,6 +914,15 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         assert!(index.contains("backend login security"));
         assert!(index.contains("status: `completed`"));
     }
+
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let tampered_current = fs::read_to_string(&current_path)
+        .unwrap()
+        .replace("- Risk: `high`", "- Risk: `low`");
+    fs::write(&current_path, tampered_current).unwrap();
+    let tampered_status = plan_status(&repo).unwrap();
+    assert!(tampered_status.contains("Completion integrity: `failed`"));
+    assert!(tampered_status.contains("CURRENT risk does not match linked plan risk"));
 }
 
 #[test]

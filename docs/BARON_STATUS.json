@@ -26,9 +26,9 @@
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "publicVersionBump": false,
-    "baselineCommit": "5e5a23dc17608adcc27d2f039f8a439bd4129013",
+    "baselineCommit": "459b45602061e5bfd294610e00f8ac3ec04f8887",
     "branch": "codex/spec-04-proof-trace-gate-completion-integrity",
-    "scope": "complete receipt-bound proof publication, operation-bound trace recording and scoring, strict operation-scoped gate evidence, shared completion-integrity reconciliation, and fresh trace-score authority for identified plans",
+    "scope": "complete receipt-bound proof publication, operation-bound trace recording and scoring, strict operation-scoped gate evidence, shared completion-integrity reconciliation, fresh trace-score authority for identified plans, and canonical CURRENT-to-linked-plan metadata authority",
     "previousSpec": {
       "spec": "SPEC-03",
       "name": "Trusted Execution Receipt Architecture",
@@ -46,7 +46,7 @@
     ],
     "implementationCommits": [],
     "verification": {
-      "focusedProofTracePlanAndIntegrity": "PASS: trusted_proof 1/1; proof_trace 16/16; plan 15/15; automation 5/5; control_plane 9/9; runtime_policy 4/4; execution_receipt 5/5; operation_identity 10/10",
+      "focusedProofTracePlanAndIntegrity": "PASS: trusted_proof 1/1; proof_trace 16/16; plan 25/25; automation 5/5; control_plane 9/9; runtime_policy 4/4; execution_receipt 5/5; operation_identity 10/10",
       "cliExecution": "PASS: execution_cli 15/15; phase12_hooks_cli 4/4",
       "coreAllTargets": "PASS: all baron-core targets",
       "workspaceAllTargets": "KNOWN BLOCKERS: lifecycle_scripts Microsoft.PowerShell.Archive unavailable; prepare_cli existing session_replay UTF-8 boundary panic",
@@ -55,14 +55,16 @@
       "releaseBuild": "PASS: cargo build --release --locked -p baron-cli",
       "binaryVersion": "PASS: baron 5.0.0",
       "diffCheck": "PASS",
-      "adversarialSelfScan": "PASS: FIX-01 scoped reconciliation, FIX-02 fresh trace-score authority, exact trace/proof identity, cross-operation rejection, legacy diagnostic-only behavior, and no global-newest correctness selection have no new SPEC-04-owned failure",
+      "currentPlanAuthority": "PASS: linked-plan frontmatter is canonical; exact title/risk/task/operation/adapter/session/request equality, identified-vs-legacy separation, pointer-switch rejection, post-completion tamper detection, reconcile failure, Stop blocking, and operation-B bypass isolation are covered",
+      "staticCurrentReaders": "PASS: correctness-sensitive completion/lifecycle/reconcile/Stop/operation-bound trace paths use the validated loader; continuity/context/knowledge/Autopilot/harness/update/legacy readers remain diagnostic or preservation projections",
+      "adversarialSelfScan": "PASS: CURRENT-only metadata tampering cannot authorize completion; FIX-01 scoped reconciliation, FIX-02 fresh trace-score authority, exact trace/proof identity, cross-operation rejection, legacy diagnostic-only behavior, and no global-newest correctness selection have no new SPEC-04-owned failure",
       "workspaceKnownFailures": [
         "baron-cli lifecycle_scripts: Microsoft.PowerShell.Archive unavailable",
         "baron-cli prepare_cli: existing session_replay UTF-8 boundary panic"
       ]
     },
-    "activePlan": "docs/superpowers/plans/2026-09-21-spec-04-final-review-fix.md",
-    "nextAction": "Push the completed final-review fix branch once, verify local and remote SHAs, and hand off for final adversarial review without closing the spec."
+    "activePlan": "docs/superpowers/plans/2026-09-21-spec-04-current-plan-integrity-fix.md",
+    "nextAction": "Hand off the pushed branch for final adversarial review without closing SPEC-04; keep public version 5.0.0 and do not release or tag."
   },
   "securityRemediation": {
     "status": "complete",

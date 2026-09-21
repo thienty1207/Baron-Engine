@@ -2,11 +2,19 @@
 
 ## SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-21)
 
-- Current task: implement the final review fixes for SPEC-04 on the reviewed
-  HEAD without changing release metadata or starting SPEC-05.
+- Current task: complete the SPEC-04 CURRENT-to-linked-plan authority fix on
+  the reviewed HEAD without changing release metadata or starting SPEC-05.
 - Checkpoint: branch
   `codex/spec-04-proof-trace-gate-completion-integrity` on review baseline
-  `5e5a23dc17608adcc27d2f039f8a439bd4129013`; public version remains `5.0.0`.
+  `459b45602061e5bfd294610e00f8ac3ec04f8887`; public version remains `5.0.0`.
+- Authority status: linked plan frontmatter is canonical for title, risk, task
+  ID, operation ID, adapter, session ID, and request ID. CURRENT is validated
+  against it as a pointer/status projection; status is not compared because
+  controlled lifecycle transitions are allowed.
+- Fail-closed status: risk downgrades, any identity-field rewrite, title or
+  pointer switches, identified/legacy cross-binding, and post-completion
+  CURRENT tampering fail completion, reconciliation, and Stop without repair or
+  guessing. The operation-B high-risk/low-risk bypass is covered.
 - FIX-01 status: `automation::reconcile` and the Stop hook now consume the
   same operation-scoped completion evaluator as plan completion and integrity
   status. Missing active evidence blocks; no active plan reports cleanly
@@ -20,7 +28,7 @@
   preflighted and atomic; exact operation and Proof ID bindings remain
   enforced; Low/Medium/High tiers remain Minimal/Standard/Detailed; legacy
   global selectors are diagnostic/status/history-only.
-- Focused proof: `trusted_proof` 1/1, `proof_trace` 16/16, `plan` 15/15,
+- Focused proof: `trusted_proof` 1/1, `proof_trace` 16/16, `plan` 25/25,
   `automation` 5/5, `control_plane` 9/9, `runtime_policy` 4/4,
   `execution_receipt` 5/5, `operation_identity` 10/10, CLI
   `execution_cli` 15/15, and `phase12_hooks_cli` 4/4 pass. Core all-targets,
@@ -28,14 +36,18 @@
   diff check pass.
 - Workspace trace: the complete workspace run retains only the known
   unrelated `Microsoft.PowerShell.Archive` installer-module failure and the
-  existing `session_replay` UTF-8 boundary panic; no FIX-01/FIX-02-owned
-  failure appeared.
+- existing `session_replay` UTF-8 boundary panic at
+  `crates/baron-core/src/session_replay.rs:383`; no SPEC-04-owned failure
+  appeared.
+- CURRENT-reader scan: completion/lifecycle/reconcile/Stop and operation-bound
+  trace use the centralized validated authority path. Continuity, context,
+  knowledge, Autopilot, harness improvement, update preservation, and legacy
+  unbound trace readers are diagnostic/status/history projections only.
 - Persisted-state boundary: only SPEC-04 review-fix source/tests, the active
   plan, and maintained status/build-log evidence are in scope; project/Vault
   data and unrelated user files remain untouched.
-- Safe next action: push once, verify local/remote SHA, then hand off for
-  final adversarial review. Do not release, tag, bump the version, or claim
-  closure.
+- Safe next action: hand off the pushed branch for final adversarial review.
+  Do not release, tag, bump the version, or claim closure.
 
 ## SPEC-03 Trusted Execution Receipt Architecture — canonical task and seed alias follow-up (closed, 2026-09-21)
 

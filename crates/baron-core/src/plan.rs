@@ -6,7 +6,7 @@ use chrono::{Local, SecondsFormat};
 
 use crate::control_plane::gate_evidence_status_strict_for_operation;
 use crate::execution_receipt::ReceiptContext;
-use crate::operation::{LifecycleIdentity, OperationContext};
+use crate::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use crate::proof::{
     proof_for_operation, proof_has_current_receipt, proof_operation_binding, proof_satisfies_risk,
 };
@@ -90,13 +90,35 @@ impl PlanOperationBinding {
     }
 }
 
+/// Canonical active-plan metadata after CURRENT.md has been validated against
+/// its linked plan file. Callers may use this for correctness-sensitive
+/// evidence creation without parsing CURRENT.md independently.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivePlanAuthority {
+    pub title: String,
+    pub risk: RiskLane,
+    pub binding: Option<PlanOperationBinding>,
+}
+
+pub fn active_plan_authority(repo_root: impl AsRef<Path>) -> Result<Option<ActivePlanAuthority>> {
+    let Some(active) = active_plan(repo_root.as_ref())? else {
+        return Ok(None);
+    };
+    active.ensure_authority()?;
+    Ok(Some(ActivePlanAuthority {
+        title: active.title,
+        risk: active.risk,
+        binding: active.binding,
+    }))
+}
+
 /// Return the active plan's persisted operation binding for ingress adapters.
 /// Missing bindings remain explicit instead of being inferred from the latest
 /// repository artifact.
 pub fn active_plan_operation_binding(
     repo_root: impl AsRef<Path>,
 ) -> Result<Option<PlanOperationBinding>> {
-    Ok(active_plan(repo_root.as_ref())?.and_then(|plan| plan.binding))
+    Ok(active_plan_authority(repo_root)?.and_then(|authority| authority.binding))
 }
 
 /// Evaluate the current active plan using the same scoped completion evidence
@@ -180,6 +202,7 @@ fn start_or_resume_plan_internal(
 ) -> Result<PlanRecord> {
     let title = title.trim();
     if let Some(active) = active_plan(repo_root)? {
+        active.ensure_authority()?;
         if active.title.eq_ignore_ascii_case(title) && active.status != "completed" {
             if let Some(requested) = binding {
                 match active.binding.as_ref() {
@@ -388,6 +411,12 @@ fn completion_evidence_status(
     repo_root: &Path,
     active: &ActivePlan,
 ) -> Result<CompletionEvidenceStatus> {
+    if !active.authority_issues.is_empty() {
+        return Ok(CompletionEvidenceStatus {
+            passed: false,
+            issues: active.authority_issues.clone(),
+        });
+    }
     let issues = completion_evidence_issues(repo_root, active)?;
     Ok(CompletionEvidenceStatus {
         passed: issues.is_empty(),
@@ -508,7 +537,9 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
     match active {
         Some(plan) if plan.path.is_file() => {
             let body = read_text_required(&plan.path)?;
-            if !body.lines().any(|line| line == "status: completed") {
+            if plan.linked_status.as_deref() != Some("completed")
+                || !body.lines().any(|line| line == "status: completed")
+            {
                 issues.push("plan file is not marked completed".to_string());
             }
             let plan_verification = body
@@ -572,7 +603,10 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
     let Some(content) = read_text(&current_path)? else {
         return Ok(None);
     };
-    let title = field(&content, "- Title: ").unwrap_or_default();
+    let mut authority_issues = Vec::new();
+    let current_title = field(&content, "- Title: ")
+        .map(|value| value.trim().to_string())
+        .unwrap_or_default();
     let path = field(&content, "- Plan: `")
         .and_then(|value| value.strip_suffix('`').map(str::to_string))
         .map(|value| {
@@ -587,46 +621,264 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
     let status = field(&content, "- Status: `")
         .and_then(|value| value.strip_suffix('`').map(str::to_string))
         .unwrap_or_else(|| "in_progress".to_string());
-    let risk = if content.contains("- Risk: `high`") {
-        RiskLane::High
-    } else if content.contains("- Risk: `low`") {
-        RiskLane::Low
-    } else {
-        RiskLane::Medium
-    };
-    let task_id = field(&content, "- Task ID: `")
-        .and_then(|value| value.strip_suffix('`').map(str::to_string));
-    let operation_id = field(&content, "- Operation ID: `")
-        .and_then(|value| value.strip_suffix('`').map(str::to_string));
-    let adapter = field(&content, "- Adapter: `")
-        .and_then(|value| value.strip_suffix('`').map(str::to_string));
-    let session_id = field(&content, "- Session ID: `")
-        .and_then(|value| value.strip_suffix('`').map(str::to_string));
-    let request_id = field(&content, "- Request ID: `")
-        .and_then(|value| value.strip_suffix('`').map(str::to_string));
-    let binding = match (task_id, operation_id, adapter, session_id, request_id) {
-        (Some(task_id), Some(operation_id), Some(adapter), Some(session_id), Some(request_id)) => {
-            Some(PlanOperationBinding {
-                task_id,
-                operation_id,
-                adapter,
-                session_id,
-                request_id,
-            })
+    let risk = match current_backtick_field(&content, "- Risk: `") {
+        Some(value) => match parse_risk_lane(&value) {
+            Ok(risk) => risk,
+            Err(error) => {
+                authority_issues.push(format!("CURRENT risk is invalid: {error}"));
+                RiskLane::Medium
+            }
+        },
+        None => {
+            authority_issues.push("CURRENT risk is missing".to_string());
+            RiskLane::Medium
         }
-        _ => None,
     };
-    Ok(path.map(|path| ActivePlan {
-        title,
-        path,
-        status,
-        risk,
-        binding,
+    let task_id = current_backtick_field(&content, "- Task ID: `");
+    let operation_id = current_backtick_field(&content, "- Operation ID: `");
+    let adapter = current_backtick_field(&content, "- Adapter: `");
+    let session_id = current_backtick_field(&content, "- Session ID: `");
+    let request_id = current_backtick_field(&content, "- Request ID: `");
+    let (current_binding, binding_issues) = current_operation_binding(
+        task_id.clone(),
+        operation_id,
+        adapter,
+        session_id,
+        request_id,
+    );
+    authority_issues.extend(binding_issues);
+
+    Ok(path.map(|path| {
+        let mut title = current_title;
+        let mut canonical_risk = risk;
+        let mut binding = current_binding;
+        let mut linked_status = None;
+        match load_plan_file_metadata(&path) {
+            Ok(metadata) => {
+                linked_status = Some(metadata.status.clone());
+                match metadata.operation_binding() {
+                    Ok(linked_binding) => {
+                        compare_current_with_linked_plan(
+                            &title,
+                            canonical_risk,
+                            task_id.as_deref(),
+                            binding.as_ref(),
+                            &metadata,
+                            linked_binding.as_ref(),
+                            &mut authority_issues,
+                        );
+                        title = metadata.title.clone();
+                        canonical_risk = metadata.risk;
+                        binding = linked_binding;
+                    }
+                    Err(error) => {
+                        authority_issues.push(error.to_string());
+                    }
+                }
+            }
+            Err(error) => {
+                authority_issues.push(format!("linked plan metadata is unavailable: {error}"));
+            }
+        }
+        ActivePlan {
+            title,
+            path,
+            status,
+            risk: canonical_risk,
+            binding,
+            linked_status,
+            authority_issues,
+        }
     }))
 }
 
 fn require_active_plan(repo_root: &Path) -> Result<ActivePlan> {
-    active_plan(repo_root)?.context("No active Baron plan. Run `baron plan start \"<title>\"`.")
+    let active = active_plan(repo_root)?
+        .context("No active Baron plan. Run `baron plan start \"<title>\"`.")?;
+    active.ensure_authority()?;
+    Ok(active)
+}
+
+fn current_backtick_field(content: &str, prefix: &str) -> Option<String> {
+    field(content, prefix).and_then(|value| {
+        value
+            .strip_suffix('`')
+            .map(|value| value.trim().to_string())
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PlanFileMetadata {
+    title: String,
+    status: String,
+    risk: RiskLane,
+    task_id: String,
+    operation_id: Option<String>,
+    adapter: Option<String>,
+    session_id: Option<String>,
+    request_id: Option<String>,
+}
+
+impl PlanFileMetadata {
+    fn operation_binding(&self) -> Result<Option<PlanOperationBinding>> {
+        match (
+            self.operation_id.as_ref(),
+            self.adapter.as_ref(),
+            self.session_id.as_ref(),
+            self.request_id.as_ref(),
+        ) {
+            (None, None, None, None) => Ok(None),
+            (Some(operation_id), Some(adapter), Some(session_id), Some(request_id))
+                if !operation_id.trim().is_empty()
+                    && !adapter.trim().is_empty()
+                    && !session_id.trim().is_empty()
+                    && !request_id.trim().is_empty() =>
+            {
+                adapter
+                    .parse::<SupportedAdapter>()
+                    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                Ok(Some(PlanOperationBinding {
+                    task_id: self.task_id.clone(),
+                    operation_id: operation_id.clone(),
+                    adapter: adapter.clone(),
+                    session_id: session_id.clone(),
+                    request_id: request_id.clone(),
+                }))
+            }
+            _ => bail!("linked plan operation metadata is incomplete"),
+        }
+    }
+}
+
+fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
+    let content = read_text_required(path)?;
+    let title = required_plan_field(&content, "title:")?;
+    let status = required_plan_field(&content, "status:")?;
+    let risk = parse_risk_lane(&required_plan_field(&content, "risk:")?)?;
+    let task_id = required_plan_field(&content, "task_id:")?;
+    if task_id.is_empty() {
+        bail!("linked plan task_id is empty");
+    }
+    Ok(PlanFileMetadata {
+        title,
+        status,
+        risk,
+        task_id,
+        operation_id: optional_plan_field(&content, "operation_id:"),
+        adapter: optional_plan_field(&content, "adapter:"),
+        session_id: optional_plan_field(&content, "session_id:"),
+        request_id: optional_plan_field(&content, "request_id:"),
+    })
+}
+
+fn required_plan_field(content: &str, prefix: &str) -> Result<String> {
+    optional_plan_field(content, prefix)
+        .filter(|value| !value.is_empty())
+        .with_context(|| format!("linked plan metadata is missing `{prefix}`"))
+}
+
+fn optional_plan_field(content: &str, prefix: &str) -> Option<String> {
+    content.lines().find_map(|line| {
+        line.strip_prefix(prefix)
+            .map(|value| value.trim().to_string())
+    })
+}
+
+fn parse_risk_lane(value: &str) -> Result<RiskLane> {
+    match value.trim() {
+        "low" => Ok(RiskLane::Low),
+        "medium" => Ok(RiskLane::Medium),
+        "high" => Ok(RiskLane::High),
+        other => bail!("unsupported risk lane `{other}`"),
+    }
+}
+
+fn current_operation_binding(
+    task_id: Option<String>,
+    operation_id: Option<String>,
+    adapter: Option<String>,
+    session_id: Option<String>,
+    request_id: Option<String>,
+) -> (Option<PlanOperationBinding>, Vec<String>) {
+    let fields = [
+        operation_id.as_ref(),
+        adapter.as_ref(),
+        session_id.as_ref(),
+        request_id.as_ref(),
+    ];
+    if fields.iter().all(Option::is_none) {
+        return (None, Vec::new());
+    }
+    if task_id.is_none()
+        || fields.iter().any(Option::is_none)
+        || [
+            operation_id.as_deref(),
+            adapter.as_deref(),
+            session_id.as_deref(),
+            request_id.as_deref(),
+        ]
+        .iter()
+        .any(|value| value.is_some_and(str::is_empty))
+    {
+        return (
+            None,
+            vec!["CURRENT operation metadata is incomplete".to_string()],
+        );
+    }
+    let adapter = adapter.expect("checked above");
+    if let Err(error) = adapter.parse::<SupportedAdapter>() {
+        return (None, vec![format!("CURRENT adapter is invalid: {error}")]);
+    }
+    (
+        Some(PlanOperationBinding {
+            task_id: task_id.expect("checked above"),
+            operation_id: operation_id.expect("checked above"),
+            adapter,
+            session_id: session_id.expect("checked above"),
+            request_id: request_id.expect("checked above"),
+        }),
+        Vec::new(),
+    )
+}
+
+fn compare_current_with_linked_plan(
+    current_title: &str,
+    current_risk: RiskLane,
+    current_task_id: Option<&str>,
+    current_binding: Option<&PlanOperationBinding>,
+    linked: &PlanFileMetadata,
+    linked_binding: Option<&PlanOperationBinding>,
+    issues: &mut Vec<String>,
+) {
+    if current_title != linked.title {
+        issues.push("CURRENT title does not match linked plan title".to_string());
+    }
+    if current_risk != linked.risk {
+        issues.push("CURRENT risk does not match linked plan risk".to_string());
+    }
+    match current_task_id {
+        Some(current_task_id) if current_task_id == linked.task_id => {}
+        Some(_) => issues.push("CURRENT task_id does not match linked plan task_id".to_string()),
+        None => issues.push("CURRENT task_id is missing from linked plan authority".to_string()),
+    }
+    match (current_binding, linked_binding) {
+        (None, None) => {}
+        (Some(current), Some(linked)) => {
+            if current.operation_id != linked.operation_id {
+                issues.push("CURRENT operation_id does not match linked plan".to_string());
+            }
+            if current.adapter != linked.adapter {
+                issues.push("CURRENT adapter does not match linked plan".to_string());
+            }
+            if current.session_id != linked.session_id {
+                issues.push("CURRENT session_id does not match linked plan".to_string());
+            }
+            if current.request_id != linked.request_id {
+                issues.push("CURRENT request_id does not match linked plan".to_string());
+            }
+        }
+        _ => issues.push("CURRENT and linked plan operation binding state differ".to_string()),
+    }
 }
 
 fn field(content: &str, prefix: &str) -> Option<String> {
@@ -864,6 +1116,17 @@ struct ActivePlan {
     status: String,
     risk: RiskLane,
     binding: Option<PlanOperationBinding>,
+    linked_status: Option<String>,
+    authority_issues: Vec<String>,
+}
+
+impl ActivePlan {
+    fn ensure_authority(&self) -> Result<()> {
+        if let Some(issue) = self.authority_issues.first() {
+            bail!("Active Baron plan authority mismatch: {issue}");
+        }
+        Ok(())
+    }
 }
 
 struct CurrentPlanView<'a> {
