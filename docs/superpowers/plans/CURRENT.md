@@ -1,38 +1,40 @@
 # Current Baron Build Plan
 
-## Baron 5.0.1 Stabilization - SPEC-03 Final Review Fix (2026-09-21)
+## Baron 5.0.1 Stabilization - SPEC-04 Final Canonical Linked-Plan Authority Fix (2026-09-21)
 
-- Active spec: Trusted Execution Receipt Architecture.
-- Status: `closed; final review fixes implemented and verified; unrelated host
-  blockers remain`. The public/source version remains `5.0.0`, with no tag,
-  release, or version bump.
-- Baseline/branch: `3a52668b2fba53de3579b2f3ae77fcc848e759be` on
-  `codex/spec-03-trusted-receipt-architecture`.
-- Implementation/review-fix checkpoint: `2079379`
-  (`2079379f497f3dc2ac3847efeff3be2425ac34f1`).
-- Delivered: canonical external machine authority scope checks, crash-safe
-  staged no-replace seed activation, typed identity-only schema-v2 issuance,
-  canonical operation-ID verification, strict-versus-diagnostic bulk loading,
-  and deterministic first-start barrier coverage. Existing proof, gate,
-  capability, runtime, plan, and CLI consumers use strict authority loading.
-- Cross-process evidence: eight independent child writers wait at a real
-  ready/release barrier, converge on one temporary machine key, produce eight
-  complete unique JSONL records, and a separate verifier process accepts all
-  eight. Repo/Vault/link/reparse roots fail before child execution.
-- Verification: focused receipt/authority/proof/gate/runtime/plan/CLI suites
-  pass in the review run where their binaries were allowed to execute; the
-  final alias-hardening pass also passes formatter, warnings-denied Clippy,
-  forged-operation/boundary unit tests, proof trace, and runtime policy. The
-  full workspace retains the host `Microsoft.PowerShell.Archive` installer
-  failure, the existing `session_replay` UTF-8 boundary panic in `prepare_cli`,
-  and intermittent Windows Application Control blocks (`os error 4551`) before
-  some test/version binaries start.
+- Active spec: Proof, Trace, Gate, and Completion Integrity.
+- Status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`; the source/public
+  version remains `5.0.0`, with no tag, release, or version bump.
+- Baseline/branch: `39203407e3faa3321bd00181ee65d5b89647d03a` on
+  `codex/spec-04-proof-trace-gate-completion-integrity`.
+- Delivered: linked plan status is canonical after validation; CURRENT status
+  is a projection and mismatch/malformed status fails closed. One validator
+  derives linked risk, canonical task ID for new/identified plans, and
+  identified operation identity through the existing Vault/config resolver and
+  lifecycle contracts. Historical legacy-unbound `task-<slug>` plans remain
+  readable and preserve their task ID during projection; arbitrary legacy task
+  IDs and partial identity fail closed.
+- Adversarial evidence: both-file risk/task/operation/adapter/session/request
+  tampering, post-completion status tamper, partial identity, recomputed tuple,
+  identified/legacy mutation, and exact high-risk A to low-risk operation-B
+  evidence are rejected before completion authority. The linked plan is never
+  repaired or marked completed by rejection.
+- Focused verification: plan 38/38, automation 5/5, proof_trace 16/16,
+  operation_identity 10/10, phase12_hooks_cli 4/4, and execution_cli 15/15;
+  Core all-targets, formatter, warnings-denied Clippy, locked release build,
+  `baron 5.0.0`, status JSON parsing, and diff check pass.
+- Full workspace verification with serial Cargo jobs retains only the two known
+  unrelated blockers: missing `Microsoft.PowerShell.Archive` in
+  `lifecycle_scripts` and the existing `session_replay` UTF-8 boundary panic in
+  `prepare_cli` at `crates/baron-core/src/session_replay.rs:383`.
 - Active plan:
-  `docs/superpowers/plans/2026-09-21-spec-03-final-review-fix.md`.
-- Closure: repository-wide trust scan and a separate self-review completed with
-  no SPEC-03-owned BUG or WARNING; no reviewer/subagent tool was available.
-- Next action: push this review fix once, then return to normal Baron 5.0.0
-  maintenance. Do not start SPEC-04.
+  `docs/superpowers/plans/2026-09-21-spec-04-canonical-linked-plan-authority-final-fix.md`.
+- Residual limitation: the current Markdown plan schema has no independent
+  persisted origin record for a fully recomputed edit of both files; canonical
+  derivation still rejects the reviewed A-to-B bypass. Durable origin binding is
+  deferred for a later scope.
+- Next action: push this narrow final trust fix once and hand it off for final
+  adversarial review. Do not release, tag, bump the version, or claim closure.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 

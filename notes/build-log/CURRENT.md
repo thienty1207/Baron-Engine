@@ -2,48 +2,38 @@
 
 ## SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-21)
 
-- Current task: complete the SPEC-04 CURRENT-to-linked-plan authority fix on
-  the reviewed HEAD without changing release metadata or starting SPEC-05.
-- Checkpoint: branch
-  `codex/spec-04-proof-trace-gate-completion-integrity` on review baseline
-  `459b45602061e5bfd294610e00f8ac3ec04f8887`; public version remains `5.0.0`.
-- Authority status: linked plan frontmatter is canonical for title, risk, task
-  ID, operation ID, adapter, session ID, and request ID. CURRENT is validated
-  against it as a pointer/status projection; status is not compared because
-  controlled lifecycle transitions are allowed.
-- Fail-closed status: risk downgrades, any identity-field rewrite, title or
-  pointer switches, identified/legacy cross-binding, and post-completion
-  CURRENT tampering fail completion, reconciliation, and Stop without repair or
-  guessing. The operation-B high-risk/low-risk bypass is covered.
-- FIX-01 status: `automation::reconcile` and the Stop hook now consume the
-  same operation-scoped completion evaluator as plan completion and integrity
-  status. Missing active evidence blocks; no active plan reports cleanly
-  without fabricating identity; unrelated newer proof/trace/gates cannot leak
-  into the active operation.
-- FIX-02 status: trace scoring is freshly evaluated from current trace, proof,
-  trusted receipt, strict gates, and capability state. `score_trace` persists
-  only the fresh result as a cache/display block, while the operation selector
-  ignores missing or tampered persisted score fields.
-- Retained proof/trace status: receipt-bound proof publication remains
-  preflighted and atomic; exact operation and Proof ID bindings remain
-  enforced; Low/Medium/High tiers remain Minimal/Standard/Detailed; legacy
-  global selectors are diagnostic/status/history-only.
-- Focused proof: `trusted_proof` 1/1, `proof_trace` 16/16, `plan` 25/25,
-  `automation` 5/5, `control_plane` 9/9, `runtime_policy` 4/4,
-  `execution_receipt` 5/5, `operation_identity` 10/10, CLI
-  `execution_cli` 15/15, and `phase12_hooks_cli` 4/4 pass. Core all-targets,
-  formatter, warnings-denied Clippy, locked release build, `baron 5.0.0`, and
-  diff check pass.
-- Workspace trace: the complete workspace run retains only the known
-  unrelated `Microsoft.PowerShell.Archive` installer-module failure and the
-- existing `session_replay` UTF-8 boundary panic at
-  `crates/baron-core/src/session_replay.rs:383`; no SPEC-04-owned failure
+- Current task: complete the SPEC-04 canonical linked-plan authority final fix
+  on reviewed HEAD `39203407e3faa3321bd00181ee65d5b89647d03a`, without changing
+  release metadata or starting SPEC-05.
+- Implementation status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`;
+  public version remains `5.0.0`.
+- FIX-A checkpoint: linked plan lifecycle status is canonical after validation;
+  CURRENT status is only a projection. Unsupported, missing, or mismatched
+  status fails closed across completion, reconcile, Stop, and plan status.
+- FIX-B checkpoint: the centralized validator resolves project ID through the
+  existing Vault/config identity source, then checks `classify_risk`, canonical
+  `task_id_for_task` for new/identified plans, supported adapter, checked
+  lifecycle identity reconstruction, and `validate_task`. Historical
+  legacy-unbound `task-<slug>` IDs remain readable and are preserved during
+  projection; arbitrary legacy task IDs and partial identity are rejected.
+- Tamper proof: both-file risk/task/operation/adapter/session/request rewrites,
+  partial identity, recomputed tuple, post-completion status tamper, and exact
+  high-risk A to low-risk operation-B evidence are rejected. The linked plan is
+  not rewritten or completed by rejection.
+- Focused proof: plan 38/38, automation 5/5, proof_trace 16/16,
+  operation_identity 10/10, phase12_hooks_cli 4/4, and execution_cli 15/15.
+  Core all-targets, formatter, and warnings-denied Clippy pass.
+- Workspace trace: serial workspace all-targets passes all targets except the
+  two known unrelated blockers: `lifecycle_scripts` cannot load
+  `Microsoft.PowerShell.Archive`, and `prepare_cli` reaches the existing
+  `session_replay` UTF-8 boundary panic at
+  `crates/baron-core/src/session_replay.rs:383`. No SPEC-04-owned failure
   appeared.
-- CURRENT-reader scan: completion/lifecycle/reconcile/Stop and operation-bound
-  trace use the centralized validated authority path. Continuity, context,
-  knowledge, Autopilot, harness improvement, update preservation, and legacy
-  unbound trace readers are diagnostic/status/history projections only.
-- Persisted-state boundary: only SPEC-04 review-fix source/tests, the active
+- Residual origin limitation: the current plan schema has no independent
+  persisted origin record that can distinguish a fully recomputed edit of both
+  Markdown files. Canonical derivation still makes the reviewed A-to-B bypass
+  impossible; durable origin binding remains a later-scope design consideration.
+- Persisted-state boundary: only SPEC-04 final-fix source/tests, the active
   plan, and maintained status/build-log evidence are in scope; project/Vault
   data and unrelated user files remain untouched.
 - Safe next action: hand off the pushed branch for final adversarial review.

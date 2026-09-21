@@ -2,69 +2,65 @@
 
 ## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-21)
 
-- Status: `ready for final adversarial review`; the final review-fix pass is
-  implemented on branch `codex/spec-04-proof-trace-gate-completion-integrity`.
-  This pass does not claim `CLOSED`, bump the public version, create a
-  tag/release, modify Hotel Staff, or start SPEC-05.
-- Review baseline: `459b45602061e5bfd294610e00f8ac3ec04f8887`; public version
+- Status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`; the canonical linked-
+  plan final-fix pass is implemented on branch
+  `codex/spec-04-proof-trace-gate-completion-integrity`. This pass does not
+  claim closure, bump the public version, create a tag/release, modify Hotel
+  Staff, or start SPEC-05.
+- Review baseline: `39203407e3faa3321bd00181ee65d5b89647d03a`; public version
   remains `5.0.0`.
-- Authority-root fix: the linked plan frontmatter is now the canonical source
-  for active-plan title, risk, and operation identity. `CURRENT.md` remains a
-  pointer and transition/status projection; it cannot override linked-plan
-  authority.
-- Metadata equality: title, risk, task ID, operation ID, adapter, session ID,
-  and request ID must match exactly. Status is intentionally excluded from the
-  authority equality set so controlled lifecycle transitions remain possible.
-  Identified and legacy-unbound plans cannot cross-authorize one another.
-- Reviewed bypass coverage: a CURRENT-only risk downgrade, operation swap,
-  identity rewrite, or pointer switch to another valid plan fails before
-  completion evidence evaluation. Operation-B proof/trace/receipt/gate data
-  cannot authorize operation A, including the exact high-risk-to-low-risk
-  reviewed bypass.
+- FIX-A lifecycle authority: the linked plan status is canonical after safe
+  CURRENT pointer loading and linked metadata validation. CURRENT status is a
+  projection/cache; missing, unsupported, or mismatched status fails closed,
+  so `complete_plan`, reconcile, Stop, and applicable `plan_status` paths do
+  not reinterpret active or completed work.
+- FIX-B canonical authority: one validator checks linked risk with
+  `classify_risk(title)`, task ID with `task_id_for_task(project_id, title)`,
+  and identified operation tuples through `SupportedAdapter`,
+  `LifecycleIdentity::from_parts_checked`, and `validate_task`. The project ID
+  comes from the existing Vault/config identity resolver. New title-only plans
+  use the canonical task ID; historical legacy-unbound `task-<slug>` IDs remain
+  readable and are preserved during lifecycle projection, while arbitrary
+  legacy task IDs fail closed. Partial identity fails closed.
+- Metadata equality: title, status, risk, task ID, operation ID, adapter,
+  session ID, and request ID must match exactly between CURRENT and the linked
+  plan. Identified and legacy-unbound plans cannot cross-authorize one another;
+  neither Markdown file is repaired by validation.
+- Reviewed bypass coverage: both CURRENT and linked frontmatter rewritten from
+  high-risk plan A to low-risk operation B are rejected before B proof, trace,
+  receipt, or gate evidence can authorize A. Risk-only, task, operation,
+  adapter, session, request, partial-identity, and recomputed-tuple tamper
+  regressions are also fail-closed.
 - Reconciliation and completion integrity: the shared validated active-plan
-  path feeds `complete_plan`, `reconcile`, Stop, and `plan_status`. Mismatch
-  fails closed, leaves the linked plan uncompleted, and reports
-  `Completion integrity: failed` for completed-plan tampering; no repair or
-  guessing occurs.
-- FIX-01 scoped reconciliation: `automation::reconcile` now consumes the same
-  operation-scoped completion evaluator used by `complete_plan` and
-  `plan_status`. No active plan returns `active_plan=false` without invented
-  identity; an active plan with missing proof, trace, receipt, or strict gates
-  remains blocked, including through the Stop hook. Newer unrelated
-  operation-B evidence cannot authorize operation A.
-- FIX-02 fresh trace authority: `score_trace` evaluates current trace, proof,
-  receipt, gate, and capability state before persisting a display/cache block.
-  `latest_trace_score_for_operation` recomputes that state from the exact
-  operation trace and remains valid when the cached score is missing,
-  tampered, or stale. Persisted `Passed`, `Achieved`, `Required`, `Missing`,
-  and `Warnings` fields are not authority.
+  path feeds `complete_plan`, `reconcile`, Stop, `plan_status`, and
+  operation-bound trace creation. Forged authority leaves the linked plan
+  uncompleted and reports `Completion integrity: failed` where applicable; no
+  repair or guessing occurs.
 - Retained SPEC-04 invariants: receipt-bound proof publication is fully
   rendered before authoritative writes; typed traces preserve exact
   task/operation/adapter/session/request plus Proof ID binding; Medium/High
-  risk keeps current receipt and strict gate requirements; legacy global-newest
-  APIs remain diagnostic/status/history-only.
+  risk keeps current receipt and strict gate requirements; fresh trace-score
+  evaluation and legacy diagnostic-only selectors remain intact.
 - Static CURRENT-reader scan: correctness-sensitive completion, lifecycle,
   reconciliation, Stop, and operation-bound trace paths use the validated
   authority loader. Continuity, context, knowledge, Autopilot, harness
   improvement, update preservation, and legacy unbound trace readers remain
   diagnostic/status/history projections and do not claim completion authority.
-- Proof status: focused final-review matrix passes — `trusted_proof` 1/1,
-  `proof_trace` 16/16, `plan` 25/25, `automation` 5/5,
-  `control_plane` 9/9, `runtime_policy` 4/4, `execution_receipt` 5/5,
-  `operation_identity` 10/10, CLI `execution_cli` 15/15, and
-  `phase12_hooks_cli` 4/4. Core all-targets passes; warnings-denied Clippy,
-  formatter, locked release build, `baron 5.0.0` smoke, and diff check pass.
-- Full workspace verification retains exactly two unrelated host/fixture
-  blockers: `baron-cli` `lifecycle_scripts` cannot load
-  `Microsoft.PowerShell.Archive`, and `baron-cli` `prepare_cli` reaches the
-  existing `session_replay` UTF-8 boundary panic at
-  `crates/baron-core/src/session_replay.rs:383`. No SPEC-04-owned failure was
-  observed.
+- Proof status: focused final-review matrix passes — `plan` 38/38,
+  `automation` 5/5, `proof_trace` 16/16, `operation_identity` 10/10, CLI
+  `phase12_hooks_cli` 4/4, and `execution_cli` 15/15. Core all-targets passes;
+  formatter and warnings-denied Clippy pass.
+- Full workspace verification with `-j 1` passes every target except exactly
+  two unrelated baseline/environment blockers: `baron-cli`
+  `lifecycle_scripts` cannot load `Microsoft.PowerShell.Archive`, and
+  `baron-cli` `prepare_cli` reaches the existing `session_replay` UTF-8
+  boundary panic at `crates/baron-core/src/session_replay.rs:383`. No
+  SPEC-04-owned failure was observed.
 - Active plan:
-  `docs/superpowers/plans/2026-09-21-spec-04-current-plan-integrity-fix.md`.
+  `docs/superpowers/plans/2026-09-21-spec-04-canonical-linked-plan-authority-final-fix.md`.
 - Safe next action: hand off the pushed branch for final adversarial review.
-  Keep the public version at `5.0.0`; do not release, tag, or mark SPEC-04
-  closed from this pass.
+  Keep the public version at `5.0.0`; do not release, tag, or claim closure from
+  this pass.
 
 ## Baron 5.0.1 Stabilization - SPEC-03 Canonical Task and Seed Alias Follow-up (closed, 2026-09-21)
 

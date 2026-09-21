@@ -217,6 +217,10 @@ fn resolve_project_identity(repo_root: &Path) -> Result<ProjectIdentity> {
     ))
 }
 
+pub(crate) fn canonical_project_id(repo_root: &Path) -> Result<String> {
+    Ok(resolve_project_identity(repo_root)?.project_id)
+}
+
 fn migrate_legacy_capsule(
     projects_root: &Path,
     project_slug: &str,

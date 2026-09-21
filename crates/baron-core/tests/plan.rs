@@ -12,10 +12,11 @@ use baron_core::execution_receipt::{
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{
-    AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
+    task_id_for_task, AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext,
+    SupportedAdapter,
 };
 use baron_core::plan::{
-    complete_plan, interrupt_plan, plan_status, start_or_resume_plan,
+    active_plan_authority, complete_plan, interrupt_plan, plan_status, start_or_resume_plan,
     start_or_resume_plan_for_identity, start_or_resume_plan_for_operation, update_plan,
 };
 use baron_core::proof::{
@@ -431,6 +432,412 @@ where
     assert!(fs::read_to_string(plan_path)
         .unwrap()
         .contains("status: in_progress"));
+}
+
+fn rewrite_current_status(repo: &Path, status: Option<&str>) {
+    let path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&path).unwrap();
+    let lines = current
+        .lines()
+        .filter(|line| !line.starts_with("- Status: "))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let mut rewritten = lines;
+    if let Some(status) = status {
+        let index = rewritten
+            .iter()
+            .position(|line| line.starts_with("- Plan: "))
+            .unwrap()
+            + 1;
+        rewritten.insert(index, format!("- Status: `{status}`"));
+    }
+    fs::write(path, format!("{}\n", rewritten.join("\n"))).unwrap();
+}
+
+fn rewrite_linked_status(path: &Path, status: &str) {
+    let content = fs::read_to_string(path).unwrap();
+    let rewritten = content
+        .lines()
+        .map(|line| {
+            if line.starts_with("status: ") {
+                format!("status: {status}")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(path, format!("{rewritten}\n")).unwrap();
+}
+
+fn assert_linked_canonical_tamper_blocks<F, G>(mutate_current: F, mutate_linked: G)
+where
+    F: FnOnce(String, &AuthoritativeLifecycleIdentity) -> String,
+    G: FnOnce(String, &AuthoritativeLifecycleIdentity) -> String,
+{
+    let (_temp, repo, context, identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let operation = OperationContext::from_identity(&identity);
+    let receipt = passing_execution(&repo, &identity, "proof");
+    let proof_binding = ReceiptContext::new(
+        identity.task_id(),
+        identity.operation_id(),
+        identity.adapter().as_str(),
+        identity.session_id(),
+        identity.request_id(),
+        "proof",
+    );
+    let proof =
+        record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &proof_binding)
+            .unwrap();
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&current_path).unwrap();
+    let linked = fs::read_to_string(&plan_path).unwrap();
+    fs::write(&current_path, mutate_current(current, &identity)).unwrap();
+    fs::write(&plan_path, mutate_linked(linked, &identity)).unwrap();
+
+    let error = record_trace_for_operation(
+        &repo,
+        &context,
+        "security trace after metadata tamper",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains("canonical")
+            || error.to_string().contains("authority")
+            || error.to_string().contains("incomplete"),
+        "unexpected tamper error: {error}"
+    );
+    assert!(!reconcile(&repo).unwrap().passed);
+    assert_stop_blocks(&repo, &context, "backend login security", &identity);
+    assert!(fs::read_to_string(plan_path)
+        .unwrap()
+        .contains("status: in_progress"));
+}
+
+#[test]
+fn current_completed_cannot_hide_linked_in_progress_plan() {
+    let (_temp, repo, context, identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    rewrite_current_status(&repo, Some("completed"));
+
+    let report = reconcile(&repo).unwrap();
+    assert!(report.active_plan);
+    assert!(!report.passed);
+    assert_stop_blocks(&repo, &context, "backend login security", &identity);
+    assert!(plan_status(&repo)
+        .unwrap()
+        .contains("Completion integrity: `failed`"));
+    assert!(fs::read_to_string(plan_path)
+        .unwrap()
+        .contains("status: in_progress"));
+}
+
+#[test]
+fn current_active_cannot_hide_linked_completed_plan() {
+    let (_temp, repo, context, identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    rewrite_linked_status(&plan_path, "completed");
+
+    let report = reconcile(&repo).unwrap();
+    assert!(report.active_plan);
+    assert!(!report.passed);
+    assert_stop_blocks(&repo, &context, "backend login security", &identity);
+    let status = plan_status(&repo).unwrap();
+    assert!(status.contains("Completion integrity: `failed`"));
+    assert!(status.contains("status"));
+    assert!(fs::read_to_string(plan_path)
+        .unwrap()
+        .contains("status: completed"));
+}
+
+#[test]
+fn malformed_current_status_cannot_hide_linked_active_plan() {
+    for status in [Some("unknown"), None] {
+        let (_temp, repo, context, identity, plan_path) = identified_plan_fixture(
+            "backend login security",
+            SupportedAdapter::Codex,
+            "active-session",
+            "active-request",
+        );
+        rewrite_current_status(&repo, status);
+
+        let report = reconcile(&repo).unwrap();
+        assert!(report.active_plan);
+        assert!(!report.passed);
+        assert_stop_blocks(&repo, &context, "backend login security", &identity);
+        assert!(plan_status(&repo)
+            .unwrap()
+            .contains("Completion integrity: `failed`"));
+        assert!(fs::read_to_string(plan_path)
+            .unwrap()
+            .contains("status: in_progress"));
+    }
+}
+
+#[test]
+fn linked_risk_must_match_the_canonical_classifier() {
+    assert_linked_canonical_tamper_blocks(
+        |current, _| current.replace("- Risk: `high`", "- Risk: `low`"),
+        |linked, _| linked.replace("risk: high", "risk: low"),
+    );
+}
+
+#[test]
+fn linked_task_id_must_match_the_canonical_task() {
+    assert_linked_canonical_tamper_blocks(
+        |current, _| current.replace("- Task ID: `", "- Task ID: `forged-"),
+        |linked, _| linked.replace("task_id: ", "task_id: forged-"),
+    );
+}
+
+#[test]
+fn linked_operation_id_must_match_the_canonical_tuple() {
+    assert_linked_canonical_tamper_blocks(
+        |current, _| current.replace("- Operation ID: `", "- Operation ID: `operation-forged"),
+        |linked, _| linked.replace("operation_id: ", "operation_id: operation-forged"),
+    );
+}
+
+#[test]
+fn linked_adapter_must_participate_in_canonical_operation_validation() {
+    assert_linked_canonical_tamper_blocks(
+        |current, _| current.replace("- Adapter: `codex`", "- Adapter: `claude`"),
+        |linked, _| linked.replace("adapter: codex", "adapter: claude"),
+    );
+}
+
+#[test]
+fn linked_session_id_must_participate_in_canonical_operation_validation() {
+    assert_linked_canonical_tamper_blocks(
+        |current, _| current.replace("active-session", "forged-session"),
+        |linked, _| linked.replace("session_id: active-session", "session_id: forged-session"),
+    );
+}
+
+#[test]
+fn linked_request_id_must_participate_in_canonical_operation_validation() {
+    assert_linked_canonical_tamper_blocks(
+        |current, _| current.replace("active-request", "forged-request"),
+        |linked, _| linked.replace("request_id: active-request", "request_id: forged-request"),
+    );
+}
+
+#[test]
+fn partial_linked_identity_fails_closed() {
+    assert_linked_canonical_tamper_blocks(
+        |current, _| {
+            current
+                .lines()
+                .filter(|line| !line.starts_with("- Request ID: "))
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n"
+        },
+        |linked, _| {
+            linked
+                .lines()
+                .filter(|line| !line.starts_with("request_id: "))
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n"
+        },
+    );
+}
+
+#[test]
+fn linked_plan_cannot_be_rebound_to_low_risk_operation_b() {
+    let (_temp, repo, context, active, active_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current_a = fs::read_to_string(&current_path).unwrap();
+    let linked_a = fs::read_to_string(&active_path).unwrap();
+    let unrelated = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README typo",
+        SupportedAdapter::Claude,
+        Some("other-session"),
+        Some("other-request"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, "fix README typo", &unrelated).unwrap();
+    let unrelated_operation = OperationContext::from_identity(&unrelated);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &unrelated_operation,
+        "README verification passed",
+    )
+    .unwrap();
+    let trace_binding =
+        TraceOperationBinding::from_operation(&unrelated_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let current_tampered = current_a
+        .replace("- Risk: `high`", "- Risk: `low`")
+        .replace(
+            &format!("- Task ID: `{}`", active.task_id()),
+            &format!("- Task ID: `{}`", unrelated.task_id()),
+        )
+        .replace(
+            &format!("- Operation ID: `{}`", active.operation_id()),
+            &format!("- Operation ID: `{}`", unrelated.operation_id()),
+        )
+        .replace("- Adapter: `codex`", "- Adapter: `claude`")
+        .replace(
+            &format!("- Session ID: `{}`", active.session_id()),
+            &format!("- Session ID: `{}`", unrelated.session_id()),
+        )
+        .replace(
+            &format!("- Request ID: `{}`", active.request_id()),
+            &format!("- Request ID: `{}`", unrelated.request_id()),
+        );
+    let linked_tampered = linked_a
+        .replace("risk: high", "risk: low")
+        .replace(
+            &format!("task_id: {}", active.task_id()),
+            &format!("task_id: {}", unrelated.task_id()),
+        )
+        .replace(
+            &format!("operation_id: {}", active.operation_id()),
+            &format!("operation_id: {}", unrelated.operation_id()),
+        )
+        .replace("adapter: codex", "adapter: claude")
+        .replace(
+            &format!("session_id: {}", active.session_id()),
+            &format!("session_id: {}", unrelated.session_id()),
+        )
+        .replace(
+            &format!("request_id: {}", active.request_id()),
+            &format!("request_id: {}", unrelated.request_id()),
+        );
+    fs::write(&current_path, current_tampered).unwrap();
+    fs::write(&active_path, linked_tampered).unwrap();
+
+    assert!(!reconcile(&repo).unwrap().passed);
+    assert_stop_blocks(&repo, &context, "fix README typo", &unrelated);
+    assert!(complete_plan(&repo, &context, "verification attempted").is_err());
+    assert!(fs::read_to_string(active_path)
+        .unwrap()
+        .contains("status: in_progress"));
+}
+
+#[test]
+fn legacy_linked_plan_task_id_must_match_the_canonical_task() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let plan = start_or_resume_plan(&repo, &context, "fix README typo").unwrap();
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&current_path).unwrap();
+    let linked = fs::read_to_string(&plan.repo_path).unwrap();
+    fs::write(
+        &current_path,
+        current.replace(
+            &format!(
+                "- Task ID: `{}`",
+                task_id_for_task(&context.project_id, "fix README typo").unwrap()
+            ),
+            "- Task ID: `task-forged-legacy`",
+        ),
+    )
+    .unwrap();
+    fs::write(
+        &plan.repo_path,
+        linked.replace(
+            &format!(
+                "task_id: {}",
+                task_id_for_task(&context.project_id, "fix README typo").unwrap()
+            ),
+            "task_id: task-forged-legacy",
+        ),
+    )
+    .unwrap();
+
+    let error = active_plan_authority(&repo).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("linked plan task_id does not match canonical task"));
+    assert!(!reconcile(&repo).unwrap().passed);
+    assert!(plan_status(&repo)
+        .unwrap()
+        .contains("Completion integrity: `failed`"));
+}
+
+#[test]
+fn historical_legacy_task_id_is_preserved_during_lifecycle_projection() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    let title = "fix README typo";
+    let legacy_task_id = "task-fix-readme-typo";
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let plan = start_or_resume_plan(&repo, &context, title).unwrap();
+    let canonical_task_id = task_id_for_task(&context.project_id, title).unwrap();
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&current_path).unwrap();
+    let linked = fs::read_to_string(&plan.repo_path).unwrap();
+    fs::write(
+        &current_path,
+        current.replace(
+            &format!("- Task ID: `{canonical_task_id}`"),
+            &format!("- Task ID: `{legacy_task_id}`"),
+        ),
+    )
+    .unwrap();
+    fs::write(
+        &plan.repo_path,
+        linked.replace(
+            &format!("task_id: {canonical_task_id}"),
+            &format!("task_id: {legacy_task_id}"),
+        ),
+    )
+    .unwrap();
+
+    start_or_resume_plan(&repo, &context, title).unwrap();
+    update_plan(&repo, &context, "legacy plan remains readable").unwrap();
+    interrupt_plan(&repo, &context, "legacy lifecycle projection checked").unwrap();
+
+    assert!(fs::read_to_string(&current_path)
+        .unwrap()
+        .contains(&format!("- Task ID: `{legacy_task_id}`")));
+    assert!(fs::read_to_string(&plan.repo_path)
+        .unwrap()
+        .contains(&format!("task_id: {legacy_task_id}")));
 }
 
 #[test]
@@ -905,7 +1312,7 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
     let status = plan_status(&repo).unwrap();
     assert!(status.contains("Status: `completed`"));
     assert!(status.contains("authorization review"));
-    let plan_content = fs::read_to_string(plan.repo_path).unwrap();
+    let plan_content = fs::read_to_string(&plan.repo_path).unwrap();
     assert!(plan_content.contains("verification: cargo test auth passed with authorization review"));
     assert!(!plan_content.contains("verification: not_run"));
     let repo_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
@@ -920,9 +1327,13 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         .unwrap()
         .replace("- Risk: `high`", "- Risk: `low`");
     fs::write(&current_path, tampered_current).unwrap();
+    let tampered_linked = fs::read_to_string(&plan.repo_path)
+        .unwrap()
+        .replace("risk: high", "risk: low");
+    fs::write(&plan.repo_path, tampered_linked).unwrap();
     let tampered_status = plan_status(&repo).unwrap();
     assert!(tampered_status.contains("Completion integrity: `failed`"));
-    assert!(tampered_status.contains("CURRENT risk does not match linked plan risk"));
+    assert!(tampered_status.contains("linked plan risk does not match canonical classifier"));
 }
 
 #[test]

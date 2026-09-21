@@ -6,14 +6,14 @@ use chrono::{Local, SecondsFormat};
 
 use crate::control_plane::gate_evidence_status_strict_for_operation;
 use crate::execution_receipt::ReceiptContext;
-use crate::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use crate::operation::{task_id_for_task, LifecycleIdentity, OperationContext, SupportedAdapter};
 use crate::proof::{
     proof_for_operation, proof_has_current_receipt, proof_operation_binding, proof_satisfies_risk,
 };
 use crate::risk::{classify_risk, RiskLane};
 use crate::safe_io::{read_text, read_text_required, replace_text};
 use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding, TraceTier};
-use crate::vault::VaultContext;
+use crate::vault::{canonical_project_id, VaultContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanRecord {
@@ -130,21 +130,24 @@ pub fn active_plan_completion_evidence_status(
 ) -> Result<Option<CompletionEvidenceStatus>> {
     let repo_root = repo_root.as_ref();
     let current_path = repo_root.join("docs/baron/plans/CURRENT.md");
-    let Some(current) = read_text(&current_path)? else {
+    let Some(_) = read_text(&current_path)? else {
         return Ok(None);
     };
-    let is_active = ["in_progress", "interrupted", "needs_correction", "blocked"]
-        .iter()
-        .any(|status| current.contains(&format!("- Status: `{status}`")));
-    if !is_active {
-        return Ok(None);
-    }
     let Some(active) = active_plan(repo_root)? else {
         return Ok(Some(CompletionEvidenceStatus {
             passed: false,
             issues: vec!["active plan is missing".to_string()],
         }));
     };
+    if !active.authority_issues.is_empty() {
+        return Ok(Some(CompletionEvidenceStatus {
+            passed: false,
+            issues: active.authority_issues.clone(),
+        }));
+    }
+    if !is_active_plan_status(&active.status) {
+        return Ok(None);
+    }
     Ok(Some(completion_evidence_status(repo_root, &active)?))
 }
 
@@ -239,6 +242,7 @@ fn start_or_resume_plan_internal(
                     next_action: "continue from last known state",
                     verification: "not_run",
                     binding: active.binding.as_ref(),
+                    task_id: Some(&active.task_id),
                 },
             )?;
             return Ok(PlanRecord {
@@ -257,7 +261,7 @@ fn start_or_resume_plan_internal(
         .join(&date)
         .join(format!("{date}-{}.md", slugify(title)));
     let vault_path = vault_plan_path(repo_root, vault, &repo_path);
-    let content = plan_content(title, risk, binding);
+    let content = plan_content(&vault.project_id, title, risk, binding)?;
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
     append_unique(
@@ -291,6 +295,7 @@ fn start_or_resume_plan_internal(
             next_action: "continue from current task scope",
             verification: "not_run",
             binding,
+            task_id: None,
         },
     )?;
     Ok(PlanRecord {
@@ -318,6 +323,7 @@ pub fn update_plan(repo_root: impl AsRef<Path>, vault: &VaultContext, note: &str
             next_action: note.trim(),
             verification: "not_run",
             binding: active.binding.as_ref(),
+            task_id: Some(&active.task_id),
         },
     )
 }
@@ -351,6 +357,7 @@ pub fn interrupt_plan(
             next_action: state.trim(),
             verification: "not_run",
             binding: active.binding.as_ref(),
+            task_id: Some(&active.task_id),
         },
     )
 }
@@ -400,6 +407,7 @@ pub fn complete_plan(
             next_action: "start the next explicit task",
             verification: verification_summary.trim(),
             binding: active.binding.as_ref(),
+            task_id: Some(&active.task_id),
         },
     )
 }
@@ -511,8 +519,23 @@ pub fn plan_status(repo_root: impl AsRef<Path>) -> Result<String> {
         return Ok("# Baron Plan Status\n\n- Active plan: none\n".to_string());
     };
     let mut output = format!("# Baron Plan Status\n\n{current}");
-    if current.contains("- Status: `completed`") {
-        let issues = completion_integrity_issues(repo_root, &current)?;
+    let active = active_plan(repo_root)?;
+    let authority_issues = active
+        .as_ref()
+        .map(|plan| plan.authority_issues.clone())
+        .unwrap_or_default();
+    let linked_completed = active
+        .as_ref()
+        .is_some_and(|plan| plan.status == "completed");
+    let should_report_integrity = !authority_issues.is_empty()
+        || linked_completed
+        || (active.is_none() && !current.trim().is_empty());
+    if should_report_integrity {
+        let issues = if authority_issues.is_empty() {
+            completion_integrity_issues(repo_root, &current)?
+        } else {
+            authority_issues
+        };
         if issues.is_empty() {
             output.push_str("\n## Completion Integrity\n\n- Completion integrity: `passed`\n");
         } else {
@@ -558,9 +581,16 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
 
 fn write_current(repo_root: &Path, vault: &VaultContext, view: CurrentPlanView<'_>) -> Result<()> {
     let task_id = view
-        .binding
-        .map(|binding| binding.task_id.clone())
-        .unwrap_or_else(|| format!("task-{}", slugify(view.title)));
+        .task_id
+        .map(str::to_owned)
+        .or_else(|| view.binding.map(|binding| binding.task_id.clone()))
+        .map_or_else(
+            || {
+                task_id_for_task(&vault.project_id, view.title)
+                    .map_err(|error| anyhow::anyhow!(error.to_string()))
+            },
+            Ok,
+        )?;
     let operation_identity = view
         .binding
         .map(|binding| {
@@ -618,9 +648,20 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
             Ok(repo_root.join(value))
         })
         .transpose()?;
-    let status = field(&content, "- Status: `")
-        .and_then(|value| value.strip_suffix('`').map(str::to_string))
-        .unwrap_or_else(|| "in_progress".to_string());
+    let current_status = match current_backtick_field(&content, "- Status: `") {
+        Some(value) => match parse_plan_status(&value) {
+            Ok(status) => status,
+            Err(error) => {
+                authority_issues.push(format!("CURRENT status is invalid: {error}"));
+                value
+            }
+        },
+        None => {
+            authority_issues.push("CURRENT status is missing".to_string());
+            "unknown".to_string()
+        }
+    };
+    let mut status = current_status.clone();
     let risk = match current_backtick_field(&content, "- Risk: `") {
         Some(value) => match parse_risk_lane(&value) {
             Ok(risk) => risk,
@@ -651,30 +692,39 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
     Ok(path.map(|path| {
         let mut title = current_title;
         let mut canonical_risk = risk;
+        let mut linked_task_id = task_id.clone();
         let mut binding = current_binding;
         let mut linked_status = None;
         match load_plan_file_metadata(&path) {
             Ok(metadata) => {
                 linked_status = Some(metadata.status.clone());
-                match metadata.operation_binding() {
-                    Ok(linked_binding) => {
-                        compare_current_with_linked_plan(
-                            &title,
-                            canonical_risk,
-                            task_id.as_deref(),
-                            binding.as_ref(),
-                            &metadata,
-                            linked_binding.as_ref(),
-                            &mut authority_issues,
-                        );
-                        title = metadata.title.clone();
-                        canonical_risk = metadata.risk;
-                        binding = linked_binding;
-                    }
+                let linked_binding = match metadata.operation_binding() {
+                    Ok(linked_binding) => linked_binding,
                     Err(error) => {
                         authority_issues.push(error.to_string());
+                        None
                     }
+                };
+                compare_current_with_linked_plan(
+                    CurrentPlanProjection {
+                        title: &title,
+                        risk: canonical_risk,
+                        status: &status,
+                        task_id: task_id.as_deref(),
+                        binding: binding.as_ref(),
+                    },
+                    &metadata,
+                    linked_binding.as_ref(),
+                    &mut authority_issues,
+                );
+                if let Err(error) = validate_linked_plan_authority(repo_root, &metadata) {
+                    authority_issues.push(format!("linked plan authority is invalid: {error}"));
                 }
+                title = metadata.title.clone();
+                status = metadata.status.clone();
+                canonical_risk = metadata.risk;
+                linked_task_id = Some(metadata.task_id.clone());
+                binding = linked_binding;
             }
             Err(error) => {
                 authority_issues.push(format!("linked plan metadata is unavailable: {error}"));
@@ -685,6 +735,7 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
             path,
             status,
             risk: canonical_risk,
+            task_id: linked_task_id.unwrap_or_default(),
             binding,
             linked_status,
             authority_issues,
@@ -753,7 +804,7 @@ impl PlanFileMetadata {
 fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
     let content = read_text_required(path)?;
     let title = required_plan_field(&content, "title:")?;
-    let status = required_plan_field(&content, "status:")?;
+    let status = parse_plan_status(&required_plan_field(&content, "status:")?)?;
     let risk = parse_risk_lane(&required_plan_field(&content, "risk:")?)?;
     let task_id = required_plan_field(&content, "task_id:")?;
     if task_id.is_empty() {
@@ -769,6 +820,50 @@ fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
         session_id: optional_plan_field(&content, "session_id:"),
         request_id: optional_plan_field(&content, "request_id:"),
     })
+}
+
+fn validate_linked_plan_authority(
+    repo_root: &Path,
+    metadata: &PlanFileMetadata,
+) -> Result<Option<PlanOperationBinding>> {
+    let expected_risk = classify_risk(&metadata.title);
+    if metadata.risk != expected_risk {
+        bail!("linked plan risk does not match canonical classifier");
+    }
+
+    let project_id = canonical_project_id(repo_root)?;
+    let expected_task_id = task_id_for_task(&project_id, &metadata.title)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+
+    let binding = metadata.operation_binding()?;
+    let Some(binding) = binding else {
+        if metadata.task_id != expected_task_id
+            && metadata.task_id != format!("task-{}", slugify(&metadata.title))
+        {
+            bail!("linked plan task_id does not match canonical task or legacy format");
+        }
+        return Ok(None);
+    };
+
+    if metadata.task_id != expected_task_id {
+        bail!("linked plan task_id does not match canonical task");
+    }
+
+    let adapter = SupportedAdapter::parse(&binding.adapter)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let identity = LifecycleIdentity::from_parts_checked(
+        project_id,
+        binding.task_id.clone(),
+        binding.operation_id.clone(),
+        adapter,
+        binding.session_id.clone(),
+        binding.request_id.clone(),
+    )
+    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    identity
+        .validate_task(&metadata.title)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    Ok(Some(binding))
 }
 
 fn required_plan_field(content: &str, prefix: &str) -> Result<String> {
@@ -791,6 +886,22 @@ fn parse_risk_lane(value: &str) -> Result<RiskLane> {
         "high" => Ok(RiskLane::High),
         other => bail!("unsupported risk lane `{other}`"),
     }
+}
+
+fn parse_plan_status(value: &str) -> Result<String> {
+    match value.trim() {
+        "in_progress" | "interrupted" | "needs_correction" | "blocked" | "completed" => {
+            Ok(value.trim().to_string())
+        }
+        other => bail!("unsupported plan status `{other}`"),
+    }
+}
+
+fn is_active_plan_status(value: &str) -> bool {
+    matches!(
+        value,
+        "in_progress" | "interrupted" | "needs_correction" | "blocked"
+    )
 }
 
 fn current_operation_binding(
@@ -841,27 +952,35 @@ fn current_operation_binding(
     )
 }
 
+struct CurrentPlanProjection<'a> {
+    title: &'a str,
+    status: &'a str,
+    risk: RiskLane,
+    task_id: Option<&'a str>,
+    binding: Option<&'a PlanOperationBinding>,
+}
+
 fn compare_current_with_linked_plan(
-    current_title: &str,
-    current_risk: RiskLane,
-    current_task_id: Option<&str>,
-    current_binding: Option<&PlanOperationBinding>,
+    current: CurrentPlanProjection<'_>,
     linked: &PlanFileMetadata,
     linked_binding: Option<&PlanOperationBinding>,
     issues: &mut Vec<String>,
 ) {
-    if current_title != linked.title {
+    if current.title != linked.title {
         issues.push("CURRENT title does not match linked plan title".to_string());
     }
-    if current_risk != linked.risk {
+    if current.risk != linked.risk {
         issues.push("CURRENT risk does not match linked plan risk".to_string());
     }
-    match current_task_id {
+    if current.status != linked.status {
+        issues.push("CURRENT status does not match linked plan status".to_string());
+    }
+    match current.task_id {
         Some(current_task_id) if current_task_id == linked.task_id => {}
         Some(_) => issues.push("CURRENT task_id does not match linked plan task_id".to_string()),
         None => issues.push("CURRENT task_id is missing from linked plan authority".to_string()),
     }
-    match (current_binding, linked_binding) {
+    match (current.binding, linked_binding) {
         (None, None) => {}
         (Some(current), Some(linked)) => {
             if current.operation_id != linked.operation_id {
@@ -938,10 +1057,16 @@ fn vault_plan_path(repo_root: &Path, vault: &VaultContext, repo_path: &Path) -> 
     vault.project_root.join("Plans").join(relative)
 }
 
-fn plan_content(title: &str, risk: RiskLane, binding: Option<&PlanOperationBinding>) -> String {
-    let task_id = binding
-        .map(|binding| binding.task_id.clone())
-        .unwrap_or_else(|| format!("task-{}", slugify(title)));
+fn plan_content(
+    project_id: &str,
+    title: &str,
+    risk: RiskLane,
+    binding: Option<&PlanOperationBinding>,
+) -> Result<String> {
+    let task_id = binding.map(|binding| binding.task_id.clone()).map_or_else(
+        || task_id_for_task(project_id, title).map_err(|error| anyhow::anyhow!(error.to_string())),
+        Ok,
+    )?;
     let operation_identity = binding
         .map(|binding| {
             format!(
@@ -950,7 +1075,7 @@ fn plan_content(title: &str, risk: RiskLane, binding: Option<&PlanOperationBindi
             )
         })
         .unwrap_or_default();
-    format!(
+    Ok(format!(
         "---\n\
 type: baron-plan\n\
 title: {title}\n\
@@ -976,7 +1101,7 @@ verification: not_run\n\
         today(),
         now(),
         now()
-    )
+    ))
 }
 
 fn required_tier(risk: RiskLane) -> TraceTier {
@@ -1115,6 +1240,7 @@ struct ActivePlan {
     path: PathBuf,
     status: String,
     risk: RiskLane,
+    task_id: String,
     binding: Option<PlanOperationBinding>,
     linked_status: Option<String>,
     authority_issues: Vec<String>,
@@ -1137,4 +1263,5 @@ struct CurrentPlanView<'a> {
     next_action: &'a str,
     verification: &'a str,
     binding: Option<&'a PlanOperationBinding>,
+    task_id: Option<&'a str>,
 }
