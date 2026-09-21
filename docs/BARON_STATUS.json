@@ -46,7 +46,8 @@
       "Windows Application Control intermittently blocks test and release-version binaries before process start (os error 4551)"
     ],
     "implementationCommits": [
-      "4f0244d"
+      "4f0244d",
+      "2079379"
     ],
     "verification": {
       "receiptAuthorityAndMultiprocess": "passed",

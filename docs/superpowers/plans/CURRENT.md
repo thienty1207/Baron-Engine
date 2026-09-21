@@ -8,6 +8,8 @@
   release, or version bump.
 - Baseline/branch: `3a52668b2fba53de3579b2f3ae77fcc848e759be` on
   `codex/spec-03-trusted-receipt-architecture`.
+- Implementation/review-fix checkpoint: `2079379`
+  (`2079379f497f3dc2ac3847efeff3be2425ac34f1`).
 - Delivered: canonical external machine authority scope checks, crash-safe
   staged no-replace seed activation, typed identity-only schema-v2 issuance,
   canonical operation-ID verification, strict-versus-diagnostic bulk loading,

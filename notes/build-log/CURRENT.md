@@ -8,6 +8,8 @@
 - Checkpoint: branch
   `codex/spec-03-trusted-receipt-architecture`, based on
   `3a52668b2fba53de3579b2f3ae77fcc848e759be`; public version remains `5.0.0`.
+- Implementation/review-fix commit: `2079379`
+  (`2079379f497f3dc2ac3847efeff3be2425ac34f1`).
 - Proof status: only typed `LifecycleIdentity` execution emits schema-v2
   authority. Raw JSONL, compatibility contexts, and provenance labels remain
   diagnostic; strict consumers fail on invalid schema-v2 authority records.

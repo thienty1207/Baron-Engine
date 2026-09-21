@@ -7,6 +7,8 @@
   version bump, or hosted-CI claim is part of this checkpoint.
 - Baseline: `3a52668b2fba53de3579b2f3ae77fcc848e759be`; branch:
   `codex/spec-03-trusted-receipt-architecture`.
+- Implementation/review-fix checkpoint: `2079379` (full SHA:
+  `2079379f497f3dc2ac3847efeff3be2425ac34f1`).
 - Authority architecture: a dedicated Ed25519 seed is stored outside project
   repositories and Vaults at
   `<BARON_HOME>/authority/execution-receipt-ed25519.seed`, with the existing
