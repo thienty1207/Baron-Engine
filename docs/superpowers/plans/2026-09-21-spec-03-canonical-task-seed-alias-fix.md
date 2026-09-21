@@ -70,5 +70,5 @@
   `cargo clippy --workspace --all-targets -- -D warnings`,
   release build/version smoke where executable, JSON/status parsing, and `git diff --check`.
 - [x] Report exact pass/fail/blocker evidence; do not relabel unexpected failures as expected.
-- [ ] Stage only intended tracked implementation/tests/docs/plan files, commit once for this follow-up, push `codex/spec-03-trusted-receipt-architecture`, and verify local/remote SHA equality.
+- [x] Stage only intended tracked implementation/tests/docs/plan files, commit the follow-up, push `codex/spec-03-trusted-receipt-architecture`, and verify local/remote SHA equality at `994ce18a92eff57be497d3b99420c8bde6078c99`.
 - [ ] Mark the plan complete and use final verdict `SPEC-03: CLOSED` only if BUG-01, WARN-01, regression, and verification closure requirements all pass; otherwise use `SPEC-03: NOT CLOSED` with the blocked closure evidence.

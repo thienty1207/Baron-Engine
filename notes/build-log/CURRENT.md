@@ -16,16 +16,15 @@
   seed is read and never promotes a stale staging file.
 - Trace status: persisted-state boundary is Baron source/tests and maintained
   records only; no project/Vault data has been changed. Self-review and the
-  mandatory full verification matrix remain open. The follow-up implementation
-  checkpoint is committed locally; it has not been pushed yet.
+  mandatory full verification matrix remain open. Follow-up checkpoint
+  `994ce18a92eff57be497d3b99420c8bde6078c99` is pushed on the branch.
 - Verification status: focused compile/test attempts are currently blocked by
   host Windows Application Control before build-script/test execution
   (`os error 4551`). The known PowerShell Archive and session-replay UTF-8
   blockers remain separately classified.
-- Safe next action: finish implementation, obtain fresh runnable GREEN evidence,
-  complete the adversarial scan, update maintained closure records, and only
-  then commit/push once. Do not release, tag, bump the version, modify Hotel
-  Staff, or start SPEC-04.
+- Safe next action: obtain fresh runnable GREEN evidence for the follow-up and
+  update closure records when host Application Control permits execution. Do not
+  release, tag, bump the version, modify Hotel Staff, or start SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 

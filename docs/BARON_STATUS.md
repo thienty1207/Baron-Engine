@@ -7,6 +7,9 @@
   part of this checkpoint.
 - Baseline: `df1e2341ab18edc23657d8a291754ba4105962c6`; branch:
   `codex/spec-03-trusted-receipt-architecture`.
+- Follow-up checkpoint: `994ce18a92eff57be497d3b99420c8bde6078c99` is pushed to
+  the branch. The implementation is delivered, but SPEC-03 remains `NOT
+  CLOSED` until the new focused tests and mandatory matrix execute.
 - Owned scope: BUG-01 must prevent schema-v2 authority from a parts-only
   `LifecycleIdentity`; WARN-01 must safely remove only completed Baron staging
   aliases left after hard-link activation. SPEC-04 and unrelated defects remain
@@ -34,10 +37,10 @@
   Control can block test/version binaries before process start.
 - Active plan:
   `docs/superpowers/plans/2026-09-21-spec-03-canonical-task-seed-alias-fix.md`.
-- Safe next action: complete the focused implementation and adversarial scan,
-  then run the full repository checks. Keep SPEC-03 `NOT CLOSED` until every
-  owned requirement is evidenced; do not release, tag, bump the version,
-  modify Hotel Staff, or start SPEC-04.
+- Safe next action: rerun the focused implementation tests and full repository
+  checks when host Application Control permits execution. Keep SPEC-03 `NOT
+  CLOSED` until every owned requirement is evidenced; do not release, tag, bump
+  the version, modify Hotel Staff, or start SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
 
