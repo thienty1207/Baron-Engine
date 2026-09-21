@@ -23,15 +23,23 @@ use baron_core::execution_receipt::{
     ReceiptProvenance,
 };
 use baron_core::identity::project_id_for_path;
-use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::operation::{
+    operation_id_for_parts, AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext,
+    SupportedAdapter,
+};
 use baron_core::proof::{record_proof_from_receipt, record_proof_from_receipt_bound};
 use baron_core::vault::ensure_vault;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
-fn identity(repo: &Path, task: &str, session: &str, request: &str) -> LifecycleIdentity {
+fn identity(
+    repo: &Path,
+    task: &str,
+    session: &str,
+    request: &str,
+) -> AuthoritativeLifecycleIdentity {
     let project_id = project_id_for_path(repo).unwrap();
-    LifecycleIdentity::resolve(
+    AuthoritativeLifecycleIdentity::resolve(
         &project_id,
         task,
         SupportedAdapter::Codex,
@@ -75,7 +83,7 @@ fn execute_authoritative(
 ) -> (ExecutionReceipt, ReceiptContext) {
     let project_id = project_id_for_path(repo).unwrap();
     let adapter = SupportedAdapter::parse(&requested_context.adapter).unwrap();
-    let identity = LifecycleIdentity::resolve(
+    let identity = AuthoritativeLifecycleIdentity::resolve(
         &project_id,
         &requested_context.task_id,
         adapter,
@@ -157,6 +165,72 @@ fn receipt_authority_scope_worker() {
             let identity = identity(&repo, "malformed seed", "session-seed", "request-seed");
             assert!(execute_command_for_identity(command(&repo), &identity, "proof").is_err());
         }
+        "reconstructed" => {
+            let sentinel = std::path::PathBuf::from(env::var_os("BARON_TEST_SENTINEL").unwrap());
+            let project_id = project_id_for_path(&repo).unwrap();
+            let operation_id = operation_id_for_parts(
+                &project_id,
+                "task-fake",
+                SupportedAdapter::Codex,
+                "session-a",
+                "request-a",
+            );
+            let reconstructed = LifecycleIdentity::from_parts_checked(
+                project_id,
+                "task-fake",
+                operation_id,
+                SupportedAdapter::Codex,
+                "session-a",
+                "request-a",
+            )
+            .unwrap();
+            let result = AuthoritativeLifecycleIdentity::from_identity_checked(
+                &reconstructed,
+                "real task text",
+            );
+            assert!(result.is_err(), "reconstructed identity gained authority");
+            if let Ok(authority_identity) = result {
+                let execution = execute_command_for_identity(
+                    sentinel_command(&repo, &sentinel),
+                    &authority_identity,
+                    "proof",
+                );
+                assert!(
+                    execution.is_err(),
+                    "unproven identity reached schema-v2 execution"
+                );
+            }
+            assert!(!sentinel.exists(), "reconstructed identity ran the child");
+        }
+        "cleanup" => {
+            let identity = identity(
+                &repo,
+                "cleanup staging alias",
+                "session-cleanup",
+                "request-cleanup",
+            );
+            let receipt = execute_command_for_identity(command(&repo), &identity, "proof").unwrap();
+            assert_eq!(receipt.schema_version, 2);
+        }
+        "cleanup-link" => {
+            let identity = identity(
+                &repo,
+                "cleanup staging link",
+                "session-cleanup-link",
+                "request-cleanup-link",
+            );
+            assert!(execute_command_for_identity(command(&repo), &identity, "proof").is_err());
+        }
+        "missing-final" => {
+            let identity = identity(
+                &repo,
+                "missing final seed",
+                "session-missing",
+                "request-missing",
+            );
+            let receipt = execute_command_for_identity(command(&repo), &identity, "proof").unwrap();
+            assert_eq!(receipt.schema_version, 2);
+        }
         "strict" => {
             let identity = identity(&repo, "strict loader", "session-strict", "request-strict");
             let valid = execute_command_for_identity(command(&repo), &identity, "proof").unwrap();
@@ -185,6 +259,148 @@ fn receipt_authority_scope_worker() {
             vault.display()
         ),
     }
+}
+
+#[test]
+fn reconstructed_identity_fails_before_authority_and_child_side_effects() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    let machine_home = temp.path().join("machine-home");
+    let sentinel = temp.path().join("reconstructed-sentinel");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&vault).unwrap();
+
+    let output = Command::new(env::current_exe().unwrap())
+        .args(["--exact", "receipt_authority_scope_worker", "--nocapture"])
+        .env("BARON_AUTHORITY_TEST_MODE", "reconstructed")
+        .env("BARON_TEST_REPO", &repo)
+        .env("BARON_TEST_VAULT", &vault)
+        .env("BARON_TEST_SENTINEL", &sentinel)
+        .env("BARON_HOME", &machine_home)
+        .env("BARON_VAULT", &vault)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "reconstructed worker failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!sentinel.exists());
+    assert!(!machine_home
+        .join("authority/execution-receipt-ed25519.seed")
+        .exists());
+    assert!(!repo.join(".baron/cache/execution-receipts.jsonl").exists());
+}
+
+fn write_valid_seed(path: &Path, seed: &[u8; 32]) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, seed).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+}
+
+#[test]
+fn completed_staging_alias_is_removed_without_touching_unrelated_files() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    let machine_home = temp.path().join("machine-home");
+    let authority_dir = machine_home.join("authority");
+    let seed_path = authority_dir.join("execution-receipt-ed25519.seed");
+    let staging_path = authority_dir.join(".execution-receipt-ed25519.seed.123.456.789.stage");
+    let wrong_size_staging =
+        authority_dir.join(".execution-receipt-ed25519.seed.123.456.790.stage");
+    let active_staging = authority_dir.join(".execution-receipt-ed25519.seed.123.456.791.stage");
+    let unrelated_stage = authority_dir.join("notes.stage");
+    let user_stage = authority_dir.join("execution-receipt-ed25519.seed.user.stage");
+    let random_file = authority_dir.join("random-32-byte-file");
+    let seed = [7_u8; 32];
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&vault).unwrap();
+    write_valid_seed(&staging_path, &seed);
+    fs::hard_link(&staging_path, &seed_path).unwrap();
+    fs::write(&wrong_size_staging, [1_u8; 31]).unwrap();
+    fs::write(&active_staging, [2_u8; 32]).unwrap();
+    fs::write(&unrelated_stage, b"notes").unwrap();
+    fs::write(&user_stage, [8_u8; 32]).unwrap();
+    fs::write(&random_file, [9_u8; 32]).unwrap();
+
+    let output = authority_worker_output("cleanup", &repo, &vault, &machine_home);
+    assert!(
+        output.status.success(),
+        "cleanup worker failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(&seed_path).unwrap(), seed);
+    assert!(!staging_path.exists(), "stale Baron staging alias remains");
+    assert!(wrong_size_staging.exists());
+    assert!(active_staging.exists());
+    assert!(unrelated_stage.exists());
+    assert!(user_stage.exists());
+    assert!(random_file.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn staging_shaped_symlink_is_not_followed_or_removed() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    let machine_home = temp.path().join("machine-home");
+    let authority_dir = machine_home.join("authority");
+    let seed_path = authority_dir.join("execution-receipt-ed25519.seed");
+    let staging_path = authority_dir.join(".execution-receipt-ed25519.seed.123.456.790.stage");
+    let outside = temp.path().join("outside-secret");
+    let seed = [6_u8; 32];
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&vault).unwrap();
+    write_valid_seed(&seed_path, &seed);
+    fs::write(&outside, [4_u8; 32]).unwrap();
+    symlink(&outside, &staging_path).unwrap();
+
+    let output = authority_worker_output("cleanup-link", &repo, &vault, &machine_home);
+    assert!(
+        output.status.success(),
+        "symlink cleanup worker failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(fs::symlink_metadata(&staging_path)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(fs::read(&outside).unwrap(), [4_u8; 32]);
+}
+
+#[test]
+fn stale_staging_is_not_promoted_when_final_seed_is_missing() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    let machine_home = temp.path().join("machine-home");
+    let authority_dir = machine_home.join("authority");
+    let seed_path = authority_dir.join("execution-receipt-ed25519.seed");
+    let staging_path = authority_dir.join(".execution-receipt-ed25519.seed.123.456.791.stage");
+    let stale_seed = [3_u8; 32];
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&vault).unwrap();
+    write_valid_seed(&staging_path, &stale_seed);
+
+    let output = authority_worker_output("missing-final", &repo, &vault, &machine_home);
+    assert!(
+        output.status.success(),
+        "missing-final worker failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(seed_path.is_file());
+    assert_eq!(fs::read(&staging_path).unwrap(), stale_seed);
+    assert_ne!(fs::read(&seed_path).unwrap(), stale_seed);
 }
 
 fn command(repo: &std::path::Path) -> ExecutionRequest {

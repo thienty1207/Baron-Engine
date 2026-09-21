@@ -11,7 +11,7 @@ use baron_core::execution_receipt::{
     load_verified_receipts_strict, ExecutionRequest,
 };
 use baron_core::identity::project_id_for_path;
-use baron_core::operation::{LifecycleIdentity, SupportedAdapter};
+use baron_core::operation::{AuthoritativeLifecycleIdentity, SupportedAdapter};
 use tempfile::tempdir;
 
 fn command(repo: &std::path::Path) -> ExecutionRequest {
@@ -29,9 +29,9 @@ fn command(repo: &std::path::Path) -> ExecutionRequest {
     }
 }
 
-fn identity(repo: &Path, index: &str) -> LifecycleIdentity {
+fn identity(repo: &Path, index: &str) -> AuthoritativeLifecycleIdentity {
     let project_id = project_id_for_path(repo).unwrap();
-    LifecycleIdentity::resolve(
+    AuthoritativeLifecycleIdentity::resolve(
         &project_id,
         &format!("multiprocess worker {index}"),
         SupportedAdapter::Codex,

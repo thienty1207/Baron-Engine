@@ -12,7 +12,7 @@ use baron_core::execution_receipt::{
 };
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
-use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::proof::{proof_status, record_proof, record_proof_with_capabilities_for_operation};
 use baron_core::trace::{record_trace, score_trace, TraceOutcome, TraceTier};
 use baron_core::vault::ensure_vault;
@@ -334,7 +334,7 @@ fn structured_execution_evidence_satisfies_present_required_capability() {
     let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
     #[cfg(not(windows))]
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
-    let identity = LifecycleIdentity::resolve(
+    let identity = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
         "task-proof",
         SupportedAdapter::Codex,

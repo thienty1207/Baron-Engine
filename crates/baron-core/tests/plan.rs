@@ -8,7 +8,9 @@ use baron_core::execution_receipt::{
 };
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
-use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::operation::{
+    AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
+};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan,
     start_or_resume_plan_for_identity, start_or_resume_plan_for_operation, update_plan,
@@ -54,7 +56,7 @@ fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContex
 
 fn passing_execution(
     repo: &std::path::Path,
-    identity: &LifecycleIdentity,
+    identity: &AuthoritativeLifecycleIdentity,
     gate_kind: &str,
 ) -> baron_core::execution_receipt::ExecutionReceipt {
     #[cfg(windows)]
@@ -79,7 +81,7 @@ fn passing_execution(
 fn passing_gate_execution(
     repo: &std::path::Path,
     agent: &str,
-    identity: &LifecycleIdentity,
+    identity: &AuthoritativeLifecycleIdentity,
 ) -> (
     baron_core::execution_receipt::ExecutionReceipt,
     ReceiptContext,
@@ -449,7 +451,7 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         .unwrap();
     fs::write(repo.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
-    let identity = LifecycleIdentity::resolve(
+    let identity = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
         "backend login security",
         SupportedAdapter::Codex,

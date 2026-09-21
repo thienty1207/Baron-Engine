@@ -11,7 +11,9 @@ use sha2::{Digest, Sha256};
 
 use crate::config::configured_vault_path_if_available;
 use crate::identity::project_id_for_path;
-use crate::operation::{operation_id_for_parts, LifecycleIdentity, SupportedAdapter};
+use crate::operation::{
+    operation_id_for_parts, AuthoritativeLifecycleIdentity, LifecycleIdentity, SupportedAdapter,
+};
 use crate::receipt_authority::{hex_encode, ReceiptAuthority};
 use crate::safe_io::{acquire_project_lock, append_text, read_text};
 
@@ -124,7 +126,7 @@ pub struct ExecutionReceipt {
     pub artifact_digests: Vec<String>,
     /// The operation binding is optional only for legacy generic executions.
     /// A gate-authoritative receipt carries every field and is produced only
-    /// through the typed [`LifecycleIdentity`] boundary.
+    /// through the typed [`AuthoritativeLifecycleIdentity`] boundary.
     #[serde(default)]
     pub task_id: Option<String>,
     #[serde(default)]
@@ -194,10 +196,11 @@ pub fn execute_command_with_context(
 
 /// Execute one command with the canonical lifecycle identity resolved at the
 /// authority-bearing ingress. Only this typed path can create a schema-v2
-/// signed receipt.
+/// signed receipt. The stronger identity type proves task canonicality before
+/// any authority key is loaded or created.
 pub fn execute_command_for_identity(
     request: ExecutionRequest,
-    identity: &LifecycleIdentity,
+    identity: &AuthoritativeLifecycleIdentity,
     gate_kind: &str,
 ) -> Result<ExecutionReceipt> {
     validate_request(&request)?;
@@ -214,7 +217,7 @@ pub fn execute_command_for_identity(
     if identity.project_id() != project_id {
         bail!("Lifecycle identity project ID does not match the execution repository");
     }
-    let context = ReceiptContext::for_identity(identity, gate_kind)?;
+    let context = ReceiptContext::for_identity(identity.as_lifecycle_identity(), gate_kind)?;
     let vault_root = configured_vault_path_if_available(&repo_root)?;
     let authority =
         ReceiptAuthority::load_or_create_for_project(&repo_root, vault_root.as_deref())?;
@@ -418,6 +421,10 @@ pub fn verify_receipt_authority(
     repo_root: impl AsRef<Path>,
     receipt: &ExecutionReceipt,
 ) -> Result<VerifiedExecutionReceipt> {
+    // Schema-v2 intentionally carries no canonical task text. Task-ID
+    // canonicality is guaranteed at the trusted AuthoritativeLifecycleIdentity
+    // issuance boundary; this verifier independently revalidates the complete
+    // operation tuple, including its canonical operation ID.
     let repo_root = repo_root.as_ref().canonicalize().with_context(|| {
         format!(
             "Could not resolve execution repository for receipt verification: {}",
@@ -828,7 +835,7 @@ mod tests {
         env::remove_var("BARON_VAULT");
 
         let project_id = project_id_for_path(&repo).unwrap();
-        let identity = LifecycleIdentity::resolve(
+        let identity = AuthoritativeLifecycleIdentity::resolve(
             &project_id,
             "canonical operation fixture",
             SupportedAdapter::Codex,

@@ -1,45 +1,31 @@
 # Current Build Note
 
-## SPEC-03 Trusted Execution Receipt Architecture — final review-fix checkpoint (2026-09-21)
+## SPEC-03 Trusted Execution Receipt Architecture — canonical task and seed alias follow-up (2026-09-21)
 
-- Current task: close the SPEC-03 final-review findings for machine authority
-  scope, canonical lifecycle identity, first-start seed activation, strict bulk
-  verification, and deterministic multiprocess proof.
+- Current task: fix only the remaining canonical-task authority and hard-link
+  staging-alias findings from the supplied SPEC-03 prompt.
 - Checkpoint: branch
-  `codex/spec-03-trusted-receipt-architecture`, based on
-  `3a52668b2fba53de3579b2f3ae77fcc848e759be`; public version remains `5.0.0`.
-- Implementation/review-fix commit: `2079379`
-  (`2079379f497f3dc2ac3847efeff3be2425ac34f1`).
-- Proof status: only typed `LifecycleIdentity` execution emits schema-v2
-  authority. Raw JSONL, compatibility contexts, and provenance labels remain
-  diagnostic; strict consumers fail on invalid schema-v2 authority records.
-- Persistence status: canonical external authority scope rejects repo/Vault and
-  link/reparse containment before creation. A complete staged seed is activated
-  with no-replace hard-link semantics and parent sync; receipt writes retain the
-  existing project lock and safe append durability.
-- Test status: eight separate child writers cross a ready/release barrier before
-  first authority creation and a separate verifier proves one shared key. CLI
-  process A/B proof flow passes with exact binding; forged operation IDs,
-  tampered records, stale source, foreign key, wrong identity, wrong gate,
-  duplicate, schema-v1 diagnostic, partial-seed, and unsafe-root cases reject.
-- Trace status: implementation trace and the separate adversarial self-review
-  are complete for SPEC-03. The raw/strict/diagnostic boundary, canonical
-  operation-ID check, external Vault alias boundary, no-replace seed
-  activation, and deterministic first-start barrier are classified PASS; no
-  SPEC-03-owned BUG or WARNING remains. No reviewer/subagent tool was
-  available in this session.
-- Verification: formatter, warnings-denied Clippy, locked release build,
-  focused forged-operation/boundary unit tests, proof trace, and runtime-policy
-  tests pass. Focused receipt/authority/multiprocess/proof/plan/CLI suites
-  passed where the host allowed their binaries to execute. The full workspace
-  also exposes the unrelated `Microsoft.PowerShell.Archive` installer blocker,
-  the existing `session_replay` UTF-8 boundary panic, and intermittent Windows
-  Application Control blocks before some test/version binaries start
-  (`os error 4551`).
-- Safe next action: stage exact intended files, commit and push the review-fix
-  branch once, preserve the user-owned untracked files, and then return to
-  normal Baron 5.0.0 maintenance. Do not release, tag, bump the version,
-  modify Hotel Staff, or start SPEC-04.
+  `codex/spec-03-trusted-receipt-architecture`, baseline
+  `df1e2341ab18edc23657d8a291754ba4105962c6`; public version remains `5.0.0`.
+- Proof status: the new RED tests distinguish parts-only reconstruction from
+  canonical task proof and cover crash-window alias cleanup, unrelated files,
+  links, and missing-final behavior. The trusted issuance API is being migrated
+  to `AuthoritativeLifecycleIdentity`; no follow-up GREEN result is claimed yet.
+- Persistence status: previous external authority-root and no-replace seed
+  guarantees remain in place. The follow-up cleanup runs only after a valid final
+  seed is read and never promotes a stale staging file.
+- Trace status: persisted-state boundary is Baron source/tests and maintained
+  records only; no project/Vault data has been changed. Self-review and the
+  mandatory full verification matrix remain open. The follow-up implementation
+  checkpoint is committed locally; it has not been pushed yet.
+- Verification status: focused compile/test attempts are currently blocked by
+  host Windows Application Control before build-script/test execution
+  (`os error 4551`). The known PowerShell Archive and session-replay UTF-8
+  blockers remain separately classified.
+- Safe next action: finish implementation, obtain fresh runnable GREEN evidence,
+  complete the adversarial scan, update maintained closure records, and only
+  then commit/push once. Do not release, tag, bump the version, modify Hotel
+  Staff, or start SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 

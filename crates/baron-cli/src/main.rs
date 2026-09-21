@@ -94,7 +94,9 @@ use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
     render_migration_inventory, rollback_migration,
 };
-use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::operation::{
+    AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
+};
 use baron_core::plan::{
     complete_plan, interrupt_plan, plan_status, start_or_resume_plan_for_identity, update_plan,
 };
@@ -2949,7 +2951,7 @@ fn run() -> Result<()> {
                     AdapterArg::Claude => SupportedAdapter::Claude,
                 };
                 let project_id = project_id_for_path(&repo_root)?;
-                let identity = LifecycleIdentity::resolve(
+                let identity = AuthoritativeLifecycleIdentity::resolve(
                     &project_id,
                     &task,
                     supported_adapter,

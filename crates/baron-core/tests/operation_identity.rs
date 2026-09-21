@@ -1,6 +1,6 @@
 use baron_core::operation::{
-    operation_id_for_parts, task_id_for_task, LifecycleIdentity, OperationContext,
-    SupportedAdapter, MAX_IDENTIFIER_CHARS,
+    operation_id_for_parts, task_id_for_task, AuthoritativeLifecycleIdentity, LifecycleIdentity,
+    OperationContext, SupportedAdapter, MAX_IDENTIFIER_CHARS,
 };
 use baron_core::prepare::{operation_id_for_request, PrepareRequestV1};
 
@@ -94,6 +94,63 @@ fn checked_identity_reconstruction_rejects_forged_operation_id() {
     )
     .unwrap_err();
     assert!(error.to_string().contains("does not match"));
+}
+
+#[test]
+fn internally_consistent_fake_task_tuple_is_reconstruction_only() {
+    let operation_id = operation_id_for_parts(
+        "project-1",
+        "task-fake",
+        SupportedAdapter::Codex,
+        "session-a",
+        "request-a",
+    );
+    let reconstructed = LifecycleIdentity::from_parts_checked(
+        "project-1",
+        "task-fake",
+        operation_id,
+        SupportedAdapter::Codex,
+        "session-a",
+        "request-a",
+    )
+    .unwrap();
+
+    assert_eq!(reconstructed.task_id(), "task-fake");
+    assert!(reconstructed.validate_task("real task text").is_err());
+    assert!(AuthoritativeLifecycleIdentity::from_identity_checked(
+        &reconstructed,
+        "real task text"
+    )
+    .is_err());
+}
+
+#[test]
+fn canonical_task_resolution_produces_an_authority_capable_identity() {
+    let resolved = LifecycleIdentity::resolve(
+        "project-1",
+        "real task text",
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+    let identity =
+        AuthoritativeLifecycleIdentity::from_identity_checked(&resolved, "real task text").unwrap();
+
+    assert_eq!(
+        identity.task_id(),
+        task_id_for_task("project-1", "real task text").unwrap()
+    );
+    assert_eq!(
+        identity.operation_id(),
+        operation_id_for_parts(
+            identity.project_id(),
+            identity.task_id(),
+            identity.adapter(),
+            identity.session_id(),
+            identity.request_id(),
+        )
+    );
 }
 
 #[test]

@@ -42,7 +42,11 @@ impl ReceiptAuthority {
         ensure_directory_chain(parent)?;
 
         match fs::symlink_metadata(&path) {
-            Ok(_) => return Ok(Self::from_seed(read_seed(&path)?)),
+            Ok(_) => {
+                let seed = read_seed(&path)?;
+                cleanup_staging_aliases(&path, &seed)?;
+                return Ok(Self::from_seed(seed));
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
                 return Err(error).with_context(|| {
@@ -68,6 +72,7 @@ impl ReceiptAuthority {
     ) -> Result<Self> {
         let path = receipt_authority_seed_path_for_project(repo_root, vault_root)?;
         let seed = read_seed(&path)?;
+        cleanup_staging_aliases(&path, &seed)?;
         Ok(Self::from_seed(seed))
     }
 
@@ -301,6 +306,107 @@ fn next_staging_path(path: &Path) -> PathBuf {
     path.with_file_name(format!(".{name}.{process}.{timestamp}.{sequence}.stage"))
 }
 
+/// Remove only completed Baron staging aliases left after a hard-link
+/// activation if the process crashed before its normal cleanup. The final seed
+/// has already passed `read_seed` before this function is called, so an absent
+/// or malformed final seed never causes stale material to be promoted or
+/// deleted. The exact-name/regular/exact-size/content-match rule is deliberately
+/// narrow: it protects arbitrary user `.stage` files and avoids deleting an
+/// independently written staging file from a concurrent creator. It accepts the
+/// cross-platform trade-off that matching the loaded seed bytes, not inode
+/// identity, proves Baron ownership of an abandoned alias.
+fn cleanup_staging_aliases(seed_path: &Path, final_seed: &[u8; SEED_BYTES]) -> Result<()> {
+    let parent = seed_path
+        .parent()
+        .context("Receipt authority seed has no parent directory")?;
+    let seed_name = seed_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .context("Receipt authority seed filename is not valid UTF-8")?;
+
+    for entry in fs::read_dir(parent).with_context(|| {
+        format!(
+            "Could not inspect receipt authority staging directory: {}",
+            parent.display()
+        )
+    })? {
+        let entry = entry.with_context(|| {
+            format!(
+                "Could not enumerate receipt authority staging directory: {}",
+                parent.display()
+            )
+        })?;
+        let staging = entry.path();
+        let Some(name) = staging.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if !is_baron_staging_name(name, seed_name) {
+            continue;
+        }
+
+        let metadata = match fs::symlink_metadata(&staging) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Could not inspect receipt authority staging alias: {}",
+                        staging.display()
+                    )
+                })
+            }
+        };
+        if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+            bail!(
+                "Refusing to clean symlink or reparse receipt authority staging alias: {}",
+                staging.display()
+            );
+        }
+        if !metadata.is_file() || metadata.len() != SEED_BYTES as u64 {
+            continue;
+        }
+        let Some(staging_seed) = read_bytes(&staging)? else {
+            continue;
+        };
+        if staging_seed.as_slice() != final_seed.as_slice() {
+            continue;
+        }
+
+        match fs::remove_file(&staging) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Could not remove stale receipt authority staging alias: {}",
+                        staging.display()
+                    )
+                })
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_baron_staging_name(name: &str, seed_name: &str) -> bool {
+    let Some(suffix) = name
+        .strip_prefix('.')
+        .and_then(|value| value.strip_prefix(seed_name))
+        .and_then(|value| value.strip_prefix('.'))
+        .and_then(|value| value.strip_suffix(".stage"))
+    else {
+        return false;
+    };
+    let components = suffix.split('.').collect::<Vec<_>>();
+    components.len() == 3
+        && components.iter().all(|component| {
+            !component.is_empty()
+                && component
+                    .chars()
+                    .all(|character| character.is_ascii_digit())
+        })
+}
+
 fn sync_parent_directory(parent: &Path) -> Result<()> {
     #[cfg(unix)]
     {
@@ -502,7 +608,7 @@ fn decode_fixed_hex<const N: usize>(value: &str) -> Result<[u8; N]> {
 
 #[cfg(test)]
 mod tests {
-    use super::{boundary_path, is_within_boundary};
+    use super::{boundary_path, is_baron_staging_name, is_within_boundary};
     use std::path::Path;
 
     #[test]
@@ -516,5 +622,25 @@ mod tests {
 
         let extended_repo = boundary_path(Path::new(r"\\?\C:\workspace\repo")).unwrap();
         assert!(is_within_boundary(&seed, &extended_repo));
+    }
+
+    #[test]
+    fn staging_cleanup_accepts_only_the_exact_generated_name_contract() {
+        let seed = "execution-receipt-ed25519.seed";
+        assert!(is_baron_staging_name(
+            ".execution-receipt-ed25519.seed.123.456.789.stage",
+            seed
+        ));
+        for name in [
+            "notes.stage",
+            "execution-receipt-ed25519.seed.user.stage",
+            ".execution-receipt-ed25519.seed.123.456.stage",
+            ".execution-receipt-ed25519.seed.123.456.789.extra.stage",
+        ] {
+            assert!(
+                !is_baron_staging_name(name, seed),
+                "unexpected match: {name}"
+            );
+        }
     }
 }

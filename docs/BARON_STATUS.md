@@ -1,56 +1,43 @@
 # Baron Build Status
 
-## Baron 5.0.1 Stabilization - SPEC-03 Final Review Fix (2026-09-21)
+## Baron 5.0.1 Stabilization - SPEC-03 Canonical Task and Seed Alias Follow-up (2026-09-21)
 
-- Status: `closed; final review fixes implemented and verified; unrelated host
-  blockers remain`; the source/public version remains `5.0.0`; no tag, release,
-  version bump, or hosted-CI claim is part of this checkpoint.
-- Baseline: `3a52668b2fba53de3579b2f3ae77fcc848e759be`; branch:
+- Status: `follow-up in progress; SPEC-03 is not closed`; the source/public
+  version remains `5.0.0`; no tag, release, version bump, or hosted-CI claim is
+  part of this checkpoint.
+- Baseline: `df1e2341ab18edc23657d8a291754ba4105962c6`; branch:
   `codex/spec-03-trusted-receipt-architecture`.
-- Implementation/review-fix checkpoint: `2079379` (full SHA:
-  `2079379f497f3dc2ac3847efeff3be2425ac34f1`).
-- Authority architecture: a dedicated Ed25519 seed is stored outside project
-  repositories and Vaults at
-  `<BARON_HOME>/authority/execution-receipt-ed25519.seed`, with the existing
-  `USERPROFILE/.baron` or `HOME/.baron` fallback. Canonical scope checks reject
-  repo/Vault containment and link/reparse traversal before creation. OS
-  randomness, complete same-directory staging, no-replace hard-link activation,
-  parent sync, and Unix `0600` permissions converge concurrent first starts on
-  one machine key without activating a partial final seed.
-- Receipt trust: only `LifecycleIdentity` execution emits signed schema-v2
-  receipts with a public-key fingerprint, random 128-bit receipt ID, complete
-  task/operation/adapter/session/request/gate binding, canonical operation-ID
-  verification, current project/source checks, and durable lock-protected
-  `safe_io` append. Raw `ExecutionReceipt` values and provenance labels remain
-  diagnostic; only strict `VerifiedExecutionReceipt` APIs can satisfy proof,
-  gate, or capability authority. Signed machine-local receipts remain
-  verifiable across process boundaries while the key, signature, freshness, and
-  binding remain valid.
-- CLI contract: `proof execute` requires `--task`, `--adapter`,
-  `--session-id`, and `--request-id`, resolves one `LifecycleIdentity`, and
-  persists a bound `proof` receipt before a later process runs
-  `proof record`. Blank identity fails before the child command starts.
-- Evidence: focused receipt, authority, proof, gate, capability, runtime,
-  plan, CLI, and multiprocess suites passed during the review run where the
-  host allowed their binaries to execute. The multiprocess fixture uses a
-  ready/release first-start barrier, runs eight child writers against one
-  temporary machine home, and verifies eight complete, unique, signed JSONL
-  records from a separate verifier process. Strict bulk verification fails on
-  invalid schema-v2 authority records while the separately named diagnostic
-  loader filters them. The final alias-hardening pass also passed formatter,
-  warnings-denied Clippy, focused forged-operation/boundary unit tests, proof
-  trace, and runtime-policy tests.
-- Known unrelated workspace/environment blockers: `baron-cli` installer
-  lifecycle tests cannot load the host `Microsoft.PowerShell.Archive` module,
-  one Prepare CLI fixture reaches the existing `session_replay` UTF-8 boundary
-  panic, and Windows Application Control intermittently blocks test binaries
-  and the release version smoke before process start (`os error 4551`).
+- Owned scope: BUG-01 must prevent schema-v2 authority from a parts-only
+  `LifecycleIdentity`; WARN-01 must safely remove only completed Baron staging
+  aliases left after hard-link activation. SPEC-04 and unrelated defects remain
+  out of scope.
+- Current implementation direction: retain `LifecycleIdentity` for checked
+  reconstruction/comparison and require `AuthoritativeLifecycleIdentity`, built
+  only with canonical task text, at the schema-v2 issuance boundary. Schema-v2
+  still omits task text: issuance proves task canonicality and verification
+  independently recomputes the canonical operation ID.
+- Seed cleanup direction: after a valid final seed is loaded, inspect only the
+  exact generated Baron staging-name pattern in the already validated external
+  authority directory; remove only a regular non-link exact-32-byte file whose
+  bytes match that loaded final seed. The content match avoids deleting an
+  independently written staging file from a concurrent creator. Missing/
+  malformed final seeds never trigger cleanup or staging promotion, and
+  unrelated stage-like files remain untouched.
+- Proof status: follow-up RED tests are present; the first focused build
+  attempts were blocked before test execution by host Windows Application
+  Control (`os error 4551`). Fresh GREEN evidence and the full verification
+  matrix are still required.
+- Known unrelated workspace/environment blockers carried forward:
+  `baron-cli` installer lifecycle tests cannot load the host
+  `Microsoft.PowerShell.Archive` module, one Prepare CLI fixture reaches the
+  existing `session_replay` UTF-8 boundary panic, and Windows Application
+  Control can block test/version binaries before process start.
 - Active plan:
-  `docs/superpowers/plans/2026-09-21-spec-03-final-review-fix.md`.
-- Adversarial closure: self-review completed in this session; no
-  SPEC-03-owned BUG or WARNING remains. No reviewer/subagent tool was
-  available. Safe next action after the review-fix push is normal Baron 5.0.0
-  maintenance; do not start SPEC-04, release, tag, or version work.
+  `docs/superpowers/plans/2026-09-21-spec-03-canonical-task-seed-alias-fix.md`.
+- Safe next action: complete the focused implementation and adversarial scan,
+  then run the full repository checks. Keep SPEC-03 `NOT CLOSED` until every
+  owned requirement is evidenced; do not release, tag, bump the version,
+  modify Hotel Staff, or start SPEC-04.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
 

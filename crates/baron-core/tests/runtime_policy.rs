@@ -11,7 +11,7 @@ use baron_core::execution_receipt::{
     execute_command_for_identity, ExecutionRequest, ReceiptContext,
 };
 use baron_core::identity::project_id_for_path;
-use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
 use tempfile::tempdir;
 
 fn provider(name: &str, capability: &str, command: &str, required: bool) -> CapabilityProvider {
@@ -174,7 +174,7 @@ fn runtime_report_requires_the_exact_current_operation_receipt() {
     let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
     #[cfg(not(windows))]
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
-    let identity = LifecycleIdentity::resolve(
+    let identity = AuthoritativeLifecycleIdentity::resolve(
         &project_id_for_path(&repo).unwrap(),
         "runtime execution evidence",
         SupportedAdapter::Codex,

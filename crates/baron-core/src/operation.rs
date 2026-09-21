@@ -119,7 +119,9 @@ impl LifecycleIdentity {
     /// This validates the complete operation tuple, but parts alone cannot
     /// prove that `task_id` was derived from the original task text. Callers
     /// that have the canonical task text must also call [`Self::validate_task`]
-    /// before using the identity for authority-bearing writes.
+    /// before using the identity for authority-bearing writes. The schema-v2
+    /// execution API instead requires [`AuthoritativeLifecycleIdentity`], so this
+    /// compatibility value cannot mint signed authority by itself.
     pub fn new(
         project_id: impl Into<String>,
         task_id: impl Into<String>,
@@ -234,6 +236,65 @@ impl LifecycleIdentity {
 
     pub fn request_id(&self) -> &str {
         &self.request_id
+    }
+}
+
+/// An identity that has been proven against canonical task text and may cross
+/// the trusted execution authority boundary.
+///
+/// `LifecycleIdentity::from_parts_checked` intentionally remains available for
+/// persisted reconstruction and comparison, but it only proves an internally
+/// consistent operation tuple. This wrapper cannot be built from those parts
+/// alone: its constructors require the canonical task text and therefore
+/// validate the task-ID derivation before returning an authority-capable value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoritativeLifecycleIdentity {
+    inner: LifecycleIdentity,
+}
+
+impl AuthoritativeLifecycleIdentity {
+    /// Resolve a fresh authority identity from the canonical task text.
+    pub fn resolve(
+        project_id: &str,
+        task: &str,
+        adapter: SupportedAdapter,
+        session_id: Option<&str>,
+        request_id: Option<&str>,
+    ) -> Result<Self, OperationIdentityError> {
+        Ok(Self {
+            inner: LifecycleIdentity::resolve(project_id, task, adapter, session_id, request_id)?,
+        })
+    }
+
+    /// Upgrade a checked identity only when the caller supplies the canonical
+    /// task text that proves its task-ID derivation. A parts-only reconstructed
+    /// identity therefore remains comparison-only unless that proof succeeds.
+    pub fn from_identity_checked(
+        identity: &LifecycleIdentity,
+        canonical_task: &str,
+    ) -> Result<Self, OperationIdentityError> {
+        identity.validate_task(canonical_task)?;
+        Ok(Self {
+            inner: identity.clone(),
+        })
+    }
+
+    pub fn as_lifecycle_identity(&self) -> &LifecycleIdentity {
+        &self.inner
+    }
+}
+
+impl AsRef<LifecycleIdentity> for AuthoritativeLifecycleIdentity {
+    fn as_ref(&self) -> &LifecycleIdentity {
+        self.as_lifecycle_identity()
+    }
+}
+
+impl std::ops::Deref for AuthoritativeLifecycleIdentity {
+    type Target = LifecycleIdentity;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_lifecycle_identity()
     }
 }
 

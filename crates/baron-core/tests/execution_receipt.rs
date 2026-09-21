@@ -9,7 +9,7 @@ use baron_core::execution_receipt::{
 #[cfg(windows)]
 use baron_core::identity::project_id_for_path;
 #[cfg(windows)]
-use baron_core::operation::{LifecycleIdentity, SupportedAdapter};
+use baron_core::operation::{AuthoritativeLifecycleIdentity, SupportedAdapter};
 
 #[cfg(windows)]
 #[test]
@@ -37,7 +37,7 @@ fn trusted_runner_records_current_passing_receipt() {
 #[test]
 fn authoritative_receipt_is_signed_schema_v2_and_verifiable_after_reload() {
     let temp = tempfile::tempdir().unwrap();
-    let identity = LifecycleIdentity::resolve(
+    let identity = AuthoritativeLifecycleIdentity::resolve(
         &project_id_for_path(temp.path()).unwrap(),
         "receipt fixture",
         SupportedAdapter::Codex,
