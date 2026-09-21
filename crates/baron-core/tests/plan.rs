@@ -3,6 +3,7 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
+use baron_core::automation::reconcile;
 use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
 use baron_core::execution_receipt::{
     execute_command_for_identity, ExecutionRequest, ReceiptContext,
@@ -731,6 +732,41 @@ fn cross_operation_quality_gates_cannot_complete_the_active_operation() {
         )
         .unwrap();
     }
+
+    let unrelated_proof_binding = ReceiptContext::for_identity(&unrelated, "proof").unwrap();
+    let unrelated_proof_receipt = passing_execution(&repo, &unrelated, "proof");
+    let unrelated_proof = record_proof_from_receipt_bound(
+        &repo,
+        &context,
+        &unrelated_proof_receipt.receipt_id,
+        &unrelated_proof_binding,
+    )
+    .unwrap();
+    let unrelated_trace_binding = TraceOperationBinding::from_operation(
+        &OperationContext::from_identity(&unrelated),
+        &unrelated_proof.id,
+    )
+    .unwrap();
+    let unrelated_trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Unrelated backend login security verification passed",
+        TraceOutcome::Completed,
+        &unrelated_trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&unrelated_trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .any(|gap| gap.contains("quality-gate") || gap.contains("trace")));
 
     let error = complete_plan(
         &repo,

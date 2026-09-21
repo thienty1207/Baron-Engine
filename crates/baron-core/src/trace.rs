@@ -244,10 +244,41 @@ pub fn score_trace(
     let repo_root = repo_root.as_ref();
     let repo_path = find_trace(repo_root, trace_id)?;
     let content = fs::read_to_string(&repo_path)?;
-    let risk = parse_risk(&content);
-    let trace_id = trace_field(&content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string());
-    let binding = parse_trace_binding(&content)?;
-    let proof_id = trace_field(&content, "- Proof ID: `");
+    let score = evaluate_trace_score(repo_root, &content)?;
+    let updated = replace_score(&content, &score);
+    write(&repo_path, &updated)?;
+    let relative = repo_path
+        .strip_prefix(repo_root.join("docs/baron/traces"))
+        .unwrap_or(&repo_path);
+    let vault_path = vault.project_root.join("Traces").join(relative);
+    write(&vault_path, &updated)?;
+    let outcome = trace_field(&content, "- Outcome: `").unwrap_or_else(|| "unknown".to_string());
+    let summary = trace_summary(&content);
+    update_trace_index(
+        &repo_root.join("docs/baron/traces/INDEX.md"),
+        &score.trace_id,
+        &outcome,
+        &summary,
+        &score,
+    )?;
+    update_trace_index(
+        &vault.project_root.join("Traces/INDEX.md"),
+        &score.trace_id,
+        &outcome,
+        &summary,
+        &score,
+    )?;
+    Ok(score)
+}
+
+/// Recompute trace authority from the current trace, proof, receipt, gate, and
+/// capability state. The persisted score block is intentionally not read here;
+/// it is a display/history cache written by [`score_trace`].
+fn evaluate_trace_score(repo_root: &Path, content: &str) -> Result<TraceScore> {
+    let risk = parse_risk(content);
+    let trace_id = trace_field(content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string());
+    let binding = parse_trace_binding(content)?;
+    let proof_id = trace_field(content, "- Proof ID: `");
     let mut missing = Vec::new();
     if !content.contains("## Task Summary\n\n") || content.contains("## Task Summary\n\n\n") {
         missing.push("task summary".to_string());
@@ -325,7 +356,7 @@ pub fn score_trace(
         missing.push("files changed".to_string());
     }
     let proof_valid = if risk == RiskLane::High {
-        high_risk_proof_present(&content)
+        high_risk_proof_present(content)
     } else {
         true
     };
@@ -333,6 +364,12 @@ pub fn score_trace(
         missing.push("security/data-impact proof".to_string());
     }
     if let Some(proof) = bound_proof.as_ref() {
+        if !proof_satisfies_risk(&proof.summary, risk) {
+            missing.push("proof does not satisfy risk requirements".to_string());
+        }
+        if !proof.capability_gate_passed {
+            missing.push("required capability execution evidence".to_string());
+        }
         if risk != RiskLane::Low && !proof_has_current_receipt(repo_root, proof)? {
             missing.push("current trusted execution receipt".to_string());
         }
@@ -361,44 +398,20 @@ pub fn score_trace(
     if content.contains("- Capability gate: `failed`") {
         missing.push("required capability execution evidence".to_string());
     }
-    let warnings = trace_list_field(&content, "- Capability warnings: ");
+    let warnings = trace_list_field(content, "- Capability warnings: ");
     missing.sort();
     missing.dedup();
     let passed = achieved >= required && missing.is_empty();
-    let score = TraceScore {
-        trace_id: trace_id.clone(),
+    Ok(TraceScore {
+        trace_id,
         achieved,
         required,
         passed,
         missing_fields: missing,
         warnings,
-        proof_id: proof_id.clone(),
-        binding: binding.clone(),
-    };
-    let updated = replace_score(&content, &score);
-    write(&repo_path, &updated)?;
-    let relative = repo_path
-        .strip_prefix(repo_root.join("docs/baron/traces"))
-        .unwrap_or(&repo_path);
-    let vault_path = vault.project_root.join("Traces").join(relative);
-    write(&vault_path, &updated)?;
-    let outcome = trace_field(&content, "- Outcome: `").unwrap_or_else(|| "unknown".to_string());
-    let summary = trace_summary(&content);
-    update_trace_index(
-        &repo_root.join("docs/baron/traces/INDEX.md"),
-        &trace_id,
-        &outcome,
-        &summary,
-        &score,
-    )?;
-    update_trace_index(
-        &vault.project_root.join("Traces/INDEX.md"),
-        &trace_id,
-        &outcome,
-        &summary,
-        &score,
-    )?;
-    Ok(score)
+        proof_id,
+        binding,
+    })
 }
 
 pub fn latest_trace_score(repo_root: impl AsRef<Path>) -> Result<Option<TraceScore>> {
@@ -423,10 +436,7 @@ pub fn latest_trace_score_for_operation(
         return Ok(None);
     };
     let content = fs::read_to_string(trace.repo_path)?;
-    if !content.contains(SCORE_START) {
-        return Ok(None);
-    }
-    let score = parse_score(&content)?;
+    let score = evaluate_trace_score(repo_root, &content)?;
     if score.binding.as_ref() == Some(expected)
         && score.proof_id.as_deref() == Some(expected.proof_id.as_str())
     {

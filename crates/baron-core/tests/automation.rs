@@ -4,7 +4,12 @@ use baron_core::automation::{
     automation_status, handle_hook, reconcile, AutomationEvent, HookAdapter,
 };
 use baron_core::config::{initialize_project, AdapterKind};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::start_or_resume_plan;
+use baron_core::proof::record_proof_for_operation;
+use baron_core::trace::{
+    record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
+};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
@@ -126,4 +131,62 @@ fn stop_reconciliation_blocks_once_when_active_work_lacks_evidence() {
     assert!(report.gaps.iter().any(|gap| gap.contains("trace")));
     assert!(first.contains(r#""decision":"block""#));
     assert!(!second.contains(r#""decision":"block""#));
+}
+
+#[test]
+fn reconcile_and_stop_do_not_use_newer_unrelated_operation_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    start_or_resume_plan(&repo, &context, "fix README typo").unwrap();
+
+    let unrelated = LifecycleIdentity::resolve(
+        &context.project_id,
+        "unrelated documentation task",
+        SupportedAdapter::Claude,
+        Some("unrelated-session"),
+        Some("unrelated-request"),
+    )
+    .unwrap();
+    let unrelated_operation = OperationContext::from_identity(&unrelated);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &unrelated_operation,
+        "Unrelated verification passed",
+    )
+    .unwrap();
+    let binding = TraceOperationBinding::from_operation(&unrelated_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Unrelated documentation task completed",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let report = reconcile(&repo).unwrap();
+    assert!(!report.passed);
+    assert!(report
+        .gaps
+        .iter()
+        .any(|gap| gap.contains("proof") || gap.contains("binding")));
+
+    let stop = handle_hook(
+        &repo,
+        &context,
+        HookAdapter::Codex,
+        AutomationEvent::Stop,
+        r#"{"session_id":"active-session","request_id":"active-request","stop_hook_active":false}"#,
+    )
+    .unwrap();
+    assert!(stop.contains(r#""decision":"block""#));
 }

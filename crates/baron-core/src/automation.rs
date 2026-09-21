@@ -16,10 +16,9 @@ use crate::continuity::{
     record_continuity_checkpoint_for_operation,
 };
 use crate::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use crate::plan::active_plan_completion_evidence_status;
 use crate::prepare::{prepare, PreparePacketV1, PrepareRequestV1, PREPARE_MAX_INPUT_BYTES};
-use crate::proof::latest_proof;
 use crate::safe_io::{acquire_project_lock, append_text, read_bytes, read_text, replace_text};
-use crate::trace::latest_trace_score;
 use crate::vault::VaultContext;
 
 const HOOK_MAX_CONTEXT_CHARS: usize = 6_000;
@@ -616,45 +615,17 @@ pub fn record_lifecycle_event_for_operation(
 }
 
 pub fn reconcile(repo_root: impl AsRef<Path>) -> Result<ReconciliationReport> {
-    let repo_root = repo_root.as_ref();
-    let current_path = repo_root.join("docs/baron/plans/CURRENT.md");
-    if !current_path.exists() {
+    let Some(status) = active_plan_completion_evidence_status(repo_root)? else {
         return Ok(ReconciliationReport {
             passed: true,
             active_plan: false,
             gaps: Vec::new(),
         });
-    }
-    let current = fs::read_to_string(&current_path)?;
-    let active_plan = current.contains("- Status: `in_progress`")
-        || current.contains("- Status: `interrupted`")
-        || current.contains("- Status: `needs_correction`")
-        || current.contains("- Status: `blocked`");
-    if !active_plan {
-        return Ok(ReconciliationReport {
-            passed: true,
-            active_plan: false,
-            gaps: Vec::new(),
-        });
-    }
-
-    let mut gaps = Vec::new();
-    if latest_proof(repo_root)?.is_none() {
-        gaps.push("verification proof is missing".to_string());
-    }
-    match latest_trace_score(repo_root)? {
-        Some(score) if score.passed => {}
-        Some(score) => gaps.push(format!(
-            "trace quality failed ({}/{})",
-            score.achieved.as_str(),
-            score.required.as_str()
-        )),
-        None => gaps.push("a passing scored trace is missing".to_string()),
-    }
+    };
     Ok(ReconciliationReport {
-        passed: gaps.is_empty(),
+        passed: status.passed,
         active_plan: true,
-        gaps,
+        gaps: status.issues,
     })
 }
 

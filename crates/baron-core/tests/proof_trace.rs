@@ -13,13 +13,14 @@ use baron_core::execution_receipt::{
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::plan::start_or_resume_plan_for_operation;
 use baron_core::proof::{
     proof_status, record_proof, record_proof_for_operation, record_proof_from_receipt_bound,
     record_proof_with_capabilities_for_operation,
 };
 use baron_core::trace::{
-    record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
-    TraceTier,
+    latest_trace_score_for_operation, record_trace, record_trace_for_operation, score_trace,
+    TraceOperationBinding, TraceOutcome, TraceTier,
 };
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -622,4 +623,161 @@ fn operation_bound_trace_rejects_a_cross_operation_proof_reference() {
     )
     .unwrap_err();
     assert!(error.to_string().contains("proof"));
+}
+
+#[test]
+fn operation_trace_score_recomputes_after_persisted_score_tampering() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README typo",
+        SupportedAdapter::Codex,
+        Some("score-session"),
+        Some("score-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(&repo, &context, "fix README typo", &operation).unwrap();
+    let proof =
+        record_proof_for_operation(&repo, &context, &operation, "README verification passed")
+            .unwrap();
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let content = fs::read_to_string(&trace.repo_path).unwrap();
+    let tampered = content
+        .replace("## Task Summary\n\n", "## Task Summary Removed\n\n")
+        .replace("- Achieved: `minimal`", "- Achieved: `detailed`");
+    fs::write(&trace.repo_path, tampered).unwrap();
+
+    let fresh = latest_trace_score_for_operation(&repo, &binding)
+        .unwrap()
+        .expect("fresh evaluation should find the exact trace");
+    assert_eq!(fresh.achieved, TraceTier::Incomplete);
+    assert!(!fresh.passed);
+
+    let without_score = fs::read_to_string(&trace.repo_path)
+        .unwrap()
+        .split("<!-- BARON:TRACE-SCORE:START -->")
+        .next()
+        .unwrap()
+        .trim_end()
+        .to_string();
+    fs::write(&trace.repo_path, format!("{without_score}\n")).unwrap();
+    let fresh_without_cache = latest_trace_score_for_operation(&repo, &binding)
+        .unwrap()
+        .expect("fresh evaluation must not require a cached score block");
+    assert_eq!(fresh_without_cache.achieved, TraceTier::Incomplete);
+    assert!(!fresh_without_cache.passed);
+}
+
+#[test]
+fn operation_trace_fresh_evaluation_rejects_rewritten_header_with_stale_score() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "active README task",
+        SupportedAdapter::Codex,
+        Some("active-session"),
+        Some("active-request"),
+    )
+    .unwrap();
+    let first_operation = OperationContext::from_identity(&first);
+    start_or_resume_plan_for_operation(&repo, &context, "active README task", &first_operation)
+        .unwrap();
+    let first_proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &first_operation,
+        "Active README verification passed",
+    )
+    .unwrap();
+    let second = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "unrelated README task",
+        SupportedAdapter::Claude,
+        Some("other-session"),
+        Some("other-request"),
+    )
+    .unwrap();
+    let second_operation = OperationContext::from_identity(&second);
+    let second_proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &second_operation,
+        "Unrelated README verification passed",
+    )
+    .unwrap();
+    let second_binding =
+        TraceOperationBinding::from_operation(&second_operation, &second_proof.id).unwrap();
+    let second_trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Unrelated README task completed",
+        TraceOutcome::Completed,
+        &second_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&second_trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let content = fs::read_to_string(&second_trace.repo_path).unwrap();
+    let rewritten = content
+        .replace(
+            &format!("- Task ID: `{}`", second.task_id()),
+            &format!("- Task ID: `{}`", first.task_id()),
+        )
+        .replace(
+            &format!("- Operation ID: `{}`", second.operation_id()),
+            &format!("- Operation ID: `{}`", first.operation_id()),
+        )
+        .replace(
+            &format!("- Adapter: `{}`", second.adapter().as_str()),
+            &format!("- Adapter: `{}`", first.adapter().as_str()),
+        )
+        .replace(
+            &format!("- Session ID: `{}`", second.session_id()),
+            &format!("- Session ID: `{}`", first.session_id()),
+        )
+        .replace(
+            &format!("- Request ID: `{}`", second.request_id()),
+            &format!("- Request ID: `{}`", first.request_id()),
+        )
+        .replace(
+            &format!("- Proof ID: `{}`", second_proof.id),
+            &format!("- Proof ID: `{}`", first_proof.id),
+        )
+        .replace("## Task Summary\n\n", "## Task Summary Removed\n\n");
+    fs::write(&second_trace.repo_path, rewritten).unwrap();
+
+    let first_binding =
+        TraceOperationBinding::from_operation(&first_operation, &first_proof.id).unwrap();
+    let fresh = latest_trace_score_for_operation(&repo, &first_binding)
+        .unwrap()
+        .expect("rewritten trace should be found by its forged header");
+    assert_eq!(fresh.achieved, TraceTier::Incomplete);
+    assert!(!fresh.passed);
 }

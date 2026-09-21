@@ -24,6 +24,12 @@ pub struct PlanRecord {
     pub resumed: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionEvidenceStatus {
+    pub passed: bool,
+    pub issues: Vec<String>,
+}
+
 /// Identity captured when a plan is started from a concrete Baron operation.
 /// Legacy title-only plans remain readable, but medium/high-risk completion
 /// cannot authorize them without this complete binding.
@@ -91,6 +97,33 @@ pub fn active_plan_operation_binding(
     repo_root: impl AsRef<Path>,
 ) -> Result<Option<PlanOperationBinding>> {
     Ok(active_plan(repo_root.as_ref())?.and_then(|plan| plan.binding))
+}
+
+/// Evaluate the current active plan using the same scoped completion evidence
+/// consumed by plan completion and completion-integrity diagnostics. A
+/// completed plan is not an active reconciliation target; a malformed active
+/// pointer remains a failing reconciliation target.
+pub fn active_plan_completion_evidence_status(
+    repo_root: impl AsRef<Path>,
+) -> Result<Option<CompletionEvidenceStatus>> {
+    let repo_root = repo_root.as_ref();
+    let current_path = repo_root.join("docs/baron/plans/CURRENT.md");
+    let Some(current) = read_text(&current_path)? else {
+        return Ok(None);
+    };
+    let is_active = ["in_progress", "interrupted", "needs_correction", "blocked"]
+        .iter()
+        .any(|status| current.contains(&format!("- Status: `{status}`")));
+    if !is_active {
+        return Ok(None);
+    }
+    let Some(active) = active_plan(repo_root)? else {
+        return Ok(Some(CompletionEvidenceStatus {
+            passed: false,
+            issues: vec!["active plan is missing".to_string()],
+        }));
+    };
+    Ok(Some(completion_evidence_status(repo_root, &active)?))
 }
 
 pub fn start_or_resume_plan(
@@ -306,7 +339,8 @@ pub fn complete_plan(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let active = require_active_plan(repo_root)?;
-    if let Some(issue) = completion_evidence_issues(repo_root, &active)?
+    if let Some(issue) = completion_evidence_status(repo_root, &active)?
+        .issues
         .into_iter()
         .next()
     {
@@ -350,6 +384,17 @@ pub fn complete_plan(
 /// Evaluate every completion-sensitive artifact from one active plan scope.
 /// Both completion and post-completion integrity diagnostics call this helper
 /// so they cannot disagree about which proof, trace, or gates are authoritative.
+fn completion_evidence_status(
+    repo_root: &Path,
+    active: &ActivePlan,
+) -> Result<CompletionEvidenceStatus> {
+    let issues = completion_evidence_issues(repo_root, active)?;
+    Ok(CompletionEvidenceStatus {
+        passed: issues.is_empty(),
+        issues,
+    })
+}
+
 fn completion_evidence_issues(repo_root: &Path, active: &ActivePlan) -> Result<Vec<String>> {
     let mut issues = Vec::new();
     let Some(expected_binding) = active.binding.as_ref() else {
@@ -473,7 +518,7 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
             if plan_verification.trim().is_empty() || plan_verification.trim() == "not_run" {
                 issues.push("plan verification evidence is missing".to_string());
             }
-            issues.extend(completion_evidence_issues(repo_root, &plan)?);
+            issues.extend(completion_evidence_status(repo_root, &plan)?.issues);
         }
         _ => issues.push("linked plan file is missing".to_string()),
     }
