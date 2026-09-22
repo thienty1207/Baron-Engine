@@ -1,25 +1,26 @@
 # Current Baron Build Plan
 
-## Baron 5.0.1 Stabilization - SPEC-04 Final Canonical Linked-Plan Authority Fix (2026-09-21)
+## Baron 5.0.1 Stabilization - SPEC-04 Managed Plan-Path Authority Fix (2026-09-22)
 
 - Active spec: Proof, Trace, Gate, and Completion Integrity.
 - Status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`; the source/public
   version remains `5.0.0`, with no tag, release, or version bump.
-- Baseline/branch: `39203407e3faa3321bd00181ee65d5b89647d03a` on
+- Baseline/branch: `8b5279b06007578afaf47c4b20e66cef8fac2ab7` on
   `codex/spec-04-proof-trace-gate-completion-integrity`.
-- Delivered: linked plan status is canonical after validation; CURRENT status
-  is a projection and mismatch/malformed status fails closed. One validator
-  derives linked risk, canonical task ID for new/identified plans, and
-  identified operation identity through the existing Vault/config resolver and
-  lifecycle contracts. Historical legacy-unbound `task-<slug>` plans remain
-  readable and preserve their task ID during projection; arbitrary legacy task
-  IDs and partial identity fail closed.
-- Adversarial evidence: both-file risk/task/operation/adapter/session/request
-  tampering, post-completion status tamper, partial identity, recomputed tuple,
-  identified/legacy mutation, and exact high-risk A to low-risk operation-B
-  evidence are rejected before completion authority. The linked plan is never
-  repaired or marked completed by rejection.
-- Focused verification: plan 38/38, automation 5/5, proof_trace 16/16,
+- Delivered: CURRENT `- Plan:` pointers are confined to the exact
+  `docs/baron/plans/` root using canonical containment. Symlink/reparse,
+  non-regular, missing, outside-root, and nested-prefix targets fail closed;
+  `vault_plan_path()` has no outside-root fallback.
+- Plan document contract: linked plans require leading frontmatter with
+  `type: baron-plan`; authority fields are read only from frontmatter and
+  duplicate known fields fail closed while benign unknown fields remain
+  tolerated.
+- Mutation evidence: hostile pointers cannot authorize or mutate README,
+  `src/fake.md`, unrelated docs, `docs/baron/plans-evil/`, or their Vault
+  mirror. Missing type, body-only metadata, duplicate risk, duplicate
+  operation ID, and link/reparse regressions are covered. The valid high-risk
+  proof/trace completion path remains green.
+- Focused verification: plan 44/44, automation 5/5, proof_trace 16/16,
   operation_identity 10/10, phase12_hooks_cli 4/4, and execution_cli 15/15;
   Core all-targets, formatter, warnings-denied Clippy, locked release build,
   `baron 5.0.0`, status JSON parsing, and diff check pass.
@@ -28,7 +29,7 @@
   `lifecycle_scripts` and the existing `session_replay` UTF-8 boundary panic in
   `prepare_cli` at `crates/baron-core/src/session_replay.rs:383`.
 - Active plan:
-  `docs/superpowers/plans/2026-09-21-spec-04-canonical-linked-plan-authority-final-fix.md`.
+  `docs/superpowers/plans/2026-09-22-spec-04-managed-plan-path-authority-final-fix.md`.
 - Residual limitation: the current Markdown plan schema has no independent
   persisted origin record for a fully recomputed edit of both files; canonical
   derivation still rejects the reviewed A-to-B bypass. Durable origin binding is

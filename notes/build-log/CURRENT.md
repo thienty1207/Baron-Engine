@@ -1,26 +1,26 @@
 # Current Build Note
 
-## SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-21)
+## SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-22)
 
-- Current task: complete the SPEC-04 canonical linked-plan authority final fix
-  on reviewed HEAD `39203407e3faa3321bd00181ee65d5b89647d03a`, without changing
-  release metadata or starting SPEC-05.
+- Current task: complete the managed-plan path authority final fix on reviewed
+  baseline `8b5279b06007578afaf47c4b20e66cef8fac2ab7`, without changing release
+  metadata or starting SPEC-05.
 - Implementation status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`;
   public version remains `5.0.0`.
-- FIX-A checkpoint: linked plan lifecycle status is canonical after validation;
-  CURRENT status is only a projection. Unsupported, missing, or mismatched
-  status fails closed across completion, reconcile, Stop, and plan status.
-- FIX-B checkpoint: the centralized validator resolves project ID through the
-  existing Vault/config identity source, then checks `classify_risk`, canonical
-  `task_id_for_task` for new/identified plans, supported adapter, checked
-  lifecycle identity reconstruction, and `validate_task`. Historical
-  legacy-unbound `task-<slug>` IDs remain readable and are preserved during
-  projection; arbitrary legacy task IDs and partial identity are rejected.
-- Tamper proof: both-file risk/task/operation/adapter/session/request rewrites,
-  partial identity, recomputed tuple, post-completion status tamper, and exact
-  high-risk A to low-risk operation-B evidence are rejected. The linked plan is
-  not rewritten or completed by rejection.
-- Focused proof: plan 38/38, automation 5/5, proof_trace 16/16,
+- Managed-path checkpoint: `- Plan:` resolution, canonical containment, and
+  Vault plan mirroring are confined to the exact `docs/baron/plans/` root.
+  Missing, outside-root, nested-prefix, symlink/reparse, directory, and other
+  non-regular targets fail closed before mutation.
+- Document checkpoint: linked plans require leading frontmatter with exact
+  `type: baron-plan`; title/status/risk/task/operation/session/request
+  authority is read only from frontmatter, and duplicate known fields are
+  rejected while unknown benign fields remain tolerated.
+- Mutation proof: hostile pointers to README, `src/fake.md`, unrelated docs,
+  and `docs/baron/plans-evil/` cannot authorize or mutate a target or Vault
+  mirror. Missing type, body-only metadata, duplicate risk, duplicate
+  operation ID, and hostile-link regressions are covered; the valid high-risk
+  proof/trace completion path remains green.
+- Focused proof: plan 44/44, automation 5/5, proof_trace 16/16,
   operation_identity 10/10, phase12_hooks_cli 4/4, and execution_cli 15/15.
   Core all-targets, formatter, and warnings-denied Clippy pass.
 - Workspace trace: serial workspace all-targets passes all targets except the
@@ -29,6 +29,8 @@
   `session_replay` UTF-8 boundary panic at
   `crates/baron-core/src/session_replay.rs:383`. No SPEC-04-owned failure
   appeared.
+- Release trace: locked release build, `baron 5.0.0`, `git diff --check`, and
+  status JSON parsing pass.
 - Residual origin limitation: the current plan schema has no independent
   persisted origin record that can distinguish a fully recomputed edit of both
   Markdown files. Canonical derivation still makes the reviewed A-to-B bypass
@@ -36,6 +38,8 @@
 - Persisted-state boundary: only SPEC-04 final-fix source/tests, the active
   plan, and maintained status/build-log evidence are in scope; project/Vault
   data and unrelated user files remain untouched.
+- Active plan:
+  `docs/superpowers/plans/2026-09-22-spec-04-managed-plan-path-authority-final-fix.md`.
 - Safe next action: hand off the pushed branch for final adversarial review.
   Do not release, tag, bump the version, or claim closure.
 

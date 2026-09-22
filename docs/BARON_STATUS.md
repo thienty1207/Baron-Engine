@@ -1,63 +1,49 @@
 # Baron Build Status
 
-## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-21)
+## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-22)
 
-- Status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`; the canonical linked-
-  plan final-fix pass is implemented on branch
+- Status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`; the managed-plan
+  authority final-fix pass is implemented on branch
   `codex/spec-04-proof-trace-gate-completion-integrity`. This pass does not
   claim closure, bump the public version, create a tag/release, modify Hotel
   Staff, or start SPEC-05.
-- Review baseline: `39203407e3faa3321bd00181ee65d5b89647d03a`; public version
+- Review baseline: `8b5279b06007578afaf47c4b20e66cef8fac2ab7`; public version
   remains `5.0.0`.
-- FIX-A lifecycle authority: the linked plan status is canonical after safe
-  CURRENT pointer loading and linked metadata validation. CURRENT status is a
-  projection/cache; missing, unsupported, or mismatched status fails closed,
-  so `complete_plan`, reconcile, Stop, and applicable `plan_status` paths do
-  not reinterpret active or completed work.
-- FIX-B canonical authority: one validator checks linked risk with
-  `classify_risk(title)`, task ID with `task_id_for_task(project_id, title)`,
-  and identified operation tuples through `SupportedAdapter`,
-  `LifecycleIdentity::from_parts_checked`, and `validate_task`. The project ID
-  comes from the existing Vault/config identity resolver. New title-only plans
-  use the canonical task ID; historical legacy-unbound `task-<slug>` IDs remain
-  readable and are preserved during lifecycle projection, while arbitrary
-  legacy task IDs fail closed. Partial identity fails closed.
-- Metadata equality: title, status, risk, task ID, operation ID, adapter,
-  session ID, and request ID must match exactly between CURRENT and the linked
-  plan. Identified and legacy-unbound plans cannot cross-authorize one another;
-  neither Markdown file is repaired by validation.
-- Reviewed bypass coverage: both CURRENT and linked frontmatter rewritten from
-  high-risk plan A to low-risk operation B are rejected before B proof, trace,
-  receipt, or gate evidence can authorize A. Risk-only, task, operation,
-  adapter, session, request, partial-identity, and recomputed-tuple tamper
-  regressions are also fail-closed.
-- Reconciliation and completion integrity: the shared validated active-plan
-  path feeds `complete_plan`, `reconcile`, Stop, `plan_status`, and
-  operation-bound trace creation. Forged authority leaves the linked plan
-  uncompleted and reports `Completion integrity: failed` where applicable; no
-  repair or guessing occurs.
-- Retained SPEC-04 invariants: receipt-bound proof publication is fully
-  rendered before authoritative writes; typed traces preserve exact
-  task/operation/adapter/session/request plus Proof ID binding; Medium/High
-  risk keeps current receipt and strict gate requirements; fresh trace-score
-  evaluation and legacy diagnostic-only selectors remain intact.
-- Static CURRENT-reader scan: correctness-sensitive completion, lifecycle,
-  reconciliation, Stop, and operation-bound trace paths use the validated
-  authority loader. Continuity, context, knowledge, Autopilot, harness
-  improvement, update preservation, and legacy unbound trace readers remain
-  diagnostic/status/history projections and do not claim completion authority.
-- Proof status: focused final-review matrix passes — `plan` 38/38,
-  `automation` 5/5, `proof_trace` 16/16, `operation_identity` 10/10, CLI
-  `phase12_hooks_cli` 4/4, and `execution_cli` 15/15. Core all-targets passes;
-  formatter and warnings-denied Clippy pass.
+- Managed plan-path authority: every `- Plan:` pointer is confined to the
+  exact repository-relative root `docs/baron/plans/`. Resolution requires
+  real canonical containment, rejects symlink/reparse/non-regular targets,
+  and never falls back to an outside path. `vault_plan_path()` and all plan
+  mutation/mirror paths fail closed outside that root.
+- Managed plan document contract: the linked target must begin with YAML-like
+  frontmatter, declare `type: baron-plan`, and expose authority fields only
+  from that frontmatter. Duplicate known authority fields fail closed while
+  benign unknown fields remain tolerated. Body-only metadata, missing type,
+  hostile prefixes, and outside-root pointers cannot become authority.
+- Retained lifecycle authority: linked plan status remains canonical after
+  validation; CURRENT status is only a projection. Metadata equality, canonical
+  risk/task/operation identity, identified-vs-legacy separation, proof/trace
+  binding, reconcile, Stop, completion, and operation-bound trace paths remain
+  fail-closed under the preceding SPEC-04 fixes.
+- Mutation integrity: invalid pointers are rejected before `complete_plan`,
+  update, reconcile, Stop, or Vault plan mirroring can write an outside target;
+  the positive high-risk valid-proof/trace completion path remains green.
+- Focused proof: `plan` 44/44, `automation` 5/5, `proof_trace` 16/16,
+  `operation_identity` 10/10, CLI `phase12_hooks_cli` 4/4, and `execution_cli`
+  15/15. Core all-targets, formatter, and warnings-denied Clippy pass.
 - Full workspace verification with `-j 1` passes every target except exactly
   two unrelated baseline/environment blockers: `baron-cli`
   `lifecycle_scripts` cannot load `Microsoft.PowerShell.Archive`, and
   `baron-cli` `prepare_cli` reaches the existing `session_replay` UTF-8
   boundary panic at `crates/baron-core/src/session_replay.rs:383`. No
   SPEC-04-owned failure was observed.
+- Release checks: locked release build, `baron 5.0.0`, `git diff --check`, and
+  `BARON_STATUS.json` parsing pass.
 - Active plan:
-  `docs/superpowers/plans/2026-09-21-spec-04-canonical-linked-plan-authority-final-fix.md`.
+  `docs/superpowers/plans/2026-09-22-spec-04-managed-plan-path-authority-final-fix.md`.
+- Residual limitation: the current Markdown plan schema still has no
+  independent persisted origin record that can distinguish a fully recomputed
+  edit of both Markdown files. Canonical derivation rejects the reviewed
+  high-risk A-to-low-risk B bypass; durable origin binding remains deferred.
 - Safe next action: hand off the pushed branch for final adversarial review.
   Keep the public version at `5.0.0`; do not release, tag, or claim closure from
   this pass.

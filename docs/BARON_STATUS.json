@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-09-21",
+  "lastUpdated": "2026-09-22",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-04",
   "currentPhaseStatus": "in_progress",
-  "nextAction": "SPEC-04 canonical linked-plan authority final fix is implemented and verified; status is ready for final adversarial review. Keep the public version at 5.0.0 and do not claim closure from this pass.",
+  "nextAction": "SPEC-04 managed plan-path authority final fix is implemented and verified; status is ready for final adversarial review. Keep the public version at 5.0.0 and do not claim closure from this pass.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-04",
@@ -26,9 +26,9 @@
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "publicVersionBump": false,
-    "baselineCommit": "39203407e3faa3321bd00181ee65d5b89647d03a",
+    "baselineCommit": "8b5279b06007578afaf47c4b20e66cef8fac2ab7",
     "branch": "codex/spec-04-proof-trace-gate-completion-integrity",
-    "scope": "complete receipt-bound proof publication, operation-bound trace recording and scoring, strict operation-scoped gate evidence, shared completion-integrity reconciliation, fresh trace-score authority for identified plans, and canonical linked-plan lifecycle/task/operation/risk authority",
+    "scope": "complete receipt-bound proof publication, operation-bound trace recording and scoring, strict operation-scoped gate evidence, shared completion-integrity reconciliation, fresh trace-score authority for identified plans, canonical linked-plan lifecycle/task/operation/risk authority, and exact managed plan-path/document confinement",
     "previousSpec": {
       "spec": "SPEC-03",
       "name": "Trusted Execution Receipt Architecture",
@@ -44,9 +44,11 @@
       "lifecycle_scripts cannot load Microsoft.PowerShell.Archive in the host PowerShell",
       "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
     ],
-    "implementationCommits": [],
+    "implementationCommits": [
+      "862efabfd35f324f912548c3e0358aa0319c790f"
+    ],
     "verification": {
-      "focusedProofTracePlanAndIntegrity": "PASS: plan 38/38; automation 5/5; proof_trace 16/16; operation_identity 10/10",
+      "focusedProofTracePlanAndIntegrity": "PASS: plan 44/44; automation 5/5; proof_trace 16/16; operation_identity 10/10",
       "cliExecution": "PASS: execution_cli 15/15; phase12_hooks_cli 4/4",
       "coreAllTargets": "PASS: all baron-core targets",
       "workspaceAllTargets": "KNOWN BLOCKERS: lifecycle_scripts Microsoft.PowerShell.Archive unavailable; prepare_cli existing session_replay UTF-8 boundary panic",
@@ -55,7 +57,7 @@
       "releaseBuild": "PASS: cargo build --release --locked -p baron-cli",
       "binaryVersion": "PASS: baron 5.0.0",
       "diffCheck": "PASS",
-      "currentPlanAuthority": "PASS: linked-plan status is canonical; Vault/config project identity, classify_risk, canonical task_id_for_task for new and identified plans, exact historical legacy task preservation, checked LifecycleIdentity reconstruction, validate_task, exact CURRENT equality, identified-vs-legacy separation, status/tamper failure, reconcile failure, Stop blocking, and operation-B bypass isolation are covered",
+      "currentPlanAuthority": "PASS: exact docs/baron/plans containment, canonical real-path checking, link/reparse/non-regular rejection, frontmatter-only authority, type marker, duplicate known-field rejection, outside-root mutation/Vault confinement, linked-plan status canonicality, canonical identity/risk/task validation, exact CURRENT equality, reconcile failure, Stop blocking, and operation-B bypass isolation are covered",
       "staticCurrentReaders": "PASS: correctness-sensitive completion/lifecycle/reconcile/Stop/operation-bound trace paths use the validated loader; continuity/context/knowledge/Autopilot/harness/update/legacy readers remain diagnostic or preservation projections",
       "adversarialSelfScan": "PASS: CURRENT/linked lifecycle status hiding, malformed status, both-file risk/task/operation/adapter/session/request rewrites, partial identity, recomputed tuple, identified/legacy mutation, post-completion tamper, and exact high-risk A to low-risk operation-B evidence are rejected; retained FIX-01/FIX-02 boundaries have no new SPEC-04-owned failure",
       "workspaceKnownFailures": [
@@ -63,7 +65,7 @@
         "baron-cli prepare_cli: existing session_replay UTF-8 boundary panic"
       ]
     },
-    "activePlan": "docs/superpowers/plans/2026-09-21-spec-04-canonical-linked-plan-authority-final-fix.md",
+    "activePlan": "docs/superpowers/plans/2026-09-22-spec-04-managed-plan-path-authority-final-fix.md",
     "nextAction": "Hand off the pushed branch for final adversarial review without closing SPEC-04; keep public version 5.0.0 and do not release or tag."
   },
   "securityRemediation": {
