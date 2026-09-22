@@ -15,7 +15,7 @@ use crate::execution_receipt::{
 use crate::operation::OperationContext;
 use crate::platform::platform_name;
 use crate::risk::RiskLane;
-use crate::safe_io::replace_text;
+use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
 use crate::survey::survey_repository;
 use crate::vault::VaultContext;
 use crate::work_shape::decide_work_shape;
@@ -1367,7 +1367,9 @@ pub fn record_gate_evidence(
     agent: &str,
     summary: &str,
 ) -> Result<GateEvidence> {
-    let repo_path = repo_root.as_ref().join("docs/baron/control-plane/GATES.md");
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
     let vault_path = vault.project_root.join("ControlPlane/GATES.md");
     let item = format!("- {} - `{}` - {}", now(), agent.trim(), summary.trim());
     append(&repo_path, "# Baron Quality Gate Evidence\n\n", &item)?;
@@ -1417,7 +1419,8 @@ pub fn record_gate_evidence_with_receipt_bound(
     }
     let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
     let vault_path = vault.project_root.join("ControlPlane/GATES.md");
-    let existing = fs::read_to_string(&repo_path).unwrap_or_default();
+    let _lock = acquire_project_lock(repo_root)?;
+    let existing = read_text(&repo_path)?.unwrap_or_default();
     if existing.lines().any(|line| {
         line.contains(&format!("`{}`", agent.trim()))
             && line.contains(&format!("trusted_receipt=`{}`", receipt.receipt_id))
@@ -1738,17 +1741,19 @@ fn contains_any(value: &str, needles: &[&str]) -> bool {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
-}
-
-fn write(path: &Path, content: &str) -> Result<()> {
-    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn now() -> String {

@@ -12,6 +12,7 @@ use baron_core::capability::{
 };
 use baron_core::config::{load_project_config, AdapterKind};
 use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
+use baron_core::control_plane::record_gate_evidence;
 use baron_core::harness::{record_friction, start_or_resume_intake};
 use baron_core::harness_improvement::record_intervention;
 use baron_core::intent::{record_intent, IntentBriefInput};
@@ -184,6 +185,26 @@ fn multiprocess_harness_append_and_matrix_publications_are_lossless() {
 }
 
 #[test]
+fn multiprocess_gate_evidence_publications_are_lossless() {
+    const WORKER_COUNT: usize = 4;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("gate-repo");
+    let vault = temp.path().join("gate-vault");
+    fs::create_dir_all(&repo).unwrap();
+    let vault_context = ensure_vault(&vault, &repo).unwrap();
+
+    assert_eq!(
+        run_workers("gate", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+    let repo_gates = fs::read_to_string(repo.join("docs/baron/control-plane/GATES.md")).unwrap();
+    let vault_gates =
+        fs::read_to_string(vault_context.project_root.join("ControlPlane/GATES.md")).unwrap();
+    assert_eq!(repo_gates.matches("worker gate").count(), WORKER_COUNT);
+    assert_eq!(vault_gates.matches("worker gate").count(), WORKER_COUNT);
+}
+
+#[test]
 fn multiprocess_capability_registry_and_runtime_evidence_are_lossless() {
     const WORKER_COUNT: usize = 4;
     let temp = tempdir().unwrap();
@@ -331,6 +352,7 @@ fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<
             "friction" => "FRICTION_ID=",
             "intervention" => "INTERVENTION_ID=",
             "matrix" => "MATRIX_ID=",
+            "gate" => "GATE_ID=",
             "registry" => "REGISTRY_ID=",
             "runtime" => "RUNTIME_ID=",
             "intent" => "INTENT_ID=",
@@ -511,6 +533,16 @@ fn concurrency_worker() {
         "matrix" => {
             start_or_resume_intake(&repo, &context, &format!("fix README typo {index}")).unwrap();
             println!("MATRIX_ID={index}");
+        }
+        "gate" => {
+            record_gate_evidence(
+                &repo,
+                &context,
+                "test-engineer",
+                &format!("worker gate {index}"),
+            )
+            .unwrap();
+            println!("GATE_ID={index}");
         }
         "registry" => {
             register_provider(
