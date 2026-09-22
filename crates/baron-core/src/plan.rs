@@ -15,6 +15,8 @@ use crate::safe_io::{read_text, read_text_required, replace_text};
 use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding, TraceTier};
 use crate::vault::{canonical_project_id, VaultContext};
 
+const MANAGED_PLAN_ROOT: &str = "docs/baron/plans";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanRecord {
     pub title: String,
@@ -249,7 +251,7 @@ fn start_or_resume_plan_internal(
                 title: title.to_string(),
                 risk: active.risk,
                 repo_path: active.path.clone(),
-                vault_path: vault_plan_path(repo_root, vault, &active.path),
+                vault_path: vault_plan_path(repo_root, vault, &active.path)?,
                 resumed: true,
             });
         }
@@ -260,7 +262,7 @@ fn start_or_resume_plan_internal(
         .join("docs/baron/plans")
         .join(&date)
         .join(format!("{date}-{}.md", slugify(title)));
-    let vault_path = vault_plan_path(repo_root, vault, &repo_path);
+    let vault_path = vault_plan_path(repo_root, vault, &repo_path)?;
     let content = plan_content(&vault.project_id, title, risk, binding)?;
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
@@ -637,17 +639,22 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
     let current_title = field(&content, "- Title: ")
         .map(|value| value.trim().to_string())
         .unwrap_or_default();
-    let path = field(&content, "- Plan: `")
+    let path = match field(&content, "- Plan: `")
         .and_then(|value| value.strip_suffix('`').map(str::to_string))
-        .map(|value| {
-            if !is_safe_plan_path(&value) {
-                return Err(anyhow::anyhow!(
-                    "Active Baron plan path escapes the project: {value}"
-                ));
+    {
+        Some(value) => match resolve_managed_plan_path(repo_root, &value) {
+            Ok(path) => Some(path),
+            Err(error) => {
+                authority_issues.push(format!("CURRENT managed plan path is invalid: {error}"));
+                // Keep a concrete ActivePlan so every caller reports a failed
+                // authority state (including reconcile and Stop) rather than
+                // treating an invalid pointer as an absent plan. Mutation is
+                // still blocked by `authority_issues` before this path is used.
+                Some(current_path.clone())
             }
-            Ok(repo_root.join(value))
-        })
-        .transpose()?;
+        },
+        None => None,
+    };
     let current_status = match current_backtick_field(&content, "- Status: `") {
         Some(value) => match parse_plan_status(&value) {
             Ok(status) => status,
@@ -803,10 +810,15 @@ impl PlanFileMetadata {
 
 fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
     let content = read_text_required(path)?;
-    let title = required_plan_field(&content, "title:")?;
-    let status = parse_plan_status(&required_plan_field(&content, "status:")?)?;
-    let risk = parse_risk_lane(&required_plan_field(&content, "risk:")?)?;
-    let task_id = required_plan_field(&content, "task_id:")?;
+    let fields = leading_plan_frontmatter(&content)?;
+    let document_type = required_frontmatter_field(&fields, "type")?;
+    if document_type != "baron-plan" {
+        bail!("linked plan document type must be `baron-plan`");
+    }
+    let title = required_frontmatter_field(&fields, "title")?;
+    let status = parse_plan_status(&required_frontmatter_field(&fields, "status")?)?;
+    let risk = parse_risk_lane(&required_frontmatter_field(&fields, "risk")?)?;
+    let task_id = required_frontmatter_field(&fields, "task_id")?;
     if task_id.is_empty() {
         bail!("linked plan task_id is empty");
     }
@@ -815,11 +827,59 @@ fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
         status,
         risk,
         task_id,
-        operation_id: optional_plan_field(&content, "operation_id:"),
-        adapter: optional_plan_field(&content, "adapter:"),
-        session_id: optional_plan_field(&content, "session_id:"),
-        request_id: optional_plan_field(&content, "request_id:"),
+        operation_id: optional_frontmatter_field(&fields, "operation_id")?,
+        adapter: optional_frontmatter_field(&fields, "adapter")?,
+        session_id: optional_frontmatter_field(&fields, "session_id")?,
+        request_id: optional_frontmatter_field(&fields, "request_id")?,
     })
+}
+
+fn leading_plan_frontmatter(content: &str) -> Result<Vec<(&str, &str)>> {
+    let mut lines = content.lines();
+    if lines.next() != Some("---") {
+        bail!("linked plan frontmatter is missing or not leading");
+    }
+
+    let mut fields = Vec::new();
+    let mut closed = false;
+    for line in lines {
+        if line == "---" {
+            closed = true;
+            break;
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+        let (key, value) = line
+            .split_once(':')
+            .with_context(|| format!("linked plan frontmatter line is malformed: {line}"))?;
+        let key = key.trim();
+        if key.is_empty() {
+            bail!("linked plan frontmatter contains an empty field name");
+        }
+        fields.push((key, value.trim()));
+    }
+    if !closed {
+        bail!("linked plan frontmatter is not closed");
+    }
+    Ok(fields)
+}
+
+fn required_frontmatter_field(fields: &[(&str, &str)], key: &str) -> Result<String> {
+    optional_frontmatter_field(fields, key)?
+        .filter(|value| !value.is_empty())
+        .with_context(|| format!("linked plan metadata is missing `{key}: `"))
+}
+
+fn optional_frontmatter_field(fields: &[(&str, &str)], key: &str) -> Result<Option<String>> {
+    let values = fields
+        .iter()
+        .filter_map(|(field, value)| (*field == key).then_some(*value))
+        .collect::<Vec<_>>();
+    if values.len() > 1 {
+        bail!("linked plan authority field `{key}` is duplicated");
+    }
+    Ok(values.first().map(|value| (*value).to_string()))
 }
 
 fn validate_linked_plan_authority(
@@ -864,19 +924,6 @@ fn validate_linked_plan_authority(
         .validate_task(&metadata.title)
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     Ok(Some(binding))
-}
-
-fn required_plan_field(content: &str, prefix: &str) -> Result<String> {
-    optional_plan_field(content, prefix)
-        .filter(|value| !value.is_empty())
-        .with_context(|| format!("linked plan metadata is missing `{prefix}`"))
-}
-
-fn optional_plan_field(content: &str, prefix: &str) -> Option<String> {
-    content.lines().find_map(|line| {
-        line.strip_prefix(prefix)
-            .map(|value| value.trim().to_string())
-    })
 }
 
 fn parse_risk_lane(value: &str) -> Result<RiskLane> {
@@ -1047,14 +1094,21 @@ fn append_progress(path: &Path, note: &str) -> Result<()> {
 
 fn mirror_plan(repo_root: &Path, vault: &VaultContext, plan_path: &Path) -> Result<()> {
     let content = read_text_required(plan_path)?;
-    write(&vault_plan_path(repo_root, vault, plan_path), &content)
+    write(&vault_plan_path(repo_root, vault, plan_path)?, &content)
 }
 
-fn vault_plan_path(repo_root: &Path, vault: &VaultContext, repo_path: &Path) -> PathBuf {
+fn vault_plan_path(repo_root: &Path, vault: &VaultContext, repo_path: &Path) -> Result<PathBuf> {
     let relative = repo_path
-        .strip_prefix(repo_root.join("docs/baron/plans"))
-        .unwrap_or(repo_path);
-    vault.project_root.join("Plans").join(relative)
+        .strip_prefix(repo_root.join(MANAGED_PLAN_ROOT))
+        .context("plan path is outside Baron plan root")?;
+    if relative.as_os_str().is_empty()
+        || !relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
+        bail!("plan path is not a regular managed Baron plan path");
+    }
+    Ok(vault.project_root.join("Plans").join(relative))
 }
 
 fn plan_content(
@@ -1133,7 +1187,7 @@ fn update_plan_indexes(
     risk: RiskLane,
     status: &str,
 ) -> Result<()> {
-    let vault_path = vault_plan_path(repo_root, vault, repo_path);
+    let vault_path = vault_plan_path(repo_root, vault, repo_path)?;
     replace_plan_index_row(
         &repo_root.join("docs/baron/plans/INDEX.md"),
         title,
@@ -1196,6 +1250,35 @@ fn is_safe_plan_path(value: &str) -> bool {
         && path
             .components()
             .all(|component| matches!(component, Component::Normal(_)))
+}
+
+fn resolve_managed_plan_path(repo_root: &Path, value: &str) -> Result<PathBuf> {
+    if !is_safe_plan_path(value) {
+        bail!("path is not a safe relative path: {value}");
+    }
+
+    let plan_root = repo_root.join(MANAGED_PLAN_ROOT);
+    let candidate = repo_root.join(value);
+    // The safe-I/O read rejects missing entries, directories, non-regular
+    // entries, symlinks, reparse points, and unsafe parent components before
+    // the target can be treated as authority.
+    read_text_required(&candidate)?;
+    let canonical_root = plan_root.canonicalize().with_context(|| {
+        format!(
+            "could not resolve managed Baron plan root: {}",
+            plan_root.display()
+        )
+    })?;
+    let canonical_candidate = candidate.canonicalize().with_context(|| {
+        format!(
+            "could not resolve managed Baron plan path: {}",
+            candidate.display()
+        )
+    })?;
+    if canonical_candidate.strip_prefix(&canonical_root).is_err() {
+        bail!("path resolves outside managed Baron plan root: {value}");
+    }
+    Ok(candidate)
 }
 
 fn normalize(path: &Path, root: &Path) -> String {

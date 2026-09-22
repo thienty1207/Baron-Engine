@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -347,6 +348,246 @@ fn active_plan_path(repo: &std::path::Path) -> std::path::PathBuf {
         .and_then(|value| value.strip_suffix('`'))
         .unwrap();
     repo.join(path)
+}
+
+fn rewrite_current_plan_pointer(repo: &Path, relative_path: &str) {
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current = fs::read_to_string(&current_path).unwrap();
+    let rewritten = current
+        .lines()
+        .map(|line| {
+            if line.starts_with("- Plan: `") {
+                format!("- Plan: `{relative_path}`")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(current_path, format!("{rewritten}\n")).unwrap();
+}
+
+fn repo_relative_path(repo: &Path, path: &Path) -> String {
+    path.strip_prefix(repo)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn snapshot_tree(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+    fn visit(root: &Path, current: &Path, snapshot: &mut BTreeMap<PathBuf, Vec<u8>>) {
+        let entries = fs::read_dir(current).unwrap();
+        for entry in entries {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path).unwrap();
+            if metadata.is_dir() {
+                visit(root, &path, snapshot);
+            } else if metadata.is_file() {
+                snapshot.insert(
+                    path.strip_prefix(root).unwrap().to_path_buf(),
+                    fs::read(path).unwrap(),
+                );
+            }
+        }
+    }
+
+    let mut snapshot = BTreeMap::new();
+    if root.is_dir() {
+        visit(root, root, &mut snapshot);
+    }
+    snapshot
+}
+
+fn assert_outside_plan_pointer_is_rejected(relative_path: &str) {
+    let (_temp, repo, context, identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let target = repo.join(relative_path);
+    let linked = fs::read(&plan_path).unwrap();
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::write(&target, &linked).unwrap();
+    let target_before = fs::read(&target).unwrap();
+    let linked_before = fs::read(&plan_path).unwrap();
+    let vault_plans_before = snapshot_tree(&context.project_root.join("Plans"));
+    rewrite_current_plan_pointer(&repo, relative_path);
+
+    assert!(active_plan_authority(&repo).is_err());
+    assert!(complete_plan(&repo, &context, "verification attempted").is_err());
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert_stop_blocks(&repo, &context, "backend login security", &identity);
+    assert!(update_plan(&repo, &context, "forged pointer must not mutate").is_err());
+
+    assert_eq!(fs::read(target).unwrap(), target_before);
+    assert_eq!(fs::read(&plan_path).unwrap(), linked_before);
+    assert_eq!(
+        snapshot_tree(&context.project_root.join("Plans")),
+        vault_plans_before
+    );
+}
+
+#[test]
+fn outside_current_plan_pointers_cannot_become_authority_or_mutate_targets() {
+    assert_outside_plan_pointer_is_rejected("README.md");
+    assert_outside_plan_pointer_is_rejected("src/fake.md");
+    assert_outside_plan_pointer_is_rejected("docs/fake-plan.md");
+    assert_outside_plan_pointer_is_rejected("docs/baron/plans-evil/fake.md");
+}
+
+#[test]
+fn managed_plan_without_type_marker_cannot_be_authority() {
+    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let target = repo.join("docs/baron/plans/2099/fake.md");
+    let content = fs::read_to_string(&plan_path)
+        .unwrap()
+        .lines()
+        .filter(|line| *line != "type: baron-plan")
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::write(&target, format!("{content}\n")).unwrap();
+    rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
+
+    assert!(active_plan_authority(&repo).is_err());
+    assert!(!reconcile(&repo).unwrap().passed);
+}
+
+#[test]
+fn managed_plan_body_only_metadata_cannot_be_authority() {
+    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let target = repo.join("docs/baron/plans/2099/body-only.md");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    let linked = fs::read_to_string(&plan_path).unwrap();
+    let frontmatter = linked
+        .strip_prefix("---\n")
+        .and_then(|value| value.split_once("\n---\n"))
+        .map(|(fields, _)| fields)
+        .unwrap();
+    fs::write(&target, format!("# Fake\n\n{frontmatter}\n")).unwrap();
+    rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
+
+    assert!(active_plan_authority(&repo).is_err());
+    assert!(!reconcile(&repo).unwrap().passed);
+}
+
+#[test]
+fn duplicate_risk_in_managed_plan_frontmatter_fails_closed() {
+    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let target = repo.join("docs/baron/plans/2099/duplicate-risk.md");
+    let linked = fs::read_to_string(&plan_path).unwrap();
+    let content = linked.replacen("\n---\n\n# ", "\nrisk: low\n---\n\n# ", 1);
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::write(&target, content).unwrap();
+    rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
+
+    assert!(active_plan_authority(&repo).is_err());
+    assert!(!reconcile(&repo).unwrap().passed);
+}
+
+#[test]
+fn duplicate_operation_id_in_managed_plan_frontmatter_fails_closed() {
+    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let target = repo.join("docs/baron/plans/2099/duplicate-operation.md");
+    let linked = fs::read_to_string(&plan_path).unwrap();
+    let content = linked.replacen(
+        "\n---\n\n# ",
+        "\noperation_id: forged-operation\n---\n\n# ",
+        1,
+    );
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::write(&target, content).unwrap();
+    rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
+
+    assert!(active_plan_authority(&repo).is_err());
+    assert!(!reconcile(&repo).unwrap().passed);
+}
+
+#[cfg(unix)]
+#[test]
+fn managed_plan_symlink_cannot_become_authority() {
+    use std::os::unix::fs::symlink;
+
+    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let target = repo.join("docs/baron/plans/2099/evil.md");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    symlink(repo.join("README.md"), &target).unwrap();
+    rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
+
+    assert!(active_plan_authority(&repo).is_err());
+    assert!(!reconcile(&repo).unwrap().passed);
+    assert!(complete_plan(&repo, &_context, "verification attempted").is_err());
+    assert!(fs::read(&plan_path).is_ok());
+}
+
+#[cfg(windows)]
+#[test]
+fn managed_plan_reparse_or_symlink_cannot_become_authority() {
+    use std::os::windows::fs::symlink_file;
+
+    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+        "backend login security",
+        SupportedAdapter::Codex,
+        "active-session",
+        "active-request",
+    );
+    let target = repo.join("docs/baron/plans/2099/evil.md");
+    let outside = repo.join("outside");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(repo.join("README.md"), fs::read(&plan_path).unwrap()).unwrap();
+    let linked_file = symlink_file(repo.join("README.md"), &target).is_ok();
+    let linked = if linked_file {
+        true
+    } else {
+        let script = format!(
+            "New-Item -ItemType Junction -Path '{}' -Target '{}' | Out-Null",
+            target.display().to_string().replace('\'', "''"),
+            outside.display().to_string().replace('\'', "''")
+        );
+        Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .status()
+            .map(|status| status.success() && target.is_dir())
+            .unwrap_or(false)
+    };
+    if !linked {
+        return;
+    }
+    rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
+
+    assert!(active_plan_authority(&repo).is_err());
+    assert!(!reconcile(&repo).unwrap().passed);
+    assert!(complete_plan(&repo, &_context, "verification attempted").is_err());
+    assert!(fs::read(&plan_path).is_ok());
 }
 
 fn identified_plan_fixture(
