@@ -15,7 +15,10 @@ use crate::proof::{
     proof_satisfies_risk, ProofRecord,
 };
 use crate::risk::RiskLane;
-use crate::safe_io::replace_text;
+use crate::safe_io::{
+    acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_text,
+    replace_text,
+};
 use crate::vault::VaultContext;
 
 const SCORE_START: &str = "<!-- BARON:TRACE-SCORE:START -->";
@@ -140,6 +143,7 @@ pub fn record_trace_for_operation(
 ) -> Result<TraceRecord> {
     binding.validate()?;
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let proof = proof_by_id(repo_root, &binding.proof_id)?
         .context("operation-bound trace proof is missing")?;
     let proof_binding = proof_operation_binding(&proof)
@@ -187,9 +191,10 @@ fn record_trace_internal(
     bound_proof: Option<&ProofRecord>,
     plan_authority: Option<&ActivePlanAuthority>,
 ) -> Result<TraceRecord> {
+    let _lock = acquire_project_lock(repo_root)?;
     let now = Local::now();
-    let id = now.format("%Y%m%d%H%M%S%3f").to_string();
     let date = now.format("%Y-%m-%d").to_string();
+    let id = artifact_instance_id(&date)?;
     let risk = if binding.is_some() {
         plan_authority
             .map(|authority| authority.risk)
@@ -241,8 +246,8 @@ fn record_trace_internal(
             .unwrap_or(&[]),
         files: &files,
     });
-    write(&repo_path, &content)?;
-    write(&vault_path, &content)?;
+    create_new_text(&repo_path, &content)?;
+    create_new_text(&vault_path, &content)?;
     append(
         &repo_root.join("docs/baron/traces/INDEX.md"),
         "# Baron Trace Index\n\n",
@@ -268,6 +273,7 @@ pub fn score_trace(
     trace_id: Option<&str>,
 ) -> Result<TraceScore> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let repo_path = find_trace(repo_root, trace_id)?;
     let content = fs::read_to_string(&repo_path)?;
     let score = evaluate_trace_score(repo_root, &content)?;
@@ -868,13 +874,19 @@ fn parse_tier_line(content: &str, prefix: &str) -> TraceTier {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {

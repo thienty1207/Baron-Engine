@@ -15,7 +15,10 @@ use crate::execution_receipt::{
 use crate::harness::{current_harness_risk, update_current_validation_evidence};
 use crate::operation::{OperationContext, SupportedAdapter};
 use crate::risk::RiskLane;
-use crate::safe_io::replace_text;
+use crate::safe_io::{
+    acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_text,
+    replace_text,
+};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,8 +154,9 @@ fn record_proof_internal(
     binding: Option<&ReceiptContext>,
 ) -> Result<ProofRecord> {
     let repo_root = repo_root.as_ref();
-    let id = Local::now().format("%Y%m%d%H%M%S%3f").to_string();
     let date = Local::now().format("%Y-%m-%d").to_string();
+    let _lock = acquire_project_lock(repo_root)?;
+    let id = artifact_instance_id(&date)?;
     let repo_path = repo_root
         .join("docs/baron/proofs")
         .join(&date)
@@ -193,8 +197,8 @@ fn record_proof_internal(
     });
     preflight_publication_paths(repo_root, vault, &repo_path, &vault_path)?;
     record_runtime_execution(repo_root, capability_evidence)?;
-    write(&vault_path, &content)?;
-    write(&repo_path, &content)?;
+    create_new_text(&vault_path, &content)?;
+    create_new_text(&repo_path, &content)?;
     append(
         &repo_root.join("docs/baron/proofs/INDEX.md"),
         "# Baron Proof Index\n\n",
@@ -457,17 +461,19 @@ fn collect_markdown(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
-}
-
-fn write(path: &Path, content: &str) -> Result<()> {
-    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 /// Returns whether a proof points at a Baron-owned receipt that is still valid
@@ -640,6 +646,16 @@ fn preflight_publication_paths(
     ];
     for path in paths {
         validate_publication_path(&path)?;
+    }
+    for path in [repo_path, vault_path] {
+        match fs::symlink_metadata(path) {
+            Ok(_) => bail!(
+                "Proof publication target already exists; refusing overwrite: {}",
+                path.display()
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
     }
     Ok(())
 }

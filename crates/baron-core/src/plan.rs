@@ -11,7 +11,10 @@ use crate::proof::{
     proof_for_operation, proof_has_current_receipt, proof_operation_binding, proof_satisfies_risk,
 };
 use crate::risk::{classify_risk, RiskLane};
-use crate::safe_io::{read_text, read_text_required, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, artifact_instance_id, create_new_text, read_text, read_text_required,
+    replace_text,
+};
 use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding, TraceTier};
 use crate::vault::{canonical_project_id, VaultContext};
 
@@ -206,6 +209,7 @@ fn start_or_resume_plan_internal(
     binding: Option<&PlanOperationBinding>,
 ) -> Result<PlanRecord> {
     let title = title.trim();
+    let _lock = acquire_project_lock(repo_root)?;
     if let Some(active) = active_plan(repo_root)? {
         active.ensure_authority()?;
         if active.title.eq_ignore_ascii_case(title) && active.status != "completed" {
@@ -258,14 +262,15 @@ fn start_or_resume_plan_internal(
     }
     let risk = classify_risk(title);
     let date = today();
+    let instance_id = artifact_instance_id(&date)?;
     let repo_path = repo_root
         .join("docs/baron/plans")
         .join(&date)
-        .join(format!("{date}-{}.md", slugify(title)));
+        .join(format!("{date}-{}-{instance_id}.md", slugify(title)));
     let vault_path = vault_plan_path(repo_root, vault, &repo_path)?;
     let content = plan_content(&vault.project_id, title, risk, binding)?;
-    write(&repo_path, &content)?;
-    write(&vault_path, &content)?;
+    create_new_text(&repo_path, &content)?;
+    create_new_text(&vault_path, &content)?;
     append_unique(
         &repo_root.join("docs/baron/plans/INDEX.md"),
         "# Baron Plan Index\n\n",
@@ -311,6 +316,7 @@ fn start_or_resume_plan_internal(
 
 pub fn update_plan(repo_root: impl AsRef<Path>, vault: &VaultContext, note: &str) -> Result<()> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let active = require_active_plan(repo_root)?;
     append_progress(&active.path, note.trim())?;
     mirror_plan(repo_root, vault, &active.path)?;
@@ -336,6 +342,7 @@ pub fn interrupt_plan(
     state: &str,
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let active = require_active_plan(repo_root)?;
     set_plan_state(&active.path, "interrupted", None)?;
     append_progress(&active.path, &format!("Interrupted: {}", state.trim()))?;
@@ -370,6 +377,7 @@ pub fn complete_plan(
     verification_summary: &str,
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let active = require_active_plan(repo_root)?;
     if let Some(issue) = completion_evidence_status(repo_root, &active)?
         .issues
