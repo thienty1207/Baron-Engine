@@ -16,13 +16,13 @@
   ],
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-04",
-  "currentPhaseStatus": "in_progress",
-  "nextAction": "SPEC-04 managed plan-path authority final fix is implemented and verified; status is ready for final adversarial review. Keep the public version at 5.0.0 and do not claim closure from this pass.",
+  "currentPhaseStatus": "completed",
+  "nextAction": "SPEC-04 is closed after independent adversarial acceptance; create the SPEC-05 branch from the closure commit. Keep the public version at 5.0.0 and do not release or tag.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-04",
     "name": "Proof, Trace, Gate, and Completion Integrity",
-    "status": "in_progress",
+    "status": "closed",
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "publicVersionBump": false,
@@ -45,8 +45,10 @@
       "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
     ],
     "implementationCommits": [
-      "862efabfd35f324f912548c3e0358aa0319c790f"
+      "862efabfd35f324f912548c3e0358aa0319c790f",
+      "250989011f5b5ecda8741582a36c031c248c1d3e"
     ],
+    "closureBasis": "B-08, B-17, and B-32 closed; managed plan-path authority final fix accepted; final adversarial scan clean for SPEC-04-owned bugs and warnings; fully recomputed historical plan-origin mutation remains a documented deferred limitation.",
     "verification": {
       "focusedProofTracePlanAndIntegrity": "PASS: plan 44/44; automation 5/5; proof_trace 16/16; operation_identity 10/10",
       "cliExecution": "PASS: execution_cli 15/15; phase12_hooks_cli 4/4",
@@ -66,7 +68,7 @@
       ]
     },
     "activePlan": "docs/superpowers/plans/2026-09-22-spec-04-managed-plan-path-authority-final-fix.md",
-    "nextAction": "Hand off the pushed branch for final adversarial review without closing SPEC-04; keep public version 5.0.0 and do not release or tag."
+    "nextAction": "Create codex/spec-05-multi-agent-concurrency-durable-state from this closure commit; keep public version 5.0.0 and do not release or tag."
   },
   "securityRemediation": {
     "status": "complete",

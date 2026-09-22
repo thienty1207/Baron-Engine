@@ -1,12 +1,15 @@
 # Current Build Note
 
-## SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-22)
+## SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 
-- Current task: complete the managed-plan path authority final fix on reviewed
-  baseline `8b5279b06007578afaf47c4b20e66cef8fac2ab7`, without changing release
-  metadata or starting SPEC-05.
-- Implementation status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`;
-  public version remains `5.0.0`.
+- Current task: record the independently accepted SPEC-04 closure on source/
+  evidence HEAD `250989011f5b5ecda8741582a36c031c248c1d3e` before starting
+  SPEC-05. No release metadata changes or SPEC-05 source work are part of this
+  closure commit.
+- Implementation status: `SPEC-04: CLOSED`; public version remains `5.0.0`.
+- Closure basis: B-08, B-17, and B-32 are closed; managed plan-path authority
+  was accepted by the final adversarial scan, with no remaining SPEC-04-owned
+  bug or warning.
 - Managed-path checkpoint: `- Plan:` resolution, canonical containment, and
   Vault plan mirroring are confined to the exact `docs/baron/plans/` root.
   Missing, outside-root, nested-prefix, symlink/reparse, directory, and other
@@ -40,8 +43,8 @@
   data and unrelated user files remain untouched.
 - Active plan:
   `docs/superpowers/plans/2026-09-22-spec-04-managed-plan-path-authority-final-fix.md`.
-- Safe next action: hand off the pushed branch for final adversarial review.
-  Do not release, tag, bump the version, or claim closure.
+- Safe next action: create the SPEC-05 implementation branch from this closure
+  commit. Do not release, tag, or bump the version.
 
 ## SPEC-03 Trusted Execution Receipt Architecture — canonical task and seed alias follow-up (closed, 2026-09-21)
 

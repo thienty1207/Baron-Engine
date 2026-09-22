@@ -1,14 +1,17 @@
 # Baron Build Status
 
-## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (ready for final adversarial review, 2026-09-22)
+## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 
-- Status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`; the managed-plan
-  authority final-fix pass is implemented on branch
-  `codex/spec-04-proof-trace-gate-completion-integrity`. This pass does not
-  claim closure, bump the public version, create a tag/release, modify Hotel
-  Staff, or start SPEC-05.
-- Review baseline: `8b5279b06007578afaf47c4b20e66cef8fac2ab7`; public version
-  remains `5.0.0`.
+- Status: `SPEC-04: CLOSED`; the independent final adversarial review accepted
+  the managed-plan authority final-fix pass on branch
+  `codex/spec-04-proof-trace-gate-completion-integrity`. This closure does not
+  bump the public version, create a tag/release, modify Hotel Staff, or claim
+  SPEC-05 work.
+- Closure source/evidence HEAD: `250989011f5b5ecda8741582a36c031c248c1d3e`;
+  public version remains `5.0.0`.
+- Closure basis: B-08, B-17, and B-32 are closed; managed plan-path authority
+  final fix was accepted; the final adversarial scan found no SPEC-04-owned
+  bug or warning left unaddressed.
 - Managed plan-path authority: every `- Plan:` pointer is confined to the
   exact repository-relative root `docs/baron/plans/`. Resolution requires
   real canonical containment, rejects symlink/reparse/non-regular targets,
@@ -44,9 +47,8 @@
   independent persisted origin record that can distinguish a fully recomputed
   edit of both Markdown files. Canonical derivation rejects the reviewed
   high-risk A-to-low-risk B bypass; durable origin binding remains deferred.
-- Safe next action: hand off the pushed branch for final adversarial review.
-  Keep the public version at `5.0.0`; do not release, tag, or claim closure from
-  this pass.
+- Safe next action: create the SPEC-05 branch from this closure commit. Keep
+  the public version at `5.0.0`; do not release or tag.
 
 ## Baron 5.0.1 Stabilization - SPEC-03 Canonical Task and Seed Alias Follow-up (closed, 2026-09-21)
 

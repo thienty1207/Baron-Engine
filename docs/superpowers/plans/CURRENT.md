@@ -1,12 +1,15 @@
 # Current Baron Build Plan
 
-## Baron 5.0.1 Stabilization - SPEC-04 Managed Plan-Path Authority Fix (2026-09-22)
+## Baron 5.0.1 Stabilization - SPEC-04 Managed Plan-Path Authority Fix (closed, 2026-09-22)
 
 - Active spec: Proof, Trace, Gate, and Completion Integrity.
-- Status: `SPEC-04: READY FOR FINAL ADVERSARIAL REVIEW`; the source/public
-  version remains `5.0.0`, with no tag, release, or version bump.
-- Baseline/branch: `8b5279b06007578afaf47c4b20e66cef8fac2ab7` on
+- Status: `SPEC-04: CLOSED`; the source/public version remains `5.0.0`, with
+  no tag, release, or version bump.
+- Closure source/evidence HEAD: `250989011f5b5ecda8741582a36c031c248c1d3e` on
   `codex/spec-04-proof-trace-gate-completion-integrity`.
+- Closure basis: B-08, B-17, and B-32 are closed; the managed plan-path
+  authority final fix was accepted by independent adversarial review, and no
+  SPEC-04-owned issue remains.
 - Delivered: CURRENT `- Plan:` pointers are confined to the exact
   `docs/baron/plans/` root using canonical containment. Symlink/reparse,
   non-regular, missing, outside-root, and nested-prefix targets fail closed;
@@ -34,8 +37,9 @@
   persisted origin record for a fully recomputed edit of both files; canonical
   derivation still rejects the reviewed A-to-B bypass. Durable origin binding is
   deferred for a later scope.
-- Next action: push this narrow final trust fix once and hand it off for final
-  adversarial review. Do not release, tag, bump the version, or claim closure.
+- Next action: create `codex/spec-05-multi-agent-concurrency-durable-state`
+  from this closure commit. Do not release, tag, bump the version, or modify
+  Hotel Staff.
 
 ## Baron 5.0.1 Stabilization - SPEC-02 (2026-09-20)
 
