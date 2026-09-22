@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::operation::OperationContext;
 use crate::proof::latest_proof;
-use crate::safe_io::{acquire_project_lock, replace_text};
+use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
 use crate::trace::latest_trace_score;
 use crate::vault::VaultContext;
 
@@ -77,6 +77,7 @@ pub fn record_recovery(
         .join("Continuity/Recovery")
         .join(&date)
         .join(&filename);
+    let _lock = acquire_project_lock(repo_root)?;
     let resumed = repo_path.is_file();
     let content = render_recovery(repo_root, &id, &input)?;
     if !resumed {
@@ -440,20 +441,26 @@ fn append_recovery_index(
         normalize(packet, root),
         outcome.as_str()
     );
-    let mut content =
-        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Recovery Index\n\n".to_string());
+    let header = "# Baron Recovery Index\n\n";
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
     if content
         .lines()
         .any(|line| line.contains(&format!("[{id}]")))
     {
         return Ok(());
     }
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(&item);
-    content.push('\n');
-    write(path, &content)
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn markdown_list(values: &[String]) -> String {
@@ -556,14 +563,20 @@ fn append_index(path: &Path, note: &str, current: &Path, root: &Path) -> Result<
         normalize(current, root),
         single_line(note)
     );
-    let mut content =
-        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Continuity Index\n\n".to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(&row);
-    content.push('\n');
-    write(path, &content)
+    let header = "# Baron Continuity Index\n\n";
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{row}\n"))
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {

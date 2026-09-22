@@ -15,7 +15,7 @@ use crate::execution_receipt::{
     VerifiedExecutionReceipt,
 };
 use crate::operation::OperationContext;
-use crate::safe_io::{ensure_directory_chain, read_text, replace_text};
+use crate::safe_io::{acquire_project_lock, append_text, ensure_directory_chain, replace_text};
 
 const REGISTRY_PATH: &str = ".baron/capabilities.toml";
 const STATE_PATH: &str = ".baron/cache/capability-state.json";
@@ -225,6 +225,7 @@ pub fn register_provider(
     provider.description = provider.description.trim().to_string();
     validate_provider(&provider)?;
 
+    let _lock = acquire_project_lock(repo_root)?;
     let mut registry = load_registry(repo_root)?;
     if registry
         .providers
@@ -254,6 +255,7 @@ pub fn remove_provider(
         .context("Capability id must contain letters or numbers")?;
     let provider_name = normalize_identifier(provider_name)
         .context("Provider name must contain letters or numbers")?;
+    let _lock = acquire_project_lock(repo_root)?;
     let mut registry = load_registry(repo_root)?;
     let before = registry.providers.len();
     registry
@@ -318,6 +320,10 @@ pub fn check_capabilities(
         required_gaps,
         optional_gaps,
     };
+    // Probes intentionally run before this lock. The cache is a replace-only
+    // snapshot of the last completed probe and is never authority for a
+    // concurrent registry mutation or operation gate.
+    let _lock = acquire_project_lock(repo_root)?;
     save_state(repo_root, &state)?;
     Ok(state)
 }
@@ -544,12 +550,7 @@ pub fn record_runtime_execution(
     evidence: &[CapabilityExecutionEvidence],
 ) -> Result<usize> {
     let repo_root = repo_root.as_ref();
-    let path = repo_root.join(RUNTIME_EVIDENCE_PATH);
-    if let Some(parent) = path.parent() {
-        ensure_directory_chain(parent)?;
-    }
-    let mut content = read_text(&path)?.unwrap_or_default();
-    let mut written = 0;
+    let mut entries = Vec::new();
     for item in evidence {
         let Some(capability) = normalize_identifier(&item.capability) else {
             continue;
@@ -568,12 +569,20 @@ pub fn record_runtime_execution(
             receipt_id: item.receipt_id.clone(),
             authority: "diagnostic_attachment".to_string(),
         };
-        content.push_str(&serde_json::to_string(&entry)?);
-        content.push('\n');
-        written += 1;
+        entries.push(serde_json::to_string(&entry)?);
     }
-    replace_text(path, &content)?;
-    Ok(written)
+    if entries.is_empty() {
+        return Ok(0);
+    }
+    let _lock = acquire_project_lock(repo_root)?;
+    let path = repo_root.join(RUNTIME_EVIDENCE_PATH);
+    if let Some(parent) = path.parent() {
+        ensure_directory_chain(parent)?;
+    }
+    for entry in &entries {
+        append_text(&path, &format!("{entry}\n"))?;
+    }
+    Ok(entries.len())
 }
 
 pub fn runtime_backend_report(

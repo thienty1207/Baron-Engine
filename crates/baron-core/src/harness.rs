@@ -7,7 +7,7 @@ use chrono::{Local, SecondsFormat};
 use crate::domain_language::{ensure_domain_language, DomainLanguageStatus};
 use crate::intent::require_confirmed_intent;
 use crate::risk::{classify_risk, RiskLane};
-use crate::safe_io::replace_text;
+use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +23,8 @@ pub fn ensure_harness_workspace(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
 ) -> Result<DomainLanguageStatus> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     ensure_domain_language(repo_root, vault)
 }
 
@@ -32,6 +34,7 @@ pub fn start_or_resume_intake(
     title: &str,
 ) -> Result<HarnessStory> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     ensure_harness_workspace(repo_root, vault)?;
     let title = title.trim();
     let risk = classify_risk(title);
@@ -114,8 +117,10 @@ pub fn record_decision(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     append(
-        &repo_root.as_ref().join("docs/baron/harness/DECISIONS.md"),
+        &repo_root.join("docs/baron/harness/DECISIONS.md"),
         "# Product Decisions\n\n",
         &format!("- {} - {}", now(), summary.trim()),
     )?;
@@ -131,9 +136,11 @@ pub fn record_friction(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let item = format!("- [ ] {} - {}", now(), summary.trim());
     append(
-        &repo_root.as_ref().join("docs/baron/harness/FRICTION.md"),
+        &repo_root.join("docs/baron/harness/FRICTION.md"),
         "# Harness Friction\n\n",
         &item,
     )?;
@@ -192,6 +199,7 @@ pub fn update_current_validation_evidence(
     verified: bool,
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let Some(title) = current_harness_title(repo_root) else {
         return Ok(());
     };
@@ -237,13 +245,19 @@ fn story_content(title: &str, risk: RiskLane) -> String {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
@@ -271,7 +285,7 @@ fn upsert_validation_row(
         table_cell(status),
         table_cell(evidence)
     );
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| HEADER.to_string());
+    let mut content = read_text(path)?.unwrap_or_else(|| HEADER.to_string());
     let prefix = format!("| {title} |");
     let mut replaced = false;
     let mut lines = content

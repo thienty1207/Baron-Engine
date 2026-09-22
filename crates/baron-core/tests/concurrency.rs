@@ -6,9 +6,18 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use baron_core::capability::{
+    load_registry, record_runtime_execution, register_provider, CapabilityExecutionEvidence,
+    CapabilityProvider, ProviderKind, Requirement,
+};
 use baron_core::config::{load_project_config, AdapterKind};
+use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
+use baron_core::harness::{record_friction, start_or_resume_intake};
+use baron_core::harness_improvement::record_intervention;
+use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::plan::start_or_resume_plan;
 use baron_core::proof::record_proof;
+use baron_core::safe_io::acquire_project_lock;
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
 use baron_core::vault::{ensure_vault, vault_context_without_create};
 use tempfile::tempdir;
@@ -138,9 +147,146 @@ fn multiprocess_config_setters_preserve_all_supported_values() {
     assert!(config.platform_extensions.len() <= 1);
 }
 
+#[test]
+fn multiprocess_harness_append_and_matrix_publications_are_lossless() {
+    const WORKER_COUNT: usize = 4;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("harness-repo");
+    let vault = temp.path().join("harness-vault");
+    fs::create_dir_all(&repo).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+
+    assert_eq!(
+        run_workers("friction", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+    assert_eq!(
+        run_workers("intervention", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+    assert_eq!(
+        run_workers("matrix", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+
+    let friction = fs::read_to_string(repo.join("docs/baron/harness/FRICTION.md")).unwrap();
+    assert_eq!(friction.matches("worker friction").count(), WORKER_COUNT);
+    let interventions =
+        fs::read_to_string(repo.join("docs/baron/harness/INTERVENTIONS.md")).unwrap();
+    assert_eq!(
+        interventions.matches("worker intervention").count(),
+        WORKER_COUNT
+    );
+    let matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    for index in 0..WORKER_COUNT {
+        assert!(matrix.contains(&format!("fix README typo {index}")));
+    }
+}
+
+#[test]
+fn multiprocess_capability_registry_and_runtime_evidence_are_lossless() {
+    const WORKER_COUNT: usize = 4;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("capability-repo");
+    let vault = temp.path().join("capability-vault");
+    fs::create_dir_all(&repo).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+
+    assert_eq!(
+        run_workers("registry", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+    let registry = load_registry(&repo).unwrap();
+    assert_eq!(registry.providers.len(), WORKER_COUNT);
+
+    assert_eq!(
+        run_workers("runtime", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+    let runtime = fs::read_to_string(repo.join(".baron/cache/runtime-execution.jsonl")).unwrap();
+    let records = runtime
+        .lines()
+        .map(serde_json::from_str::<serde_json::Value>)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(records.len(), WORKER_COUNT);
+    assert!(records.iter().all(|record| record["summary"]
+        .as_str()
+        .is_some_and(|summary| summary.contains("worker runtime"))));
+}
+
+#[test]
+fn multiprocess_intent_and_recovery_history_are_lossless() {
+    const WORKER_COUNT: usize = 4;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("continuity-repo");
+    let vault = temp.path().join("continuity-vault");
+    fs::create_dir_all(&repo).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+
+    assert_eq!(
+        run_workers("intent", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+    assert_eq!(
+        run_workers("recovery", &repo, &vault, WORKER_COUNT).len(),
+        WORKER_COUNT
+    );
+    assert_eq!(
+        artifact_files(&repo.join("docs/baron/harness/intents")).len(),
+        WORKER_COUNT
+    );
+    assert_eq!(
+        artifact_files(&repo.join("docs/baron/continuity/recovery")).len(),
+        WORKER_COUNT
+    );
+    let intent_index = fs::read_to_string(repo.join("docs/baron/harness/INTENTS.md")).unwrap();
+    let recovery_index =
+        fs::read_to_string(repo.join("docs/baron/continuity/RECOVERY_INDEX.md")).unwrap();
+    assert_eq!(intent_index.matches("worker intent").count(), WORKER_COUNT);
+    assert_eq!(
+        recovery_index
+            .lines()
+            .filter(|line| line.contains("outcome: `interrupted`"))
+            .count(),
+        WORKER_COUNT
+    );
+}
+
+#[test]
+fn proof_mutation_lock_timeout_fails_without_writing_state() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("timeout-repo");
+    let vault = temp.path().join("timeout-vault");
+    fs::create_dir_all(&repo).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+    let owner = acquire_project_lock(&repo).unwrap();
+
+    let output = Command::new(env::current_exe().unwrap())
+        .args(["--exact", "concurrency_worker", "--nocapture"])
+        .env("BARON_CONCURRENCY_WORKER", "1")
+        .env("BARON_CONCURRENCY_MODE", "timeout")
+        .env("BARON_CONCURRENCY_REPO", &repo)
+        .env("BARON_CONCURRENCY_VAULT", &vault)
+        .env("BARON_CONCURRENCY_INDEX", "timeout")
+        .output()
+        .unwrap();
+    drop(owner);
+
+    assert!(
+        output.status.success(),
+        "timeout worker failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("TIMEOUT_OK"));
+    assert!(!repo.join("docs/baron/proofs").exists());
+    assert!(!repo.join("docs/baron/harness").exists());
+}
+
 fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<String> {
-    let ready = repo.join("ready");
-    let release = repo.join("release");
+    let ready = repo.join(format!("{mode}-ready"));
+    let release = repo.join(format!("{mode}-release"));
     fs::create_dir_all(&ready).unwrap();
     let binary = env::current_exe().unwrap();
     let mut children = Vec::new();
@@ -182,6 +328,14 @@ fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<
             "proof" => "PROOF_ID=",
             "config-init" => "CONFIG_ID=",
             "config-set" => "CONFIG_SET_ID=",
+            "friction" => "FRICTION_ID=",
+            "intervention" => "INTERVENTION_ID=",
+            "matrix" => "MATRIX_ID=",
+            "registry" => "REGISTRY_ID=",
+            "runtime" => "RUNTIME_ID=",
+            "intent" => "INTENT_ID=",
+            "recovery" => "RECOVERY_ID=",
+            "timeout" => "TIMEOUT_OK",
             _ => "TRACE_ID=",
         };
         let id = String::from_utf8_lossy(&output.stdout)
@@ -287,11 +441,13 @@ fn concurrency_worker() {
     let repo = PathBuf::from(env::var_os("BARON_CONCURRENCY_REPO").unwrap());
     let vault = PathBuf::from(env::var_os("BARON_CONCURRENCY_VAULT").unwrap());
     let index = env::var("BARON_CONCURRENCY_INDEX").unwrap();
-    let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
-    let release = PathBuf::from(env::var_os("BARON_CONCURRENCY_RELEASE").unwrap());
-    fs::write(ready.join(format!("ready-{index}")), b"ready").unwrap();
-    while !release.exists() {
-        thread::sleep(Duration::from_millis(10));
+    if mode != "timeout" {
+        let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
+        let release = PathBuf::from(env::var_os("BARON_CONCURRENCY_RELEASE").unwrap());
+        fs::write(ready.join(format!("ready-{index}")), b"ready").unwrap();
+        while !release.exists() {
+            thread::sleep(Duration::from_millis(10));
+        }
     }
     let context = vault_context_without_create(&vault, &repo).unwrap();
     match mode.as_str() {
@@ -343,6 +499,98 @@ fn concurrency_worker() {
             baron_core::config::set_project_platform(&repo, platform).unwrap();
             let config = baron_core::config::set_active_adapter(&repo, adapter).unwrap();
             println!("CONFIG_SET_ID={}", config.project_id);
+        }
+        "friction" => {
+            record_friction(&repo, &context, &format!("worker friction {index}")).unwrap();
+            println!("FRICTION_ID={index}");
+        }
+        "intervention" => {
+            record_intervention(&repo, &context, &format!("worker intervention {index}")).unwrap();
+            println!("INTERVENTION_ID={index}");
+        }
+        "matrix" => {
+            start_or_resume_intake(&repo, &context, &format!("fix README typo {index}")).unwrap();
+            println!("MATRIX_ID={index}");
+        }
+        "registry" => {
+            register_provider(
+                &repo,
+                CapabilityProvider {
+                    name: format!("worker-provider-{index}"),
+                    capability: format!("worker-capability-{index}"),
+                    kind: ProviderKind::Cli,
+                    requirement: Requirement::Optional,
+                    command: Some("git".to_string()),
+                    scan_target: None,
+                    adapters: Vec::new(),
+                    description: "Concurrent registry test provider".to_string(),
+                },
+            )
+            .unwrap();
+            println!("REGISTRY_ID={index}");
+        }
+        "runtime" => {
+            record_runtime_execution(
+                &repo,
+                &[CapabilityExecutionEvidence {
+                    capability: "worker-capability".to_string(),
+                    provider: "worker-provider".to_string(),
+                    summary: format!("worker runtime {index}"),
+                    receipt_id: None,
+                    task_id: None,
+                    operation_id: None,
+                    gate_kind: None,
+                    session_id: None,
+                    request_id: None,
+                }],
+            )
+            .unwrap();
+            println!("RUNTIME_ID={index}");
+        }
+        "intent" => {
+            let title = format!("worker intent {index}");
+            let intent = record_intent(
+                &repo,
+                &context,
+                IntentBriefInput {
+                    title,
+                    current_behavior: "Current behavior is recorded.".to_string(),
+                    target_behavior: "Target behavior is explicit.".to_string(),
+                    scope: "Worker scope only.".to_string(),
+                    non_goals: vec!["No unrelated cleanup.".to_string()],
+                    constraints: vec!["Preserve the contract.".to_string()],
+                    decisions: vec!["Use the existing Core path.".to_string()],
+                    required_proof: "Focused test proof.".to_string(),
+                    unknowns: Vec::new(),
+                    confirmed: true,
+                },
+            )
+            .unwrap();
+            println!("INTENT_ID={}", intent.id);
+        }
+        "recovery" => {
+            let recovery = record_recovery(
+                &repo,
+                &context,
+                RecoveryInput {
+                    outcome: RecoveryOutcome::Interrupted,
+                    root_cause: format!("worker recovery {index}"),
+                    last_successful_step: "Worker reached the barrier.".to_string(),
+                    evidence: vec!["Concurrent test evidence.".to_string()],
+                    affected_files: vec![format!("worker-{index}.rs")],
+                    next_action: "Retry the worker safely.".to_string(),
+                    retry_conditions: vec!["The project lock is available.".to_string()],
+                },
+            )
+            .unwrap();
+            println!("RECOVERY_ID={}", recovery.id);
+        }
+        "timeout" => {
+            let error = record_proof(&repo, &context, "timeout worker proof").unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Timed out waiting for Baron mutation lock"));
+            println!("TIMEOUT_OK");
         }
         other => panic!("unknown concurrency worker mode: {other}"),
     }

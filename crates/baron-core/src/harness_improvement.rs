@@ -5,6 +5,9 @@ use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::proof::latest_proof;
+use crate::safe_io::{
+    acquire_project_lock, append_text, ensure_directory_chain, read_text, replace_text,
+};
 use crate::trace::latest_trace_score;
 use crate::vault::VaultContext;
 
@@ -99,9 +102,9 @@ pub fn record_intervention(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<InterventionRecord> {
-    let repo_path = repo_root
-        .as_ref()
-        .join("docs/baron/harness/INTERVENTIONS.md");
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let repo_path = repo_root.join("docs/baron/harness/INTERVENTIONS.md");
     let vault_path = vault.project_root.join("ProductHarness/INTERVENTIONS.md");
     let item = format!("- {} - {}", now(), summary.trim());
     append(
@@ -162,6 +165,7 @@ pub fn propose_improvements(
     vault: &VaultContext,
 ) -> Result<ImprovementProposal> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let friction =
         fs::read_to_string(repo_root.join("docs/baron/harness/FRICTION.md")).unwrap_or_default();
     let mut categories = Vec::new();
@@ -230,6 +234,7 @@ pub fn record_improvement_outcome(
     let repo_path = repo_root
         .as_ref()
         .join("docs/baron/harness/IMPROVEMENTS.md");
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
     let vault_path = vault.project_root.join("ProductHarness/IMPROVEMENTS.md");
     let mut content = fs::read_to_string(&repo_path).unwrap_or_else(|_| {
         "# Baron Harness Improvement Proposals\n\nCore policy and architecture changes require human approval before implementation.\n\n".to_string()
@@ -257,20 +262,26 @@ fn documentation_drift(repo_root: &Path) -> bool {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_chain(parent)?;
     }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 fn now() -> String {

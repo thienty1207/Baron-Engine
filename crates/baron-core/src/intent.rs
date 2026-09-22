@@ -7,7 +7,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::risk::{classify_risk, RiskLane};
-use crate::safe_io::replace_text;
+use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -56,6 +56,7 @@ pub fn record_intent(
         .join("ProductHarness/Intents")
         .join(&date)
         .join(&filename);
+    let _lock = acquire_project_lock(repo_root)?;
     let resumed = repo_path.is_file();
     let content = render_intent(&id, &input, risk);
     if !resumed {
@@ -249,16 +250,22 @@ fn markdown_list(values: &[String]) -> String {
 }
 
 fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
     if content.lines().any(|line| line == item) {
         return Ok(());
     }
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
