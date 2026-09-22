@@ -6,6 +6,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use baron_core::config::{load_project_config, AdapterKind};
 use baron_core::plan::start_or_resume_plan;
 use baron_core::proof::record_proof;
 use baron_core::trace::{record_trace, score_trace, TraceOutcome};
@@ -93,6 +94,50 @@ fn multiprocess_proof_and_trace_publications_are_lossless() {
     assert_eq!(scored_content.matches("BARON:TRACE-SCORE:START").count(), 1);
 }
 
+#[test]
+fn multiprocess_first_config_initialization_preserves_one_identity() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("config-repo");
+    let vault = temp.path().join("config-vault");
+    fs::create_dir_all(&repo).unwrap();
+
+    let identities = run_workers("config-init", &repo, &vault, 2);
+    let config = load_project_config(&repo).unwrap();
+
+    assert_eq!(identities.len(), 1);
+    assert!(!config.project_id.is_empty());
+    assert_eq!(config.adapters.len(), 2);
+    assert!(config.adapters.contains(&AdapterKind::Codex));
+    assert!(config.adapters.contains(&AdapterKind::Claude));
+    assert!(matches!(
+        config.active_adapter,
+        Some(AdapterKind::Codex | AdapterKind::Claude)
+    ));
+    assert!(toml::from_str::<toml::Value>(
+        &fs::read_to_string(repo.join(".baron/project.toml")).unwrap()
+    )
+    .is_ok());
+}
+
+#[test]
+fn multiprocess_config_setters_preserve_all_supported_values() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("config-set-repo");
+    let vault = temp.path().join("config-set-vault");
+    fs::create_dir_all(&repo).unwrap();
+    baron_core::config::initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+
+    let result_ids = run_workers("config-set", &repo, &vault, 2);
+    let config = load_project_config(&repo).unwrap();
+
+    assert_eq!(result_ids.len(), 1);
+    assert_eq!(config.adapters.len(), 2);
+    assert!(config.adapters.contains(&AdapterKind::Codex));
+    assert!(config.adapters.contains(&AdapterKind::Claude));
+    assert!(config.platform.is_some());
+    assert!(config.platform_extensions.len() <= 1);
+}
+
 fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<String> {
     let ready = repo.join("ready");
     let release = repo.join("release");
@@ -133,10 +178,11 @@ fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        let marker = if mode == "proof" {
-            "PROOF_ID="
-        } else {
-            "TRACE_ID="
+        let marker = match mode {
+            "proof" => "PROOF_ID=",
+            "config-init" => "CONFIG_ID=",
+            "config-set" => "CONFIG_SET_ID=",
+            _ => "TRACE_ID=",
         };
         let id = String::from_utf8_lossy(&output.stdout)
             .lines()
@@ -272,6 +318,31 @@ fn concurrency_worker() {
             let trace_id = env::var("BARON_CONCURRENCY_TRACE_ID").unwrap();
             let score = score_trace(&repo, &context, Some(&trace_id)).unwrap();
             println!("SCORE_ID={}", score.trace_id);
+        }
+        "config-init" => {
+            let adapter = if index.parse::<usize>().unwrap() == 0 {
+                AdapterKind::Codex
+            } else {
+                AdapterKind::Claude
+            };
+            let config = baron_core::config::initialize_project(&repo, adapter, &vault).unwrap();
+            println!("CONFIG_ID={}", config.project_id);
+        }
+        "config-set" => {
+            let index = index.parse::<usize>().unwrap();
+            let platform = if index == 0 {
+                baron_core::config::ProjectPlatform::Fullstack
+            } else {
+                baron_core::config::ProjectPlatform::Tool
+            };
+            let adapter = if index == 0 {
+                AdapterKind::Claude
+            } else {
+                AdapterKind::Codex
+            };
+            baron_core::config::set_project_platform(&repo, platform).unwrap();
+            let config = baron_core::config::set_active_adapter(&repo, adapter).unwrap();
+            println!("CONFIG_SET_ID={}", config.project_id);
         }
         other => panic!("unknown concurrency worker mode: {other}"),
     }

@@ -4,7 +4,9 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::identity::{new_identity_binding, project_id_for_path};
-use crate::safe_io::{ensure_directory_chain, read_bytes, read_text_required, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, ensure_directory_chain, read_bytes, read_text_required, replace_text,
+};
 use crate::vault::ensure_vault_root;
 use crate::vault::project_slug;
 
@@ -269,6 +271,7 @@ pub fn initialize_project_with_options(
             baron_root.display()
         )
     })?;
+    let _lock = acquire_project_lock(&repo_root)?;
 
     let project_path = repo_root.join(PROJECT_CONFIG_PATH);
     let mut config = if project_path.exists() {
@@ -322,6 +325,7 @@ pub fn set_project_platform(
     platform: ProjectPlatform,
 ) -> Result<ProjectConfig> {
     let repo_root = find_project_root(repo_path)?;
+    let _lock = acquire_project_lock(&repo_root)?;
     let mut config = load_project_config(&repo_root)?;
     config.schema_version = PROJECT_SCHEMA_VERSION;
     reconcile_platform(&mut config, platform);
@@ -343,6 +347,7 @@ pub fn set_active_adapter(
     adapter: AdapterKind,
 ) -> Result<ProjectConfig> {
     let repo_root = find_project_root(repo_path)?;
+    let _lock = acquire_project_lock(&repo_root)?;
     let mut config = load_project_config(&repo_root)?;
     if !config.adapters.contains(&adapter) {
         config.adapters.push(adapter);
