@@ -6,6 +6,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use baron_core::automation::{handle_hook, AutomationEvent, HookAdapter};
 use baron_core::capability::{
     load_registry, record_runtime_execution, register_provider, CapabilityExecutionEvidence,
     CapabilityProvider, ProviderKind, Requirement,
@@ -201,6 +202,29 @@ fn multiprocess_same_operation_plan_starts_resume_one_exact_path() {
     let plan_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
     let plan_path = plan_paths.iter().next().unwrap();
     assert_eq!(plan_index.matches(plan_path).count(), 1);
+}
+
+#[test]
+fn multiprocess_hook_claim_prevents_duplicate_shared_execution() {
+    const WORKER_COUNT: usize = 4;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("hook-repo");
+    let vault = temp.path().join("hook-vault");
+    fs::create_dir_all(&repo).unwrap();
+    baron_core::config::initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+
+    assert_eq!(run_workers("hook", &repo, &vault, WORKER_COUNT).len(), 1);
+    let journal = fs::read_to_string(
+        context
+            .project_root
+            .join("Artifacts/automation-journal.jsonl"),
+    )
+    .unwrap();
+    assert_eq!(journal.lines().count(), 1);
+    let dedup = fs::read_to_string(repo.join(".baron/cache/automation-dedup.json")).unwrap();
+    assert_eq!(dedup.matches("\"key\"").count(), 1);
+    assert_eq!(dedup.matches("\"response\"").count(), 1);
 }
 
 #[test]
@@ -471,6 +495,7 @@ fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<
         let marker = match mode {
             "proof" => "PROOF_ID=",
             "plan" | "plan-resume" => "PLAN_ID=",
+            "hook" => "HOOK_OK",
             "config-init" => "CONFIG_ID=",
             "config-set" => "CONFIG_SET_ID=",
             "friction" => "FRICTION_ID=",
@@ -636,6 +661,17 @@ fn concurrency_worker() {
             )
             .unwrap();
             println!("PROOF_ID={}", proof.id);
+        }
+        "hook" => {
+            handle_hook(
+                &repo,
+                &context,
+                HookAdapter::Codex,
+                AutomationEvent::Checkpoint,
+                r#"{"session_id":"shared-hook-session","request_id":"shared-hook-request"}"#,
+            )
+            .unwrap();
+            println!("HOOK_OK");
         }
         "trace" => {
             let trace = record_trace(

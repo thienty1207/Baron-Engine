@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
 use anyhow::{bail, Context, Result};
-use chrono::{Local, SecondsFormat};
+use chrono::{DateTime, Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -26,6 +26,7 @@ const MAX_CHILD_EVIDENCE_CHARS: usize = 1_600;
 const MAX_DEDUP_ENTRIES: usize = 256;
 const MAX_JOURNAL_SCAN_LINES: usize = 512;
 const DEDUP_SCHEMA_VERSION: u32 = 1;
+const DEDUP_CLAIM_TTL_SECONDS: i64 = 300;
 const DEDUP_PATH: &str = ".baron/cache/automation-dedup.json";
 
 static ACTIVE_HOOK_KEYS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
@@ -175,6 +176,8 @@ struct DedupEntry {
     key: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     response: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    claimed_at: Option<String>,
 }
 
 impl Default for DedupState {
@@ -346,10 +349,28 @@ pub fn handle_hook(
 
     {
         let _lock = acquire_project_lock(repo_root)?;
-        let dedup = load_dedup_state(vault)?;
+        let mut dedup = load_dedup_state(vault)?;
         if let Some(response) = dedup_response(&dedup, &event_key) {
             return Ok(response);
         }
+        if dedup_claim_is_live(&dedup, &event_key) {
+            let mut metadata = hook_metadata(
+                vault,
+                adapter,
+                event_kind,
+                &event_key,
+                &task_id,
+                identity.as_ref(),
+                is_child,
+            );
+            metadata["deduplicated"] = json!(true);
+            return Ok(serde_json::to_string(&json!({
+                "continue": true,
+                "baron": metadata
+            }))?);
+        }
+        dedup_claim(&mut dedup, &event_key);
+        save_dedup_state(vault, &dedup)?;
     }
 
     let entry = JournalEntry {
@@ -368,197 +389,209 @@ pub fn handle_hook(
         evidence: child_evidence,
     };
 
-    let response_value = if is_child {
-        let mut metadata = hook_metadata(
-            vault,
-            adapter,
-            event_kind,
-            &event_key,
-            &task_id,
-            identity.as_ref(),
-            true,
-        );
-        metadata["evidence_recorded"] = json!(entry.evidence.is_some());
-        json!({
-            "continue": true,
-            "baron": metadata
-        })
-    } else {
-        match event {
-            AutomationEvent::SessionStart => {
-                let operation = operation
-                    .as_ref()
-                    .context("adapter-neutral hooks cannot compile host-specific context")?;
-                let context_identity = identity
-                    .as_ref()
-                    .context("host-specific hooks require a complete lifecycle identity")?;
-                let context = compile_context_for_lifecycle_identity(
-                    repo_root,
-                    &vault.vault_root,
-                    context_identity,
-                    Some(&task),
-                )?;
-                let context = bounded_bytes(&context, HOOK_MAX_CONTEXT_CHARS);
-                record_continuity_checkpoint_for_event(
-                    repo_root,
-                    vault,
-                    "SessionStart hook observed.",
-                    operation,
-                    &event_key,
-                )?;
-                json!({
-                    "continue": true,
-                    "hookSpecificOutput": {
-                        "hookEventName": "SessionStart",
-                        "additionalContext": context
-                    },
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
-                })
-            }
-            AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt => {
-                let packet = prepare(
-                    request,
-                    adapter_name(adapter),
-                    repo_root,
-                    Some(vault.vault_root.clone()),
-                )
-                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-                let context = render_prepare_projection(&packet);
-                record_continuity_checkpoint_for_event(
-                    repo_root,
-                    vault,
-                    "UserPromptSubmit hook prepared the task.",
-                    operation
+    let response_value = match (|| -> Result<Value> {
+        Ok(if is_child {
+            let mut metadata = hook_metadata(
+                vault,
+                adapter,
+                event_kind,
+                &event_key,
+                &task_id,
+                identity.as_ref(),
+                true,
+            );
+            metadata["evidence_recorded"] = json!(entry.evidence.is_some());
+            json!({
+                "continue": true,
+                "baron": metadata
+            })
+        } else {
+            match event {
+                AutomationEvent::SessionStart => {
+                    let operation = operation
                         .as_ref()
-                        .context("adapter-neutral prompt hooks require an adapter")?,
-                    &event_key,
-                )?;
-                json!({
-                    "continue": true,
-                    "hookSpecificOutput": {
-                        "hookEventName": "UserPromptSubmit",
-                        "additionalContext": context
-                    },
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
-                })
-            }
-            AutomationEvent::PreCompact | AutomationEvent::Checkpoint => {
-                let operation = operation
-                    .as_ref()
-                    .context("adapter-neutral pre-compact hooks require an adapter")?;
-                let note = format!("{} hook observed.", event_kind.replace('_', " "));
-                record_continuity_checkpoint_for_event(
-                    repo_root, vault, &note, operation, &event_key,
-                )?;
-                json!({
-                    "continue": true,
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
-                })
-            }
-            AutomationEvent::Stop => {
-                let operation = operation
-                    .as_ref()
-                    .context("adapter-neutral stop hooks require an adapter")?;
-                // Housekeeping is bounded metadata maintenance only. It may
-                // expire or compact existing candidates, but Stop never
-                // creates a proposal or promotes one.
-                let _ = housekeep_candidates(repo_root, vault);
-                let note = if stop_hook_active {
-                    "Stop hook retry observed; preserve the active task state."
-                } else {
-                    "Stop hook observed; reconcile before allowing completion."
-                };
-                record_continuity_checkpoint_for_event(
-                    repo_root, vault, note, operation, &event_key,
-                )?;
-                let report = reconcile(repo_root)?;
-                let metadata = hook_metadata(
-                    vault,
-                    adapter,
-                    event_kind,
-                    &event_key,
-                    &task_id,
-                    identity.as_ref(),
-                    false,
-                );
-                if !report.passed && !stop_hook_active {
-                    json!({
-                        "decision": "block",
-                        "completed": false,
-                        "reason": format!(
-                            "Baron completion gate is not satisfied: {}. Record the missing evidence or interrupt the active plan before ending.",
-                            report.gaps.join("; ")
-                        ),
-                        "baron": {
-                            "project_id": metadata["project_id"],
-                            "adapter": metadata["adapter"],
-                            "event": metadata["event"],
-                            "event_key": metadata["event_key"],
-                            "task_id": metadata["task_id"],
-                            "operation_id": metadata["operation_id"],
-                            "session_id": metadata["session_id"],
-                            "request_id": metadata["request_id"],
-                            "stop_is_completion": false,
-                            "reconciliation_passed": false
-                        }
-                    })
-                } else {
+                        .context("adapter-neutral hooks cannot compile host-specific context")?;
+                    let context_identity = identity
+                        .as_ref()
+                        .context("host-specific hooks require a complete lifecycle identity")?;
+                    let context = compile_context_for_lifecycle_identity(
+                        repo_root,
+                        &vault.vault_root,
+                        context_identity,
+                        Some(&task),
+                    )?;
+                    let context = bounded_bytes(&context, HOOK_MAX_CONTEXT_CHARS);
+                    record_continuity_checkpoint_for_event(
+                        repo_root,
+                        vault,
+                        "SessionStart hook observed.",
+                        operation,
+                        &event_key,
+                    )?;
                     json!({
                         "continue": true,
-                        "completed": false,
-                        "systemMessage": if report.passed {
-                            "Baron reconciliation passed; Stop does not mark completion."
-                        } else {
-                            "Baron reconciliation already requested once; avoid a hook loop and preserve the active state."
+                        "hookSpecificOutput": {
+                            "hookEventName": "SessionStart",
+                            "additionalContext": context
                         },
-                        "baron": {
-                            "project_id": metadata["project_id"],
-                            "adapter": metadata["adapter"],
-                            "event": metadata["event"],
-                            "event_key": metadata["event_key"],
-                            "task_id": metadata["task_id"],
-                            "operation_id": metadata["operation_id"],
-                            "session_id": metadata["session_id"],
-                            "request_id": metadata["request_id"],
-                            "stop_is_completion": false,
-                            "reconciliation_passed": report.passed
-                        }
+                        "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
+                    })
+                }
+                AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt => {
+                    let packet = prepare(
+                        request,
+                        adapter_name(adapter),
+                        repo_root,
+                        Some(vault.vault_root.clone()),
+                    )
+                    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                    let context = render_prepare_projection(&packet);
+                    record_continuity_checkpoint_for_event(
+                        repo_root,
+                        vault,
+                        "UserPromptSubmit hook prepared the task.",
+                        operation
+                            .as_ref()
+                            .context("adapter-neutral prompt hooks require an adapter")?,
+                        &event_key,
+                    )?;
+                    json!({
+                        "continue": true,
+                        "hookSpecificOutput": {
+                            "hookEventName": "UserPromptSubmit",
+                            "additionalContext": context
+                        },
+                        "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
+                    })
+                }
+                AutomationEvent::PreCompact | AutomationEvent::Checkpoint => {
+                    let operation = operation
+                        .as_ref()
+                        .context("adapter-neutral pre-compact hooks require an adapter")?;
+                    let note = format!("{} hook observed.", event_kind.replace('_', " "));
+                    record_continuity_checkpoint_for_event(
+                        repo_root, vault, &note, operation, &event_key,
+                    )?;
+                    json!({
+                        "continue": true,
+                        "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
+                    })
+                }
+                AutomationEvent::Stop => {
+                    let operation = operation
+                        .as_ref()
+                        .context("adapter-neutral stop hooks require an adapter")?;
+                    // Housekeeping is bounded metadata maintenance only. It may
+                    // expire or compact existing candidates, but Stop never
+                    // creates a proposal or promotes one.
+                    let _ = housekeep_candidates(repo_root, vault);
+                    let note = if stop_hook_active {
+                        "Stop hook retry observed; preserve the active task state."
+                    } else {
+                        "Stop hook observed; reconcile before allowing completion."
+                    };
+                    record_continuity_checkpoint_for_event(
+                        repo_root, vault, note, operation, &event_key,
+                    )?;
+                    let report = reconcile(repo_root)?;
+                    let metadata = hook_metadata(
+                        vault,
+                        adapter,
+                        event_kind,
+                        &event_key,
+                        &task_id,
+                        identity.as_ref(),
+                        false,
+                    );
+                    if !report.passed && !stop_hook_active {
+                        json!({
+                            "decision": "block",
+                            "completed": false,
+                            "reason": format!(
+                                "Baron completion gate is not satisfied: {}. Record the missing evidence or interrupt the active plan before ending.",
+                                report.gaps.join("; ")
+                            ),
+                            "baron": {
+                                "project_id": metadata["project_id"],
+                                "adapter": metadata["adapter"],
+                                "event": metadata["event"],
+                                "event_key": metadata["event_key"],
+                                "task_id": metadata["task_id"],
+                                "operation_id": metadata["operation_id"],
+                                "session_id": metadata["session_id"],
+                                "request_id": metadata["request_id"],
+                                "stop_is_completion": false,
+                                "reconciliation_passed": false
+                            }
+                        })
+                    } else {
+                        json!({
+                            "continue": true,
+                            "completed": false,
+                            "systemMessage": if report.passed {
+                                "Baron reconciliation passed; Stop does not mark completion."
+                            } else {
+                                "Baron reconciliation already requested once; avoid a hook loop and preserve the active state."
+                            },
+                            "baron": {
+                                "project_id": metadata["project_id"],
+                                "adapter": metadata["adapter"],
+                                "event": metadata["event"],
+                                "event_key": metadata["event_key"],
+                                "task_id": metadata["task_id"],
+                                "operation_id": metadata["operation_id"],
+                                "session_id": metadata["session_id"],
+                                "request_id": metadata["request_id"],
+                                "stop_is_completion": false,
+                                "reconciliation_passed": report.passed
+                            }
+                        })
+                    }
+                }
+                _ => {
+                    if let Some(operation) = operation.as_ref() {
+                        record_continuity_checkpoint_for_operation(
+                            repo_root,
+                            vault,
+                            &format!("{} hook observed.", event_kind.replace('_', " ")),
+                            operation,
+                        )?;
+                    } else {
+                        record_continuity_checkpoint(
+                            repo_root,
+                            vault,
+                            &format!("{} hook observed.", event_kind.replace('_', " ")),
+                            adapter_name(adapter),
+                        )?;
+                    }
+                    json!({
+                        "continue": true,
+                        "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
                     })
                 }
             }
-            _ => {
-                if let Some(operation) = operation.as_ref() {
-                    record_continuity_checkpoint_for_operation(
-                        repo_root,
-                        vault,
-                        &format!("{} hook observed.", event_kind.replace('_', " ")),
-                        operation,
-                    )?;
-                } else {
-                    record_continuity_checkpoint(
-                        repo_root,
-                        vault,
-                        &format!("{} hook observed.", event_kind.replace('_', " ")),
-                        adapter_name(adapter),
-                    )?;
-                }
-                json!({
-                    "continue": true,
-                    "baron": hook_metadata(vault, adapter, event_kind, &event_key, &task_id, identity.as_ref(), false)
-                })
-            }
+        })
+    })() {
+        Ok(response) => response,
+        Err(error) => {
+            release_dedup_claim(repo_root, vault, &event_key);
+            return Err(error);
         }
     };
-    let response = serde_json::to_string(&response_value)?;
-    let _lock = acquire_project_lock(repo_root)?;
-    let mut dedup = load_dedup_state(vault)?;
-    if let Some(existing) = dedup_response(&dedup, &event_key) {
-        return Ok(existing);
+    let response = match serde_json::to_string(&response_value) {
+        Ok(response) => response,
+        Err(error) => {
+            release_dedup_claim(repo_root, vault, &event_key);
+            return Err(error.into());
+        }
+    };
+    match publish_hook_response(repo_root, vault, &entry, &event_key, &response) {
+        Ok(response) => Ok(response),
+        Err(error) => {
+            release_dedup_claim(repo_root, vault, &event_key);
+            Err(error)
+        }
     }
-    append_journal_locked(vault, &entry)?;
-    dedup_store_response(&mut dedup, &event_key, &response);
-    save_dedup_state(vault, &dedup)?;
-    Ok(response)
 }
 
 pub fn record_lifecycle_event(
@@ -698,6 +731,24 @@ fn append_journal_locked(vault: &VaultContext, entry: &JournalEntry) -> Result<(
     };
     append_text(&path, &format!("{separator}{line}\n"))?;
     Ok(())
+}
+
+fn publish_hook_response(
+    repo_root: &Path,
+    vault: &VaultContext,
+    entry: &JournalEntry,
+    event_key: &str,
+    response: &str,
+) -> Result<String> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let mut dedup = load_dedup_state(vault)?;
+    if let Some(existing) = dedup_response(&dedup, event_key) {
+        return Ok(existing);
+    }
+    append_journal_locked(vault, entry)?;
+    dedup_store_response(&mut dedup, event_key, response);
+    save_dedup_state(vault, &dedup)?;
+    Ok(response.to_string())
 }
 
 fn journal_path(vault: &VaultContext) -> std::path::PathBuf {
@@ -851,12 +902,60 @@ fn dedup_response(state: &DedupState, key: &str) -> Option<String> {
         .and_then(|entry| entry.response.clone())
 }
 
+fn dedup_claim_is_live(state: &DedupState, key: &str) -> bool {
+    let Some(claimed_at) = state
+        .entries
+        .iter()
+        .rev()
+        .find(|entry| entry.key == key && entry.response.is_none())
+        .and_then(|entry| entry.claimed_at.as_deref())
+    else {
+        return false;
+    };
+    let Ok(claimed_at) = DateTime::parse_from_rfc3339(claimed_at) else {
+        return false;
+    };
+    let age = Local::now().timestamp() - claimed_at.timestamp();
+    (0..=DEDUP_CLAIM_TTL_SECONDS).contains(&age)
+}
+
+fn dedup_claim(state: &mut DedupState, key: &str) {
+    state.entries.retain(|entry| entry.key != key);
+    state.entries.push(DedupEntry {
+        key: key.to_string(),
+        response: None,
+        claimed_at: Some(now()),
+    });
+    trim_dedup_entries(state);
+}
+
+fn release_dedup_claim(repo_root: &Path, vault: &VaultContext, key: &str) {
+    let Ok(_lock) = acquire_project_lock(repo_root) else {
+        return;
+    };
+    let Ok(mut state) = load_dedup_state(vault) else {
+        return;
+    };
+    let before = state.entries.len();
+    state
+        .entries
+        .retain(|entry| entry.key != key || entry.response.is_some());
+    if state.entries.len() != before {
+        let _ = save_dedup_state(vault, &state);
+    }
+}
+
 fn dedup_store_response(state: &mut DedupState, key: &str, response: &str) {
     state.entries.retain(|entry| entry.key != key);
     state.entries.push(DedupEntry {
         key: key.to_string(),
         response: Some(response.to_string()),
+        claimed_at: None,
     });
+    trim_dedup_entries(state);
+}
+
+fn trim_dedup_entries(state: &mut DedupState) {
     let excess = state.entries.len().saturating_sub(MAX_DEDUP_ENTRIES);
     if excess > 0 {
         state.entries.drain(0..excess);

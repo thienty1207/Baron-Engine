@@ -1410,16 +1410,25 @@ pub fn record_gate_evidence_with_receipt_bound(
             agent.trim()
         );
     }
-    let receipt = load_verified_receipt(repo_root, receipt_id)?;
-    if !receipt_matches_verified_context(&receipt, binding)? {
+    let initial_receipt = load_verified_receipt(repo_root, receipt_id)?;
+    if !receipt_matches_verified_context(&initial_receipt, binding)? {
         bail!(
             "Gate receipt `{}` is stale, failed, mismatched, replayed, or not current-operation evidence",
-            receipt.receipt_id
+            initial_receipt.receipt_id
         );
     }
     let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
     let vault_path = vault.project_root.join("ControlPlane/GATES.md");
     let _lock = acquire_project_lock(repo_root)?;
+    let receipt = load_verified_receipt(repo_root, receipt_id)?;
+    if receipt.as_receipt() != initial_receipt.as_receipt()
+        || !receipt_matches_verified_context(&receipt, binding)?
+    {
+        bail!(
+            "Gate receipt `{}` became stale during validation; refusing gate publication",
+            receipt.receipt_id
+        );
+    }
     let existing = read_text(&repo_path)?.unwrap_or_default();
     if existing.lines().any(|line| {
         line.contains(&format!("`{}`", agent.trim()))

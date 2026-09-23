@@ -209,6 +209,13 @@ fn record_trace_internal(
                 "operation-bound trace plan authority changed during validation; refusing stale trace publication"
             );
         }
+        if let Some(proof) = bound_proof {
+            if proof.receipt_id.is_some() && !proof_has_current_receipt(repo_root, proof)? {
+                bail!(
+                    "operation-bound trace proof receipt became stale during validation; refusing trace publication"
+                );
+            }
+        }
     }
     let now = Local::now();
     let date = now.format("%Y-%m-%d").to_string();

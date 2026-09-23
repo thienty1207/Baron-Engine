@@ -909,6 +909,25 @@ mod tests {
         assert_eq!(fs::read_to_string(target).unwrap(), "content");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn create_new_file_rejects_unsafe_existing_targets_without_staging_leaks() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let outside = temp.path().join("outside.txt");
+        let target = temp.path().join("managed.txt");
+        fs::write(&outside, "outside").unwrap();
+        symlink(&outside, &target).unwrap();
+
+        assert!(create_new_text(&target, "must not overwrite").is_err());
+        assert_eq!(fs::read_to_string(outside).unwrap(), "outside");
+        assert!(!fs::read_dir(temp.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .any(|entry| entry.file_name().to_string_lossy().contains("baron-tmp-")));
+    }
+
     #[test]
     fn nested_lock_is_reentrant_and_stale_marker_is_recoverable() {
         let temp = tempdir().unwrap();

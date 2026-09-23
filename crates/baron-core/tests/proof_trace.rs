@@ -641,6 +641,35 @@ fn receipt_bound_proof_is_complete_on_first_publication() {
 }
 
 #[test]
+fn receipt_bound_proof_rejects_source_changes_before_publication() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "receipt-bound README note",
+        SupportedAdapter::Codex,
+        Some("stale-proof-session"),
+        Some("stale-proof-request"),
+    )
+    .unwrap();
+    let (receipt, binding) = passing_proof_receipt(&repo, &identity);
+    fs::write(repo.join("README.md"), "changed after receipt\n").unwrap();
+
+    assert!(
+        record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &binding).is_err()
+    );
+    let proof_files = fs::read_dir(context.project_root.join("Proofs"))
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().is_file())
+        .count();
+    assert_eq!(proof_files, 0);
+}
+
+#[test]
 fn bound_proof_write_failure_does_not_promote_repo_or_validation_evidence() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

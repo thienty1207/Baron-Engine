@@ -181,6 +181,17 @@ fn record_proof_internal(
             "Shared capability or receipt state changed during proof validation; refusing stale proof publication"
         );
     }
+    if let Some((receipt, receipt_binding)) = trusted_receipt {
+        let current_receipt = load_verified_receipt(repo_root, &receipt.receipt_id)
+            .context("Trusted execution receipt changed during proof validation")?;
+        if current_receipt.as_receipt() != receipt.as_receipt()
+            || !receipt_matches_verified_context(&current_receipt, receipt_binding)?
+        {
+            bail!(
+                "Trusted execution receipt became stale during proof validation; refusing proof publication"
+            );
+        }
+    }
     let id = artifact_instance_id(&date)?;
     let repo_path = repo_root
         .join("docs/baron/proofs")
