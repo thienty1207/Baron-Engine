@@ -179,6 +179,9 @@ fn record_continuity_checkpoint_internal(
     let repo_root = repo_root.as_ref();
     let repo_path = repo_root.join("docs/baron/continuity/CURRENT.md");
     let vault_path = vault.project_root.join("Continuity/CURRENT.md");
+    // Git status is diagnostic context and may spawn a child process. Collect
+    // it before entering the shared continuity mutation critical section.
+    let changed_files = changed_files(repo_root);
     let _lock = acquire_project_lock(repo_root)?;
     if let Some(event_key) = event_key {
         if checkpoint_has_event_key(&repo_path, event_key)? {
@@ -189,7 +192,14 @@ fn record_continuity_checkpoint_internal(
         }
     }
     let content = render_resume_packet(
-        repo_root, vault, note, adapter, session_id, request_id, event_key,
+        repo_root,
+        vault,
+        note,
+        adapter,
+        session_id,
+        request_id,
+        event_key,
+        &changed_files,
     )?;
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
@@ -239,13 +249,13 @@ fn render_resume_packet(
     session_id: Option<&str>,
     request_id: Option<&str>,
     event_key: Option<&str>,
+    changed_files: &[String],
 ) -> Result<String> {
     let plan = read_optional(&repo_root.join("docs/baron/plans/CURRENT.md"));
     let harness = read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"));
     let proof = latest_proof(repo_root)?;
     let trace = latest_trace_score(repo_root)?;
     let latest_event = latest_automation_event(vault);
-    let changed_files = changed_files(repo_root);
     let recovery = read_optional(&repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"));
 
     let plan_title = field(&plan, "- Title: ").unwrap_or("unknown");

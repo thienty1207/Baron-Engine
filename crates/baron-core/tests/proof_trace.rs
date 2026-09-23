@@ -15,12 +15,12 @@ use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::start_or_resume_plan_for_operation;
 use baron_core::proof::{
-    latest_proof, proof_status, record_proof, record_proof_for_operation,
+    latest_proof, proof_for_operation, proof_status, record_proof, record_proof_for_operation,
     record_proof_from_receipt_bound, record_proof_with_capabilities_for_operation,
 };
 use baron_core::trace::{
     latest_trace_score_for_operation, record_trace, record_trace_for_operation, score_trace,
-    TraceOperationBinding, TraceOutcome, TraceTier,
+    trace_for_operation, TraceOperationBinding, TraceOutcome, TraceTier,
 };
 use baron_core::vault::ensure_vault;
 use chrono::{Duration as ChronoDuration, Local};
@@ -126,6 +126,62 @@ fn latest_selection_orders_new_artifacts_after_legacy_timestamp_files() {
     assert!(!fs::read_to_string(&legacy_trace)
         .unwrap()
         .contains("BARON:TRACE-SCORE:START"));
+}
+
+#[test]
+fn operation_bound_selection_prefers_new_ids_over_older_legacy_aliases() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "legacy selector README note",
+        SupportedAdapter::Codex,
+        Some("legacy-selector-session"),
+        Some("legacy-selector-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(&repo, &context, "legacy selector README note", &operation)
+        .unwrap();
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &operation,
+        "legacy selector proof is current",
+    )
+    .unwrap();
+    let expected = proof.binding.clone().unwrap();
+    let date = Local::now().format("%Y-%m-%d").to_string();
+    let legacy_stamp = (Local::now() - ChronoDuration::seconds(1))
+        .format("%Y%m%d%H%M%S%3f")
+        .to_string();
+    let legacy_proof = repo
+        .join("docs/baron/proofs")
+        .join(&date)
+        .join(format!("{legacy_stamp}.md"));
+    fs::copy(&proof.repo_path, &legacy_proof).unwrap();
+    let selected_proof = proof_for_operation(&repo, &expected).unwrap().unwrap();
+    assert_eq!(selected_proof.repo_path, proof.repo_path);
+
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "legacy selector trace is current",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    let legacy_trace = repo
+        .join("docs/baron/traces")
+        .join(&date)
+        .join(format!("{legacy_stamp}.md"));
+    fs::copy(&trace.repo_path, &legacy_trace).unwrap();
+    let selected_trace = trace_for_operation(&repo, &binding).unwrap().unwrap();
+    assert_eq!(selected_trace.repo_path, trace.repo_path);
 }
 
 #[test]

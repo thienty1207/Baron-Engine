@@ -1628,6 +1628,7 @@ mod tests {
     use super::*;
     use baron_adapters::record_managed_baseline;
     use baron_core::config::{AdapterKind, AutomationConfig};
+    use std::collections::BTreeMap;
     use tempfile::tempdir;
 
     const SOURCE_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -1645,6 +1646,7 @@ mod tests {
             automation: AutomationConfig::default(),
             legacy_adapters: Vec::new(),
             legacy_active_adapter: None,
+            unknown_fields: BTreeMap::new(),
         }
     }
 

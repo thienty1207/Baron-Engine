@@ -303,32 +303,64 @@ pub fn artifact_instance_id(date: &str) -> Result<String> {
 }
 
 /// Creates a new regular file and durably publishes its content without ever
-/// replacing an existing target. Callers that need cross-process ordering must
-/// hold the project mutation lock before checking or publishing related files.
+/// replacing an existing target. Content is staged in the same directory and
+/// linked into the final name only after the complete file is flushed, so
+/// readers never observe a partially written managed artifact. Callers that
+/// need cross-process ordering must hold the project mutation lock before
+/// checking or publishing related files.
 pub fn create_new_file(path: impl AsRef<Path>, content: &[u8]) -> Result<()> {
     let path = path.as_ref();
     let parent = path
         .parent()
         .context("Create-new target has no parent directory")?;
     ensure_directory_chain(parent)?;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .with_context(|| format!("Could not create new file: {}", path.display()))?;
+    let (temporary, mut file) = create_unique_temporary(path)?;
     let result = (|| {
         file.write_all(content)
-            .with_context(|| format!("Could not write new file: {}", path.display()))?;
+            .with_context(|| format!("Could not stage new file: {}", temporary.display()))?;
         file.flush()
-            .with_context(|| format!("Could not flush new file: {}", path.display()))?;
+            .with_context(|| format!("Could not flush new file: {}", temporary.display()))?;
         file.sync_all()
-            .with_context(|| format!("Could not sync new file: {}", path.display()))?;
+            .with_context(|| format!("Could not sync new file: {}", temporary.display()))?;
         Ok::<(), anyhow::Error>(())
     })();
     drop(file);
     if let Err(error) = result {
-        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(&temporary);
         return Err(error);
+    }
+    let target_state = fs::symlink_metadata(path);
+    match target_state {
+        Ok(_) => {
+            let _ = fs::remove_file(&temporary);
+            bail!(
+                "Create-new target already exists; refusing overwrite: {}",
+                path.display()
+            );
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            return Err(error)
+                .with_context(|| format!("Could not inspect new file target: {}", path.display()));
+        }
+    }
+    if let Err(error) = fs::hard_link(&temporary, path) {
+        let _ = fs::remove_file(&temporary);
+        return Err(error).with_context(|| {
+            format!(
+                "Could not publish new file without replacement: {}",
+                path.display()
+            )
+        });
+    }
+    if let Err(error) = fs::remove_file(&temporary) {
+        return Err(error).with_context(|| {
+            format!(
+                "Could not remove new-file staging path after publication: {}",
+                temporary.display()
+            )
+        });
     }
     sync_parent_directory(parent)
 }

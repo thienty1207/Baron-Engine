@@ -17,8 +17,8 @@ use crate::harness::{current_harness_risk, update_current_validation_evidence};
 use crate::operation::{OperationContext, SupportedAdapter};
 use crate::risk::RiskLane;
 use crate::safe_io::{
-    acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_text,
-    replace_text,
+    acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_bytes,
+    read_text, replace_text,
 };
 use crate::vault::VaultContext;
 
@@ -156,6 +156,10 @@ fn record_proof_internal(
 ) -> Result<ProofRecord> {
     let repo_root = repo_root.as_ref();
     let date = Local::now().format("%Y-%m-%d").to_string();
+    let validation_inputs = {
+        let _lock = acquire_project_lock(repo_root)?;
+        capture_validation_inputs(repo_root)?
+    };
     let capability_gate = if let Some(operation) = operation {
         evaluate_execution_evidence_for_operation(repo_root, operation, capability_evidence)?
     } else if let Some(state) = load_capability_state(repo_root)? {
@@ -172,6 +176,11 @@ fn record_proof_internal(
         }
     };
     let _lock = acquire_project_lock(repo_root)?;
+    if capture_validation_inputs(repo_root)? != validation_inputs {
+        bail!(
+            "Shared capability or receipt state changed during proof validation; refusing stale proof publication"
+        );
+    }
     let id = artifact_instance_id(&date)?;
     let repo_path = repo_root
         .join("docs/baron/proofs")
@@ -276,7 +285,8 @@ pub fn proof_for_operation(
 ) -> Result<Option<ProofRecord>> {
     expected.validate()?;
     let mut paths = proof_paths(repo_root)?;
-    paths.sort();
+    paths.retain(|path| is_known_artifact_path(path));
+    paths.sort_by_key(|path| artifact_sort_key(path));
     for path in paths.into_iter().rev() {
         let proof = parse_proof(&path)?;
         let Some(binding) = proof.binding.as_ref() else {
@@ -444,6 +454,7 @@ fn latest_markdown(root: &Path) -> Result<Option<PathBuf>> {
     let mut files = Vec::new();
     collect_markdown(root, &mut files)?;
     files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
+    files.retain(|path| is_known_artifact_path(path));
     files.sort_by_key(|path| artifact_sort_key(path));
     Ok(files.pop())
 }
@@ -464,6 +475,29 @@ fn artifact_sort_key(path: &Path) -> (i128, String) {
         })
         .unwrap_or_default();
     (timestamp, path.to_string_lossy().into_owned())
+}
+
+fn is_known_artifact_path(path: &Path) -> bool {
+    path.file_stem()
+        .and_then(|value| value.to_str())
+        .and_then(parse_artifact_timestamp)
+        .is_some()
+}
+
+fn capture_validation_inputs(repo_root: &Path) -> Result<Vec<(PathBuf, Option<Vec<u8>>)>> {
+    [
+        ".baron/capabilities.toml",
+        ".baron/cache/capability-state.json",
+        ".baron/cache/execution-receipts.jsonl",
+        ".baron/project.toml",
+        ".baron/local.toml",
+    ]
+    .into_iter()
+    .map(|relative| {
+        let path = repo_root.join(relative);
+        Ok((path.clone(), read_bytes(&path)?))
+    })
+    .collect()
 }
 
 fn parse_artifact_timestamp(stem: &str) -> Option<i128> {

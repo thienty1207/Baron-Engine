@@ -112,13 +112,15 @@ pub enum ProjectPlatform {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AutomationConfig {
     pub context: bool,
     pub plan: bool,
     pub harness: bool,
     pub proof: bool,
     pub trace: bool,
+    #[serde(flatten)]
+    pub unknown_fields: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -246,9 +248,11 @@ impl<'de> Deserialize<'de> for ProjectConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalConfig {
     pub vault_path: PathBuf,
+    #[serde(flatten)]
+    pub unknown_fields: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -264,6 +268,7 @@ impl Default for AutomationConfig {
             harness: true,
             proof: true,
             trace: true,
+            unknown_fields: BTreeMap::new(),
         }
     }
 }
@@ -329,13 +334,17 @@ pub fn initialize_project_with_options(
     }
     atomic_write(&project_path, &toml::to_string_pretty(&config)?)?;
 
-    let local = LocalConfig {
-        vault_path: vault_path.as_ref().to_path_buf(),
+    let local_path = repo_root.join(LOCAL_CONFIG_PATH);
+    let mut local = if read_bytes(&local_path)?.is_some() {
+        load_local_config(&repo_root)?
+    } else {
+        LocalConfig {
+            vault_path: PathBuf::new(),
+            unknown_fields: BTreeMap::new(),
+        }
     };
-    atomic_write(
-        &repo_root.join(LOCAL_CONFIG_PATH),
-        &toml::to_string_pretty(&local)?,
-    )?;
+    local.vault_path = vault_path.as_ref().to_path_buf();
+    atomic_write(&local_path, &toml::to_string_pretty(&local)?)?;
     write_if_missing(&baron_root.join(".gitignore"), "local.toml\ncache/\ntmp/\n")?;
     Ok(config)
 }

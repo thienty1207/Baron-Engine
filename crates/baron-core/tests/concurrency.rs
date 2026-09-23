@@ -168,6 +168,25 @@ fn multiprocess_proof_and_trace_publications_are_lossless() {
 }
 
 #[test]
+fn multiprocess_plan_instances_preserve_history() {
+    const WORKER_COUNT: usize = 4;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("plan-repo");
+    let vault = temp.path().join("plan-vault");
+    fs::create_dir_all(&repo).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+
+    let plan_paths = run_workers("plan", &repo, &vault, WORKER_COUNT);
+    assert_eq!(plan_paths.len(), WORKER_COUNT);
+    assert_eq!(
+        artifact_files(&repo.join("docs/baron/plans")).len(),
+        WORKER_COUNT + 1
+    );
+    let plan_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
+    assert!(plan_paths.iter().all(|path| plan_index.contains(path)));
+}
+
+#[test]
 fn multiprocess_first_config_initialization_preserves_one_identity() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("config-repo");
@@ -346,26 +365,50 @@ fn proof_mutation_lock_timeout_fails_without_writing_state() {
     ensure_vault(&vault, &repo).unwrap();
     let owner = acquire_project_lock(&repo).unwrap();
 
-    let output = Command::new(env::current_exe().unwrap())
-        .args(["--exact", "concurrency_worker", "--nocapture"])
-        .env("BARON_CONCURRENCY_WORKER", "1")
-        .env("BARON_CONCURRENCY_MODE", "timeout")
-        .env("BARON_CONCURRENCY_REPO", &repo)
-        .env("BARON_CONCURRENCY_VAULT", &vault)
-        .env("BARON_CONCURRENCY_INDEX", "timeout")
-        .output()
-        .unwrap();
+    let output = run_timeout_worker("timeout", &repo, &vault);
     drop(owner);
 
-    assert!(
-        output.status.success(),
-        "timeout worker failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
     assert!(String::from_utf8_lossy(&output.stdout).contains("TIMEOUT_OK"));
     assert!(!repo.join("docs/baron/proofs").exists());
     assert!(!repo.join("docs/baron/harness").exists());
+}
+
+#[test]
+fn plan_and_trace_lock_timeouts_fail_without_writing_state() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("timeout-repo");
+    let vault = temp.path().join("timeout-vault");
+    fs::create_dir_all(&repo).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+    let owner = acquire_project_lock(&repo).unwrap();
+
+    let plan_output = run_timeout_worker("plan-timeout", &repo, &vault);
+    let trace_output = run_timeout_worker("trace-timeout", &repo, &vault);
+    drop(owner);
+
+    assert!(String::from_utf8_lossy(&plan_output.stdout).contains("PLAN_TIMEOUT_OK"));
+    assert!(String::from_utf8_lossy(&trace_output.stdout).contains("TRACE_TIMEOUT_OK"));
+    assert!(!repo.join("docs/baron/plans").exists());
+    assert!(!repo.join("docs/baron/traces").exists());
+}
+
+fn run_timeout_worker(mode: &str, repo: &Path, vault: &Path) -> std::process::Output {
+    let output = Command::new(env::current_exe().unwrap())
+        .args(["--exact", "concurrency_worker", "--nocapture"])
+        .env("BARON_CONCURRENCY_WORKER", "1")
+        .env("BARON_CONCURRENCY_MODE", mode)
+        .env("BARON_CONCURRENCY_REPO", repo)
+        .env("BARON_CONCURRENCY_VAULT", vault)
+        .env("BARON_CONCURRENCY_INDEX", "timeout")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{mode} worker failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
 }
 
 fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<String> {
@@ -410,6 +453,7 @@ fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<
         );
         let marker = match mode {
             "proof" => "PROOF_ID=",
+            "plan" => "PLAN_ID=",
             "config-init" => "CONFIG_ID=",
             "config-set" => "CONFIG_SET_ID=",
             "friction" => "FRICTION_ID=",
@@ -553,7 +597,7 @@ fn concurrency_worker() {
     let repo = PathBuf::from(env::var_os("BARON_CONCURRENCY_REPO").unwrap());
     let vault = PathBuf::from(env::var_os("BARON_CONCURRENCY_VAULT").unwrap());
     let index = env::var("BARON_CONCURRENCY_INDEX").unwrap();
-    if mode != "timeout" {
+    if !matches!(mode.as_str(), "timeout" | "plan-timeout" | "trace-timeout") {
         let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
         let release = PathBuf::from(env::var_os("BARON_CONCURRENCY_RELEASE").unwrap());
         fs::write(ready.join(format!("ready-{index}")), b"ready").unwrap();
@@ -713,6 +757,60 @@ fn concurrency_worker() {
                 .to_string()
                 .contains("Timed out waiting for Baron mutation lock"));
             println!("TIMEOUT_OK");
+        }
+        "plan-timeout" => {
+            let title = "timeout plan worker";
+            let session = "timeout-plan-session";
+            let request = "timeout-plan-request";
+            let identity = LifecycleIdentity::resolve(
+                &context.project_id,
+                title,
+                SupportedAdapter::Codex,
+                Some(session),
+                Some(request),
+            )
+            .unwrap();
+            let error =
+                start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Timed out waiting for Baron mutation lock"));
+            println!("PLAN_TIMEOUT_OK");
+        }
+        "trace-timeout" => {
+            let error = record_trace(
+                &repo,
+                &context,
+                "timeout worker trace",
+                TraceOutcome::Completed,
+            )
+            .unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Timed out waiting for Baron mutation lock"));
+            println!("TRACE_TIMEOUT_OK");
+        }
+        "plan" => {
+            let title = format!("concurrent plan instance {index}");
+            let session = format!("plan-session-{index}");
+            let request = format!("plan-request-{index}");
+            let identity = LifecycleIdentity::resolve(
+                &context.project_id,
+                &title,
+                SupportedAdapter::Codex,
+                Some(&session),
+                Some(&request),
+            )
+            .unwrap();
+            let plan =
+                start_or_resume_plan_for_identity(&repo, &context, &title, &identity).unwrap();
+            let relative = plan
+                .repo_path
+                .strip_prefix(&repo)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            println!("PLAN_ID={relative}");
         }
         other => panic!("unknown concurrency worker mode: {other}"),
     }

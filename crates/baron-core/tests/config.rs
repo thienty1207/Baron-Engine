@@ -307,8 +307,13 @@ fn config_mutations_preserve_unknown_fields_and_legacy_active_values() {
     fs::write(
         repo.join(".baron/project.toml"),
         format!(
-            "schema_version = 4\nproject_id = \"stable-project\"\nidentity_binding = \"stable-binding\"\nproject_slug = \"forward-compatible\"\nadapters = [\"{legacy_adapter}\"]\nactive_adapter = \"{legacy_adapter}\"\nfuture_setting = \"preserve-me\"\n\n[automation]\ncontext = true\nplan = true\nharness = true\nproof = true\ntrace = true\n"
+            "schema_version = 4\nproject_id = \"stable-project\"\nidentity_binding = \"stable-binding\"\nproject_slug = \"forward-compatible\"\nadapters = [\"{legacy_adapter}\"]\nactive_adapter = \"{legacy_adapter}\"\nfuture_setting = \"preserve-me\"\n\n[automation]\ncontext = true\nplan = true\nharness = true\nproof = true\ntrace = true\nfuture_automation_setting = \"preserve-nested\"\n"
         ),
+    )
+    .unwrap();
+    fs::write(
+        repo.join(".baron/local.toml"),
+        "vault_path = \"old-vault\"\nfuture_local_setting = \"preserve-local\"\n",
     )
     .unwrap();
 
@@ -323,8 +328,12 @@ fn config_mutations_preserve_unknown_fields_and_legacy_active_values() {
     );
     let content = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
     assert!(content.contains("future_setting = \"preserve-me\""));
+    assert!(content.contains("future_automation_setting = \"preserve-nested\""));
     assert!(content.contains(&format!("legacy_active_adapter = \"{legacy_adapter}\"")));
     assert!(content.contains("active_adapter = \"codex\""));
+    let local = fs::read_to_string(repo.join(".baron/local.toml")).unwrap();
+    assert!(local.contains("future_local_setting = \"preserve-local\""));
+    assert!(local.contains("vault_path = "));
 }
 
 #[test]
