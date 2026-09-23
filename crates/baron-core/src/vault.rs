@@ -6,7 +6,7 @@ use serde_json::to_string_pretty;
 
 use crate::config::load_project_config;
 use crate::identity::{capsule_key, project_id_for_path, CapsuleMetadata, ProjectIdentity};
-use crate::safe_io::{ensure_directory_chain, read_bytes, replace_text};
+use crate::safe_io::{acquire_project_lock, ensure_directory_chain, read_bytes, replace_text};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VaultContext {
@@ -198,6 +198,14 @@ pub fn load_capsule_metadata(project_root: &Path) -> Result<Option<CapsuleMetada
 
 fn resolve_project_identity(repo_root: &Path) -> Result<ProjectIdentity> {
     let project_slug = project_slug(repo_root);
+    // Config replacement on Windows briefly moves the old file aside before
+    // activating the staged bytes. Serialize identity discovery with config
+    // writers so readers never observe that publication window.
+    let _lock = if repo_root.join(".baron").is_dir() {
+        Some(acquire_project_lock(repo_root)?)
+    } else {
+        None
+    };
     let config_path = repo_root.join(".baron/project.toml");
     let (project_id, identity_binding) = if read_bytes(&config_path)?.is_some() {
         let config = load_project_config(repo_root)?;

@@ -187,6 +187,23 @@ fn multiprocess_plan_instances_preserve_history() {
 }
 
 #[test]
+fn multiprocess_same_operation_plan_starts_resume_one_exact_path() {
+    const WORKER_COUNT: usize = 4;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("plan-resume-repo");
+    let vault = temp.path().join("plan-resume-vault");
+    fs::create_dir_all(&repo).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+
+    let plan_paths = run_workers("plan-resume", &repo, &vault, WORKER_COUNT);
+    assert_eq!(plan_paths.len(), 1);
+    assert_eq!(artifact_files(&repo.join("docs/baron/plans")).len(), 2);
+    let plan_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
+    let plan_path = plan_paths.iter().next().unwrap();
+    assert_eq!(plan_index.matches(plan_path).count(), 1);
+}
+
+#[test]
 fn multiprocess_first_config_initialization_preserves_one_identity() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("config-repo");
@@ -453,7 +470,7 @@ fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<
         );
         let marker = match mode {
             "proof" => "PROOF_ID=",
-            "plan" => "PLAN_ID=",
+            "plan" | "plan-resume" => "PLAN_ID=",
             "config-init" => "CONFIG_ID=",
             "config-set" => "CONFIG_SET_ID=",
             "friction" => "FRICTION_ID=",
@@ -605,7 +622,11 @@ fn concurrency_worker() {
             thread::sleep(Duration::from_millis(10));
         }
     }
-    let context = vault_context_without_create(&vault, &repo).unwrap();
+    let context = if matches!(mode.as_str(), "timeout" | "plan-timeout" | "trace-timeout") {
+        timeout_context(&repo, &vault)
+    } else {
+        vault_context_without_create(&vault, &repo).unwrap()
+    };
     match mode.as_str() {
         "proof" => {
             let proof = record_proof(
@@ -812,6 +833,43 @@ fn concurrency_worker() {
                 .replace('\\', "/");
             println!("PLAN_ID={relative}");
         }
+        "plan-resume" => {
+            let title = "concurrent shared plan";
+            let identity = LifecycleIdentity::resolve(
+                &context.project_id,
+                title,
+                SupportedAdapter::Codex,
+                Some("shared-plan-session"),
+                Some("shared-plan-request"),
+            )
+            .unwrap();
+            let plan =
+                start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+            let relative = plan
+                .repo_path
+                .strip_prefix(&repo)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            println!("PLAN_ID={relative}");
+        }
         other => panic!("unknown concurrency worker mode: {other}"),
+    }
+}
+
+fn timeout_context(repo: &Path, vault: &Path) -> baron_core::vault::VaultContext {
+    let baron_artifacts_root = vault.join("Artifacts").join("Baron");
+    baron_core::vault::VaultContext {
+        vault_root: vault.to_path_buf(),
+        repo_root: repo.to_path_buf(),
+        project_id: "timeout-project".to_string(),
+        identity_binding: "timeout-binding".to_string(),
+        project_slug: "timeout-project".to_string(),
+        project_root: vault.join("Projects").join("timeout-project"),
+        baron_artifacts_root: baron_artifacts_root.clone(),
+        index_path: baron_artifacts_root.join("memory-index.sqlite"),
+        state_path: baron_artifacts_root.join("memory-engine-state.json"),
+        approved_global_path: baron_artifacts_root.join("APPROVED_GLOBAL.md"),
+        global_candidates_path: baron_artifacts_root.join("GLOBAL_CANDIDATES.md"),
     }
 }
