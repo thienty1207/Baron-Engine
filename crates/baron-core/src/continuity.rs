@@ -195,11 +195,13 @@ fn record_continuity_checkpoint_internal(
         repo_root,
         vault,
         note,
-        adapter,
-        session_id,
-        request_id,
-        event_key,
-        &changed_files,
+        ResumePacketMetadata {
+            adapter,
+            session_id,
+            request_id,
+            event_key,
+            changed_files: &changed_files,
+        },
     )?;
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
@@ -241,15 +243,19 @@ pub fn continuity_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> R
     ))
 }
 
+struct ResumePacketMetadata<'a> {
+    adapter: &'a str,
+    session_id: Option<&'a str>,
+    request_id: Option<&'a str>,
+    event_key: Option<&'a str>,
+    changed_files: &'a [String],
+}
+
 fn render_resume_packet(
     repo_root: &Path,
     vault: &VaultContext,
     note: &str,
-    adapter: &str,
-    session_id: Option<&str>,
-    request_id: Option<&str>,
-    event_key: Option<&str>,
-    changed_files: &[String],
+    metadata: ResumePacketMetadata<'_>,
 ) -> Result<String> {
     let plan = read_optional(&repo_root.join("docs/baron/plans/CURRENT.md"));
     let harness = read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"));
@@ -318,10 +324,10 @@ fn render_resume_packet(
 - If proof or trace is missing for meaningful work, continue or interrupt; do not claim completion.\n\
 - If the task scope changed, start a new explicit plan and write a new checkpoint.\n",
         now(),
-        adapter.trim(),
-        session_id.unwrap_or("none"),
-        request_id.unwrap_or("none"),
-        event_key.unwrap_or("none"),
+        metadata.adapter.trim(),
+        metadata.session_id.unwrap_or("none"),
+        metadata.request_id.unwrap_or("none"),
+        metadata.event_key.unwrap_or("none"),
         single_line(note),
         latest_event.unwrap_or_else(|| "none".to_string()),
         plan_title,
@@ -332,7 +338,7 @@ fn render_resume_packet(
         trace_status,
         recovery_outcome,
         recovery_next,
-        list_or_none(&changed_files),
+        list_or_none(metadata.changed_files),
         next_action
     ))
 }
