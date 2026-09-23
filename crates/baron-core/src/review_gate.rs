@@ -6,7 +6,7 @@ use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::safe_io::{read_bytes, read_text_required, replace_text};
+use crate::safe_io::{acquire_project_lock, read_bytes, read_text_required, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -29,13 +29,14 @@ pub fn record_finding(
     vault: &VaultContext,
     mut input: ReviewFindingInput,
 ) -> Result<ReviewFinding> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     normalize(&mut input);
     if input.severity.is_empty() || input.summary.is_empty() || input.evidence.is_empty() {
         bail!("Review finding requires severity, summary, and concrete evidence.");
     }
     let id = finding_id(&input)?;
     let repo_path = repo_root
-        .as_ref()
         .join("docs/baron/reviews/findings")
         .join(format!("{id}.md"));
     let vault_path = vault
@@ -53,7 +54,7 @@ pub fn record_finding(
     write_if_missing(&repo_path, &content)?;
     write_if_missing(&vault_path, &content)?;
     append_index(
-        &repo_root.as_ref().join("docs/baron/reviews/INDEX.md"),
+        &repo_root.join("docs/baron/reviews/INDEX.md"),
         &id,
         &input.summary,
     )?;
@@ -76,6 +77,8 @@ pub fn close_finding(
     fix_evidence: &str,
     verification: &str,
 ) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let id = safe_component(id, "review finding ID")?;
     let fix_evidence = one_line(fix_evidence);
     let verification = one_line(verification);
@@ -86,7 +89,6 @@ pub fn close_finding(
         bail!("Review finding closure requires verification evidence.");
     }
     let repo_path = repo_root
-        .as_ref()
         .join("docs/baron/reviews/findings")
         .join(format!("{id}.md"));
     let vault_path = vault

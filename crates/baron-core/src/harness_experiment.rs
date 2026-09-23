@@ -3,7 +3,10 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
-use crate::safe_io::{ensure_directory_chain, read_text_required, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, artifact_instance_id, create_new_text, ensure_directory_chain,
+    read_text_required, replace_text,
+};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +24,8 @@ pub fn start_experiment(
     intervention: &str,
     approved: bool,
 ) -> Result<ExperimentRecord> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     if !approved {
         bail!("Harness experiments require explicit human approval before intervention");
     }
@@ -30,9 +35,8 @@ pub fn start_experiment(
     if baseline.is_empty() || hypothesis.is_empty() || intervention.is_empty() {
         bail!("Harness experiment requires baseline, hypothesis, and intervention");
     }
-    let id = format!("experiment-{}", Local::now().format("%Y%m%d%H%M%S%3f"));
+    let id = format!("experiment-{}", artifact_instance_id(&today())?);
     let repo_path = repo_root
-        .as_ref()
         .join("docs/baron/harness/experiments")
         .join(format!("{id}.md"));
     let vault_path = vault
@@ -43,8 +47,8 @@ pub fn start_experiment(
         "# Baron Harness Experiment\n\n- ID: `{id}`\n- Status: `awaiting_fresh_rerun`\n- Human approval: `approved`\n- Created: {}\n\n## Baseline\n\n{baseline}\n\n## Hypothesis\n\n{hypothesis}\n\n## Intervention\n\n{intervention}\n\n## Fresh Agent Rerun\n\n- Available: `unknown`\n- Retrieved: `unknown`\n- Invoked: `unknown`\n- Relevant: `unknown`\n- Outcome: `pending`\n\n## Decision\n\n- Keep/revise/remove: `pending`\n",
         now()
     );
-    write(&repo_path, &content)?;
-    write(&vault_path, &content)?;
+    create_new_text(&repo_path, &content)?;
+    create_new_text(&vault_path, &content)?;
     Ok(ExperimentRecord {
         id,
         repo_path,
@@ -63,13 +67,14 @@ pub fn record_fresh_rerun(
     relevant: bool,
     outcome: &str,
 ) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let id = safe_component(id, "harness experiment ID")?;
     let outcome = one_line(outcome);
     if outcome.is_empty() {
         bail!("Fresh experiment rerun requires an observed outcome");
     }
     let repo_path = repo_root
-        .as_ref()
         .join("docs/baron/harness/experiments")
         .join(format!("{id}.md"));
     let vault_path = vault
@@ -119,13 +124,14 @@ pub fn finalize_experiment(
     id: &str,
     decision: &str,
 ) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let id = safe_component(id, "harness experiment ID")?;
     let decision = one_line(decision).to_lowercase();
     if !["keep", "revise", "remove", "pending"].contains(&decision.as_str()) {
         bail!("Experiment decision must be keep, revise, remove, or pending");
     }
     let repo_path = repo_root
-        .as_ref()
         .join("docs/baron/harness/experiments")
         .join(format!("{id}.md"));
     let vault_path = vault
@@ -165,6 +171,9 @@ fn one_line(value: &str) -> String {
 }
 fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Secs, false)
+}
+fn today() -> String {
+    Local::now().format("%Y-%m-%d").to_string()
 }
 fn write(path: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
