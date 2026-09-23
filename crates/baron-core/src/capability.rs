@@ -457,16 +457,24 @@ fn evaluate_execution_evidence_internal(
     let receipts = load_verified_receipts_strict(repo_root)?;
     let mut gaps = Vec::new();
     for capability in required_capabilities {
+        let required_providers = registry
+            .providers
+            .iter()
+            .filter(|provider| {
+                provider.capability == capability && provider.requirement == Requirement::Required
+            })
+            .collect::<Vec<_>>();
         let present_providers = matching_state
             .map(|state| {
                 state
                     .observations
                     .iter()
                     .filter(|observation| {
-                        observation.capability == capability
-                            && observation.requirement == Requirement::Required
-                            && observation.compatible
+                        observation.compatible
                             && observation.presence == Presence::Present
+                            && required_providers
+                                .iter()
+                                .any(|provider| observation_matches_provider(observation, provider))
                     })
                     .map(|observation| observation.provider.as_str())
                     .collect::<BTreeSet<_>>()
