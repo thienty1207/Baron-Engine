@@ -298,6 +298,30 @@ fn unsupported_legacy_config_values_are_retained_without_becoming_active() {
 }
 
 #[test]
+fn config_mutations_preserve_unknown_fields_and_legacy_active_values() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("forward-compatible");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join(".baron")).unwrap();
+    fs::write(
+        repo.join(".baron/project.toml"),
+        "schema_version = 4\nproject_id = \"stable-project\"\nidentity_binding = \"stable-binding\"\nproject_slug = \"forward-compatible\"\nadapters = [\"reasonix\"]\nactive_adapter = \"reasonix\"\nfuture_setting = \"preserve-me\"\n\n[automation]\ncontext = true\nplan = true\nharness = true\nproof = true\ntrace = true\n",
+    )
+    .unwrap();
+
+    let updated = initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+
+    assert_eq!(updated.project_id, "stable-project");
+    assert_eq!(updated.identity_binding, "stable-binding");
+    assert_eq!(updated.legacy_adapters, vec!["reasonix"]);
+    assert_eq!(updated.legacy_active_adapter.as_deref(), Some("reasonix"));
+    let content = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(content.contains("future_setting = \"preserve-me\""));
+    assert!(content.contains("legacy_active_adapter = \"reasonix\""));
+    assert!(content.contains("active_adapter = \"codex\""));
+}
+
+#[test]
 fn config_files_do_not_store_memory_content() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

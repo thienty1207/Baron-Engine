@@ -320,7 +320,6 @@ pub fn handle_hook(
         }))?);
     }
 
-    let _lock = acquire_project_lock(repo_root)?;
     let active = ACTIVE_HOOK_KEYS.get_or_init(|| Mutex::new(HashSet::new()));
     {
         let mut active = active.lock().unwrap_or_else(|poison| poison.into_inner());
@@ -345,9 +344,12 @@ pub fn handle_hook(
         key: event_key.clone(),
     };
 
-    let mut dedup = load_dedup_state(vault)?;
-    if let Some(response) = dedup_response(&dedup, &event_key) {
-        return Ok(response);
+    {
+        let _lock = acquire_project_lock(repo_root)?;
+        let dedup = load_dedup_state(vault)?;
+        if let Some(response) = dedup_response(&dedup, &event_key) {
+            return Ok(response);
+        }
     }
 
     let entry = JournalEntry {
@@ -367,7 +369,6 @@ pub fn handle_hook(
     };
 
     let response_value = if is_child {
-        append_journal_locked(vault, &entry)?;
         let mut metadata = hook_metadata(
             vault,
             adapter,
@@ -548,8 +549,13 @@ pub fn handle_hook(
             }
         }
     };
-    append_journal_locked(vault, &entry)?;
     let response = serde_json::to_string(&response_value)?;
+    let _lock = acquire_project_lock(repo_root)?;
+    let mut dedup = load_dedup_state(vault)?;
+    if let Some(existing) = dedup_response(&dedup, &event_key) {
+        return Ok(existing);
+    }
+    append_journal_locked(vault, &entry)?;
     dedup_store_response(&mut dedup, &event_key, &response);
     save_dedup_state(vault, &dedup)?;
     Ok(response)

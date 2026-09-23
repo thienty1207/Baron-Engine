@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -120,7 +121,7 @@ pub struct AutomationConfig {
     pub trace: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectConfig {
     pub schema_version: u32,
     pub project_id: String,
@@ -135,9 +136,12 @@ pub struct ProjectConfig {
     /// consulted by runtime operations or adapter selection.
     pub legacy_adapters: Vec<String>,
     pub legacy_active_adapter: Option<String>,
+    /// Unknown project-level TOML values are retained for forward/backward
+    /// compatibility and are never consulted by runtime routing.
+    pub unknown_fields: BTreeMap<String, toml::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct ProjectConfigWire {
     schema_version: u32,
     #[serde(default)]
@@ -153,7 +157,11 @@ struct ProjectConfigWire {
     adapters: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     active_adapter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    legacy_active_adapter: Option<String>,
     automation: AutomationConfig,
+    #[serde(flatten)]
+    unknown_fields: BTreeMap<String, toml::Value>,
 }
 
 impl Serialize for ProjectConfig {
@@ -180,7 +188,13 @@ impl Serialize for ProjectConfig {
                 .map(AdapterKind::as_str)
                 .map(str::to_string)
                 .or_else(|| self.legacy_active_adapter.clone()),
+            legacy_active_adapter: if self.active_adapter.is_some() {
+                self.legacy_active_adapter.clone()
+            } else {
+                None
+            },
             automation: self.automation.clone(),
+            unknown_fields: self.unknown_fields.clone(),
         }
         .serialize(serializer)
     }
@@ -206,10 +220,14 @@ impl<'de> Deserialize<'de> for ProjectConfig {
         }
         let (active_adapter, legacy_active_adapter) = match wire.active_adapter {
             Some(value) => match ConfiguredAdapter::parse(value) {
-                ConfiguredAdapter::Supported(adapter) => (Some(adapter), None),
-                ConfiguredAdapter::UnsupportedLegacy(value) => (None, Some(value)),
+                ConfiguredAdapter::Supported(adapter) => {
+                    (Some(adapter), wire.legacy_active_adapter)
+                }
+                ConfiguredAdapter::UnsupportedLegacy(value) => {
+                    (None, Some(value).or(wire.legacy_active_adapter))
+                }
             },
-            None => (None, None),
+            None => (None, wire.legacy_active_adapter),
         };
         Ok(Self {
             schema_version: wire.schema_version,
@@ -223,6 +241,7 @@ impl<'de> Deserialize<'de> for ProjectConfig {
             automation: wire.automation,
             legacy_adapters,
             legacy_active_adapter,
+            unknown_fields: wire.unknown_fields,
         })
     }
 }
@@ -289,6 +308,7 @@ pub fn initialize_project_with_options(
             automation: AutomationConfig::default(),
             legacy_adapters: Vec::new(),
             legacy_active_adapter: None,
+            unknown_fields: BTreeMap::new(),
         }
     };
     if config.project_id.is_empty() {
@@ -353,7 +373,6 @@ pub fn set_active_adapter(
         config.adapters.push(adapter);
     }
     config.active_adapter = Some(adapter);
-    config.legacy_active_adapter = None;
     config.schema_version = PROJECT_SCHEMA_VERSION;
     atomic_write(
         &repo_root.join(PROJECT_CONFIG_PATH),

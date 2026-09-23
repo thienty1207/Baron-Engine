@@ -78,6 +78,21 @@ fn new_proof_trace_and_plan_instances_have_collision_resistant_names() {
     let second_plan =
         start_or_resume_plan_for_identity(&repo, &context, "same day docs title", &second_identity)
             .unwrap();
+    let plan_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
+    let first_relative = first_plan
+        .repo_path
+        .strip_prefix(&repo)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    let second_relative = second_plan
+        .repo_path
+        .strip_prefix(&repo)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    assert!(plan_index.contains(&first_relative));
+    assert!(plan_index.contains(&second_relative));
 
     assert_eq!(first_plan.repo_path, resumed_plan.repo_path);
     assert_ne!(first_plan.repo_path, second_plan.repo_path);

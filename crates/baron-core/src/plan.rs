@@ -1225,12 +1225,11 @@ fn replace_plan_index_row(
     );
     let mut content =
         fs::read_to_string(path).unwrap_or_else(|_| "# Baron Plan Index\n\n".to_string());
-    let prefix = format!("- [{title}](");
     let mut replaced = false;
     let mut lines = content
         .lines()
         .map(|line| {
-            if line.starts_with(&prefix) {
+            if plan_index_link(line) == Some(relative_path) {
                 replaced = true;
                 row.clone()
             } else {
@@ -1244,6 +1243,12 @@ fn replace_plan_index_row(
     content = lines.join("\n");
     content.push('\n');
     write(path, &content)
+}
+
+fn plan_index_link(line: &str) -> Option<&str> {
+    let start = line.find("](")? + 2;
+    let end = line[start..].find(')')? + start;
+    Some(&line[start..end])
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {

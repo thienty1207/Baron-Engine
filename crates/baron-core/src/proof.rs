@@ -1,8 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, Context, Result};
-use chrono::{Local, SecondsFormat};
+use chrono::{Local, NaiveDate, SecondsFormat, TimeZone};
 
 use crate::capability::{
     evaluate_execution_evidence, evaluate_execution_evidence_for_operation, load_capability_state,
@@ -155,17 +156,6 @@ fn record_proof_internal(
 ) -> Result<ProofRecord> {
     let repo_root = repo_root.as_ref();
     let date = Local::now().format("%Y-%m-%d").to_string();
-    let _lock = acquire_project_lock(repo_root)?;
-    let id = artifact_instance_id(&date)?;
-    let repo_path = repo_root
-        .join("docs/baron/proofs")
-        .join(&date)
-        .join(format!("{id}.md"));
-    let vault_path = vault
-        .project_root
-        .join("Proofs")
-        .join(&date)
-        .join(format!("{id}.md"));
     let capability_gate = if let Some(operation) = operation {
         evaluate_execution_evidence_for_operation(repo_root, operation, capability_evidence)?
     } else if let Some(state) = load_capability_state(repo_root)? {
@@ -181,6 +171,17 @@ fn record_proof_internal(
             warnings: Vec::new(),
         }
     };
+    let _lock = acquire_project_lock(repo_root)?;
+    let id = artifact_instance_id(&date)?;
+    let repo_path = repo_root
+        .join("docs/baron/proofs")
+        .join(&date)
+        .join(format!("{id}.md"));
+    let vault_path = vault
+        .project_root
+        .join("Proofs")
+        .join(&date)
+        .join(format!("{id}.md"));
     let binding = binding
         .or_else(|| trusted_receipt.map(|(_, binding)| binding))
         .cloned();
@@ -443,8 +444,57 @@ fn latest_markdown(root: &Path) -> Result<Option<PathBuf>> {
     let mut files = Vec::new();
     collect_markdown(root, &mut files)?;
     files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
-    files.sort();
+    files.sort_by_key(|path| artifact_sort_key(path));
     Ok(files.pop())
+}
+
+fn artifact_sort_key(path: &Path) -> (i128, String) {
+    let timestamp = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .and_then(parse_artifact_timestamp)
+        .or_else(|| {
+            fs::metadata(path)
+                .ok()?
+                .modified()
+                .ok()?
+                .duration_since(UNIX_EPOCH)
+                .ok()
+                .map(|value| value.as_millis() as i128)
+        })
+        .unwrap_or_default();
+    (timestamp, path.to_string_lossy().into_owned())
+}
+
+fn parse_artifact_timestamp(stem: &str) -> Option<i128> {
+    let mut parts = stem.split('-');
+    let date = parts.next()?;
+    if let Some(millis) = parts.next() {
+        if date.len() == 8
+            && millis.len() == 20
+            && date.chars().all(|value| value.is_ascii_digit())
+            && millis.chars().all(|value| value.is_ascii_digit())
+        {
+            return millis.parse().ok();
+        }
+    }
+    let prefix = stem.chars().take(17).collect::<String>();
+    if prefix.chars().count() != 17 || !prefix.chars().all(|value| value.is_ascii_digit()) {
+        return None;
+    }
+    let year = prefix.get(0..4)?.parse().ok()?;
+    let month = prefix.get(4..6)?.parse().ok()?;
+    let day = prefix.get(6..8)?.parse().ok()?;
+    let hour = prefix.get(8..10)?.parse().ok()?;
+    let minute = prefix.get(10..12)?.parse().ok()?;
+    let second = prefix.get(12..14)?.parse().ok()?;
+    let millis = prefix.get(14..17)?.parse().ok()?;
+    let legacy = NaiveDate::from_ymd_opt(year, month, day)?
+        .and_hms_milli_opt(hour, minute, second, millis)?;
+    Local
+        .from_local_datetime(&legacy)
+        .single()
+        .map(|value| value.timestamp_millis() as i128)
 }
 
 fn collect_markdown(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
@@ -690,4 +740,15 @@ fn validate_publication_path(path: &Path) -> Result<()> {
 
 fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Secs, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_artifact_timestamp;
+
+    #[test]
+    fn legacy_artifact_timestamp_is_parsed() {
+        let value = parse_artifact_timestamp("20260923085547839");
+        assert!(value.is_some());
+    }
 }

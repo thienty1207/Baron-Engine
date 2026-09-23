@@ -1,9 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, Context, Result};
-use chrono::{Local, SecondsFormat};
+use chrono::{Local, NaiveDate, SecondsFormat, TimeZone};
 use serde::{Deserialize, Serialize};
 
 use crate::control_plane::gate_evidence_status_strict_for_operation;
@@ -143,7 +144,6 @@ pub fn record_trace_for_operation(
 ) -> Result<TraceRecord> {
     binding.validate()?;
     let repo_root = repo_root.as_ref();
-    let _lock = acquire_project_lock(repo_root)?;
     let proof = proof_by_id(repo_root, &binding.proof_id)?
         .context("operation-bound trace proof is missing")?;
     let proof_binding = proof_operation_binding(&proof)
@@ -191,6 +191,9 @@ fn record_trace_internal(
     bound_proof: Option<&ProofRecord>,
     plan_authority: Option<&ActivePlanAuthority>,
 ) -> Result<TraceRecord> {
+    // Git status is diagnostic trace context and may spawn a child process;
+    // collect it before entering the project mutation critical section.
+    let files = changed_files(repo_root);
     let _lock = acquire_project_lock(repo_root)?;
     let now = Local::now();
     let date = now.format("%Y-%m-%d").to_string();
@@ -216,7 +219,6 @@ fn record_trace_internal(
         Some(proof) => Some(proof.clone()),
         None => latest_proof(repo_root)?,
     };
-    let files = changed_files(repo_root);
     let repo_path = repo_root
         .join("docs/baron/traces")
         .join(&date)
@@ -591,7 +593,7 @@ fn render_binding(binding: Option<&TraceOperationBinding>) -> String {
 
 fn find_trace(repo_root: &Path, trace_id: Option<&str>) -> Result<PathBuf> {
     let mut files = trace_paths(repo_root)?;
-    files.sort();
+    files.sort_by_key(|path| artifact_sort_key(path));
     if let Some(id) = trace_id {
         return files
             .into_iter()
@@ -607,6 +609,55 @@ fn trace_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
     collect_markdown(&root, &mut files)?;
     files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
     Ok(files)
+}
+
+fn artifact_sort_key(path: &Path) -> (i128, String) {
+    let timestamp = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .and_then(parse_artifact_timestamp)
+        .or_else(|| {
+            fs::metadata(path)
+                .ok()?
+                .modified()
+                .ok()?
+                .duration_since(UNIX_EPOCH)
+                .ok()
+                .map(|value| value.as_millis() as i128)
+        })
+        .unwrap_or_default();
+    (timestamp, path.to_string_lossy().into_owned())
+}
+
+fn parse_artifact_timestamp(stem: &str) -> Option<i128> {
+    let mut parts = stem.split('-');
+    let date = parts.next()?;
+    if let Some(millis) = parts.next() {
+        if date.len() == 8
+            && millis.len() == 20
+            && date.chars().all(|value| value.is_ascii_digit())
+            && millis.chars().all(|value| value.is_ascii_digit())
+        {
+            return millis.parse().ok();
+        }
+    }
+    let prefix = stem.chars().take(17).collect::<String>();
+    if prefix.chars().count() != 17 || !prefix.chars().all(|value| value.is_ascii_digit()) {
+        return None;
+    }
+    let year = prefix.get(0..4)?.parse().ok()?;
+    let month = prefix.get(4..6)?.parse().ok()?;
+    let day = prefix.get(6..8)?.parse().ok()?;
+    let hour = prefix.get(8..10)?.parse().ok()?;
+    let minute = prefix.get(10..12)?.parse().ok()?;
+    let second = prefix.get(12..14)?.parse().ok()?;
+    let millis = prefix.get(14..17)?.parse().ok()?;
+    let legacy = NaiveDate::from_ymd_opt(year, month, day)?
+        .and_hms_milli_opt(hour, minute, second, millis)?;
+    Local
+        .from_local_datetime(&legacy)
+        .single()
+        .map(|value| value.timestamp_millis() as i128)
 }
 
 fn collect_markdown(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {

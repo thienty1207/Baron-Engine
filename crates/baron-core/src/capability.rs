@@ -8,6 +8,7 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::config::{load_project_config, AdapterKind, ConfiguredAdapter};
 use crate::execution_receipt::{
@@ -82,6 +83,8 @@ pub struct CapabilityRegistry {
 pub struct ProviderObservation {
     pub provider: String,
     pub capability: String,
+    #[serde(default)]
+    pub provider_fingerprint: String,
     pub kind: ProviderKind,
     pub requirement: Requirement,
     pub presence: Presence,
@@ -298,6 +301,7 @@ pub fn check_capabilities(
         observations.push(ProviderObservation {
             provider: provider.name.clone(),
             capability: provider.capability.clone(),
+            provider_fingerprint: provider_fingerprint(provider),
             kind: provider.kind,
             requirement: provider.requirement,
             presence,
@@ -371,7 +375,7 @@ pub fn render_capability_summary(
             state
                 .observations
                 .iter()
-                .find(|observation| observation.provider == provider.name)
+                .find(|observation| observation_matches_provider(observation, provider))
         });
         let presence = observation
             .map(|observation| presence_name(observation.presence))
@@ -628,7 +632,7 @@ fn runtime_backend_report_internal(
             state
                 .observations
                 .iter()
-                .find(|observation| observation.provider == provider.name)
+                .find(|observation| observation_matches_provider(observation, provider))
         });
         let presence = observation
             .map(|observation| observation.presence)
@@ -1174,6 +1178,22 @@ fn http_socket_address(target: &str) -> Option<SocketAddr> {
         format!("{}:{}", authority, without_scheme.1)
     };
     host_port.to_socket_addrs().ok()?.next()
+}
+
+fn provider_fingerprint(provider: &CapabilityProvider) -> String {
+    let bytes = serde_json::to_vec(provider).expect("capability provider is serializable");
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn observation_matches_provider(
+    observation: &ProviderObservation,
+    provider: &CapabilityProvider,
+) -> bool {
+    observation.provider == provider.name
+        && observation.capability == provider.capability
+        && observation.kind == provider.kind
+        && observation.requirement == provider.requirement
+        && observation.provider_fingerprint == provider_fingerprint(provider)
 }
 
 fn capability_gaps(observations: &[ProviderObservation]) -> (Vec<String>, Vec<String>) {

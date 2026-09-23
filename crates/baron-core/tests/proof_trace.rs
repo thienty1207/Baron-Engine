@@ -15,14 +15,15 @@ use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::start_or_resume_plan_for_operation;
 use baron_core::proof::{
-    proof_status, record_proof, record_proof_for_operation, record_proof_from_receipt_bound,
-    record_proof_with_capabilities_for_operation,
+    latest_proof, proof_status, record_proof, record_proof_for_operation,
+    record_proof_from_receipt_bound, record_proof_with_capabilities_for_operation,
 };
 use baron_core::trace::{
     latest_trace_score_for_operation, record_trace, record_trace_for_operation, score_trace,
     TraceOperationBinding, TraceOutcome, TraceTier,
 };
 use baron_core::vault::ensure_vault;
+use chrono::{Duration as ChronoDuration, Local};
 use tempfile::tempdir;
 
 fn setup_git(repo: &std::path::Path) {
@@ -82,6 +83,49 @@ fn proof_record_is_written_to_repo_and_vault() {
             "| frontend dashboard flow | medium | verified | cargo test passed: 42 tests |"
         ));
     }
+}
+
+#[test]
+fn latest_selection_orders_new_artifacts_after_legacy_timestamp_files() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let proof = record_proof(&repo, &context, "new proof is current").unwrap();
+    let date = Local::now().format("%Y-%m-%d").to_string();
+    let legacy_stamp = (Local::now() - ChronoDuration::seconds(1))
+        .format("%Y%m%d%H%M%S%3f")
+        .to_string();
+    let legacy_proof = repo
+        .join("docs/baron/proofs")
+        .join(&date)
+        .join(format!("{legacy_stamp}.md"));
+    fs::copy(&proof.repo_path, &legacy_proof).unwrap();
+
+    let selected = latest_proof(&repo).unwrap().unwrap();
+    assert_eq!(selected.repo_path, proof.repo_path);
+
+    let trace = record_trace(
+        &repo,
+        &context,
+        "new trace is current",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let legacy_trace = repo
+        .join("docs/baron/traces")
+        .join(&date)
+        .join(format!("{legacy_stamp}.md"));
+    fs::copy(&trace.repo_path, &legacy_trace).unwrap();
+    let score = score_trace(&repo, &context, None).unwrap();
+    assert_eq!(score.trace_id, trace.id);
+    assert!(fs::read_to_string(&trace.repo_path)
+        .unwrap()
+        .contains("BARON:TRACE-SCORE:START"));
+    assert!(!fs::read_to_string(&legacy_trace)
+        .unwrap()
+        .contains("BARON:TRACE-SCORE:START"));
 }
 
 #[test]
