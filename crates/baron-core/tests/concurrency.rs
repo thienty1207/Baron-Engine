@@ -16,10 +16,13 @@ use baron_core::control_plane::record_gate_evidence;
 use baron_core::harness::{record_friction, start_or_resume_intake};
 use baron_core::harness_improvement::record_intervention;
 use baron_core::intent::{record_intent, IntentBriefInput};
-use baron_core::plan::start_or_resume_plan;
-use baron_core::proof::record_proof;
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::plan::{complete_plan, start_or_resume_plan_for_identity};
+use baron_core::proof::{record_proof, record_proof_for_operation};
 use baron_core::safe_io::acquire_project_lock;
-use baron_core::trace::{record_trace, score_trace, TraceOutcome};
+use baron_core::trace::{
+    record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
+};
 use baron_core::vault::{ensure_vault, vault_context_without_create};
 use tempfile::tempdir;
 
@@ -31,24 +34,63 @@ fn new_proof_trace_and_plan_instances_have_collision_resistant_names() {
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
 
-    let first_plan = start_or_resume_plan(&repo, &context, "same day title").unwrap();
-    let resumed_plan = start_or_resume_plan(&repo, &context, "same day title").unwrap();
-    let proof = record_proof(&repo, &context, "cargo test passed").unwrap();
-    let trace = record_trace(
+    let first_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        "same day docs title",
+        SupportedAdapter::Codex,
+        Some("plan-session-1"),
+        Some("plan-request-1"),
+    )
+    .unwrap();
+    let first_operation = OperationContext::from_identity(&first_identity);
+    let first_plan =
+        start_or_resume_plan_for_identity(&repo, &context, "same day docs title", &first_identity)
+            .unwrap();
+    let resumed_plan =
+        start_or_resume_plan_for_identity(&repo, &context, "same day docs title", &first_identity)
+            .unwrap();
+    let proof =
+        record_proof_for_operation(&repo, &context, &first_operation, "cargo test passed").unwrap();
+    let binding = TraceOperationBinding::from_operation(&first_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
         &repo,
         &context,
         "concurrent state persisted",
         TraceOutcome::Completed,
+        &binding,
     )
     .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+    complete_plan(&repo, &context, "concurrency test complete").unwrap();
+    let completed_first_plan_bytes = fs::read(&first_plan.repo_path).unwrap();
+    let second_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        "same day docs title",
+        SupportedAdapter::Codex,
+        Some("plan-session-2"),
+        Some("plan-request-2"),
+    )
+    .unwrap();
+    let second_plan =
+        start_or_resume_plan_for_identity(&repo, &context, "same day docs title", &second_identity)
+            .unwrap();
 
     assert_eq!(first_plan.repo_path, resumed_plan.repo_path);
+    assert_ne!(first_plan.repo_path, second_plan.repo_path);
+    assert_eq!(
+        fs::read(&first_plan.repo_path).unwrap(),
+        completed_first_plan_bytes
+    );
     assert!(first_plan
         .repo_path
         .file_stem()
         .unwrap()
         .to_string_lossy()
-        .contains("-same-day-title-"));
+        .contains("-same-day-docs-title-"));
     for id in [&proof.id, &trace.id] {
         let parts = id.split('-').collect::<Vec<_>>();
         assert_eq!(parts.len(), 3);
@@ -84,21 +126,27 @@ fn multiprocess_proof_and_trace_publications_are_lossless() {
     let trace_vault = temp.path().join("trace-vault");
     fs::create_dir_all(&trace_repo).unwrap();
     ensure_vault(&trace_vault, &trace_repo).unwrap();
-    let trace_ids = run_workers("trace", &trace_repo, &trace_vault, WORKER_COUNT);
+    let seed_trace = record_trace(
+        &trace_repo,
+        &vault_context_without_create(&trace_vault, &trace_repo).unwrap(),
+        "seed trace for concurrent scoring",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let (trace_ids, scored_ids) =
+        run_trace_score_workers(&trace_repo, &trace_vault, &seed_trace.id, WORKER_COUNT);
     assert_eq!(trace_ids.len(), WORKER_COUNT);
     assert_eq!(
         artifact_files(&trace_repo.join("docs/baron/traces")).len(),
-        WORKER_COUNT
+        WORKER_COUNT + 1
     );
     let trace_index = fs::read_to_string(trace_repo.join("docs/baron/traces/INDEX.md")).unwrap();
     assert!(trace_ids.iter().all(|id| trace_index.contains(id)));
-    let score_trace_id = trace_ids.iter().next().unwrap();
-    let scored_ids = run_score_workers(&trace_repo, &trace_vault, score_trace_id, WORKER_COUNT);
-    assert_eq!(scored_ids, BTreeSet::from([score_trace_id.clone()]));
+    assert_eq!(scored_ids, BTreeSet::from([seed_trace.id.clone()]));
     let scored_content = fs::read_to_string(
         trace_repo
             .join("docs/baron/traces")
-            .join(find_trace_file(&trace_repo, score_trace_id)),
+            .join(find_trace_file(&trace_repo, &seed_trace.id)),
     )
     .unwrap();
     assert_eq!(scored_content.matches("BARON:TRACE-SCORE:START").count(), 1);
@@ -370,57 +418,84 @@ fn run_workers(mode: &str, repo: &Path, vault: &Path, count: usize) -> BTreeSet<
     ids
 }
 
-fn run_score_workers(repo: &Path, vault: &Path, trace_id: &str, count: usize) -> BTreeSet<String> {
-    let ready = repo.join("score-ready");
-    let release = repo.join("score-release");
+fn run_trace_score_workers(
+    repo: &Path,
+    vault: &Path,
+    trace_id: &str,
+    count: usize,
+) -> (BTreeSet<String>, BTreeSet<String>) {
+    let ready = repo.join("trace-score-ready");
+    let release = repo.join("trace-score-release");
     fs::create_dir_all(&ready).unwrap();
     let binary = env::current_exe().unwrap();
     let mut children = Vec::new();
-    for index in 0..count {
-        children.push(
-            Command::new(&binary)
-                .args(["--exact", "concurrency_worker", "--nocapture"])
-                .env("BARON_CONCURRENCY_WORKER", "1")
-                .env("BARON_CONCURRENCY_MODE", "score")
-                .env("BARON_CONCURRENCY_REPO", repo)
-                .env("BARON_CONCURRENCY_VAULT", vault)
-                .env("BARON_CONCURRENCY_INDEX", index.to_string())
-                .env("BARON_CONCURRENCY_TRACE_ID", trace_id)
-                .env("BARON_CONCURRENCY_READY", &ready)
-                .env("BARON_CONCURRENCY_RELEASE", &release)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .unwrap(),
-        );
+    for (mode, index) in (0..count)
+        .map(|index| ("trace", index))
+        .chain((0..count).map(|index| ("score", index)))
+    {
+        let worker_index = if mode == "score" {
+            count + index
+        } else {
+            index
+        };
+        let mut command = Command::new(&binary);
+        command
+            .args(["--exact", "concurrency_worker", "--nocapture"])
+            .env("BARON_CONCURRENCY_WORKER", "1")
+            .env("BARON_CONCURRENCY_MODE", mode)
+            .env("BARON_CONCURRENCY_REPO", repo)
+            .env("BARON_CONCURRENCY_VAULT", vault)
+            .env("BARON_CONCURRENCY_INDEX", worker_index.to_string())
+            .env("BARON_CONCURRENCY_TRACE_ID", trace_id)
+            .env("BARON_CONCURRENCY_READY", &ready)
+            .env("BARON_CONCURRENCY_RELEASE", &release)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        children.push((mode, command.spawn().unwrap()));
     }
+    let expected = count * 2;
     let deadline = Instant::now() + Duration::from_secs(15);
-    while fs::read_dir(&ready).unwrap().count() < count {
+    while fs::read_dir(&ready).unwrap().count() < expected {
         assert!(
             Instant::now() < deadline,
-            "score workers did not reach barrier"
+            "trace/score workers did not reach barrier"
         );
         thread::sleep(Duration::from_millis(10));
     }
     fs::write(&release, b"release").unwrap();
 
-    let mut ids = BTreeSet::new();
-    for child in children {
+    let mut trace_ids = BTreeSet::new();
+    let mut score_ids = BTreeSet::new();
+    for (mode, child) in children {
         let output = child.wait_with_output().unwrap();
         assert!(
             output.status.success(),
-            "score worker failed\nstdout:\n{}\nstderr:\n{}",
+            "{mode} worker failed\nstdout:\n{}\nstderr:\n{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        let id = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .find_map(|line| line.strip_prefix("SCORE_ID="))
-            .map(str::to_string)
-            .expect("score worker did not emit a trace ID");
-        ids.insert(id);
+        let output = String::from_utf8_lossy(&output.stdout);
+        match mode {
+            "trace" => {
+                let id = output
+                    .lines()
+                    .find_map(|line| line.strip_prefix("TRACE_ID="))
+                    .map(str::to_string)
+                    .expect("trace worker did not emit an artifact ID");
+                trace_ids.insert(id);
+            }
+            "score" => {
+                let id = output
+                    .lines()
+                    .find_map(|line| line.strip_prefix("SCORE_ID="))
+                    .map(str::to_string)
+                    .expect("score worker did not emit a trace ID");
+                score_ids.insert(id);
+            }
+            _ => unreachable!(),
+        }
     }
-    ids
+    (trace_ids, score_ids)
 }
 
 fn find_trace_file(repo: &Path, trace_id: &str) -> PathBuf {
