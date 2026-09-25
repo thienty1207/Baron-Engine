@@ -3,6 +3,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -24,7 +25,7 @@ use baron_core::safe_io::acquire_project_lock;
 use baron_core::trace::{
     record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
 };
-use baron_core::vault::{ensure_vault, vault_context_without_create};
+use baron_core::vault::{ensure_vault, project_slug, vault_context_without_create};
 use tempfile::tempdir;
 
 #[test]
@@ -118,6 +119,44 @@ fn new_proof_trace_and_plan_instances_have_collision_resistant_names() {
     assert!(proof.vault_path.is_file());
     assert!(trace.repo_path.is_file());
     assert!(trace.vault_path.is_file());
+}
+
+#[test]
+fn concurrent_legacy_capsule_migration_preserves_one_project_identity() {
+    const WORKER_COUNT: usize = 6;
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("legacy-project");
+    let vault = temp.path().join("vault");
+    fs::create_dir_all(&repo).unwrap();
+    let slug = project_slug(&repo);
+    let legacy_root = vault.join("Projects").join(&slug);
+    fs::create_dir_all(&legacy_root).unwrap();
+    fs::write(legacy_root.join("Facts.md"), "# Legacy facts\n").unwrap();
+
+    let barrier = Arc::new(Barrier::new(WORKER_COUNT));
+    let mut workers = Vec::new();
+    for _ in 0..WORKER_COUNT {
+        let repo = repo.clone();
+        let vault = vault.clone();
+        let barrier = Arc::clone(&barrier);
+        workers.push(thread::spawn(move || {
+            barrier.wait();
+            ensure_vault(&vault, &repo).map(|context| (context.project_id, context.project_root))
+        }));
+    }
+
+    let mut identities = BTreeSet::new();
+    let mut project_roots = BTreeSet::new();
+    for worker in workers {
+        let (project_id, project_root) = worker.join().unwrap().unwrap();
+        identities.insert(project_id);
+        project_roots.insert(project_root);
+    }
+
+    assert_eq!(identities.len(), 1);
+    assert_eq!(project_roots.len(), 1);
+    assert!(!legacy_root.exists());
+    assert!(project_roots.first().unwrap().join("Facts.md").exists());
 }
 
 #[test]

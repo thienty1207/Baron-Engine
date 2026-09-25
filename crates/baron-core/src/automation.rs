@@ -18,7 +18,9 @@ use crate::continuity::{
 use crate::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use crate::plan::active_plan_completion_evidence_status;
 use crate::prepare::{prepare, PreparePacketV1, PrepareRequestV1, PREPARE_MAX_INPUT_BYTES};
-use crate::safe_io::{acquire_project_lock, append_text, read_bytes, read_text, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, append_text, artifact_instance_id, read_bytes, read_text, replace_text,
+};
 use crate::vault::VaultContext;
 
 const HOOK_MAX_CONTEXT_CHARS: usize = 6_000;
@@ -178,6 +180,8 @@ struct DedupEntry {
     response: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     claimed_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    claim_token: Option<String>,
 }
 
 impl Default for DedupState {
@@ -347,7 +351,7 @@ pub fn handle_hook(
         key: event_key.clone(),
     };
 
-    {
+    let claim_token = {
         let _lock = acquire_project_lock(repo_root)?;
         let mut dedup = load_dedup_state(vault)?;
         if let Some(response) = dedup_response(&dedup, &event_key) {
@@ -364,14 +368,24 @@ pub fn handle_hook(
                 is_child,
             );
             metadata["deduplicated"] = json!(true);
+            if event == AutomationEvent::Stop && !stop_hook_active {
+                metadata["reconciliation_pending"] = json!(true);
+                return Ok(serde_json::to_string(&json!({
+                    "decision": "block",
+                    "completed": false,
+                    "reason": "Baron is still processing this Stop delivery; retry after the active delivery publishes its reconciliation result.",
+                    "baron": metadata
+                }))?);
+            }
             return Ok(serde_json::to_string(&json!({
                 "continue": true,
                 "baron": metadata
             }))?);
         }
-        dedup_claim(&mut dedup, &event_key);
+        let claim_token = dedup_claim(&mut dedup, &event_key)?;
         save_dedup_state(vault, &dedup)?;
-    }
+        claim_token
+    };
 
     let entry = JournalEntry {
         timestamp: now(),
@@ -574,21 +588,28 @@ pub fn handle_hook(
     })() {
         Ok(response) => response,
         Err(error) => {
-            release_dedup_claim(repo_root, vault, &event_key);
+            release_dedup_claim(repo_root, vault, &event_key, &claim_token);
             return Err(error);
         }
     };
     let response = match serde_json::to_string(&response_value) {
         Ok(response) => response,
         Err(error) => {
-            release_dedup_claim(repo_root, vault, &event_key);
+            release_dedup_claim(repo_root, vault, &event_key, &claim_token);
             return Err(error.into());
         }
     };
-    match publish_hook_response(repo_root, vault, &entry, &event_key, &response) {
+    match publish_hook_response(
+        repo_root,
+        vault,
+        &entry,
+        &event_key,
+        &claim_token,
+        &response,
+    ) {
         Ok(response) => Ok(response),
         Err(error) => {
-            release_dedup_claim(repo_root, vault, &event_key);
+            release_dedup_claim(repo_root, vault, &event_key, &claim_token);
             Err(error)
         }
     }
@@ -738,12 +759,19 @@ fn publish_hook_response(
     vault: &VaultContext,
     entry: &JournalEntry,
     event_key: &str,
+    claim_token: &str,
     response: &str,
 ) -> Result<String> {
     let _lock = acquire_project_lock(repo_root)?;
     let mut dedup = load_dedup_state(vault)?;
     if let Some(existing) = dedup_response(&dedup, event_key) {
         return Ok(existing);
+    }
+    if !dedup_claim_matches(&dedup, event_key, claim_token) {
+        bail!(
+            "Hook claim is no longer owned by this delivery; refusing stale publication: {}",
+            event_key
+        );
     }
     append_journal_locked(vault, entry)?;
     dedup_store_response(&mut dedup, event_key, response);
@@ -919,17 +947,38 @@ fn dedup_claim_is_live(state: &DedupState, key: &str) -> bool {
     (0..=DEDUP_CLAIM_TTL_SECONDS).contains(&age)
 }
 
-fn dedup_claim(state: &mut DedupState, key: &str) {
+fn dedup_claim(state: &mut DedupState, key: &str) -> Result<String> {
+    let claim_token = artifact_instance_id("00000000")?;
     state.entries.retain(|entry| entry.key != key);
     state.entries.push(DedupEntry {
         key: key.to_string(),
         response: None,
         claimed_at: Some(now()),
+        claim_token: Some(claim_token.clone()),
     });
     trim_dedup_entries(state);
+    Ok(claim_token)
 }
 
-fn release_dedup_claim(repo_root: &Path, vault: &VaultContext, key: &str) {
+fn dedup_claim_matches(state: &DedupState, key: &str, claim_token: &str) -> bool {
+    state
+        .entries
+        .iter()
+        .rev()
+        .find(|entry| entry.key == key && entry.response.is_none())
+        .and_then(|entry| entry.claim_token.as_deref())
+        == Some(claim_token)
+}
+
+fn release_dedup_claim_from_state(state: &mut DedupState, key: &str, claim_token: &str) {
+    state.entries.retain(|entry| {
+        entry.key != key
+            || entry.response.is_some()
+            || entry.claim_token.as_deref() != Some(claim_token)
+    });
+}
+
+fn release_dedup_claim(repo_root: &Path, vault: &VaultContext, key: &str, claim_token: &str) {
     let Ok(_lock) = acquire_project_lock(repo_root) else {
         return;
     };
@@ -937,9 +986,7 @@ fn release_dedup_claim(repo_root: &Path, vault: &VaultContext, key: &str) {
         return;
     };
     let before = state.entries.len();
-    state
-        .entries
-        .retain(|entry| entry.key != key || entry.response.is_some());
+    release_dedup_claim_from_state(&mut state, key, claim_token);
     if state.entries.len() != before {
         let _ = save_dedup_state(vault, &state);
     }
@@ -951,6 +998,7 @@ fn dedup_store_response(state: &mut DedupState, key: &str, response: &str) {
         key: key.to_string(),
         response: Some(response.to_string()),
         claimed_at: None,
+        claim_token: None,
     });
     trim_dedup_entries(state);
 }
@@ -1079,4 +1127,87 @@ fn hook_adapter(adapter: SupportedAdapter) -> HookAdapter {
 
 fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Secs, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{initialize_project, AdapterKind};
+    use crate::vault::ensure_vault;
+    use tempfile::tempdir;
+
+    #[test]
+    fn stale_hook_claim_cannot_release_or_publish_a_replacement_claim() {
+        let mut state = DedupState::default();
+        let old_claim = dedup_claim(&mut state, "event-key").unwrap();
+        let new_claim = dedup_claim(&mut state, "event-key").unwrap();
+
+        assert_ne!(old_claim, new_claim);
+        assert!(!dedup_claim_matches(&state, "event-key", &old_claim));
+        assert!(dedup_claim_matches(&state, "event-key", &new_claim));
+
+        release_dedup_claim_from_state(&mut state, "event-key", &old_claim);
+        assert!(dedup_claim_matches(&state, "event-key", &new_claim));
+
+        release_dedup_claim_from_state(&mut state, "event-key", &new_claim);
+        assert!(!dedup_claim_matches(&state, "event-key", &new_claim));
+    }
+
+    #[test]
+    fn live_duplicate_stop_claim_fails_closed_while_reconciliation_is_pending() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        std::fs::create_dir_all(&repo).unwrap();
+        initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let identity = LifecycleIdentity::resolve(
+            &context.project_id,
+            "current repository state",
+            SupportedAdapter::Codex,
+            Some("stop-session"),
+            Some("stop-request"),
+        )
+        .unwrap();
+        let event_key = LifecycleEventKey {
+            project_id: context.project_id.clone(),
+            adapter: "codex".to_string(),
+            session_id: Some(identity.session_id().to_string()),
+            request_id: Some(identity.request_id().to_string()),
+            event_kind: "stop".to_string(),
+            task_id: identity.task_id().to_string(),
+            child_id: None,
+            stop_hook_active: false,
+        }
+        .stable_id();
+        let dedup_path = repo.join(DEDUP_PATH);
+        std::fs::create_dir_all(dedup_path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &dedup_path,
+            serde_json::to_string(&DedupState {
+                schema_version: DEDUP_SCHEMA_VERSION,
+                entries: vec![DedupEntry {
+                    key: event_key,
+                    response: None,
+                    claimed_at: Some(now()),
+                    claim_token: Some("active-owner".to_string()),
+                }],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        let response = handle_hook(
+            &repo,
+            &context,
+            HookAdapter::Codex,
+            AutomationEvent::Stop,
+            r#"{"session_id":"stop-session","request_id":"stop-request","stop_hook_active":false}"#,
+        )
+        .unwrap();
+        let response: Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["decision"], "block");
+        assert_eq!(response["completed"], false);
+        assert_eq!(response["baron"]["reconciliation_pending"], true);
+    }
 }

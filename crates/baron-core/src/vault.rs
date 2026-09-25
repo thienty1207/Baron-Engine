@@ -95,6 +95,11 @@ pub fn ensure_vault(
             repo_path.as_ref().display()
         )
     })?;
+    // Identity discovery, legacy capsule migration, and capsule metadata are
+    // one project initialization transaction. Holding the project lock for
+    // the complete boundary prevents a second initializer from observing the
+    // old capsule after identity resolution and racing the rename/publication.
+    let _lock = acquire_project_lock(&repo_root)?;
     let identity = resolve_project_identity(&repo_root)?;
     let project_slug = identity.project_slug.clone();
     let projects_root = vault_root.join("Projects");
