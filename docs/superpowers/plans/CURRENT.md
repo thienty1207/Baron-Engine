@@ -1,5 +1,48 @@
 # Current Baron Build Plan
 
+## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-25)
+
+- Active spec: Multi-Agent Concurrency and Durable State.
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; this is not a closure
+  claim. SPEC-04 is closed at the `ecaf362` closure base.
+- Scope: serialize the owned shared mutation surfaces for B-09, B-10, B-11,
+  B-18, B-25, B-26, B-27, W-05, and W-08 using the existing project-scoped
+  `safe_io` lock. Keep child processes, network calls, probes, and slow
+  context/prepare work outside the lock; preserve legacy readability and
+  SPEC-03/SPEC-04 authority boundaries.
+- Implementation checkpoint: proof/trace/plan publication, config and
+  first-init, harness and improvement, intent/recovery, control-plane,
+  review-gate/experiment, automation dedup publication, capability registry,
+  runtime JSONL, and cache semantics are implemented and covered by the
+  deterministic multiprocess matrix. Provider fingerprints prevent stale
+  capability observations from attaching to a re-registered definition.
+- Proof checkpoint: focused concurrency `14/14`, config `16/16`, plan `44/44`,
+  proof/trace `19/19`, capability `9/9`, automation `5/5`, harness `5/5`,
+  harness improvement `5/5`, intent `4/4`, continuity `6/6`, and
+  control-plane `9/9`; retired-adapter gate `8/8`.
+- Adversarial checkpoint: the first fresh review identified Important issues
+  in lock scope, plan-index history, config preservation, capability cache
+  identity, and legacy artifact selection; RED-to-GREEN fixes are in
+  `34de705` and `0c12c0c`. Follow-up commits `cfaec117`, `318594c`,
+  `674a059`, and `7a6b473` close publication-authority, concurrent plan/config,
+  continuity, hook-claim, and receipt-freshness boundaries. A fresh review
+  package covers `ecaf362..7a6b473`, but both assigned read-only reviewers
+  terminated at the usage limit before returning a verdict; local audit found
+  no currently known owned Critical/Important issue.
+- Scope boundary: context/session/replay/cache writers and diagnostic
+  SQLite/index accelerators are out of SPEC-05 scope and mapped to B-28..B-31;
+  automation hook claim/journal publication remains a locked SPEC-05 mutation.
+- Workspace evidence: all remaining workspace targets passed; only the known
+  `lifecycle_scripts` PowerShell archive-module failures and the existing
+  `prepare_cli` UTF-8 boundary panic remain.
+- Persisted-state boundary: only SPEC-05 source/tests, this active plan, and
+  maintained status/build-log evidence are in scope. Project/Vault data,
+  unrelated user files, release metadata, and public version remain untouched.
+- Safe next action: finish the final workspace/Clippy/release/document checks,
+  commit documentation, and push the branch. Keep the public version at
+  `5.0.0`; do not release or tag. Retain `READY FOR ADVERSARIAL REVIEW`; do
+  not close SPEC-05.
+
 ## Baron 5.0.1 Stabilization - SPEC-04 Managed Plan-Path Authority Fix (closed, 2026-09-22)
 
 - Active spec: Proof, Trace, Gate, and Completion Integrity.

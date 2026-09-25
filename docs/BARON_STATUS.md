@@ -1,5 +1,78 @@
 # Baron Build Status
 
+## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-25)
+
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; SPEC-04 remains closed at
+  closure base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`. This is an
+  implementation-readiness status, not a SPEC-05 closure claim.
+- Scope: B-09, B-10, B-11, B-18, B-25, B-26, B-27, W-05, and W-08 only.
+  Public version remains `5.0.0`; no release, tag, version bump, Hotel Staff
+  change, or SPEC-06 repository/Vault transaction framework was introduced.
+- Durable mutation inventory: proof, trace, plan, config, harness,
+  improvement, intent, continuity, control-plane, review-gate, experiment,
+  Autopilot, and capability registry read-modify-write paths acquire the
+  project-scoped `safe_io` lock before shared reads and hold it through the
+  related publication. True append-only journals and runtime evidence use
+  locked `append_text`; upserts use locked preserve-first atomic replacement;
+  unique proof/trace/experiment artifacts use locked create-new publication.
+  Automation hook dedup claims and final journal/response publication are
+  locked, with a bounded five-minute claim lease for crash recovery. Context
+  compile, prepare, housekeeping, Git status, and capability probes stay
+  outside the mutation critical section. Receipt-bound proof/gate/trace paths
+  revalidate the exact receipt and operation authority after slow validation
+  and before publication. Diagnostic/report-only writers remain outside this
+  B-09 scope and are not authority for completion or proof.
+- B-10/B-11/W-08: new proof and trace IDs use an 8-digit date, 20-digit epoch
+  millisecond component, and 32-hex CSPRNG suffix. New repo/Vault artifacts
+  refuse overwrite; legacy timestamp-named artifacts remain readable, and
+  latest selection compares parsed semantic timestamps instead of filename
+  lexicography. Runtime evidence is locked JSONL append; trace score/record
+  overlap is serialized without holding a lock over `git status`.
+- B-18: new plan instances contain the collision-resistant instance ID;
+  same-day same-title plans keep distinct files and historical index rows;
+  resume uses the exact persisted path. Legacy managed plan paths and the
+  SPEC-04 canonical path/frontmatter authority checks remain readable and
+  fail closed outside `docs/baron/plans/`.
+- B-25: first initialization and config mutations are serialized before
+  existence/load decisions; project identity and `identity_binding` survive
+  races; unknown TOML values and opaque legacy adapter values are retained
+  without activating unsupported integrations.
+- B-26: harness intake, friction, intervention, validation/current state,
+  proposals, outcomes, `TEST_MATRIX`, stories, experiments, and review-gate
+  publications preserve concurrent appends/upserts under the same lock.
+- B-27: registry mutations are locked; capability probes run without the
+  lock; provider observations are fingerprint-bound to the registered
+  definition; runtime evidence is locked append-only JSONL; the capability
+  state file is explicitly a last-completed-writer, replace-only diagnostic
+  cache and never operation authority.
+- Deterministic matrix: concurrency `14/14`; config `16/16`; plan `44/44`;
+  proof/trace `19/19`; capability `9/9`; automation `5/5`; harness `5/5`;
+  harness improvement `5/5`; intent `4/4`; continuity `6/6`;
+  control-plane `9/9`; Phase-1 retired-adapter gate `8/8`.
+- Out-of-scope boundary: context/session/replay/cache writers and the
+  diagnostic SQLite/index accelerators remain mapped to B-28..B-31; they are
+  not promoted to SPEC-05 authority. The SPEC-05 automation hook claim and
+  journal publication are `LOCKED_TRANSACTION`, not an out-of-scope cache.
+- Active plan:
+  `docs/superpowers/plans/2026-09-22-spec-05-multi-agent-concurrency-durable-state.md`.
+- Implementation commits: `b4e5f77`, `0d06d3d`, `87125a4`, `077058d`,
+  `398e8cd`, `34e1221`, `bf1857e`, `34de705`, `0c12c0c`, `cfaec117`,
+  `318594c`, `674a059`, and `7a6b473`.
+- Fresh review package: `ecaf362..7a6b473` was generated for two independent
+  read-only reviewers. Both reviewer tasks terminated at the Codex usage limit
+  before returning a verdict; this is recorded as an inconclusive external
+  review, not as acceptance. Local static lock/authority audit and final Core
+  all-target verification are complete; no owned Critical/Important issue is
+  currently known.
+- Workspace verification: all targets outside the two known baseline targets
+  passed. `baron-cli --test lifecycle_scripts` has three host-environment
+  failures because `Microsoft.PowerShell.Archive` cannot load
+  `Compress-Archive`; `baron-cli --test prepare_cli` has one existing
+  `session_replay.rs:383` UTF-8 boundary panic. These are not SPEC-05-owned
+  failures.
+- Next action: preserve the exact `READY FOR ADVERSARIAL REVIEW` verdict and
+  push the implementation/evidence branch. Do not mark SPEC-05 closed.
+
 ## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 
 - Status: `SPEC-04: CLOSED`; the independent final adversarial review accepted
