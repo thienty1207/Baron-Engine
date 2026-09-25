@@ -286,8 +286,7 @@ fn modified_legacy_runtime_is_quarantined_instead_of_deleted() {
 fn failed_install_rolls_back_automatically() {
     let (_temp, repo, vault) = legacy_fixture();
 
-    let result = execute_agent_bootstrap_migration(&repo, None, |repo, _vault| {
-        write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
+    let result = execute_agent_bootstrap_migration(&repo, None, |_repo, _vault| {
         anyhow::bail!("injected install failure")
     });
 
@@ -301,6 +300,23 @@ fn failed_install_rolls_back_automatically() {
         .any(|entry| entry.unwrap().path().join("failure.json").exists());
     assert!(failure_exists);
     assert!(migration_status(&repo).unwrap().contains("rolled_back"));
+}
+
+#[test]
+fn failed_install_does_not_clobber_changes_after_handoff() {
+    let (_temp, repo, _vault) = legacy_fixture();
+
+    let result = execute_agent_bootstrap_migration(&repo, None, |repo, _vault| {
+        write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
+        anyhow::bail!("injected install failure after handoff")
+    });
+
+    assert!(result.is_err());
+    assert!(repo.join(".baron/project.toml").exists());
+    assert!(repo.join("vault.config.json").exists());
+    assert!(migration_status(&repo)
+        .unwrap()
+        .contains("rolled_back_with_conflicts"));
 }
 
 #[test]

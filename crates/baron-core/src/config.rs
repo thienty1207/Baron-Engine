@@ -112,7 +112,7 @@ pub enum ProjectPlatform {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationConfig {
     pub context: bool,
     pub plan: bool,
@@ -123,7 +123,7 @@ pub struct AutomationConfig {
     pub unknown_fields: BTreeMap<String, toml::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ProjectConfig {
     pub schema_version: u32,
     pub project_id: String,
@@ -248,12 +248,95 @@ impl<'de> Deserialize<'de> for ProjectConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalConfig {
     pub vault_path: PathBuf,
     #[serde(flatten)]
     pub unknown_fields: BTreeMap<String, toml::Value>,
 }
+
+// `toml::Value` deliberately does not implement `Eq` because TOML floats
+// include NaN. These public config types historically implemented `Eq`, so
+// retain that source contract while comparing float payloads by bits. This
+// also makes equality deterministic for opaque forward-compatible fields.
+fn toml_value_eq(left: &toml::Value, right: &toml::Value) -> bool {
+    match (left, right) {
+        (toml::Value::String(left), toml::Value::String(right)) => left == right,
+        (toml::Value::Integer(left), toml::Value::Integer(right)) => left == right,
+        (toml::Value::Float(left), toml::Value::Float(right)) => left.to_bits() == right.to_bits(),
+        (toml::Value::Boolean(left), toml::Value::Boolean(right)) => left == right,
+        (toml::Value::Datetime(left), toml::Value::Datetime(right)) => left == right,
+        (toml::Value::Array(left), toml::Value::Array(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| toml_value_eq(left, right))
+        }
+        (toml::Value::Table(left), toml::Value::Table(right)) => {
+            left.len() == right.len()
+                && left.iter().all(|(key, value)| {
+                    right
+                        .get(key)
+                        .is_some_and(|other| toml_value_eq(value, other))
+                })
+        }
+        _ => false,
+    }
+}
+
+fn toml_map_eq(
+    left: &BTreeMap<String, toml::Value>,
+    right: &BTreeMap<String, toml::Value>,
+) -> bool {
+    left.len() == right.len()
+        && left.iter().all(|(key, value)| {
+            right
+                .get(key)
+                .is_some_and(|other| toml_value_eq(value, other))
+        })
+}
+
+impl PartialEq for AutomationConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.context == other.context
+            && self.plan == other.plan
+            && self.harness == other.harness
+            && self.proof == other.proof
+            && self.trace == other.trace
+            && toml_map_eq(&self.unknown_fields, &other.unknown_fields)
+    }
+}
+
+impl Eq for AutomationConfig {}
+
+impl PartialEq for ProjectConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.project_id == other.project_id
+            && self.identity_binding == other.identity_binding
+            && self.project_slug == other.project_slug
+            && self.platform == other.platform
+            && self.platform_extensions == other.platform_extensions
+            && self.adapters == other.adapters
+            && self.active_adapter == other.active_adapter
+            && self.automation == other.automation
+            && self.legacy_adapters == other.legacy_adapters
+            && self.legacy_active_adapter == other.legacy_active_adapter
+            && toml_map_eq(&self.unknown_fields, &other.unknown_fields)
+    }
+}
+
+impl Eq for ProjectConfig {}
+
+impl PartialEq for LocalConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.vault_path == other.vault_path
+            && toml_map_eq(&self.unknown_fields, &other.unknown_fields)
+    }
+}
+
+impl Eq for LocalConfig {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MachineConfig {
@@ -289,6 +372,9 @@ pub fn initialize_project_with_options(
 ) -> Result<ProjectConfig> {
     let repo_root = canonical_directory(repo_path.as_ref())?;
     let baron_root = repo_root.join(".baron");
+    // Establish only the directory scaffold before locking. This is the
+    // lock-path prerequisite required for first initialization; no managed
+    // file is read or written until the project lock is held below.
     ensure_directory_chain(&baron_root).with_context(|| {
         format!(
             "Could not create safe Baron state directory: {}",

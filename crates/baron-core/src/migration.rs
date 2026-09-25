@@ -134,6 +134,8 @@ struct BackupManifest {
     migration_id: String,
     repo_root: PathBuf,
     vault_root: PathBuf,
+    #[serde(default)]
+    post_handoff_captured: bool,
     entries: Vec<BackupEntry>,
 }
 
@@ -144,6 +146,8 @@ struct BackupEntry {
     existed: bool,
     was_directory: bool,
     original_hash: Option<String>,
+    #[serde(default)]
+    post_handoff_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -298,7 +302,11 @@ pub fn execute_agent_bootstrap_migration<F>(
 where
     F: FnOnce(&Path, &Path) -> Result<()>,
 {
-    let mut lock = Some(acquire_project_lock(repo_path.as_ref())?);
+    // Inventory and backup are read-only/backup work and intentionally happen
+    // without the project lock. Each actual migration publication below takes
+    // the lock only around the bounded read/merge/write operation that it is
+    // protecting. This keeps a large legacy tree from blocking all project
+    // writers while preserving the SPEC-05 mutation invariant.
     let inventory = inventory_agent_bootstrap(repo_path, vault_override)?;
     let destination_vault = vault_override
         .map(Path::to_path_buf)
@@ -320,7 +328,7 @@ where
         }
     }
 
-    let backup_manifest =
+    let mut backup_manifest =
         create_backup_manifest(&inventory, &destination_vault, &backup_root, &migration_id)?;
     write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
 
@@ -332,14 +340,23 @@ where
             &destination.project_root,
             &backup_root,
             &mut import_records,
+            &inventory.repo_root,
         )?;
-        import_repo_data(&inventory.repo_root, &backup_root, &mut import_records)?;
+        import_repo_data(
+            &inventory.repo_root,
+            &backup_root,
+            &mut import_records,
+            &inventory.repo_root,
+        )?;
         let quarantined_count = quarantine_invalid_assets(&inventory, &backup_root, &migration_id)?;
 
-        // The host installer is an external, potentially slow callback. Do
-        // not hold the project mutation lock across it; reacquire the lock
-        // before Baron mutates the repository again.
-        drop(lock.take());
+        // Persist a per-path handoff baseline immediately before the external
+        // installer runs. If the installer fails, automatic rollback restores
+        // only paths whose bytes are still exactly at this baseline; a writer
+        // that used the released project lock can therefore never be silently
+        // overwritten by rollback.
+        capture_post_handoff_state(&inventory.repo_root, &mut backup_manifest)?;
+        write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
         install_baron(&inventory.repo_root, &destination_vault)?;
         let _lock = acquire_project_lock(&inventory.repo_root)?;
         register_valid_custom_assets(&inventory)?;
@@ -383,11 +400,35 @@ where
         Ok(receipt) => Ok(receipt),
         Err(error) => {
             if let Ok(_lock) = acquire_project_lock(&inventory.repo_root) {
-                let rollback = restore_from_manifest(&backup_manifest, &backup_root);
+                let manifest = read_json::<BackupManifest>(&backup_root.join("manifest.json"))
+                    .unwrap_or(backup_manifest);
+                let rollback = if manifest.post_handoff_captured {
+                    restore_from_manifest_if_unchanged(&manifest, &backup_root).map(|outcome| {
+                        serde_json::json!({
+                            "restored": outcome.restored,
+                            "conflicts": outcome.conflicts
+                        })
+                    })
+                } else {
+                    Err(anyhow::anyhow!(
+                        "automatic migration rollback has no persisted handoff baseline"
+                    ))
+                };
+                let rollback_conflicts = rollback
+                    .as_ref()
+                    .ok()
+                    .and_then(|value| value.get("conflicts"))
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or_default();
                 let failure = serde_json::json!({
                     "migrationId": migration_id,
-                    "status": "rolled_back",
+                    "status": if rollback_conflicts > 0 {
+                        "rolled_back_with_conflicts"
+                    } else {
+                        "rolled_back"
+                    },
                     "error": error.to_string(),
+                    "rollback": rollback.as_ref().ok(),
                     "rollbackError": rollback.as_ref().err().map(|value| value.to_string()),
                     "updatedAt": now()
                 });
@@ -396,7 +437,11 @@ where
                     &inventory.repo_root,
                     MigrationState {
                         migration_id,
-                        status: "rolled_back".to_string(),
+                        status: if rollback_conflicts > 0 {
+                            "rolled_back_with_conflicts".to_string()
+                        } else {
+                            "rolled_back".to_string()
+                        },
                         vault_root: destination_vault,
                         backup_root,
                         updated_at: now(),
@@ -505,6 +550,7 @@ fn create_backup_manifest(
                 .join(&inventory.project_slug),
             false,
             None,
+            None,
         )?;
     }
     let destination_slug = project_slug(&inventory.repo_root);
@@ -591,6 +637,7 @@ fn create_backup_manifest(
         migration_id: migration_id.to_string(),
         repo_root: inventory.repo_root.clone(),
         vault_root: destination_vault.to_path_buf(),
+        post_handoff_captured: false,
         entries,
     })
 }
@@ -630,7 +677,13 @@ fn backup_entry(
     let was_directory = source.is_dir();
     let original_hash = hash_path(&source)?;
     if existed {
-        copy_path(&source, &backup_scope_root.join(relative), false, None)?;
+        copy_path(
+            &source,
+            &backup_scope_root.join(relative),
+            false,
+            None,
+            None,
+        )?;
     }
     Ok(BackupEntry {
         scope,
@@ -638,6 +691,7 @@ fn backup_entry(
         existed,
         was_directory,
         original_hash,
+        post_handoff_hash: None,
     })
 }
 
@@ -646,6 +700,7 @@ fn import_legacy_vault(
     destination_root: &Path,
     backup_root: &Path,
     records: &mut Vec<ImportRecord>,
+    mutation_root: &Path,
 ) -> Result<()> {
     if !source_root.exists() || source_root == destination_root {
         return Ok(());
@@ -655,6 +710,7 @@ fn import_legacy_vault(
         destination_root,
         true,
         Some((backup_root, records)),
+        Some(mutation_root),
     )
 }
 
@@ -662,6 +718,7 @@ fn import_repo_data(
     repo_root: &Path,
     backup_root: &Path,
     records: &mut Vec<ImportRecord>,
+    mutation_root: &Path,
 ) -> Result<()> {
     for (source, destination) in [
         ("docs/superpowers/plans", "docs/baron/plans"),
@@ -679,6 +736,7 @@ fn import_repo_data(
                 &repo_root.join(destination),
                 true,
                 Some((backup_root, records)),
+                Some(mutation_root),
             )?;
         }
     }
@@ -696,6 +754,9 @@ fn quarantine_invalid_assets(
             continue;
         }
         let source = inventory.repo_root.join(&item.relative_path);
+        // Acquire before checking existence: the check decides whether the
+        // following copy/remove mutation is still valid.
+        let _lock = acquire_project_lock(&inventory.repo_root)?;
         if !source.exists() {
             continue;
         }
@@ -705,8 +766,11 @@ fn quarantine_invalid_assets(
             .join(migration_id)
             .join(&item.relative_path);
         let vault_quarantine = backup_root.join("quarantine").join(&item.relative_path);
-        copy_path(&source, &repo_quarantine, false, None)?;
-        copy_path(&source, &vault_quarantine, false, None)?;
+        // The copy-to-quarantine and source removal are one logical mutation
+        // for this asset. Keep the lock bounded to the current asset rather
+        // than the full inventory/quarantine scan.
+        copy_path(&source, &repo_quarantine, false, None, None)?;
+        copy_path(&source, &vault_quarantine, false, None, None)?;
         remove_path(&source)?;
         count += 1;
     }
@@ -836,6 +900,60 @@ fn verify_native_state(repo_root: &Path) -> Result<()> {
     Ok(())
 }
 
+fn capture_post_handoff_state(repo_root: &Path, manifest: &mut BackupManifest) -> Result<()> {
+    for entry in &mut manifest.entries {
+        let root = match entry.scope {
+            BackupScope::Repo => &manifest.repo_root,
+            BackupScope::Vault => &manifest.vault_root,
+        };
+        let target = validate_restore_target(root, &entry.relative_path, "handoff baseline")?;
+        // Capture one target at a time under the same project lock used by
+        // active writers. This is an optimistic handoff baseline, not a
+        // second transaction spanning the entire repository and Vault.
+        let _lock = acquire_project_lock(repo_root)?;
+        entry.post_handoff_hash = hash_path(&target)?;
+    }
+    manifest.post_handoff_captured = true;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ConditionalRollback {
+    restored: usize,
+    conflicts: usize,
+}
+
+fn restore_from_manifest_if_unchanged(
+    manifest: &BackupManifest,
+    backup_root: &Path,
+) -> Result<ConditionalRollback> {
+    let mut conflicts = 0;
+    for entry in &manifest.entries {
+        let root = match entry.scope {
+            BackupScope::Repo => &manifest.repo_root,
+            BackupScope::Vault => &manifest.vault_root,
+        };
+        let target = validate_restore_target(root, &entry.relative_path, "rollback target")?;
+        if hash_path(&target)? != entry.post_handoff_hash {
+            conflicts += 1;
+        }
+    }
+    if conflicts > 0 {
+        // Do not partially restore a multi-path migration when any path was
+        // changed after the external handoff. Leaving every path untouched is
+        // fail-closed and avoids replacing a concurrent writer's bytes with
+        // the pre-migration backup.
+        return Ok(ConditionalRollback {
+            restored: 0,
+            conflicts,
+        });
+    }
+    Ok(ConditionalRollback {
+        restored: restore_from_manifest(manifest, backup_root)?,
+        conflicts: 0,
+    })
+}
+
 fn restore_from_manifest(manifest: &BackupManifest, backup_root: &Path) -> Result<usize> {
     let mut plan = Vec::with_capacity(manifest.entries.len());
     for entry in &manifest.entries {
@@ -866,6 +984,7 @@ fn restore_from_manifest(manifest: &BackupManifest, backup_root: &Path) -> Resul
                     .context("Migration backup path missing for an existing entry")?,
                 &target,
                 false,
+                None,
                 None,
             )?;
             restored += 1;
@@ -1179,6 +1298,7 @@ fn copy_path(
     destination: &Path,
     merge: bool,
     mut records: Option<(&Path, &mut Vec<ImportRecord>)>,
+    mutation_root: Option<&Path>,
 ) -> Result<()> {
     let metadata = fs::symlink_metadata(source)
         .with_context(|| format!("Could not inspect migration source: {}", source.display()))?;
@@ -1199,6 +1319,7 @@ fn copy_path(
                 records
                     .as_mut()
                     .map(|(backup, records)| (*backup, &mut **records)),
+                mutation_root,
             )?;
         }
         return Ok(());
@@ -1212,6 +1333,11 @@ fn copy_path(
     if let Some(parent) = destination.parent() {
         ensure_directory_chain(parent)?;
     }
+    // Directory traversal and the ordinary destination-parent scaffold happen
+    // outside the critical section. The lock starts before the shared
+    // destination read (hash/merge decision) and covers publication plus the
+    // import record.
+    let _lock = mutation_root.map(acquire_project_lock).transpose()?;
     let source_hash = hash_file(source)?;
     let final_destination = if merge && destination.exists() {
         let existing_hash = hash_file(destination)?;

@@ -21,6 +21,10 @@ use crate::safe_io::{acquire_project_lock, append_text, ensure_directory_chain, 
 const REGISTRY_PATH: &str = ".baron/capabilities.toml";
 const STATE_PATH: &str = ".baron/cache/capability-state.json";
 const RUNTIME_EVIDENCE_PATH: &str = ".baron/cache/runtime-execution.jsonl";
+// Keep the public `ProviderObservation` source shape stable. The fingerprint
+// is diagnostic cache metadata, so encode it in the opaque evidence string
+// instead of adding a required public struct-literal field.
+const PROVIDER_FINGERPRINT_MARKER: &str = "\n[baron-provider-fingerprint=";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -83,8 +87,6 @@ pub struct CapabilityRegistry {
 pub struct ProviderObservation {
     pub provider: String,
     pub capability: String,
-    #[serde(default)]
-    pub provider_fingerprint: String,
     pub kind: ProviderKind,
     pub requirement: Requirement,
     pub presence: Presence,
@@ -301,13 +303,12 @@ pub fn check_capabilities(
         observations.push(ProviderObservation {
             provider: provider.name.clone(),
             capability: provider.capability.clone(),
-            provider_fingerprint: provider_fingerprint(provider),
             kind: provider.kind,
             requirement: provider.requirement,
             presence,
             compatible,
             checked_at: checked_at.clone(),
-            evidence,
+            evidence: evidence_with_provider_fingerprint(evidence, &provider_fingerprint(provider)),
         });
     }
     observations.sort_by(|left, right| {
@@ -646,7 +647,7 @@ fn runtime_backend_report_internal(
             .map(|observation| observation.presence)
             .unwrap_or(Presence::Unknown);
         let evidence = observation
-            .map(|observation| observation.evidence.clone())
+            .map(|observation| evidence_without_provider_fingerprint(&observation.evidence))
             .unwrap_or_else(|| "presence check has not been run for this adapter".to_string());
         let safety = backend_safety(provider);
         let execution_evidence = if has_authoritative_execution_evidence(
@@ -1193,6 +1194,27 @@ fn provider_fingerprint(provider: &CapabilityProvider) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+fn evidence_with_provider_fingerprint(mut evidence: String, fingerprint: &str) -> String {
+    evidence.push_str(PROVIDER_FINGERPRINT_MARKER);
+    evidence.push_str(fingerprint);
+    evidence.push(']');
+    evidence
+}
+
+fn provider_fingerprint_from_evidence(evidence: &str) -> Option<&str> {
+    evidence
+        .rsplit_once(PROVIDER_FINGERPRINT_MARKER)
+        .and_then(|(_, suffix)| suffix.strip_suffix(']'))
+        .filter(|fingerprint| !fingerprint.is_empty())
+}
+
+fn evidence_without_provider_fingerprint(evidence: &str) -> String {
+    evidence
+        .rsplit_once(PROVIDER_FINGERPRINT_MARKER)
+        .map(|(base, _)| base.to_string())
+        .unwrap_or_else(|| evidence.to_string())
+}
+
 fn observation_matches_provider(
     observation: &ProviderObservation,
     provider: &CapabilityProvider,
@@ -1201,7 +1223,8 @@ fn observation_matches_provider(
         && observation.capability == provider.capability
         && observation.kind == provider.kind
         && observation.requirement == provider.requirement
-        && observation.provider_fingerprint == provider_fingerprint(provider)
+        && provider_fingerprint_from_evidence(&observation.evidence)
+            == Some(provider_fingerprint(provider).as_str())
 }
 
 fn capability_gaps(observations: &[ProviderObservation]) -> (Vec<String>, Vec<String>) {
