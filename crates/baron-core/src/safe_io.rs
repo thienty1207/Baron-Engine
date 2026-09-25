@@ -136,13 +136,7 @@ pub fn acquire_project_lock_with_timeout(
 
     let started = Instant::now();
     loop {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&path)
-            .with_context(|| format!("Could not open Baron mutation lock: {}", path.display()))?;
+        let file = open_project_lock_file(&path)?;
         match try_lock_file(&file) {
             Ok(true) => {
                 write_lock_marker(&file)?;
@@ -677,6 +671,53 @@ fn is_reparse_point(metadata: &fs::Metadata) -> bool {
     }
 }
 
+fn validate_lock_leaf(path: &Path) -> Result<()> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!("Could not inspect Baron mutation lock: {}", path.display())
+            })
+        }
+    };
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+        bail!(
+            "Refusing to use a symlink or reparse point as the Baron mutation lock: {}",
+            path.display()
+        );
+    }
+    if !metadata.is_file() {
+        bail!(
+            "Baron mutation lock must be a regular file: {}",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+fn open_project_lock_file(path: &Path) -> Result<File> {
+    validate_lock_leaf(path)?;
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true).truncate(false);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    let file = options
+        .open(path)
+        .with_context(|| format!("Could not open Baron mutation lock: {}", path.display()))?;
+    validate_lock_leaf(path)?;
+    Ok(file)
+}
+
 struct LockState {
     owner: ThreadId,
     depth: usize,
@@ -976,5 +1017,23 @@ mod tests {
         fs::create_dir(&outside).unwrap();
         symlink(&outside, &link).unwrap();
         assert!(ensure_directory_chain(link.join("escape")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lock_leaf_rejects_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let outside = temp.path().join("outside.lock");
+        fs::write(&outside, "outside").unwrap();
+        let lock = project_lock_path(temp.path()).unwrap();
+        ensure_directory_chain(lock.parent().unwrap()).unwrap();
+        symlink(&outside, &lock).unwrap();
+
+        assert!(
+            acquire_project_lock_with_timeout(temp.path(), Duration::from_millis(100)).is_err()
+        );
+        assert_eq!(fs::read_to_string(outside).unwrap(), "outside");
     }
 }

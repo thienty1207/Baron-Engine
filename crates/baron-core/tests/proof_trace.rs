@@ -185,6 +185,63 @@ fn operation_bound_selection_prefers_new_ids_over_older_legacy_aliases() {
 }
 
 #[test]
+fn non_timestamp_legacy_proof_and_trace_files_remain_selectable() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README typo",
+        SupportedAdapter::Codex,
+        Some("legacy-named-session"),
+        Some("legacy-named-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(&repo, &context, "fix README typo", &operation).unwrap();
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &operation,
+        "legacy named proof remains readable",
+    )
+    .unwrap();
+    let expected = proof.binding.clone().unwrap();
+    let legacy_proof = proof.repo_path.parent().unwrap().join("legacy-proof.md");
+    let legacy_vault_proof = proof.vault_path.parent().unwrap().join("legacy-proof.md");
+    fs::copy(&proof.repo_path, &legacy_proof).unwrap();
+    fs::copy(&proof.vault_path, &legacy_vault_proof).unwrap();
+
+    let selected_proof = proof_for_operation(&repo, &expected).unwrap().unwrap();
+    assert_eq!(selected_proof.repo_path, legacy_proof);
+
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "legacy named trace remains readable",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    let legacy_trace = trace.repo_path.parent().unwrap().join("legacy-trace.md");
+    let legacy_vault_trace = trace.vault_path.parent().unwrap().join("legacy-trace.md");
+    fs::copy(&trace.repo_path, &legacy_trace).unwrap();
+    fs::copy(&trace.vault_path, &legacy_vault_trace).unwrap();
+
+    let selected_trace = trace_for_operation(&repo, &binding).unwrap().unwrap();
+    assert_eq!(selected_trace.repo_path, legacy_trace);
+
+    let score = score_trace(&repo, &context, Some("legacy-trace")).unwrap();
+    assert_eq!(score.trace_id, trace.id);
+    assert!(fs::read_to_string(&legacy_trace)
+        .unwrap()
+        .contains("BARON:TRACE-SCORE:START"));
+}
+
+#[test]
 fn weak_high_risk_proof_remains_insufficient_in_validation_matrix() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

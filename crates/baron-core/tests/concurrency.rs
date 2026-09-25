@@ -17,6 +17,7 @@ use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
 use baron_core::control_plane::record_gate_evidence;
 use baron_core::harness::{record_friction, start_or_resume_intake};
 use baron_core::harness_improvement::record_intervention;
+use baron_core::identity::project_id_for_path;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::{complete_plan, start_or_resume_plan_for_identity};
@@ -131,6 +132,17 @@ fn concurrent_legacy_capsule_migration_preserves_one_project_identity() {
     let slug = project_slug(&repo);
     let legacy_root = vault.join("Projects").join(&slug);
     fs::create_dir_all(&legacy_root).unwrap();
+    fs::write(
+        legacy_root.join(".baron-project.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "schemaVersion": 1,
+            "projectId": project_id_for_path(&repo).unwrap(),
+            "projectSlug": slug,
+            "identityBinding": ""
+        }))
+        .unwrap(),
+    )
+    .unwrap();
     fs::write(legacy_root.join("Facts.md"), "# Legacy facts\n").unwrap();
 
     let barrier = Arc::new(Barrier::new(WORKER_COUNT));

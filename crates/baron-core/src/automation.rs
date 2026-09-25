@@ -341,6 +341,15 @@ pub fn handle_hook(
                 is_child,
             );
             metadata["recursion_guard"] = json!(true);
+            if event == AutomationEvent::Stop && !stop_hook_active {
+                metadata["reconciliation_pending"] = json!(true);
+                return Ok(serde_json::to_string(&json!({
+                    "decision": "block",
+                    "completed": false,
+                    "reason": "Baron is already processing this Stop delivery; retry after the active delivery publishes its reconciliation result.",
+                    "baron": metadata
+                }))?);
+            }
             return Ok(serde_json::to_string(&json!({
                 "continue": true,
                 "baron": metadata
@@ -428,6 +437,7 @@ pub fn handle_hook(
                     let context_identity = identity
                         .as_ref()
                         .context("host-specific hooks require a complete lifecycle identity")?;
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     let context = compile_context_for_lifecycle_identity(
                         repo_root,
                         &vault.vault_root,
@@ -435,6 +445,7 @@ pub fn handle_hook(
                         Some(&task),
                     )?;
                     let context = bounded_bytes(&context, HOOK_MAX_CONTEXT_CHARS);
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     record_continuity_checkpoint_for_event(
                         repo_root,
                         vault,
@@ -452,6 +463,7 @@ pub fn handle_hook(
                     })
                 }
                 AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt => {
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     let packet = prepare(
                         request,
                         adapter_name(adapter),
@@ -460,6 +472,7 @@ pub fn handle_hook(
                     )
                     .map_err(|error| anyhow::anyhow!(error.to_string()))?;
                     let context = render_prepare_projection(&packet);
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     record_continuity_checkpoint_for_event(
                         repo_root,
                         vault,
@@ -483,6 +496,7 @@ pub fn handle_hook(
                         .as_ref()
                         .context("adapter-neutral pre-compact hooks require an adapter")?;
                     let note = format!("{} hook observed.", event_kind.replace('_', " "));
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     record_continuity_checkpoint_for_event(
                         repo_root, vault, &note, operation, &event_key,
                     )?;
@@ -498,15 +512,18 @@ pub fn handle_hook(
                     // Housekeeping is bounded metadata maintenance only. It may
                     // expire or compact existing candidates, but Stop never
                     // creates a proposal or promotes one.
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     let _ = housekeep_candidates(repo_root, vault);
                     let note = if stop_hook_active {
                         "Stop hook retry observed; preserve the active task state."
                     } else {
                         "Stop hook observed; reconcile before allowing completion."
                     };
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     record_continuity_checkpoint_for_event(
                         repo_root, vault, note, operation, &event_key,
                     )?;
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     let report = reconcile(repo_root)?;
                     let metadata = hook_metadata(
                         vault,
@@ -563,6 +580,7 @@ pub fn handle_hook(
                     }
                 }
                 _ => {
+                    renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
                     if let Some(operation) = operation.as_ref() {
                         record_continuity_checkpoint_for_operation(
                             repo_root,
@@ -773,6 +791,7 @@ fn publish_hook_response(
             event_key
         );
     }
+    renew_dedup_claim_from_state(&mut dedup, event_key, claim_token)?;
     append_journal_locked(vault, entry)?;
     dedup_store_response(&mut dedup, event_key, response);
     save_dedup_state(vault, &dedup)?;
@@ -931,20 +950,22 @@ fn dedup_response(state: &DedupState, key: &str) -> Option<String> {
 }
 
 fn dedup_claim_is_live(state: &DedupState, key: &str) -> bool {
-    let Some(claimed_at) = state
+    let Some(entry) = state
         .entries
         .iter()
         .rev()
         .find(|entry| entry.key == key && entry.response.is_none())
-        .and_then(|entry| entry.claimed_at.as_deref())
     else {
         return false;
     };
+    let Some(claimed_at) = entry.claimed_at.as_deref() else {
+        return true;
+    };
     let Ok(claimed_at) = DateTime::parse_from_rfc3339(claimed_at) else {
-        return false;
+        return true;
     };
     let age = Local::now().timestamp() - claimed_at.timestamp();
-    (0..=DEDUP_CLAIM_TTL_SECONDS).contains(&age)
+    age <= DEDUP_CLAIM_TTL_SECONDS
 }
 
 fn dedup_claim(state: &mut DedupState, key: &str) -> Result<String> {
@@ -968,6 +989,44 @@ fn dedup_claim_matches(state: &DedupState, key: &str, claim_token: &str) -> bool
         .find(|entry| entry.key == key && entry.response.is_none())
         .and_then(|entry| entry.claim_token.as_deref())
         == Some(claim_token)
+}
+
+fn renew_dedup_claim(
+    repo_root: &Path,
+    vault: &VaultContext,
+    key: &str,
+    claim_token: &str,
+) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let mut state = load_dedup_state(vault)?;
+    renew_dedup_claim_from_state(&mut state, key, claim_token)?;
+    save_dedup_state(vault, &state)
+}
+
+fn renew_dedup_claim_from_state(
+    state: &mut DedupState,
+    key: &str,
+    claim_token: &str,
+) -> Result<()> {
+    let Some(entry) = state
+        .entries
+        .iter_mut()
+        .rev()
+        .find(|entry| entry.key == key && entry.response.is_none())
+    else {
+        bail!(
+            "Hook claim is no longer owned by this delivery; refusing stale mutation: {}",
+            key
+        );
+    };
+    if entry.claim_token.as_deref() != Some(claim_token) {
+        bail!(
+            "Hook claim is no longer owned by this delivery; refusing stale mutation: {}",
+            key
+        );
+    }
+    entry.claimed_at = Some(now());
+    Ok(())
 }
 
 fn release_dedup_claim_from_state(state: &mut DedupState, key: &str, claim_token: &str) {
@@ -1154,6 +1213,26 @@ mod tests {
     }
 
     #[test]
+    fn malformed_or_future_hook_claims_fail_closed() {
+        let mut state = DedupState::default();
+        state.entries.push(DedupEntry {
+            key: "malformed".to_string(),
+            response: None,
+            claimed_at: Some("not-a-timestamp".to_string()),
+            claim_token: Some("owner".to_string()),
+        });
+        state.entries.push(DedupEntry {
+            key: "future".to_string(),
+            response: None,
+            claimed_at: Some((Local::now() + chrono::Duration::minutes(5)).to_rfc3339()),
+            claim_token: Some("owner".to_string()),
+        });
+
+        assert!(dedup_claim_is_live(&state, "malformed"));
+        assert!(dedup_claim_is_live(&state, "future"));
+    }
+
+    #[test]
     fn live_duplicate_stop_claim_fails_closed_while_reconciliation_is_pending() {
         let temp = tempdir().unwrap();
         let repo = temp.path().join("repo");
@@ -1205,6 +1284,58 @@ mod tests {
             r#"{"session_id":"stop-session","request_id":"stop-request","stop_hook_active":false}"#,
         )
         .unwrap();
+        let response: Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["decision"], "block");
+        assert_eq!(response["completed"], false);
+        assert_eq!(response["baron"]["reconciliation_pending"], true);
+    }
+
+    #[test]
+    fn same_process_duplicate_stop_fails_closed_while_reconciliation_is_pending() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        std::fs::create_dir_all(&repo).unwrap();
+        initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let identity = LifecycleIdentity::resolve(
+            &context.project_id,
+            "current repository state",
+            SupportedAdapter::Codex,
+            Some("same-process-stop-session"),
+            Some("same-process-stop-request"),
+        )
+        .unwrap();
+        let event_key = LifecycleEventKey {
+            project_id: context.project_id.clone(),
+            adapter: "codex".to_string(),
+            session_id: Some(identity.session_id().to_string()),
+            request_id: Some(identity.request_id().to_string()),
+            event_kind: "stop".to_string(),
+            task_id: identity.task_id().to_string(),
+            child_id: None,
+            stop_hook_active: false,
+        }
+        .stable_id();
+        let active = ACTIVE_HOOK_KEYS.get_or_init(|| Mutex::new(HashSet::new()));
+        active
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .insert(event_key.clone());
+
+        let response = handle_hook(
+            &repo,
+            &context,
+            HookAdapter::Codex,
+            AutomationEvent::Stop,
+            r#"{"session_id":"same-process-stop-session","request_id":"same-process-stop-request","stop_hook_active":false}"#,
+        )
+        .unwrap();
+
+        active
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .remove(&event_key);
         let response: Value = serde_json::from_str(&response).unwrap();
         assert_eq!(response["decision"], "block");
         assert_eq!(response["completed"], false);

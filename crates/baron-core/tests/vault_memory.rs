@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use baron_core::firewall::{compact_memory_brief, recall};
+use baron_core::identity::{capsule_key, project_id_for_path};
 use baron_core::memory::{build_memory_index, load_memory_records, MemoryKind, MemoryScope};
 use baron_core::vault::{ensure_vault, project_slug};
 use tempfile::tempdir;
@@ -70,6 +71,13 @@ fn legacy_slug_capsule_migrates_without_losing_markdown() {
     let legacy_capsule = vault.join("Projects/legacy-app");
     fs::create_dir_all(&repo).unwrap();
     fs::create_dir_all(&legacy_capsule).unwrap();
+    let project_id = project_id_for_path(&repo).unwrap();
+    write(
+        &legacy_capsule.join(".baron-project.json"),
+        &format!(
+            "{{\n  \"schemaVersion\": 2,\n  \"projectId\": \"{project_id}\",\n  \"projectSlug\": \"legacy-app\",\n  \"identityBinding\": \"\"\n}}\n"
+        ),
+    );
     write(
         &legacy_capsule.join("Facts.md"),
         "# Facts\n\n- Existing legacy memory must survive.\n",
@@ -80,6 +88,40 @@ fn legacy_slug_capsule_migrates_without_losing_markdown() {
     assert_ne!(context.project_root, legacy_capsule);
     assert!(!legacy_capsule.exists());
     assert!(read(&context.project_root.join("Facts.md")).contains("Existing legacy memory"));
+}
+
+#[test]
+fn foreign_legacy_slug_capsule_is_not_migrated_across_project_identities() {
+    let temp = tempdir().unwrap();
+    let vault = temp.path().join("Vault");
+    let owner = temp.path().join("one").join("same-app");
+    let other = temp.path().join("two").join("same-app");
+    let legacy_capsule = vault.join("Projects/same-app");
+    fs::create_dir_all(&owner).unwrap();
+    fs::create_dir_all(&other).unwrap();
+    fs::create_dir_all(&legacy_capsule).unwrap();
+    let owner_id = project_id_for_path(&owner).unwrap();
+    write(
+        &legacy_capsule.join(".baron-project.json"),
+        &format!(
+            "{{\n  \"schemaVersion\": 2,\n  \"projectId\": \"{owner_id}\",\n  \"projectSlug\": \"same-app\",\n  \"identityBinding\": \"\"\n}}\n"
+        ),
+    );
+    write(
+        &legacy_capsule.join("Facts.md"),
+        "# Facts\n\n- Belongs to the owner project.\n",
+    );
+
+    let error = ensure_vault(&vault, &other).unwrap_err().to_string();
+
+    assert!(error.contains("Refusing to migrate legacy capsule"));
+    assert!(error.contains(&owner_id));
+    assert!(legacy_capsule.exists());
+    let other_id = project_id_for_path(&other).unwrap();
+    assert!(!vault
+        .join("Projects")
+        .join(capsule_key("same-app", &other_id))
+        .exists());
 }
 
 #[test]

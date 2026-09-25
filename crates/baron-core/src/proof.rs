@@ -296,7 +296,6 @@ pub fn proof_for_operation(
 ) -> Result<Option<ProofRecord>> {
     expected.validate()?;
     let mut paths = proof_paths(repo_root)?;
-    paths.retain(|path| is_known_artifact_path(path));
     paths.sort_by_key(|path| artifact_sort_key(path));
     for path in paths.into_iter().rev() {
         let proof = parse_proof(&path)?;
@@ -465,7 +464,6 @@ fn latest_markdown(root: &Path) -> Result<Option<PathBuf>> {
     let mut files = Vec::new();
     collect_markdown(root, &mut files)?;
     files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
-    files.retain(|path| is_known_artifact_path(path));
     files.sort_by_key(|path| artifact_sort_key(path));
     Ok(files.pop())
 }
@@ -486,13 +484,6 @@ fn artifact_sort_key(path: &Path) -> (i128, String) {
         })
         .unwrap_or_default();
     (timestamp, path.to_string_lossy().into_owned())
-}
-
-fn is_known_artifact_path(path: &Path) -> bool {
-    path.file_stem()
-        .and_then(|value| value.to_str())
-        .and_then(parse_artifact_timestamp)
-        .is_some()
 }
 
 fn capture_validation_inputs(repo_root: &Path) -> Result<Vec<(PathBuf, Option<Vec<u8>>)>> {

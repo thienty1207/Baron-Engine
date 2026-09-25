@@ -105,7 +105,13 @@ pub fn ensure_vault(
     let projects_root = vault_root.join("Projects");
     ensure_directory_chain(&projects_root)?;
     let project_root = projects_root.join(&identity.capsule_key);
-    migrate_legacy_capsule(&projects_root, &project_slug, &project_root)?;
+    migrate_legacy_capsule(
+        &projects_root,
+        &project_slug,
+        &identity.project_id,
+        &identity.identity_binding,
+        &project_root,
+    )?;
     let baron_artifacts_root = vault_root.join("Artifacts").join("Baron");
     let context = VaultContext {
         vault_root: vault_root.clone(),
@@ -237,11 +243,35 @@ pub(crate) fn canonical_project_id(repo_root: &Path) -> Result<String> {
 fn migrate_legacy_capsule(
     projects_root: &Path,
     project_slug: &str,
+    project_id: &str,
+    identity_binding: &str,
     project_root: &Path,
 ) -> Result<()> {
     let legacy_root = projects_root.join(project_slug);
     if !legacy_root.exists() || project_root.exists() {
         return Ok(());
+    }
+    let metadata = load_capsule_metadata(&legacy_root)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "Refusing to migrate an unbound legacy capsule without project identity metadata: {}",
+            legacy_root.display()
+        )
+    })?;
+    if metadata.project_id != project_id || metadata.project_slug != project_slug {
+        bail!(
+            "Refusing to migrate legacy capsule `{}` because it belongs to project `{}`",
+            legacy_root.display(),
+            metadata.project_id
+        );
+    }
+    if !metadata.identity_binding.is_empty()
+        && !identity_binding.is_empty()
+        && metadata.identity_binding != identity_binding
+    {
+        bail!(
+            "Refusing to migrate legacy capsule `{}` because its identity binding does not match",
+            legacy_root.display()
+        );
     }
     ensure_directory_chain(projects_root)?;
     fs::rename(&legacy_root, project_root).with_context(|| {

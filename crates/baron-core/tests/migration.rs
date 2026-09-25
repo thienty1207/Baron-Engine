@@ -6,8 +6,10 @@ use baron_core::migration::{
     execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
     rollback_migration, MigrationAction, MigrationAssetKind,
 };
+use baron_core::safe_io::acquire_project_lock_with_timeout;
 use baron_core::vault::project_slug;
 use sha2::{Digest, Sha256};
+use std::time::Duration;
 use tempfile::tempdir;
 
 fn write(path: &Path, content: &str) {
@@ -299,6 +301,25 @@ fn failed_install_rolls_back_automatically() {
         .any(|entry| entry.unwrap().path().join("failure.json").exists());
     assert!(failure_exists);
     assert!(migration_status(&repo).unwrap().contains("rolled_back"));
+}
+
+#[test]
+fn migration_releases_project_lock_while_install_callback_runs() {
+    let (_temp, repo, _vault) = legacy_fixture();
+    let contender_repo = repo.clone();
+
+    execute_agent_bootstrap_migration(&repo, None, move |repo, _vault| {
+        let contender = std::thread::spawn(move || {
+            acquire_project_lock_with_timeout(&contender_repo, Duration::from_millis(300)).is_ok()
+        });
+        assert!(
+            contender.join().unwrap(),
+            "migration callback must not run under the project mutation lock"
+        );
+        write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]

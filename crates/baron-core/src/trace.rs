@@ -510,7 +510,6 @@ pub fn trace_for_operation(
 ) -> Result<Option<TraceRecord>> {
     expected.validate()?;
     let mut paths = trace_paths(repo_root)?;
-    paths.retain(|path| is_known_artifact_path(path));
     paths.sort_by_key(|path| artifact_sort_key(path));
     for path in paths.into_iter().rev() {
         let content = fs::read_to_string(&path)?;
@@ -631,7 +630,6 @@ fn trace_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     collect_markdown(&root, &mut files)?;
     files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
-    files.retain(|path| is_known_artifact_path(path));
     Ok(files)
 }
 
@@ -651,13 +649,6 @@ fn artifact_sort_key(path: &Path) -> (i128, String) {
         })
         .unwrap_or_default();
     (timestamp, path.to_string_lossy().into_owned())
-}
-
-fn is_known_artifact_path(path: &Path) -> bool {
-    path.file_stem()
-        .and_then(|value| value.to_str())
-        .and_then(parse_artifact_timestamp)
-        .is_some()
 }
 
 fn parse_artifact_timestamp(stem: &str) -> Option<i128> {

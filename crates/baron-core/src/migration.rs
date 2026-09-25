@@ -298,7 +298,7 @@ pub fn execute_agent_bootstrap_migration<F>(
 where
     F: FnOnce(&Path, &Path) -> Result<()>,
 {
-    let _lock = acquire_project_lock(repo_path.as_ref())?;
+    let mut lock = Some(acquire_project_lock(repo_path.as_ref())?);
     let inventory = inventory_agent_bootstrap(repo_path, vault_override)?;
     let destination_vault = vault_override
         .map(Path::to_path_buf)
@@ -336,7 +336,12 @@ where
         import_repo_data(&inventory.repo_root, &backup_root, &mut import_records)?;
         let quarantined_count = quarantine_invalid_assets(&inventory, &backup_root, &migration_id)?;
 
+        // The host installer is an external, potentially slow callback. Do
+        // not hold the project mutation lock across it; reacquire the lock
+        // before Baron mutates the repository again.
+        drop(lock.take());
         install_baron(&inventory.repo_root, &destination_vault)?;
+        let _lock = acquire_project_lock(&inventory.repo_root)?;
         register_valid_custom_assets(&inventory)?;
         remove_legacy_managed_block(&inventory.repo_root.join("AGENTS.md"))?;
         let removed_count = cleanup_legacy_runtime(&inventory)?;
@@ -377,25 +382,27 @@ where
     match result {
         Ok(receipt) => Ok(receipt),
         Err(error) => {
-            let rollback = restore_from_manifest(&backup_manifest, &backup_root);
-            let failure = serde_json::json!({
-                "migrationId": migration_id,
-                "status": "rolled_back",
-                "error": error.to_string(),
-                "rollbackError": rollback.err().map(|value| value.to_string()),
-                "updatedAt": now()
-            });
-            let _ = write_json(&backup_root.join("failure.json"), &failure);
-            let _ = write_state(
-                &inventory.repo_root,
-                MigrationState {
-                    migration_id,
-                    status: "rolled_back".to_string(),
-                    vault_root: destination_vault,
-                    backup_root,
-                    updated_at: now(),
-                },
-            );
+            if let Ok(_lock) = acquire_project_lock(&inventory.repo_root) {
+                let rollback = restore_from_manifest(&backup_manifest, &backup_root);
+                let failure = serde_json::json!({
+                    "migrationId": migration_id,
+                    "status": "rolled_back",
+                    "error": error.to_string(),
+                    "rollbackError": rollback.as_ref().err().map(|value| value.to_string()),
+                    "updatedAt": now()
+                });
+                let _ = write_json(&backup_root.join("failure.json"), &failure);
+                let _ = write_state(
+                    &inventory.repo_root,
+                    MigrationState {
+                        migration_id,
+                        status: "rolled_back".to_string(),
+                        vault_root: destination_vault,
+                        backup_root,
+                        updated_at: now(),
+                    },
+                );
+            }
             Err(error)
         }
     }
