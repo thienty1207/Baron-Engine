@@ -315,18 +315,7 @@ where
     let backup_root = destination_vault
         .join("Artifacts/Baron/Migrations")
         .join(&migration_id);
-    match fs::symlink_metadata(&backup_root) {
-        Ok(_) => bail!("Migration backup already exists: {}", backup_root.display()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(error).with_context(|| {
-                format!(
-                    "Could not inspect migration backup path: {}",
-                    backup_root.display()
-                )
-            })
-        }
-    }
+    reserve_backup_root(&inventory.repo_root, &backup_root)?;
 
     let mut backup_manifest =
         create_backup_manifest(&inventory, &destination_vault, &backup_root, &migration_id)?;
@@ -640,6 +629,34 @@ fn create_backup_manifest(
         post_handoff_captured: false,
         entries,
     })
+}
+
+fn reserve_backup_root(repo_root: &Path, backup_root: &Path) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let parent = backup_root
+        .parent()
+        .context("Migration backup path has no parent directory")?;
+    ensure_directory_chain(parent)?;
+    match fs::symlink_metadata(backup_root) {
+        Ok(_) => bail!("Migration backup already exists: {}", backup_root.display()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(backup_root).with_context(|| {
+                format!(
+                    "Could not reserve migration backup path: {}",
+                    backup_root.display()
+                )
+            })?;
+        }
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!(
+                    "Could not inspect migration backup path: {}",
+                    backup_root.display()
+                )
+            })
+        }
+    }
+    Ok(())
 }
 
 fn add_repo_import_targets(repo_root: &Path, paths: &mut BTreeSet<String>) -> Result<()> {
