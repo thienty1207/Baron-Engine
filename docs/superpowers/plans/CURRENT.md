@@ -1,6 +1,6 @@
 # Current Baron Build Plan
 
-## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-25)
+## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-26)
 
 - Active spec: Multi-Agent Concurrency and Durable State.
 - Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; this is not a closure
@@ -16,19 +16,24 @@
   runtime JSONL, and cache semantics are implemented and covered by the
   deterministic multiprocess matrix. Provider fingerprints prevent stale
   capability observations from attaching to a re-registered definition.
-- Proof checkpoint: focused concurrency `14/14`, config `16/16`, plan `44/44`,
-  proof/trace `19/19`, capability `9/9`, automation `5/5`, harness `5/5`,
-  harness improvement `5/5`, intent `4/4`, continuity `6/6`, and
-  control-plane `9/9`; retired-adapter gate `8/8`.
+- Proof checkpoint: focused concurrency `15/15`, config `16/16`, plan `44/44`,
+  proof/trace `20/20`, capability `9/9`, automation `5/5`, harness `5/5`,
+  harness improvement `5/5`, intent `4/4`, continuity `6/6`, control-plane
+  `9/9`, migration `10/10`; retired-adapter gate `8/8`.
 - Adversarial checkpoint: the first fresh review identified Important issues
   in lock scope, plan-index history, config preservation, capability cache
   identity, and legacy artifact selection; RED-to-GREEN fixes are in
   `34de705` and `0c12c0c`. Follow-up commits `cfaec117`, `318594c`,
   `674a059`, and `7a6b473` close publication-authority, concurrent plan/config,
-  continuity, hook-claim, and receipt-freshness boundaries. A fresh review
-  package covers `ecaf362..7a6b473`, but both assigned read-only reviewers
-  terminated at the usage limit before returning a verdict; local audit found
-  no currently known owned Critical/Important issue.
+  continuity, hook-claim, and receipt-freshness boundaries. Commit `eeae7d8`
+  restores public config `Eq` compatibility, preserves the public observation
+  shape while fingerprinting capability cache evidence, narrows migration lock
+  scope, and makes post-handoff rollback fail closed on changed paths.
+  `cc6fbfc` reserves migration backup roots under the project lock after a
+  self-audit found an `exists-check → create` race. The fresh review package
+  now covers `ecaf362..cc6fbfc`; both retry reviewers hit the Codex usage limit
+  before a verdict. Local self-audit has no currently known SPEC-05-owned
+  Critical/Important issue, but independent acceptance remains unverified.
 - Scope boundary: context/session/replay/cache writers and diagnostic
   SQLite/index accelerators are out of SPEC-05 scope and mapped to B-28..B-31;
   automation hook claim/journal publication remains a locked SPEC-05 mutation.
@@ -38,10 +43,10 @@
 - Persisted-state boundary: only SPEC-05 source/tests, this active plan, and
   maintained status/build-log evidence are in scope. Project/Vault data,
   unrelated user files, release metadata, and public version remain untouched.
-- Safe next action: finish the final workspace/Clippy/release/document checks,
-  commit documentation, and push the branch. Keep the public version at
-  `5.0.0`; do not release or tag. Retain `READY FOR ADVERSARIAL REVIEW`; do
-  not close SPEC-05.
+- Safe next action: preserve the final verification evidence and obtain an
+  independent adversarial verdict when reviewer quota is available. Keep the
+  public version at `5.0.0`; do not release or tag. Retain `READY FOR
+  ADVERSARIAL REVIEW`; do not close SPEC-05.
 
 ## Baron 5.0.1 Stabilization - SPEC-04 Managed Plan-Path Authority Fix (closed, 2026-09-22)
 

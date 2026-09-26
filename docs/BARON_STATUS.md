@@ -1,6 +1,6 @@
 # Baron Build Status
 
-## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-25)
+## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-26)
 
 - Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; SPEC-04 remains closed at
   closure base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`. This is an
@@ -34,21 +34,29 @@
   SPEC-04 canonical path/frontmatter authority checks remain readable and
   fail closed outside `docs/baron/plans/`.
 - B-25: first initialization and config mutations are serialized before
-  existence/load decisions; project identity and `identity_binding` survive
-  races; unknown TOML values and opaque legacy adapter values are retained
-  without activating unsupported integrations.
+  existence/load decisions; only the `.baron` directory scaffold is created
+  before the lock exists so the lock path can be opened; project identity and
+  `identity_binding` survive races; unknown TOML values and opaque legacy
+  adapter values are retained without activating unsupported integrations.
 - B-26: harness intake, friction, intervention, validation/current state,
   proposals, outcomes, `TEST_MATRIX`, stories, experiments, and review-gate
   publications preserve concurrent appends/upserts under the same lock.
 - B-27: registry mutations are locked; capability probes run without the
   lock; provider observations are fingerprint-bound to the registered
-  definition; runtime evidence is locked append-only JSONL; the capability
-  state file is explicitly a last-completed-writer, replace-only diagnostic
-  cache and never operation authority.
-- Deterministic matrix: concurrency `14/14`; config `16/16`; plan `44/44`;
-  proof/trace `19/19`; capability `9/9`; automation `5/5`; harness `5/5`;
+  definition while preserving the pre-SPEC-05 public observation shape;
+  runtime evidence is locked append-only JSONL; the capability state file is
+  explicitly a last-completed-writer, replace-only diagnostic cache and never
+  operation authority.
+- Migration/update lock boundary: inventory and backup scans run without the
+  project lock; file imports take a bounded lock before the destination
+  read/merge/publication; quarantine takes the lock per asset; the external
+  installer callback runs unlocked. Failed post-handoff rollback is
+  fail-closed and refuses to restore any migration path when the handoff
+  baseline no longer matches.
+- Deterministic matrix: concurrency `15/15`; config `16/16`; plan `44/44`;
+  proof/trace `20/20`; capability `9/9`; automation `5/5`; harness `5/5`;
   harness improvement `5/5`; intent `4/4`; continuity `6/6`;
-  control-plane `9/9`; Phase-1 retired-adapter gate `8/8`.
+  control-plane `9/9`; migration `10/10`; Phase-1 retired-adapter gate `8/8`.
 - Out-of-scope boundary: context/session/replay/cache writers and the
   diagnostic SQLite/index accelerators remain mapped to B-28..B-31; they are
   not promoted to SPEC-05 authority. The SPEC-05 automation hook claim and
@@ -57,21 +65,29 @@
   `docs/superpowers/plans/2026-09-22-spec-05-multi-agent-concurrency-durable-state.md`.
 - Implementation commits: `b4e5f77`, `0d06d3d`, `87125a4`, `077058d`,
   `398e8cd`, `34e1221`, `bf1857e`, `34de705`, `0c12c0c`, `cfaec117`,
-  `318594c`, `674a059`, and `7a6b473`.
-- Fresh review package: `ecaf362..7a6b473` was generated for two independent
-  read-only reviewers. Both reviewer tasks terminated at the Codex usage limit
-  before returning a verdict; this is recorded as an inconclusive external
-  review, not as acceptance. Local static lock/authority audit and final Core
-  all-target verification are complete; no owned Critical/Important issue is
-  currently known.
-- Workspace verification: all targets outside the two known baseline targets
-  passed. `baron-cli --test lifecycle_scripts` has three host-environment
-  failures because `Microsoft.PowerShell.Archive` cannot load
-  `Compress-Archive`; `baron-cli --test prepare_cli` has one existing
-  `session_replay.rs:383` UTF-8 boundary panic. These are not SPEC-05-owned
-  failures.
-- Next action: preserve the exact `READY FOR ADVERSARIAL REVIEW` verdict and
-  push the implementation/evidence branch. Do not mark SPEC-05 closed.
+  `318594c`, `674a059`, `7a6b473`, `eeae7d8`, and `cc6fbfc`.
+- Final review fixes in `eeae7d8` restore the public config `Eq` contracts,
+  keep `ProviderObservation` source-compatible while retaining stale-cache
+  fingerprint checks, remove the migration lock across inventory/backup work,
+  and make post-handoff rollback refuse to clobber changed state. `cc6fbfc`
+  closes the remaining self-audited backup-root `exists-check → create` race
+  by reserving the migration backup directory under the project lock. The
+  fresh read-only adversarial review package now covers the complete
+  `ecaf362..cc6fbfc` range; both retry reviewers hit the Codex usage limit
+  before producing a verdict. Local self-audit found no currently known
+  SPEC-05-owned Critical/Important issue, so the status remains ready rather
+  than claiming independent acceptance or closure.
+- Workspace verification: Core all-targets at `cc6fbfc`, focused migration
+  `10/10`, Clippy with `-D warnings`, formatter, and diff checks passed. The
+  full workspace run retains only the two known baseline targets:
+  `baron-cli --test lifecycle_scripts` has three host-environment failures
+  because `Microsoft.PowerShell.Archive` cannot load `Compress-Archive`;
+  `baron-cli --test prepare_cli` has one existing `session_replay.rs:383`
+  UTF-8 boundary panic. These are not SPEC-05-owned failures.
+- Next action: obtain an independent adversarial verdict when reviewer quota
+  is available, or leave this honest readiness checkpoint for that review.
+  Preserve the exact `READY FOR ADVERSARIAL REVIEW` verdict; do not mark
+  SPEC-05 closed.
 
 ## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 

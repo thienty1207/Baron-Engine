@@ -1,6 +1,6 @@
 # Current Build Note
 
-## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-25)
+## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-26)
 
 - Current task: finish SPEC-05 implementation and independent adversarial
   acceptance on top of the SPEC-04 closure base `ecaf362`. Public version
@@ -11,17 +11,24 @@
   review-gate/experiment, automation publication, and capability registry
   mutations. Unique artifacts use CSPRNG-backed create-new IDs; append-only
   evidence is locked append; caches are documented replace-only diagnostics.
-- Proof status: focused changed suites pass — concurrency `14/14`, config
-  `16/16`, plan `44/44`, proof/trace `19/19`, capability `9/9`, automation
+- Proof status: focused changed suites pass — concurrency `15/15`, config
+  `16/16`, plan `44/44`, proof/trace `20/20`, capability `9/9`, automation
   `5/5`, harness `5/5`, harness improvement `5/5`, intent `4/4`, continuity
-  `6/6`, and control-plane `9/9`. Phase-1 retired-adapter gate passes `8/8`.
+  `6/6`, control-plane `9/9`, and migration `10/10`. Phase-1 retired-adapter
+  gate passes `8/8`.
 - Trace status: the first fresh adversarial review found Important findings;
   RED-to-GREEN fixes are in `34de705` and `0c12c0c`, followed by concurrent
   plan/config, continuity, hook-claim, and receipt-freshness hardening in
-  `cfaec117`, `318594c`, `674a059`, and `7a6b473`. The fresh review package
-  covers `ecaf362..7a6b473`, but both assigned read-only reviewers terminated
-  at the usage limit before a verdict. Local lock/authority audit found no
-  currently known owned Critical/Important issue.
+  `cfaec117`, `318594c`, `674a059`, and `7a6b473`. Final review-fix commit
+  `eeae7d8` restores public config `Eq` compatibility, preserves the public
+  capability observation shape while retaining fingerprint-bound cache
+  matching, narrows migration lock scope, and makes post-handoff rollback fail
+  closed. Follow-up `cc6fbfc` reserves migration backup roots under the project
+  lock after a self-audit found an `exists-check → create` race. The fresh
+  review package covers `ecaf362..cc6fbfc`; both retry reviewers hit the Codex
+  usage limit before a verdict. Local self-audit has no currently known
+  SPEC-05-owned Critical/Important issue, but independent acceptance remains
+  unverified.
 - Scope status: context/session/replay/cache writers and diagnostic
   SQLite/index accelerators remain out of SPEC-05 scope (B-28..B-31); hook
   dedup claims and final journal publication are locked SPEC-05 state.
@@ -32,9 +39,9 @@
 - Persisted-state boundary: no project/Vault data or unrelated worktree files
   were changed. The active plan, source/tests, and maintained status/build-log
   documents are the only intended repository artifacts.
-- Safe next action: run final workspace, Clippy, locked release, JSON/link/diff
-  checks; commit docs and push `codex/spec-05-multi-agent-concurrency-durable-state`.
-  Leave SPEC-05 at `READY FOR ADVERSARIAL REVIEW`, not closed.
+- Safe next action: retain the final workspace/Clippy/release/JSON/diff
+  evidence and obtain an independent adversarial verdict when reviewer quota
+  is available. Leave SPEC-05 at `READY FOR ADVERSARIAL REVIEW`, not closed.
 
 ## SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 
