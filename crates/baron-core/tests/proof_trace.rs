@@ -995,6 +995,8 @@ fn operation_trace_fresh_evaluation_rejects_rewritten_header_with_stale_score() 
     )
     .unwrap();
     let second_operation = OperationContext::from_identity(&second);
+    start_or_resume_plan_for_operation(&repo, &context, "unrelated README task", &second_operation)
+        .unwrap();
     let second_proof = record_proof_for_operation(
         &repo,
         &context,

@@ -98,6 +98,20 @@ impl PlanOperationBinding {
     }
 }
 
+fn binding_for_identity(
+    vault: &VaultContext,
+    identity: &LifecycleIdentity,
+) -> Result<PlanOperationBinding> {
+    if identity.project_id() != vault.project_id {
+        bail!(
+            "plan lifecycle identity project `{}` does not match Vault project `{}`",
+            identity.project_id(),
+            vault.project_id
+        );
+    }
+    Ok(PlanOperationBinding::from_identity(identity))
+}
+
 /// Durable per-operation lookup for identified active plans.
 ///
 /// `CURRENT.md` remains a human-facing projection of the most recently
@@ -157,8 +171,63 @@ pub struct ActivePlanAuthority {
     pub binding: Option<PlanOperationBinding>,
 }
 
+/// Resolve correctness-sensitive plan authority from one exact lifecycle
+/// binding. `CURRENT.md` is never used to select the plan; an existing
+/// projection is only validated so a malformed presentation cannot hide an
+/// authority failure.
+pub fn active_plan_authority_for_binding(
+    repo_root: impl AsRef<Path>,
+    binding: &PlanOperationBinding,
+) -> Result<Option<ActivePlanAuthority>> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    active_plan_authority_for_binding_locked(repo_root, binding)
+}
+
+/// Resolve the plan authority carried by an operation-bound trace. The trace
+/// module uses the locked variant for its publication revalidation.
+pub fn active_plan_authority_for_trace_binding(
+    repo_root: impl AsRef<Path>,
+    binding: &TraceOperationBinding,
+) -> Result<Option<ActivePlanAuthority>> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    active_plan_authority_for_trace_binding_locked(repo_root, binding)
+}
+
+pub(crate) fn active_plan_authority_for_trace_binding_locked(
+    repo_root: &Path,
+    binding: &TraceOperationBinding,
+) -> Result<Option<ActivePlanAuthority>> {
+    let plan_binding = PlanOperationBinding {
+        task_id: binding.task_id.clone(),
+        operation_id: binding.operation_id.clone(),
+        adapter: binding.adapter.clone(),
+        session_id: binding.session_id.clone(),
+        request_id: binding.request_id.clone(),
+    };
+    active_plan_authority_for_binding_locked(repo_root, &plan_binding)
+}
+
+fn active_plan_authority_for_binding_locked(
+    repo_root: &Path,
+    binding: &PlanOperationBinding,
+) -> Result<Option<ActivePlanAuthority>> {
+    let Some(active) = active_plan_for_binding(repo_root, binding)? else {
+        return Ok(None);
+    };
+    active.ensure_authority()?;
+    Ok(Some(ActivePlanAuthority {
+        title: active.title,
+        risk: active.risk,
+        binding: active.binding,
+    }))
+}
+
 pub fn active_plan_authority(repo_root: impl AsRef<Path>) -> Result<Option<ActivePlanAuthority>> {
-    let Some(active) = active_plan(repo_root.as_ref())? else {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let Some(active) = active_plan(repo_root)? else {
         return Ok(None);
     };
     active.ensure_authority()?;
@@ -186,25 +255,54 @@ pub fn active_plan_completion_evidence_status(
     repo_root: impl AsRef<Path>,
 ) -> Result<Option<CompletionEvidenceStatus>> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let current_path = repo_root.join("docs/baron/plans/CURRENT.md");
     let Some(_) = read_text(&current_path)? else {
         return Ok(None);
     };
-    let Some(active) = active_plan(repo_root)? else {
-        return Ok(Some(CompletionEvidenceStatus {
+    match resolve_legacy_active_plan(repo_root) {
+        Ok(Some(active)) => Ok(Some(completion_evidence_status(repo_root, &active)?)),
+        Ok(None) if active_plan(repo_root)?.is_none() => Ok(Some(CompletionEvidenceStatus {
             passed: false,
             issues: vec!["active plan is missing".to_string()],
-        }));
-    };
-    if !active.authority_issues.is_empty() {
-        return Ok(Some(CompletionEvidenceStatus {
+        })),
+        Ok(None) => Ok(None),
+        Err(error) => Ok(Some(CompletionEvidenceStatus {
             passed: false,
-            issues: active.authority_issues.clone(),
-        }));
+            issues: vec![error.to_string()],
+        })),
     }
-    if !is_active_plan_status(&active.status) {
-        return Ok(None);
-    }
+}
+
+/// Evaluate completion evidence for one exact lifecycle identity. A missing
+/// operation plan is a failed authority lookup, never a reason to inspect the
+/// latest CURRENT projection.
+pub fn active_plan_completion_evidence_status_for_identity(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    identity: &LifecycleIdentity,
+) -> Result<Option<CompletionEvidenceStatus>> {
+    let binding = binding_for_identity(vault, identity)?;
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let active = match active_plan_for_binding(repo_root, &binding) {
+        Ok(Some(active)) => active,
+        Ok(None) => {
+            return Ok(Some(CompletionEvidenceStatus {
+                passed: false,
+                issues: vec![format!(
+                    "active plan for operation `{}` is missing",
+                    binding.operation_id
+                )],
+            }));
+        }
+        Err(error) => {
+            return Ok(Some(CompletionEvidenceStatus {
+                passed: false,
+                issues: vec![error.to_string()],
+            }));
+        }
+    };
     Ok(Some(completion_evidence_status(repo_root, &active)?))
 }
 
@@ -252,6 +350,36 @@ pub fn start_or_resume_plan_for_identity(
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let binding = PlanOperationBinding::from_identity(identity);
     start_or_resume_plan_internal(repo_root.as_ref(), vault, title, Some(&binding))
+}
+
+pub fn update_plan_for_identity(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    note: &str,
+    identity: &LifecycleIdentity,
+) -> Result<()> {
+    let binding = binding_for_identity(vault, identity)?;
+    update_plan_for_binding(repo_root.as_ref(), vault, note, &binding)
+}
+
+pub fn interrupt_plan_for_identity(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    state: &str,
+    identity: &LifecycleIdentity,
+) -> Result<()> {
+    let binding = binding_for_identity(vault, identity)?;
+    interrupt_plan_for_binding(repo_root.as_ref(), vault, state, &binding)
+}
+
+pub fn complete_plan_for_identity(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    verification_summary: &str,
+    identity: &LifecycleIdentity,
+) -> Result<()> {
+    let binding = binding_for_identity(vault, identity)?;
+    complete_plan_for_binding(repo_root.as_ref(), vault, verification_summary, &binding)
 }
 
 fn start_or_resume_plan_internal(
@@ -394,9 +522,32 @@ fn start_or_resume_plan_internal(
 pub fn update_plan(repo_root: impl AsRef<Path>, vault: &VaultContext, note: &str) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
-    let active = require_active_plan(repo_root)?;
+    let active = require_legacy_active_plan(repo_root)?;
+    update_plan_state(repo_root, vault, note, &active)
+}
+
+fn update_plan_for_binding(
+    repo_root: &Path,
+    vault: &VaultContext,
+    note: &str,
+    binding: &PlanOperationBinding,
+) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let active = require_active_plan_for_binding(repo_root, binding)?;
+    update_plan_state(repo_root, vault, note, &active)
+}
+
+fn update_plan_state(
+    repo_root: &Path,
+    vault: &VaultContext,
+    note: &str,
+    active: &ActivePlan,
+) -> Result<()> {
     append_progress(&active.path, note.trim())?;
     mirror_plan(repo_root, vault, &active.path)?;
+    if let Some(binding) = active.binding.as_ref() {
+        upsert_active_plan_index(repo_root, vault, binding, &active.path, &active.status)?;
+    }
     write_current(
         repo_root,
         vault,
@@ -420,7 +571,27 @@ pub fn interrupt_plan(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
-    let active = require_active_plan(repo_root)?;
+    let active = require_legacy_active_plan(repo_root)?;
+    interrupt_plan_state(repo_root, vault, state, &active)
+}
+
+fn interrupt_plan_for_binding(
+    repo_root: &Path,
+    vault: &VaultContext,
+    state: &str,
+    binding: &PlanOperationBinding,
+) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let active = require_active_plan_for_binding(repo_root, binding)?;
+    interrupt_plan_state(repo_root, vault, state, &active)
+}
+
+fn interrupt_plan_state(
+    repo_root: &Path,
+    vault: &VaultContext,
+    state: &str,
+    active: &ActivePlan,
+) -> Result<()> {
     set_plan_state(&active.path, "interrupted", None)?;
     append_progress(&active.path, &format!("Interrupted: {}", state.trim()))?;
     mirror_plan(repo_root, vault, &active.path)?;
@@ -458,8 +629,28 @@ pub fn complete_plan(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
-    let active = require_active_plan(repo_root)?;
-    if let Some(issue) = completion_evidence_status(repo_root, &active)?
+    let active = require_legacy_active_plan(repo_root)?;
+    complete_plan_state(repo_root, vault, verification_summary, &active)
+}
+
+fn complete_plan_for_binding(
+    repo_root: &Path,
+    vault: &VaultContext,
+    verification_summary: &str,
+    binding: &PlanOperationBinding,
+) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let active = require_active_plan_for_binding(repo_root, binding)?;
+    complete_plan_state(repo_root, vault, verification_summary, &active)
+}
+
+fn complete_plan_state(
+    repo_root: &Path,
+    vault: &VaultContext,
+    verification_summary: &str,
+    active: &ActivePlan,
+) -> Result<()> {
+    if let Some(issue) = completion_evidence_status(repo_root, active)?
         .issues
         .into_iter()
         .next()
@@ -734,7 +925,7 @@ fn active_plan_vault_index_path(vault: &VaultContext) -> PathBuf {
         .join(ACTIVE_PLAN_INDEX_FILE)
 }
 
-fn load_active_plan_index(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
+fn read_active_plan_index_entries(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
     let Some(content) = read_text(active_plan_index_path(repo_root))? else {
         return Ok(Vec::new());
     };
@@ -758,7 +949,62 @@ fn load_active_plan_index(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>>
         }
         entries.push(entry);
     }
+    for (index, entry) in entries.iter().enumerate() {
+        let binding = entry.binding()?;
+        for previous in entries.iter().take(index) {
+            if previous.binding()? == binding {
+                bail!(
+                    "Baron active plan index contains duplicate operation `{}`",
+                    binding.operation_id
+                );
+            }
+            if previous.plan_path == entry.plan_path {
+                bail!(
+                    "Baron active plan index claims one path for conflicting entries: {}",
+                    entry.plan_path
+                );
+            }
+        }
+    }
     Ok(entries)
+}
+
+fn load_active_plan_index(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
+    let entries = read_active_plan_index_entries(repo_root)?;
+    for entry in &entries {
+        validate_active_plan_index_entry(repo_root, entry)?;
+    }
+    Ok(entries)
+}
+
+fn validate_active_plan_index_entry(repo_root: &Path, entry: &ActivePlanIndexEntry) -> Result<()> {
+    let binding = entry.binding()?;
+    let path = resolve_managed_plan_path(repo_root, &entry.plan_path)?;
+    let metadata = load_plan_file_metadata(&path).with_context(|| {
+        format!(
+            "Baron active plan index points to malformed plan: {}",
+            entry.plan_path
+        )
+    })?;
+    if metadata.status != entry.status {
+        bail!(
+            "Baron active plan index status does not match {}",
+            entry.plan_path
+        );
+    }
+    if metadata.operation_binding()?.as_ref() != Some(&binding) {
+        bail!(
+            "Baron active plan index authority identity does not match {}",
+            entry.plan_path
+        );
+    }
+    if validate_linked_plan_authority(repo_root, &metadata)?.as_ref() != Some(&binding) {
+        bail!(
+            "Baron active plan index canonical authority does not match {}",
+            entry.plan_path
+        );
+    }
+    Ok(())
 }
 
 fn write_active_plan_index(
@@ -790,14 +1036,18 @@ fn upsert_active_plan_index(
     plan_path: &Path,
     status: &str,
 ) -> Result<()> {
-    let mut entries = load_active_plan_index(repo_root)?
-        .into_iter()
-        .filter_map(|entry| match entry.binding() {
-            Ok(existing) if existing == *binding => None,
-            Ok(_) => Some(Ok(entry)),
-            Err(error) => Some(Err(error)),
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let mut entries = Vec::new();
+    for entry in read_active_plan_index_entries(repo_root)? {
+        let existing = entry.binding()?;
+        if existing == *binding {
+            // The caller has already validated this exact plan before changing
+            // its status. Its row is intentionally replaced after publication,
+            // so a stale status in this one entry is not treated as corruption.
+            continue;
+        }
+        validate_active_plan_index_entry(repo_root, &entry)?;
+        entries.push(entry);
+    }
     entries.push(ActivePlanIndexEntry::from_plan(
         binding, repo_root, plan_path, status,
     ));
@@ -808,6 +1058,7 @@ fn active_plan_for_binding(
     repo_root: &Path,
     binding: &PlanOperationBinding,
 ) -> Result<Option<ActivePlan>> {
+    ensure_current_projection_if_present(repo_root)?;
     let mut matches = Vec::new();
     for entry in load_active_plan_index(repo_root)? {
         if !is_active_plan_status(&entry.status) || entry.binding()? != *binding {
@@ -837,6 +1088,16 @@ fn active_plan_for_binding(
     // readable. Discover one by validated Baron frontmatter, then the caller
     // registers the exact path under the same project lock before publishing.
     find_identified_active_plan(repo_root, binding)
+}
+
+fn ensure_current_projection_if_present(repo_root: &Path) -> Result<()> {
+    let current_path = repo_root.join("docs/baron/plans/CURRENT.md");
+    if !current_path.exists() {
+        return Ok(());
+    }
+    let current = active_plan(repo_root)?
+        .context("CURRENT.md is present but does not contain a valid managed plan projection")?;
+    current.ensure_authority()
 }
 
 fn load_identified_active_plan(
@@ -1062,11 +1323,85 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
     }))
 }
 
-fn require_active_plan(repo_root: &Path) -> Result<ActivePlan> {
-    let active = active_plan(repo_root)?
-        .context("No active Baron plan. Run `baron plan start \"<title>\"`.")?;
+fn require_active_plan_for_binding(
+    repo_root: &Path,
+    binding: &PlanOperationBinding,
+) -> Result<ActivePlan> {
+    let active = active_plan_for_binding(repo_root, binding)?.with_context(|| {
+        format!(
+            "No active Baron plan for operation `{}`.",
+            binding.operation_id
+        )
+    })?;
     active.ensure_authority()?;
     Ok(active)
+}
+
+fn require_legacy_active_plan(repo_root: &Path) -> Result<ActivePlan> {
+    resolve_legacy_active_plan(repo_root)?
+        .context("No active Baron plan. Run `baron plan start \"<title>\"`.")
+}
+
+fn resolve_legacy_active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
+    let Some(current) = active_plan(repo_root)? else {
+        return Ok(None);
+    };
+    current.ensure_authority()?;
+    if !is_active_plan_status(&current.status) {
+        return Ok(None);
+    }
+
+    let identified = discover_identified_active_plans(repo_root)?;
+    if identified.len() > 1 {
+        bail!(
+            "legacy plan mutation is ambiguous: {} identified active operations exist; provide an exact operation identity",
+            identified.len()
+        );
+    }
+    if let Some(candidate) = identified.into_iter().next() {
+        if candidate.path != current.path || candidate.binding != current.binding {
+            bail!(
+                "legacy plan mutation is ambiguous: CURRENT.md is not the sole identified active operation"
+            );
+        }
+        return Ok(Some(candidate));
+    }
+    Ok(Some(current))
+}
+
+fn discover_identified_active_plans(repo_root: &Path) -> Result<Vec<ActivePlan>> {
+    // Validate every managed ACTIVE entry before scanning legacy pre-ACTIVE
+    // plans. This prevents an unrelated malformed entry from being silently
+    // ignored by a legacy mutation.
+    let _ = load_active_plan_index(repo_root)?;
+    let mut paths = Vec::new();
+    collect_managed_plan_files(&repo_root.join(MANAGED_PLAN_ROOT), &mut paths)?;
+    let mut matches = Vec::new();
+    for path in paths {
+        let content = read_text_required(&path)?;
+        if !claims_baron_plan(&content) {
+            continue;
+        }
+        let metadata = load_plan_file_metadata(&path)
+            .with_context(|| format!("managed Baron plan is malformed: {}", path.display()))?;
+        if !is_active_plan_status(&metadata.status) {
+            continue;
+        }
+        let Some(binding) = metadata.operation_binding()? else {
+            continue;
+        };
+        let active = load_identified_active_plan(repo_root, &path, &binding)?;
+        if matches.iter().any(|existing: &ActivePlan| {
+            existing.path == active.path || existing.binding == active.binding
+        }) {
+            bail!(
+                "multiple active Baron plans claim one operation or path: {}",
+                path.display()
+            );
+        }
+        matches.push(active);
+    }
+    Ok(matches)
 }
 
 fn current_backtick_field(content: &str, prefix: &str) -> Option<String> {

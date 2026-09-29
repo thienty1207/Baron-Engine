@@ -16,7 +16,9 @@ use crate::continuity::{
     record_continuity_checkpoint_for_operation,
 };
 use crate::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
-use crate::plan::active_plan_completion_evidence_status;
+use crate::plan::{
+    active_plan_completion_evidence_status, active_plan_completion_evidence_status_for_identity,
+};
 use crate::prepare::{prepare, PreparePacketV1, PrepareRequestV1, PREPARE_MAX_INPUT_BYTES};
 use crate::safe_io::{
     acquire_project_lock, append_text, artifact_instance_id, read_bytes, read_text, replace_text,
@@ -534,7 +536,10 @@ pub fn handle_hook(
                         repo_root, vault, note, operation, &event_key,
                     )?;
                     renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
-                    let report = reconcile(repo_root)?;
+                    let lifecycle_identity = identity
+                        .as_ref()
+                        .context("identified Stop hooks require a complete lifecycle identity")?;
+                    let report = reconcile_for_operation(repo_root, vault, lifecycle_identity)?;
                     let metadata = hook_metadata(
                         vault,
                         adapter,
@@ -710,6 +715,29 @@ pub fn reconcile(repo_root: impl AsRef<Path>) -> Result<ReconciliationReport> {
             passed: true,
             active_plan: false,
             gaps: Vec::new(),
+        });
+    };
+    Ok(ReconciliationReport {
+        passed: status.passed,
+        active_plan: true,
+        gaps: status.issues,
+    })
+}
+
+/// Reconcile exactly the operation that delivered an identified Stop event.
+/// This path never falls back to the latest CURRENT projection.
+pub fn reconcile_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    identity: &LifecycleIdentity,
+) -> Result<ReconciliationReport> {
+    let Some(status) =
+        active_plan_completion_evidence_status_for_identity(repo_root, vault, identity)?
+    else {
+        return Ok(ReconciliationReport {
+            passed: false,
+            active_plan: true,
+            gaps: vec!["active plan for the Stop operation is missing".to_string()],
         });
     };
     Ok(ReconciliationReport {

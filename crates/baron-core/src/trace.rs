@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::control_plane::gate_evidence_status_strict_for_operation;
 use crate::harness::{current_harness_risk, current_harness_title};
 use crate::operation::OperationContext;
-use crate::plan::{active_plan_authority, ActivePlanAuthority};
+use crate::plan::{active_plan_authority_for_trace_binding_locked, ActivePlanAuthority};
 use crate::proof::{
     latest_proof, proof_by_id, proof_has_current_receipt, proof_operation_binding,
     proof_satisfies_risk, ProofRecord,
@@ -144,6 +144,7 @@ pub fn record_trace_for_operation(
 ) -> Result<TraceRecord> {
     binding.validate()?;
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
     let proof = proof_by_id(repo_root, &binding.proof_id)?
         .context("operation-bound trace proof is missing")?;
     let proof_binding = proof_operation_binding(&proof)
@@ -157,20 +158,16 @@ pub fn record_trace_for_operation(
     {
         bail!("operation-bound trace proof binding does not match the trace operation");
     }
-    let plan_authority = active_plan_authority(repo_root)?;
-    if plan_authority.is_none() && repo_root.join("docs/baron/plans/CURRENT.md").exists() {
-        bail!("operation-bound trace requires a validated active plan");
-    }
-    let risk = plan_authority
-        .as_ref()
-        .map(|authority| authority.risk)
-        .unwrap_or_else(|| current_plan_risk(repo_root));
+    let plan_authority = active_plan_authority_for_trace_binding_locked(repo_root, binding)?
+        .context("operation-bound trace requires a validated active plan for this operation")?;
+    let risk = plan_authority.risk;
     if risk != RiskLane::Low && !proof_has_current_receipt(repo_root, &proof)? {
         bail!("operation-bound trace requires a current trusted receipt for medium/high risk");
     }
     if !proof_satisfies_risk(&proof.summary, risk) {
         bail!("operation-bound trace proof does not satisfy plan risk requirements");
     }
+    drop(_lock);
     record_trace_internal(
         repo_root,
         vault,
@@ -178,7 +175,7 @@ pub fn record_trace_for_operation(
         outcome,
         Some(binding),
         Some(&proof),
-        plan_authority.as_ref(),
+        Some(&plan_authority),
     )
 }
 
@@ -203,7 +200,7 @@ fn record_trace_internal(
                 "operation-bound trace proof changed during validation; refusing stale trace publication"
             );
         }
-        let current_plan = active_plan_authority(repo_root)?;
+        let current_plan = active_plan_authority_for_trace_binding_locked(repo_root, binding)?;
         if current_plan.as_ref() != plan_authority {
             bail!(
                 "operation-bound trace plan authority changed during validation; refusing stale trace publication"
@@ -222,8 +219,8 @@ fn record_trace_internal(
     let id = artifact_instance_id(&date)?;
     let risk = if binding.is_some() {
         plan_authority
-            .map(|authority| authority.risk)
-            .unwrap_or_else(|| current_plan_risk(repo_root))
+            .context("operation-bound trace plan authority is missing")?
+            .risk
     } else if repo_root.join("docs/baron/harness/CURRENT.md").exists() {
         current_harness_risk(repo_root)
     } else {
@@ -231,9 +228,12 @@ fn record_trace_internal(
     };
     let story = current_harness_title(repo_root);
     let plan = if binding.is_some() {
-        plan_authority
-            .map(|authority| authority.title.clone())
-            .or_else(|| current_plan_title(repo_root))
+        Some(
+            plan_authority
+                .context("operation-bound trace plan authority is missing")?
+                .title
+                .clone(),
+        )
     } else {
         current_plan_title(repo_root)
     };

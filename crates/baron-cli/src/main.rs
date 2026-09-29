@@ -98,8 +98,9 @@ use baron_core::operation::{
     AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
 };
 use baron_core::plan::{
-    active_plan_operation_binding, complete_plan, interrupt_plan, plan_status,
-    start_or_resume_plan_for_identity, update_plan,
+    active_plan_operation_binding, complete_plan, complete_plan_for_identity, interrupt_plan,
+    interrupt_plan_for_identity, plan_status, start_or_resume_plan_for_identity, update_plan,
+    update_plan_for_identity,
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
 use baron_core::prepare::{
@@ -563,14 +564,38 @@ enum PlanCommands {
     },
     Update {
         note: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
     Interrupt {
         state: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
     Complete {
         verification: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
 }
@@ -2674,22 +2699,58 @@ fn run() -> Result<()> {
                 );
                 println!("- Plan: `{}`", plan.repo_path.display());
             }
-            PlanCommands::Update { note, repo_path } => {
+            PlanCommands::Update {
+                note,
+                task,
+                adapter,
+                session_id,
+                request_id,
+                repo_path,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                update_plan(&repo_root, &vault, &note)?;
+                if let Some(identity) = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )? {
+                    update_plan_for_identity(&repo_root, &vault, &note, &identity)?;
+                } else {
+                    update_plan(&repo_root, &vault, &note)?;
+                }
                 println!("# Baron Plan Update\n\n- Progress recorded.");
             }
-            PlanCommands::Interrupt { state, repo_path } => {
+            PlanCommands::Interrupt {
+                state,
+                task,
+                adapter,
+                session_id,
+                request_id,
+                repo_path,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                interrupt_plan(&repo_root, &vault, &state)?;
+                if let Some(identity) = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )? {
+                    interrupt_plan_for_identity(&repo_root, &vault, &state, &identity)?;
+                } else {
+                    interrupt_plan(&repo_root, &vault, &state)?;
+                }
                 println!("# Baron Plan Interrupt\n\n- Last known state recorded.");
             }
             PlanCommands::Complete {
                 verification,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 repo_path,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                complete_plan(&repo_root, &vault, &verification)?;
+                if let Some(identity) = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )? {
+                    complete_plan_for_identity(&repo_root, &vault, &verification, &identity)?;
+                } else {
+                    complete_plan(&repo_root, &vault, &verification)?;
+                }
                 println!("# Baron Plan Complete\n\n- Completion gate passed.");
             }
         },
@@ -4565,6 +4626,51 @@ fn execution_context(
     let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
     let vault = require_coherent_execution_state(&repo_root, vault_path)?;
     Ok((repo_root, vault))
+}
+
+fn resolve_plan_identity_selector(
+    repo_root: &Path,
+    task: Option<String>,
+    adapter: Option<AdapterArg>,
+    session_id: Option<String>,
+    request_id: Option<String>,
+) -> Result<Option<LifecycleIdentity>> {
+    let supplied = [
+        task.is_some(),
+        adapter.is_some(),
+        session_id.is_some(),
+        request_id.is_some(),
+    ];
+    let count = supplied.iter().filter(|field| **field).count();
+    if count == 0 {
+        return Ok(None);
+    }
+    if count != supplied.len() {
+        bail!(
+            "operation-scoped plan mutation requires --task, --adapter, --session-id, and --request-id together"
+        );
+    }
+    let task = task.expect("validated complete plan task");
+    let adapter = adapter.expect("validated complete plan adapter");
+    let session_id = session_id.expect("validated complete plan session ID");
+    let request_id = request_id.expect("validated complete plan request ID");
+    if task.trim().is_empty() || session_id.trim().is_empty() || request_id.trim().is_empty() {
+        bail!("operation-scoped plan identity values must not be empty");
+    }
+    let supported_adapter = match adapter {
+        AdapterArg::Codex => SupportedAdapter::Codex,
+        AdapterArg::Claude => SupportedAdapter::Claude,
+    };
+    let config = load_project_config(repo_root)?;
+    LifecycleIdentity::resolve(
+        &config.project_id,
+        &task,
+        supported_adapter,
+        Some(&session_id),
+        Some(&request_id),
+    )
+    .map(Some)
+    .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
 
 #[derive(Debug, serde::Serialize)]

@@ -5,7 +5,9 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-use baron_core::automation::{handle_hook, reconcile, AutomationEvent, HookAdapter};
+use baron_core::automation::{
+    handle_hook, reconcile, reconcile_for_operation, AutomationEvent, HookAdapter,
+};
 use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
 use baron_core::execution_receipt::{
     execute_command_for_identity, ExecutionRequest, ReceiptContext,
@@ -17,8 +19,10 @@ use baron_core::operation::{
     SupportedAdapter,
 };
 use baron_core::plan::{
-    active_plan_authority, complete_plan, interrupt_plan, plan_status, start_or_resume_plan,
+    active_plan_authority, complete_plan, complete_plan_for_identity, interrupt_plan,
+    interrupt_plan_for_identity, plan_status, start_or_resume_plan,
     start_or_resume_plan_for_identity, start_or_resume_plan_for_operation, update_plan,
+    update_plan_for_identity,
 };
 use baron_core::proof::{
     record_proof, record_proof_for_operation, record_proof_from_receipt_bound,
@@ -244,6 +248,301 @@ fn distinct_active_operations_resume_their_exact_plan_paths_after_current_change
             .to_string_lossy()
             .replace('\\', "/")
     ));
+}
+
+#[test]
+fn identified_update_must_not_follow_the_current_projection_red() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first_title = "fix README alpha typo";
+    let second_title = "fix README beta typo";
+    let first_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        first_title,
+        SupportedAdapter::Codex,
+        Some("session-alpha"),
+        Some("request-alpha"),
+    )
+    .unwrap();
+    let second_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        second_title,
+        SupportedAdapter::Claude,
+        Some("session-beta"),
+        Some("request-beta"),
+    )
+    .unwrap();
+    let first =
+        start_or_resume_plan_for_identity(&repo, &context, first_title, &first_identity).unwrap();
+    let second =
+        start_or_resume_plan_for_identity(&repo, &context, second_title, &second_identity).unwrap();
+    let first_before = fs::read(&first.repo_path).unwrap();
+    let second_before = fs::read(&second.repo_path).unwrap();
+
+    update_plan_for_identity(&repo, &context, "alpha-only progress", &first_identity).unwrap();
+
+    let first_after = fs::read(&first.repo_path).unwrap();
+    let second_after = fs::read(&second.repo_path).unwrap();
+    assert_ne!(first_before, first_after, "A must receive its own update");
+    assert_eq!(second_before, second_after, "B must remain byte-identical");
+}
+
+#[test]
+fn legacy_mutation_must_fail_closed_when_identified_operations_are_ambiguous_red() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    for (title, adapter, session, request) in [
+        (
+            "fix README alpha typo",
+            SupportedAdapter::Codex,
+            "session-alpha",
+            "request-alpha",
+        ),
+        (
+            "fix README beta typo",
+            SupportedAdapter::Claude,
+            "session-beta",
+            "request-beta",
+        ),
+    ] {
+        let identity = LifecycleIdentity::resolve(
+            &context.project_id,
+            title,
+            adapter,
+            Some(session),
+            Some(request),
+        )
+        .unwrap();
+        start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+    }
+
+    let error = update_plan(&repo, &context, "ambiguous legacy update").unwrap_err();
+    assert!(error.to_string().contains("ambiguous"));
+}
+
+#[test]
+fn operation_scoped_plan_mutations_keep_a_and_b_isolated_end_to_end() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first_title = "fix README alpha typo";
+    let second_title = "fix README beta typo";
+    let first_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        first_title,
+        SupportedAdapter::Codex,
+        Some("session-alpha"),
+        Some("request-alpha"),
+    )
+    .unwrap();
+    let second_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        second_title,
+        SupportedAdapter::Claude,
+        Some("session-beta"),
+        Some("request-beta"),
+    )
+    .unwrap();
+    let first =
+        start_or_resume_plan_for_identity(&repo, &context, first_title, &first_identity).unwrap();
+    let second =
+        start_or_resume_plan_for_identity(&repo, &context, second_title, &second_identity).unwrap();
+    let resumed_first =
+        start_or_resume_plan_for_identity(&repo, &context, first_title, &first_identity).unwrap();
+    let resumed_second =
+        start_or_resume_plan_for_identity(&repo, &context, second_title, &second_identity).unwrap();
+    assert_eq!(first.repo_path, resumed_first.repo_path);
+    assert_eq!(second.repo_path, resumed_second.repo_path);
+
+    let second_before = fs::read(&second.repo_path).unwrap();
+    update_plan_for_identity(&repo, &context, "alpha-only progress", &first_identity).unwrap();
+    assert!(fs::read_to_string(&first.repo_path)
+        .unwrap()
+        .contains("alpha-only progress"));
+    assert_eq!(fs::read(&second.repo_path).unwrap(), second_before);
+    assert_eq!(
+        fs::read_to_string(&first.repo_path).unwrap(),
+        fs::read_to_string(&first.vault_path).unwrap()
+    );
+    assert_eq!(
+        fs::read_to_string(&second.repo_path).unwrap(),
+        fs::read_to_string(&second.vault_path).unwrap()
+    );
+
+    interrupt_plan_for_identity(
+        &repo,
+        &context,
+        "alpha paused for another session",
+        &first_identity,
+    )
+    .unwrap();
+    assert!(fs::read_to_string(&first.repo_path)
+        .unwrap()
+        .contains("status: interrupted"));
+    assert!(fs::read_to_string(&second.repo_path)
+        .unwrap()
+        .contains("status: in_progress"));
+
+    update_plan_for_identity(&repo, &context, "beta-only progress", &second_identity).unwrap();
+    assert!(fs::read_to_string(&second.repo_path)
+        .unwrap()
+        .contains("beta-only progress"));
+    assert!(fs::read_to_string(&first.repo_path)
+        .unwrap()
+        .contains("status: interrupted"));
+
+    let second_operation = OperationContext::from_identity(&second_identity);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &second_operation,
+        "Beta README verification passed",
+    )
+    .unwrap();
+    let trace_binding =
+        TraceOperationBinding::from_operation(&second_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Beta README task completed",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+    complete_plan_for_identity(
+        &repo,
+        &context,
+        "Beta README verification passed",
+        &second_identity,
+    )
+    .unwrap();
+
+    let first_after = fs::read_to_string(&first.repo_path).unwrap();
+    let second_after = fs::read_to_string(&second.repo_path).unwrap();
+    assert!(first_after.contains("status: interrupted"));
+    assert!(second_after.contains("status: completed"));
+    assert!(second_after.contains("Beta README verification passed"));
+    assert_eq!(
+        second_after,
+        fs::read_to_string(&second.vault_path).unwrap()
+    );
+    let active = fs::read_to_string(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let active_vault = fs::read_to_string(context.project_root.join("Plans/ACTIVE.md")).unwrap();
+    assert_eq!(active, active_vault);
+    assert!(active.contains(&first_identity.operation_id().to_string()));
+    assert!(active.contains(&second_identity.operation_id().to_string()));
+    assert!(active.contains("\"status\":\"interrupted\""));
+    assert!(active.contains("\"status\":\"completed\""));
+    let current = fs::read_to_string(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    assert!(current.contains(second_title));
+    assert!(current.contains("Status: `completed`"));
+    assert_eq!(
+        fs::read_dir(first.repo_path.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.path().extension().is_some_and(|value| value == "md"))
+            .count(),
+        2,
+        "A/B mutation must not create A2/B2 artifacts"
+    );
+}
+
+#[test]
+fn operation_trace_uses_a_plan_when_current_points_to_b() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first_title = "fix README alpha typo";
+    let second_title = "backend login security";
+    let first_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        first_title,
+        SupportedAdapter::Codex,
+        Some("session-alpha"),
+        Some("request-alpha"),
+    )
+    .unwrap();
+    let second_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        second_title,
+        SupportedAdapter::Claude,
+        Some("session-beta"),
+        Some("request-beta"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, first_title, &first_identity).unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, second_title, &second_identity).unwrap();
+    let first_operation = OperationContext::from_identity(&first_identity);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &first_operation,
+        "Alpha README verification passed",
+    )
+    .unwrap();
+    let binding = TraceOperationBinding::from_operation(&first_operation, &proof.id).unwrap();
+
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Alpha README task completed",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    let content = fs::read_to_string(trace.repo_path).unwrap();
+    assert!(content.contains("- Risk: `low`"));
+    assert!(content.contains(&format!("- Current plan: `{first_title}`")));
+    assert!(!content.contains(second_title));
+    assert!(content.contains(&format!(
+        "- Operation ID: `{}`",
+        first_identity.operation_id()
+    )));
+}
+
+#[test]
+fn active_index_integrity_mismatch_fails_closed_before_operation_mutation() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let title = "fix README alpha typo";
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("session-alpha"),
+        Some("request-alpha"),
+    )
+    .unwrap();
+    let plan = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+    let active_path = repo.join("docs/baron/plans/ACTIVE.md");
+    let active = fs::read_to_string(&active_path).unwrap();
+    let entry = active
+        .lines()
+        .find(|line| line.contains(identity.operation_id()))
+        .unwrap();
+    fs::write(&active_path, format!("{active}{entry}\n")).unwrap();
+    let before = fs::read(&plan.repo_path).unwrap();
+    let error = update_plan_for_identity(&repo, &context, "must not write", &identity).unwrap_err();
+    assert!(error.to_string().contains("duplicate operation"));
+    assert_eq!(fs::read(&plan.repo_path).unwrap(), before);
 }
 
 #[test]
@@ -1399,19 +1698,17 @@ fn identified_and_legacy_plan_metadata_states_cannot_cross_authorize() {
             record_proof_for_operation(&repo, &context, &operation, "README verification passed")
                 .unwrap();
         let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
-        let trace = record_trace_for_operation(
+        let error = record_trace_for_operation(
             &repo,
             &context,
             "README typo corrected",
             TraceOutcome::Completed,
             &binding,
         )
-        .unwrap();
-        assert!(
-            score_trace(&repo, &context, Some(&trace.id))
-                .unwrap()
-                .passed
-        );
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("validated active plan for this operation"));
         let current_path = repo.join("docs/baron/plans/CURRENT.md");
         let current = fs::read_to_string(&current_path).unwrap();
         let identified = current.replace(
@@ -1710,12 +2007,13 @@ fn completion_ignores_newer_unrelated_proof_and_trace_artifacts() {
     thread::sleep(Duration::from_millis(5));
     let unrelated = LifecycleIdentity::resolve(
         &context.project_id,
-        "unrelated documentation task",
+        "unrelated docs task",
         SupportedAdapter::Claude,
         Some("unrelated-session"),
         Some("unrelated-request"),
     )
     .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, "unrelated docs task", &unrelated).unwrap();
     let unrelated_operation = OperationContext::from_identity(&unrelated);
     let unrelated_proof = record_proof_for_operation(
         &repo,
@@ -1729,7 +2027,7 @@ fn completion_ignores_newer_unrelated_proof_and_trace_artifacts() {
     let unrelated_trace = record_trace_for_operation(
         &repo,
         &context,
-        "Unrelated documentation task completed",
+        "Unrelated docs task completed",
         TraceOutcome::Completed,
         &unrelated_trace_binding,
     )
@@ -1740,7 +2038,7 @@ fn completion_ignores_newer_unrelated_proof_and_trace_artifacts() {
             .passed
     );
 
-    complete_plan(&repo, &context, "README verification passed").unwrap();
+    complete_plan_for_identity(&repo, &context, "README verification passed", &first).unwrap();
     assert!(plan_status(&repo).unwrap().contains("Status: `completed`"));
 }
 
@@ -1849,12 +2147,13 @@ fn cross_operation_quality_gates_cannot_complete_the_active_operation() {
 
     let unrelated = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
-        "backend login security",
+        "fix README typo",
         SupportedAdapter::Codex,
         Some("other-session"),
         Some("other-request"),
     )
     .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, "fix README typo", &unrelated).unwrap();
     for agent in ["code-reviewer", "security-auditor", "test-engineer"] {
         let (gate_receipt, binding) = passing_gate_execution(&repo, agent, &unrelated);
         record_gate_evidence_with_receipt_bound(
@@ -1896,17 +2195,18 @@ fn cross_operation_quality_gates_cannot_complete_the_active_operation() {
             .passed
     );
 
-    let reconciliation = reconcile(&repo).unwrap();
+    let reconciliation = reconcile_for_operation(&repo, &context, &active).unwrap();
     assert!(!reconciliation.passed);
     assert!(reconciliation
         .gaps
         .iter()
         .any(|gap| gap.contains("quality-gate") || gap.contains("trace")));
 
-    let error = complete_plan(
+    let error = complete_plan_for_identity(
         &repo,
         &context,
         "cargo test auth passed with authorization review",
+        &active,
     )
     .unwrap_err();
     assert!(error
