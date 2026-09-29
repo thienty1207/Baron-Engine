@@ -17,9 +17,11 @@
   deterministic multiprocess matrix. Provider fingerprints prevent stale
   capability observations from attaching to a re-registered definition.
   Identified active plans use a managed per-operation `ACTIVE.md` lookup while
-  `CURRENT.md` remains a presentation projection.
-- Proof checkpoint: focused concurrency `15/15`, config `16/16`, plan `45/45`,
-  proof/trace `21/21`, capability `9/9`, automation `5/5`, harness `5/5`,
+  `CURRENT.md` remains a presentation projection. Plan lifecycle, trace, and
+  identified Stop/reconcile mutations now resolve the exact full operation
+  identity; legacy ambiguous mutations fail closed.
+- Proof checkpoint: focused concurrency `15/15`, config `16/16`, plan `50/50`,
+  proof/trace `21/21`, capability `9/9`, automation `6/6`, harness `5/5`,
   harness improvement `5/5`, intent `4/4`, continuity `6/6`, control-plane
   `9/9`, migration `10/10`; retired-adapter gate `8/8`.
 - Adversarial checkpoint: the first fresh review identified Important issues
@@ -36,8 +38,12 @@
   closes the interleaved-plan path bug, ignores foreign/invalid proof/trace
   Markdown, preserves create-new success after staging cleanup failure,
   recovers hook responses from a journal publication crash, and snapshots the
-  migration handoff baseline under one bounded lock. The updated review range
-  is `ecaf362..d161d05`; independent acceptance remains unverified.
+  migration handoff baseline under one bounded lock. Repair commit `ac11117`
+  closes the remaining operation-authority gap by removing singleton
+  `CURRENT.md` selection from exact lifecycle, operation-bound trace, and
+  identified Stop/reconcile paths; legacy ambiguous mutations fail closed.
+  The updated review range is `ecaf362..ac11117`; independent acceptance
+  remains unverified.
 - Residual classification: the hook journal/dedup pair remains a bounded
   cross-file crash-recovery seam for SPEC-06; published responses are
   recoverable and journal data is diagnostic-only. External migration
@@ -47,10 +53,12 @@
 - Scope boundary: context/session/replay/cache writers and diagnostic
   SQLite/index accelerators are out of SPEC-05 scope and mapped to B-28..B-31;
   automation hook claim/journal publication remains a locked SPEC-05 mutation.
+- CLI identity evidence: exact update/interrupt/complete and legacy ambiguity
+  fail-closed tests pass `4/4` in `baron-cli --test plan_identity_cli`.
 - Workspace evidence: all remaining workspace targets passed; only the known
   `lifecycle_scripts` PowerShell archive-module failures and the existing
   `prepare_cli` UTF-8 boundary panic remain. The same 3/1 failures reproduce
-  at `ecaf362` and current `d161d05`, so they are pre-existing blockers.
+  at `ecaf362` and current `ac11117`, so they are pre-existing blockers.
   Formatter, workspace warnings-denied Clippy, locked release build, release
   binary `baron 5.0.0`, status JSON parsing, maintained Markdown
   relative-link checks, and diff checks pass.
@@ -58,9 +66,9 @@
   maintained status/build-log evidence are in scope. Project/Vault data,
   unrelated user files, release metadata, and public version remain untouched.
 - Safe next action: preserve the final verification evidence and obtain an
-  independent adversarial verdict when reviewer quota is available. Keep the
-  public version at `5.0.0`; do not release or tag. Retain `READY FOR
-  ADVERSARIAL REVIEW`; do not close SPEC-05.
+  independent adversarial verdict over `ecaf362..ac11117` when reviewer quota
+  is available. Keep the public version at `5.0.0`; do not release or tag.
+  Retain `READY FOR ADVERSARIAL REVIEW`; do not close SPEC-05.
 
 ## Baron 5.0.1 Stabilization - SPEC-04 Managed Plan-Path Authority Fix (closed, 2026-09-22)
 

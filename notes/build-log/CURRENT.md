@@ -12,11 +12,14 @@
   mutations. Unique artifacts use CSPRNG-backed create-new IDs; append-only
   evidence is locked append; caches are documented replace-only diagnostics.
   Plan operations now have a managed per-operation `ACTIVE.md` index while
-  `CURRENT.md` remains a latest-operation projection. The migration handoff
-  baseline is captured under one bounded lock before external installation.
+  `CURRENT.md` remains a latest-operation projection. Exact lifecycle,
+  operation-bound trace, and identified Stop/reconcile paths now resolve the
+  full operation identity; legacy ambiguous mutations fail closed. The
+  migration handoff baseline is captured under one bounded lock before
+  external installation.
 - Proof status: focused changed suites pass — concurrency `15/15`, config
-  `16/16`, plan `45/45`, proof/trace `21/21`, capability `9/9`, automation
-  `5/5`, harness `5/5`, harness improvement `5/5`, intent `4/4`, continuity
+  `16/16`, plan `50/50`, proof/trace `21/21`, capability `9/9`, automation
+  `6/6`, harness `5/5`, harness improvement `5/5`, intent `4/4`, continuity
   `6/6`, control-plane `9/9`, and migration `10/10`. Phase-1 retired-adapter
   gate passes `8/8`.
 - Trace status: the first fresh adversarial review found Important findings;
@@ -30,9 +33,11 @@
   lock after a self-audit found an `exists-check → create` race. Fix commit
   `d161d05` adds the per-operation plan index, foreign/invalid artifact
   filtering, committed create-new semantics, journal-response recovery, and
-  the atomic handoff baseline. The updated review range is
-  `ecaf362..d161d05`; independent acceptance remains unavailable, so the
-  status stays READY rather than CLOSED.
+  the atomic handoff baseline. Repair commit `ac11117` removes singleton
+  `CURRENT.md` selection from exact lifecycle, operation-bound trace, and
+  identified Stop/reconcile paths; legacy ambiguous mutations fail closed.
+  The updated review range is `ecaf362..ac11117`; independent acceptance
+  remains unavailable, so the status stays READY rather than CLOSED.
 - Residual trace: the hook journal/dedup pair still awaits the SPEC-06
   cross-file transaction framework; a crash before journal publication keeps a
   bounded live claim, while a response already published to the journal is
@@ -43,6 +48,8 @@
 - Scope status: context/session/replay/cache writers and diagnostic
   SQLite/index accelerators remain out of SPEC-05 scope (B-28..B-31); hook
   dedup claims and final journal publication are locked SPEC-05 state.
+- CLI identity result: exact update/interrupt/complete and legacy ambiguity
+  fail-closed tests pass `4/4` in `baron-cli --test plan_identity_cli`.
 - Workspace result: `cargo test --workspace --all-targets --no-fail-fast -j 1`
   completed with all other workspace targets passing. The only failures are
   the known three `lifecycle_scripts` host failures from unavailable
@@ -52,14 +59,15 @@
   status JSON parsing, maintained Markdown relative-link checks, and diff
   checks pass.
 - Baseline result: the same three lifecycle-script failures and one prepare
-  panic reproduce at SPEC-04 closure `ecaf362`; current `d161d05` shows the
+  panic reproduce at SPEC-04 closure `ecaf362`; current `ac11117` shows the
   same causes, so they are not regressions from SPEC-05.
 - Persisted-state boundary: no project/Vault data or unrelated worktree files
   were changed. The active plan, source/tests, and maintained status/build-log
   documents are the only intended repository artifacts.
 - Safe next action: retain the final workspace/Clippy/release/JSON/diff
-  evidence and obtain an independent adversarial verdict when reviewer quota
-  is available. Leave SPEC-05 at `READY FOR ADVERSARIAL REVIEW`, not closed.
+  evidence and obtain an independent adversarial verdict over
+  `ecaf362..ac11117` when reviewer quota is available. Leave SPEC-05 at
+  `READY FOR ADVERSARIAL REVIEW`, not closed.
 
 ## SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 
