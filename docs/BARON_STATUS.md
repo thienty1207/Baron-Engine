@@ -1,6 +1,6 @@
 # Baron Build Status
 
-## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-26)
+## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
 - Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; SPEC-04 remains closed at
   closure base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`. This is an
@@ -30,9 +30,11 @@
   overlap is serialized without holding a lock over `git status`.
 - B-18: new plan instances contain the collision-resistant instance ID;
   same-day same-title plans keep distinct files and historical index rows;
-  resume uses the exact persisted path. Legacy managed plan paths and the
-  SPEC-04 canonical path/frontmatter authority checks remain readable and
-  fail closed outside `docs/baron/plans/`.
+  resume uses the exact persisted path. Identified active operations are
+  indexed in managed repo/Vault `Plans/ACTIVE.md`; `CURRENT.md` is only the
+  latest presentation projection. Legacy managed plan paths and the SPEC-04
+  canonical path/frontmatter authority checks remain readable and fail closed
+  outside `docs/baron/plans/`.
 - B-25: first initialization and config mutations are serialized before
   existence/load decisions; only the `.baron` directory scaffold is created
   before the lock exists so the lock path can be opened; project identity and
@@ -50,11 +52,12 @@
 - Migration/update lock boundary: inventory and backup scans run without the
   project lock; file imports take a bounded lock before the destination
   read/merge/publication; quarantine takes the lock per asset; the external
-  installer callback runs unlocked. Failed post-handoff rollback is
-  fail-closed and refuses to restore any migration path when the handoff
-  baseline no longer matches.
-- Deterministic matrix: concurrency `15/15`; config `16/16`; plan `44/44`;
-  proof/trace `20/20`; capability `9/9`; automation `5/5`; harness `5/5`;
+  installer callback runs unlocked. The complete post-handoff baseline is
+  captured as one bounded locked snapshot before that callback. Failed
+  post-handoff rollback is fail-closed and refuses to restore any migration
+  path when the handoff baseline no longer matches.
+- Deterministic matrix: concurrency `15/15`; config `16/16`; plan `45/45`;
+  proof/trace `21/21`; capability `9/9`; automation `5/5`; harness `5/5`;
   harness improvement `5/5`; intent `4/4`; continuity `6/6`;
   control-plane `9/9`; migration `10/10`; Phase-1 retired-adapter gate `8/8`.
 - Out-of-scope boundary: context/session/replay/cache writers and the
@@ -65,25 +68,42 @@
   `docs/superpowers/plans/2026-09-22-spec-05-multi-agent-concurrency-durable-state.md`.
 - Implementation commits: `b4e5f77`, `0d06d3d`, `87125a4`, `077058d`,
   `398e8cd`, `34e1221`, `bf1857e`, `34de705`, `0c12c0c`, `cfaec117`,
-  `318594c`, `674a059`, `7a6b473`, `eeae7d8`, and `cc6fbfc`.
+  `318594c`, `674a059`, `7a6b473`, `eeae7d8`, `cc6fbfc`, and `d161d05`.
 - Final review fixes in `eeae7d8` restore the public config `Eq` contracts,
   keep `ProviderObservation` source-compatible while retaining stale-cache
   fingerprint checks, remove the migration lock across inventory/backup work,
   and make post-handoff rollback refuse to clobber changed state. `cc6fbfc`
   closes the remaining self-audited backup-root `exists-check → create` race
   by reserving the migration backup directory under the project lock. The
-  fresh read-only adversarial review package now covers the complete
-  `ecaf362..cc6fbfc` range; both retry reviewers hit the Codex usage limit
-  before producing a verdict. Local self-audit found no currently known
-  SPEC-05-owned Critical/Important issue, so the status remains ready rather
-  than claiming independent acceptance or closure.
-- Workspace verification: Core all-targets at `cc6fbfc`, focused migration
-  `10/10`, Clippy with `-D warnings`, formatter, and diff checks passed. The
+  fresh adversarial fix commit `d161d05` adds the per-operation active-plan
+  index, foreign/invalid Markdown filtering, committed-vs-cleanup create-new
+  semantics, journal-response crash recovery, and an atomic handoff baseline
+  snapshot. The updated read-only review package is `ecaf362..d161d05`;
+  independent reviewer acceptance is still unavailable, so this status remains
+  ready rather than claiming closure.
+- Residual classification: the hook journal and dedup files are still not one
+  SPEC-06 cross-file transaction; a crash before journal publication leaves a
+  live claim until its bounded lease expires, while a published response is
+  now recoverable from the journal and journal entries remain diagnostic-only.
+  Migration external-installer execution remains intentionally unlocked;
+  backup roots are reserved under lock and post-handoff hash conflicts fail
+  closed, but full multi-migration handoff serialization belongs to the later
+  transaction framework. Neither residual can authorize completion/proof.
+- Workspace verification: Core all-targets and focused suites at `d161d05`,
+  formatter, workspace Clippy with `-D warnings`, locked release build,
+  release binary `baron 5.0.0`, status JSON parsing, maintained Markdown
+  relative-link checks, and diff checks passed. The
   full workspace run retains only the two known baseline targets:
   `baron-cli --test lifecycle_scripts` has three host-environment failures
   because `Microsoft.PowerShell.Archive` cannot load `Compress-Archive`;
   `baron-cli --test prepare_cli` has one existing `session_replay.rs:383`
   UTF-8 boundary panic. These are not SPEC-05-owned failures.
+- Baseline reproduction: the same `3`/`1` failures reproduce at SPEC-04
+  closure `ecaf362` and at current `d161d05`, with unchanged failure causes.
+  Core focused proof remains: concurrency `15/15`, config `16/16`, plan
+  `45/45`, proof/trace `21/21`, capability `9/9`, automation `5/5`, harness
+  `5/5`, harness improvement `5/5`, intent `4/4`, continuity `6/6`,
+  control-plane `9/9`, migration `10/10`; retired-adapter gate `8/8`.
 - Next action: obtain an independent adversarial verdict when reviewer quota
   is available, or leave this honest readiness checkpoint for that review.
   Preserve the exact `READY FOR ADVERSARIAL REVIEW` verdict; do not mark

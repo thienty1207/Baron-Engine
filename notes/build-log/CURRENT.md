@@ -1,6 +1,6 @@
 # Current Build Note
 
-## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-26)
+## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
 - Current task: finish SPEC-05 implementation and independent adversarial
   acceptance on top of the SPEC-04 closure base `ecaf362`. Public version
@@ -11,8 +11,11 @@
   review-gate/experiment, automation publication, and capability registry
   mutations. Unique artifacts use CSPRNG-backed create-new IDs; append-only
   evidence is locked append; caches are documented replace-only diagnostics.
+  Plan operations now have a managed per-operation `ACTIVE.md` index while
+  `CURRENT.md` remains a latest-operation projection. The migration handoff
+  baseline is captured under one bounded lock before external installation.
 - Proof status: focused changed suites pass — concurrency `15/15`, config
-  `16/16`, plan `44/44`, proof/trace `20/20`, capability `9/9`, automation
+  `16/16`, plan `45/45`, proof/trace `21/21`, capability `9/9`, automation
   `5/5`, harness `5/5`, harness improvement `5/5`, intent `4/4`, continuity
   `6/6`, control-plane `9/9`, and migration `10/10`. Phase-1 retired-adapter
   gate passes `8/8`.
@@ -24,18 +27,33 @@
   capability observation shape while retaining fingerprint-bound cache
   matching, narrows migration lock scope, and makes post-handoff rollback fail
   closed. Follow-up `cc6fbfc` reserves migration backup roots under the project
-  lock after a self-audit found an `exists-check → create` race. The fresh
-  review package covers `ecaf362..cc6fbfc`; both retry reviewers hit the Codex
-  usage limit before a verdict. Local self-audit has no currently known
-  SPEC-05-owned Critical/Important issue, but independent acceptance remains
-  unverified.
+  lock after a self-audit found an `exists-check → create` race. Fix commit
+  `d161d05` adds the per-operation plan index, foreign/invalid artifact
+  filtering, committed create-new semantics, journal-response recovery, and
+  the atomic handoff baseline. The updated review range is
+  `ecaf362..d161d05`; independent acceptance remains unavailable, so the
+  status stays READY rather than CLOSED.
+- Residual trace: the hook journal/dedup pair still awaits the SPEC-06
+  cross-file transaction framework; a crash before journal publication keeps a
+  bounded live claim, while a response already published to the journal is
+  recoverable and remains diagnostic-only. External migration installation is
+  intentionally unlocked; reserved backup roots and post-handoff hashes fail
+  closed on conflicts, while full multi-migration isolation is deferred to
+  SPEC-06.
 - Scope status: context/session/replay/cache writers and diagnostic
   SQLite/index accelerators remain out of SPEC-05 scope (B-28..B-31); hook
   dedup claims and final journal publication are locked SPEC-05 state.
-- Workspace result: all other workspace targets passed. The only failures are
+- Workspace result: `cargo test --workspace --all-targets --no-fail-fast -j 1`
+  completed with all other workspace targets passing. The only failures are
   the known three `lifecycle_scripts` host failures from unavailable
   `Microsoft.PowerShell.Archive`/`Compress-Archive` and one existing
-  `prepare_cli` panic at `session_replay.rs:383`.
+  `prepare_cli` panic at `session_replay.rs:383`. Formatter, workspace
+  warnings-denied Clippy, locked release build, release binary `baron 5.0.0`,
+  status JSON parsing, maintained Markdown relative-link checks, and diff
+  checks pass.
+- Baseline result: the same three lifecycle-script failures and one prepare
+  panic reproduce at SPEC-04 closure `ecaf362`; current `d161d05` shows the
+  same causes, so they are not regressions from SPEC-05.
 - Persisted-state boundary: no project/Vault data or unrelated worktree files
   were changed. The active plan, source/tests, and maintained status/build-log
   documents are the only intended repository artifacts.
