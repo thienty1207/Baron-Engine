@@ -258,13 +258,11 @@ pub fn proof_status(repo_root: impl AsRef<Path>) -> Result<String> {
 }
 
 pub fn latest_proof(repo_root: &Path) -> Result<Option<ProofRecord>> {
-    let root = repo_root.join("docs/baron/proofs");
-    let Some(path) = latest_markdown(&root)? else {
+    let mut paths = proof_paths(repo_root)?;
+    paths.sort_by_key(|path| artifact_sort_key(path));
+    let Some(path) = paths.pop() else {
         return Ok(None);
     };
-    if path.file_name().and_then(|value| value.to_str()) == Some("INDEX.md") {
-        return Ok(None);
-    }
     Ok(Some(parse_proof(&path)?))
 }
 
@@ -457,17 +455,6 @@ pub fn proof_satisfies_risk(summary: &str, risk: RiskLane) -> bool {
     .any(|term| lower.contains(term))
 }
 
-fn latest_markdown(root: &Path) -> Result<Option<PathBuf>> {
-    if !root.exists() {
-        return Ok(None);
-    }
-    let mut files = Vec::new();
-    collect_markdown(root, &mut files)?;
-    files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
-    files.sort_by_key(|path| artifact_sort_key(path));
-    Ok(files.pop())
-}
-
 fn artifact_sort_key(path: &Path) -> (i128, String) {
     let timestamp = path
         .file_stem()
@@ -591,11 +578,15 @@ pub fn proof_receipt_context(proof: &ProofRecord) -> Result<Option<(String, Rece
 
 fn parse_proof(path: &Path) -> Result<ProofRecord> {
     let content = fs::read_to_string(path)?;
+    if !is_baron_proof_document(&content) {
+        bail!("proof document header is missing");
+    }
     let id = content
         .lines()
         .find_map(|line| line.strip_prefix("- Proof ID: `"))
         .and_then(|value| value.strip_suffix('`'))
-        .unwrap_or("unknown")
+        .filter(|value| !value.trim().is_empty())
+        .context("proof document ID is missing")?
         .to_string();
     let summary = section_body(&content, "## Evidence");
     let capability_gate_passed = !content.contains("- Capability gate: `failed`");
@@ -710,10 +701,32 @@ fn proof_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
     if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
         return Ok(Vec::new());
     }
+    let mut candidates = Vec::new();
+    collect_markdown(&root, &mut candidates)?;
     let mut paths = Vec::new();
-    collect_markdown(&root, &mut paths)?;
-    paths.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
+    for path in candidates {
+        if path.file_name().and_then(|value| value.to_str()) == Some("INDEX.md") {
+            continue;
+        }
+        let bytes = fs::read(&path)?;
+        if !bytes.starts_with(b"# Baron Proof\n") {
+            continue;
+        }
+        let content = String::from_utf8(bytes).with_context(|| {
+            format!(
+                "Baron proof document is not valid UTF-8: {}",
+                path.display()
+            )
+        })?;
+        if is_baron_proof_document(&content) {
+            paths.push(path);
+        }
+    }
     Ok(paths)
+}
+
+fn is_baron_proof_document(content: &str) -> bool {
+    content.starts_with("# Baron Proof\n")
 }
 
 fn preflight_publication_paths(

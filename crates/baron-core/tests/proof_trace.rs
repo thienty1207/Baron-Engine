@@ -185,6 +185,94 @@ fn operation_bound_selection_prefers_new_ids_over_older_legacy_aliases() {
 }
 
 #[test]
+fn foreign_markdown_in_proof_and_trace_trees_is_ignored_by_selectors() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "docs foreign artifact selector task",
+        SupportedAdapter::Codex,
+        Some("foreign-artifact-session"),
+        Some("foreign-artifact-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "docs foreign artifact selector task",
+        &operation,
+    )
+    .unwrap();
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &operation,
+        "foreign artifact selector proof passed",
+    )
+    .unwrap();
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "foreign artifact selector trace passed",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+
+    std::thread::sleep(Duration::from_millis(10));
+    let proof_notes = proof.repo_path.parent().unwrap().join("notes.md");
+    fs::write(
+        &proof_notes,
+        "# Notes\n\n- Operation ID: `forged-proof-operation`\n",
+    )
+    .unwrap();
+    let trace_notes = trace.repo_path.parent().unwrap().join("debug.md");
+    fs::write(
+        &trace_notes,
+        "# Debug\n\n- Operation ID: `forged-trace-operation`\n",
+    )
+    .unwrap();
+    fs::write(
+        proof.repo_path.parent().unwrap().join("binary.md"),
+        [0xff, 0xfe],
+    )
+    .unwrap();
+    fs::write(
+        trace.repo_path.parent().unwrap().join("binary.md"),
+        [0xff, 0xfe],
+    )
+    .unwrap();
+
+    assert_eq!(
+        latest_proof(&repo).unwrap().unwrap().repo_path,
+        proof.repo_path
+    );
+    assert_eq!(
+        proof_for_operation(&repo, &proof.binding.clone().unwrap())
+            .unwrap()
+            .unwrap()
+            .repo_path,
+        proof.repo_path
+    );
+    assert_eq!(
+        score_trace(&repo, &context, None).unwrap().trace_id,
+        trace.id
+    );
+    assert_eq!(
+        trace_for_operation(&repo, &binding)
+            .unwrap()
+            .unwrap()
+            .repo_path,
+        trace.repo_path
+    );
+}
+
+#[test]
 fn non_timestamp_legacy_proof_and_trace_files_remain_selectable() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

@@ -339,8 +339,19 @@ pub fn create_new_file(path: impl AsRef<Path>, content: &[u8]) -> Result<()> {
                 .with_context(|| format!("Could not inspect new file target: {}", path.display()));
         }
     }
-    if let Err(error) = fs::hard_link(&temporary, path) {
-        let _ = fs::remove_file(&temporary);
+    publish_new_file(&temporary, path, parent, |staging| fs::remove_file(staging))
+}
+
+/// Publish a staged create-new file and distinguish committed publication from
+/// best-effort staging cleanup. Once the hard link succeeds, the final target
+/// is authoritative; a cleanup failure must not make callers believe that the
+/// target was never published and retry a logically new artifact.
+fn publish_new_file<F>(temporary: &Path, path: &Path, parent: &Path, cleanup: F) -> Result<()>
+where
+    F: FnOnce(&Path) -> io::Result<()>,
+{
+    if let Err(error) = fs::hard_link(temporary, path) {
+        let _ = fs::remove_file(temporary);
         return Err(error).with_context(|| {
             format!(
                 "Could not publish new file without replacement: {}",
@@ -348,14 +359,7 @@ pub fn create_new_file(path: impl AsRef<Path>, content: &[u8]) -> Result<()> {
             )
         });
     }
-    if let Err(error) = fs::remove_file(&temporary) {
-        return Err(error).with_context(|| {
-            format!(
-                "Could not remove new-file staging path after publication: {}",
-                temporary.display()
-            )
-        });
-    }
+    let _cleanup_error = cleanup(temporary);
     sync_parent_directory(parent)
 }
 
@@ -948,6 +952,25 @@ mod tests {
         create_new_text(&target, "content").unwrap();
 
         assert_eq!(fs::read_to_string(target).unwrap(), "content");
+    }
+
+    #[test]
+    fn create_new_file_keeps_success_after_staging_cleanup_failure() {
+        let temp = tempdir().unwrap();
+        let staging = temp.path().join("baron-tmp-value.txt");
+        let target = temp.path().join("value.txt");
+        fs::write(&staging, "content").unwrap();
+
+        publish_new_file(&staging, &target, temp.path(), |_| {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "injected staging cleanup failure",
+            ))
+        })
+        .unwrap();
+
+        assert_eq!(fs::read_to_string(&target).unwrap(), "content");
+        assert!(staging.exists());
     }
 
     #[cfg(unix)]

@@ -158,6 +158,95 @@ fn repeated_start_resumes_matching_plan() {
 }
 
 #[test]
+fn distinct_active_operations_resume_their_exact_plan_paths_after_current_changes() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+
+    let first_title = "backend operation alpha";
+    let first_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        first_title,
+        SupportedAdapter::Codex,
+        Some("session-alpha"),
+        Some("request-alpha"),
+    )
+    .unwrap();
+    let second_title = "frontend operation beta";
+    let second_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        second_title,
+        SupportedAdapter::Claude,
+        Some("session-beta"),
+        Some("request-beta"),
+    )
+    .unwrap();
+
+    let first =
+        start_or_resume_plan_for_identity(&repo, &context, first_title, &first_identity).unwrap();
+    let second =
+        start_or_resume_plan_for_identity(&repo, &context, second_title, &second_identity).unwrap();
+    let resumed_first =
+        start_or_resume_plan_for_identity(&repo, &context, first_title, &first_identity).unwrap();
+    let resumed_second =
+        start_or_resume_plan_for_identity(&repo, &context, second_title, &second_identity).unwrap();
+
+    assert_eq!(resumed_first.repo_path, first.repo_path);
+    assert_eq!(resumed_second.repo_path, second.repo_path);
+    assert!(resumed_first.resumed);
+    assert!(resumed_second.resumed);
+
+    let plan_files = fs::read_dir(first.repo_path.parent().unwrap())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "md")
+        })
+        .count();
+    assert_eq!(
+        plan_files, 2,
+        "distinct operations must not create A2/B2 plans"
+    );
+
+    let plan_index = fs::read_to_string(repo.join("docs/baron/plans/INDEX.md")).unwrap();
+    for plan in [&first, &second] {
+        let relative = plan
+            .repo_path
+            .strip_prefix(&repo)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        assert_eq!(plan_index.matches(&relative).count(), 1);
+    }
+    let active_index = fs::read_to_string(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    for (identity, plan) in [(&first_identity, &first), (&second_identity, &second)] {
+        let relative = plan
+            .repo_path
+            .strip_prefix(&repo)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        assert_eq!(active_index.matches(identity.operation_id()).count(), 1);
+        assert_eq!(active_index.matches(&relative).count(), 1);
+    }
+
+    let current = fs::read_to_string(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    assert!(current.contains(
+        &resumed_second
+            .repo_path
+            .strip_prefix(&repo)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/")
+    ));
+}
+
+#[test]
 fn identified_plan_persists_exact_identity_and_rejects_hijack() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

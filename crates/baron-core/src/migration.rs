@@ -918,16 +918,18 @@ fn verify_native_state(repo_root: &Path) -> Result<()> {
 }
 
 fn capture_post_handoff_state(repo_root: &Path, manifest: &mut BackupManifest) -> Result<()> {
+    // The handoff baseline is one correctness-sensitive snapshot. Holding the
+    // project lock for the complete read set prevents a Baron writer from
+    // being captured halfway through the manifest and then being mistaken for
+    // pre-handoff state during conditional rollback. The external installer
+    // still runs after this bounded section with the lock released.
+    let _lock = acquire_project_lock(repo_root)?;
     for entry in &mut manifest.entries {
         let root = match entry.scope {
             BackupScope::Repo => &manifest.repo_root,
             BackupScope::Vault => &manifest.vault_root,
         };
         let target = validate_restore_target(root, &entry.relative_path, "handoff baseline")?;
-        // Capture one target at a time under the same project lock used by
-        // active writers. This is an optimistic handoff baseline, not a
-        // second transaction spanning the entire repository and Vault.
-        let _lock = acquire_project_lock(repo_root)?;
         entry.post_handoff_hash = hash_path(&target)?;
     }
     manifest.post_handoff_captured = true;

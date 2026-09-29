@@ -163,6 +163,10 @@ struct JournalEntry {
     child: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     evidence: Option<String>,
+    /// Persist the bounded host response with the journal event so a retry
+    /// can recover it if the process dies before dedup-state replacement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    response: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -366,6 +370,11 @@ pub fn handle_hook(
         if let Some(response) = dedup_response(&dedup, &event_key) {
             return Ok(response);
         }
+        if let Some(response) = journal_response(&journal_path(vault), &event_key)? {
+            dedup_store_response(&mut dedup, &event_key, &response);
+            save_dedup_state(vault, &dedup)?;
+            return Ok(response);
+        }
         if dedup_claim_is_live(&dedup, &event_key) {
             let mut metadata = hook_metadata(
                 vault,
@@ -410,6 +419,7 @@ pub fn handle_hook(
         parent_session_id,
         child: is_child,
         evidence: child_evidence,
+        response: None,
     };
 
     let response_value = match (|| -> Result<Value> {
@@ -654,6 +664,7 @@ pub fn record_lifecycle_event(
             parent_session_id: None,
             child: false,
             evidence: None,
+            response: None,
         },
     )
 }
@@ -688,6 +699,7 @@ pub fn record_lifecycle_event_for_operation(
             parent_session_id: None,
             child: false,
             evidence: None,
+            response: None,
         },
     )
 }
@@ -785,6 +797,11 @@ fn publish_hook_response(
     if let Some(existing) = dedup_response(&dedup, event_key) {
         return Ok(existing);
     }
+    if let Some(existing) = journal_response(&journal_path(vault), event_key)? {
+        dedup_store_response(&mut dedup, event_key, &existing);
+        save_dedup_state(vault, &dedup)?;
+        return Ok(existing);
+    }
     if !dedup_claim_matches(&dedup, event_key, claim_token) {
         bail!(
             "Hook claim is no longer owned by this delivery; refusing stale publication: {}",
@@ -792,7 +809,9 @@ fn publish_hook_response(
         );
     }
     renew_dedup_claim_from_state(&mut dedup, event_key, claim_token)?;
-    append_journal_locked(vault, entry)?;
+    let mut published_entry = entry.clone();
+    published_entry.response = Some(response.to_string());
+    append_journal_locked(vault, &published_entry)?;
     dedup_store_response(&mut dedup, event_key, response);
     save_dedup_state(vault, &dedup)?;
     Ok(response.to_string())
@@ -1081,6 +1100,22 @@ fn journal_contains_key(path: &Path, key: &str) -> Result<bool> {
         .any(|entry| entry.event_key.as_deref() == Some(key)))
 }
 
+fn journal_response(path: &Path, key: &str) -> Result<Option<String>> {
+    let Some(content) = read_text(path)? else {
+        return Ok(None);
+    };
+    Ok(content
+        .lines()
+        .rev()
+        .take(MAX_JOURNAL_SCAN_LINES)
+        .filter_map(|line| serde_json::from_str::<JournalEntry>(line).ok())
+        .find_map(|entry| {
+            (entry.event_key.as_deref() == Some(key))
+                .then_some(entry.response)
+                .flatten()
+        }))
+}
+
 fn render_prepare_projection(packet: &PreparePacketV1) -> String {
     let mut output = String::new();
     output.push_str("# Baron Prepare Context\n\n");
@@ -1230,6 +1265,48 @@ mod tests {
 
         assert!(dedup_claim_is_live(&state, "malformed"));
         assert!(dedup_claim_is_live(&state, "future"));
+    }
+
+    #[test]
+    fn journal_response_rehydrates_dedup_after_publication_crash() {
+        let temp = tempdir().unwrap();
+        let journal = temp.path().join("automation-journal.jsonl");
+        let event_key = "event-after-journal-append";
+        let response = r#"{"continue":true,"baron":{"event_key":"event-after-journal-append"}}"#;
+        let entry = JournalEntry {
+            timestamp: now(),
+            event: AutomationEvent::UserPromptSubmit,
+            adapter: JournalAdapter::Supported(HookAdapter::Codex),
+            session_id: Some("session".to_string()),
+            request_id: Some("request".to_string()),
+            event_key: Some(event_key.to_string()),
+            event_kind: "user_prompt_submit".to_string(),
+            task_id: Some("task".to_string()),
+            child_id: None,
+            parent_task_id: None,
+            parent_session_id: None,
+            child: false,
+            evidence: None,
+            response: Some(response.to_string()),
+        };
+        fs::write(
+            &journal,
+            format!("{}\n", serde_json::to_string(&entry).unwrap()),
+        )
+        .unwrap();
+
+        let mut state = DedupState::default();
+        state.entries.push(DedupEntry {
+            key: event_key.to_string(),
+            response: None,
+            claimed_at: Some(now()),
+            claim_token: Some("crashed-owner".to_string()),
+        });
+        let recovered = journal_response(&journal, event_key).unwrap().unwrap();
+        dedup_store_response(&mut state, event_key, &recovered);
+
+        assert_eq!(recovered, response);
+        assert_eq!(dedup_response(&state, event_key).as_deref(), Some(response));
     }
 
     #[test]

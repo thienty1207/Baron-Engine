@@ -617,20 +617,57 @@ fn find_trace(repo_root: &Path, trace_id: Option<&str>) -> Result<PathBuf> {
     let mut files = trace_paths(repo_root)?;
     files.sort_by_key(|path| artifact_sort_key(path));
     if let Some(id) = trace_id {
-        return files
+        let path = files
             .into_iter()
             .find(|path| path.file_stem().and_then(|value| value.to_str()) == Some(id))
-            .with_context(|| format!("Trace not found: {id}"));
+            .with_context(|| format!("Trace not found: {id}"))?;
+        validate_trace_document(&path)?;
+        return Ok(path);
     }
-    files.pop().context("No Baron trace found")
+    let path = files.pop().context("No Baron trace found")?;
+    validate_trace_document(&path)?;
+    Ok(path)
 }
 
 fn trace_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
     let root = repo_root.join("docs/baron/traces");
+    let mut candidates = Vec::new();
+    collect_markdown(&root, &mut candidates)?;
     let mut files = Vec::new();
-    collect_markdown(&root, &mut files)?;
-    files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
+    for path in candidates {
+        if path.file_name().and_then(|value| value.to_str()) == Some("INDEX.md") {
+            continue;
+        }
+        let bytes = fs::read(&path)?;
+        if !bytes.starts_with(b"# Baron Execution Trace\n") {
+            continue;
+        }
+        let content = String::from_utf8(bytes).with_context(|| {
+            format!(
+                "Baron trace document is not valid UTF-8: {}",
+                path.display()
+            )
+        })?;
+        if is_baron_trace_document(&content) {
+            files.push(path);
+        }
+    }
     Ok(files)
+}
+
+fn is_baron_trace_document(content: &str) -> bool {
+    content.starts_with("# Baron Execution Trace\n")
+}
+
+fn validate_trace_document(path: &Path) -> Result<()> {
+    let content = fs::read_to_string(path)?;
+    if trace_field(&content, "- Trace ID: `")
+        .filter(|value| !value.trim().is_empty())
+        .is_none()
+    {
+        bail!("Baron trace document ID is missing: {}", path.display());
+    }
+    Ok(())
 }
 
 fn artifact_sort_key(path: &Path) -> (i128, String) {

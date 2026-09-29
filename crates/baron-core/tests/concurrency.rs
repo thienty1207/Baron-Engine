@@ -671,7 +671,10 @@ fn artifact_files(root: &Path) -> Vec<PathBuf> {
             if path.is_dir() {
                 artifact_files(&path)
             } else if path.extension().and_then(|value| value.to_str()) == Some("md")
-                && path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md")
+                && !matches!(
+                    path.file_name().and_then(|value| value.to_str()),
+                    Some("INDEX.md" | "ACTIVE.md")
+                )
             {
                 vec![path]
             } else {
