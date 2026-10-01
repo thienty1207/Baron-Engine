@@ -12,7 +12,7 @@ use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
 use baron_core::execution_receipt::{
     execute_command_for_identity, ExecutionRequest, ReceiptContext,
 };
-use baron_core::harness::start_or_resume_intake;
+use baron_core::harness::{current_harness_title_for_operation, start_or_resume_intake};
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{
     task_id_for_task, AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext,
@@ -1601,7 +1601,14 @@ fn current_risk_and_operation_swap_cannot_authorize_low_risk_evidence() {
         .gaps
         .iter()
         .any(|gap| gap.contains("risk") || gap.contains("binding")));
-    assert_stop_blocks(&repo, &context, "fix README typo", &unrelated);
+    // The forged display cannot downgrade A; valid B evidence is usable only
+    // through B's exact identity and never completes A.
+    assert_stop_blocks(&repo, &context, "backend login security", &active);
+    assert!(
+        reconcile_for_operation(&repo, &context, &unrelated)
+            .unwrap()
+            .passed
+    );
     assert!(complete_plan(&repo, &context, "verification attempted").is_err());
     assert!(fs::read_to_string(plan_path)
         .unwrap()
@@ -1666,7 +1673,13 @@ fn current_pointer_cannot_combine_metadata_with_another_valid_plan() {
     fs::write(&current_path, switched).unwrap();
 
     assert!(!reconcile(&repo).unwrap().passed);
-    assert_stop_blocks(&repo, &context, "fix README typo", &active);
+    // Exact identified authority no longer treats a presentation mismatch as
+    // its plan selector. It must still validate A via ACTIVE/frontmatter.
+    assert!(
+        reconcile_for_operation(&repo, &context, &active)
+            .unwrap()
+            .passed
+    );
     assert!(complete_plan(&repo, &context, "verification attempted").is_err());
     assert!(fs::read_to_string(other_plan.repo_path)
         .unwrap()
@@ -1674,6 +1687,31 @@ fn current_pointer_cannot_combine_metadata_with_another_valid_plan() {
     assert!(fs::read_to_string(active_path)
         .unwrap()
         .contains("status: in_progress"));
+}
+
+#[test]
+fn legacy_reconciliation_cannot_hide_multiple_active_operations_without_current() {
+    let (_temp, repo, context, _identity, _plan_path) = identified_plan_fixture(
+        "fix README alpha typo",
+        SupportedAdapter::Codex,
+        "session-a",
+        "request-a",
+    );
+    let b = LifecycleIdentity::resolve(
+        &context.project_id,
+        "backend login beta",
+        SupportedAdapter::Claude,
+        Some("session-b"),
+        Some("request-b"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, "backend login beta", &b).unwrap();
+    fs::remove_file(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    let before = snapshot_tree(&repo.join("docs/baron"));
+    let report = reconcile(&repo).unwrap();
+    assert!(!report.passed);
+    assert!(report.gaps.iter().any(|issue| issue.contains("ambiguous")));
+    assert_eq!(snapshot_tree(&repo.join("docs/baron")), before);
 }
 
 #[test]
@@ -1890,6 +1928,12 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
             .unwrap();
     confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
+    assert_eq!(
+        current_harness_title_for_operation(&repo, &operation)
+            .unwrap()
+            .as_deref(),
+        Some("backend login security")
+    );
     let proof_binding = ReceiptContext::new(
         identity.task_id(),
         identity.operation_id(),
@@ -1923,11 +1967,13 @@ fn high_risk_plan_completes_after_valid_proof_and_detailed_trace() {
         &trace_binding,
     )
     .unwrap();
+    let trace_content = fs::read_to_string(&trace.repo_path).unwrap();
     assert!(
-        score_trace(&repo, &context, Some(&trace.id))
-            .unwrap()
-            .passed
+        trace_content.contains("- Current story: `backend login security`"),
+        "{trace_content}"
     );
+    let score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
+    assert!(score.passed, "score={score:?}\ntrace={trace_content}");
 
     complete_plan(
         &repo,
@@ -2057,7 +2103,6 @@ fn legacy_unbound_proof_and_trace_are_diagnostic_only_for_identified_completion(
         Some("identified-request"),
     )
     .unwrap();
-    start_or_resume_plan_for_identity(&repo, &context, "fix README typo", &identity).unwrap();
     record_proof(&repo, &context, "README verification passed").unwrap();
     let trace = record_trace(
         &repo,
@@ -2066,11 +2111,14 @@ fn legacy_unbound_proof_and_trace_are_diagnostic_only_for_identified_completion(
         TraceOutcome::Completed,
     )
     .unwrap();
-    assert!(
-        score_trace(&repo, &context, Some(&trace.id))
-            .unwrap()
-            .passed
-    );
+    assert!(trace.binding.is_none());
+    let diagnostic_score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
+    assert!(!diagnostic_score.passed);
+    assert!(diagnostic_score
+        .missing_fields
+        .contains(&"current plan".to_string()));
+
+    start_or_resume_plan_for_identity(&repo, &context, "fix README typo", &identity).unwrap();
 
     let error = complete_plan(&repo, &context, "README verification passed").unwrap_err();
     assert!(error.to_string().contains("proof is missing"));

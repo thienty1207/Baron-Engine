@@ -25,6 +25,8 @@ use crate::safe_io::{
 };
 use crate::vault::VaultContext;
 
+mod hook_correlation;
+
 const HOOK_MAX_CONTEXT_CHARS: usize = 6_000;
 const MAX_CHILD_EVIDENCE_CHARS: usize = 1_600;
 const MAX_DEDUP_ENTRIES: usize = 256;
@@ -222,8 +224,9 @@ impl Drop for ActiveHookGuard {
 /// stdin, performs one Core operation, and returns a bounded host projection.
 /// The project lock spans journal, continuity, and dedup writes so retries
 /// cannot create competing state when the host supplies the same session and
-/// request identity. Current Codex and Claude bridge payloads do not expose a
-/// stable delivery ID beyond those fields; anonymous deliveries therefore
+/// request identity. Native Codex turn_id and Claude prompt_id are correlated
+/// durably to the original canonical task before response deduplication.
+/// Anonymous deliveries therefore
 /// receive fresh synthesized identity and intentionally have no retry-
 /// idempotency guarantee.
 pub fn handle_hook(
@@ -245,9 +248,19 @@ pub fn handle_hook(
     } else {
         serde_json::from_str(payload_text).context("Could not parse native hook payload")?
     };
-    let supplied_session_id = payload_identifier(&payload, &["session_id", "sessionId"]);
-    let supplied_request_id = payload_identifier(&payload, &["request_id", "requestId"]);
-    let task = payload_task(&payload);
+    let ingress = match hook_correlation::Ingress::parse(&payload, adapter) {
+        Ok(ingress) => ingress,
+        Err(error) if event == AutomationEvent::Stop => {
+            return hook_correlation::blocked(&error, adapter, false);
+        }
+        Err(error) => bail!("{}", hook_correlation::failure(&error)),
+    };
+    let supplied_session_id = ingress.session.clone();
+    let supplied_request_id = ingress.turn.clone();
+    let mut task = ingress
+        .task
+        .clone()
+        .unwrap_or_else(|| "current repository state".into());
     let child_id = payload_identifier(&payload, &["child_id", "childId", "agent_id", "agentId"]);
     let parent_task_id = payload_identifier(&payload, &["parent_task_id", "parentTaskId"]);
     let parent_session_id = payload_identifier(&payload, &["parent_session_id", "parentSessionId"]);
@@ -267,17 +280,50 @@ pub fn handle_hook(
         HookAdapter::Claude => Some(SupportedAdapter::Claude),
         HookAdapter::Neutral => None,
     };
-    let identity = supported_adapter
-        .map(|adapter| {
-            LifecycleIdentity::resolve(
-                &vault.project_id,
-                &task,
-                adapter,
-                supplied_session_id.as_deref(),
-                supplied_request_id.as_deref(),
-            )
-        })
-        .transpose()?;
+    let correlated = !is_child
+        && recursion_depth(&payload) == 0
+        && matches!(
+            event,
+            AutomationEvent::UserPromptSubmit
+                | AutomationEvent::Prompt
+                | AutomationEvent::PreCompact
+                | AutomationEvent::Checkpoint
+                | AutomationEvent::Stop
+        );
+    let identity = if let Some(supported) = supported_adapter.filter(|_| correlated) {
+        let resolved = (|| -> Result<_> {
+            let _lock = acquire_project_lock(repo_root)?;
+            // A corrupt response cache must not permit a new mapping write.
+            let _ = load_dedup_state(vault)?;
+            hook_correlation::resolve_locked(repo_root, vault, supported, event, &ingress)
+        })();
+        match resolved {
+            Ok((canonical_task, identity)) => {
+                task = canonical_task;
+                Some(identity)
+            }
+            Err(error) if event == AutomationEvent::Stop => {
+                let legacy_loop = stop_hook_active
+                    && ingress.turn.is_none()
+                    && ingress.task.is_none()
+                    && read_text(repo_root.join(".baron/state/hook-correlations.json"))?.is_none();
+                return hook_correlation::blocked(&error, adapter, legacy_loop);
+            }
+            Err(error) => bail!("{}", hook_correlation::failure(&error)),
+        }
+    } else {
+        supported_adapter
+            .map(|adapter| {
+                LifecycleIdentity::resolve(
+                    &vault.project_id,
+                    &task,
+                    adapter,
+                    supplied_session_id.as_deref(),
+                    supplied_request_id.as_deref(),
+                )
+            })
+            .transpose()?
+    };
     let (session_id, request_id, task_id, operation) = if let Some(identity) = identity.as_ref() {
         (
             Some(identity.session_id().to_string()),
@@ -368,6 +414,16 @@ pub fn handle_hook(
 
     let claim_token = {
         let _lock = acquire_project_lock(repo_root)?;
+        if event == AutomationEvent::Stop && !is_child {
+            hook_correlation::verify_stop_locked(
+                repo_root,
+                vault,
+                supported_adapter.context("Stop requires a supported adapter")?,
+                &ingress,
+                identity.as_ref().context("Stop requires identity")?,
+            )
+            .map_err(|error| anyhow::anyhow!(hook_correlation::failure(&error)))?;
+        }
         let mut dedup = load_dedup_state(vault)?;
         if let Some(response) = dedup_response(&dedup, &event_key) {
             return Ok(response);
@@ -632,14 +688,30 @@ pub fn handle_hook(
             return Err(error.into());
         }
     };
-    match publish_hook_response(
-        repo_root,
-        vault,
-        &entry,
-        &event_key,
-        &claim_token,
-        &response,
-    ) {
+    // Revalidate correlation and ACTIVE under the same lock as publication.
+    // Slow prepare/context/probes and Stop reconciliation remain outside it.
+    let publication = (|| -> Result<String> {
+        let _lock = acquire_project_lock(repo_root)?;
+        if event == AutomationEvent::Stop && !is_child {
+            hook_correlation::verify_stop_locked(
+                repo_root,
+                vault,
+                supported_adapter.context("Stop requires a supported adapter")?,
+                &ingress,
+                identity.as_ref().context("Stop requires identity")?,
+            )
+            .map_err(|error| anyhow::anyhow!(hook_correlation::failure(&error)))?;
+        }
+        publish_hook_response(
+            repo_root,
+            vault,
+            &entry,
+            &event_key,
+            &claim_token,
+            &response,
+        )
+    })();
+    match publication {
         Ok(response) => Ok(response),
         Err(error) => {
             release_dedup_claim(repo_root, vault, &event_key, &claim_token);
@@ -917,22 +989,6 @@ fn recursion_depth(payload: &Value) -> u64 {
         .or_else(|| payload.get("baronRecursionDepth"))
         .and_then(Value::as_u64)
         .unwrap_or(0)
-}
-
-fn payload_task(payload: &Value) -> String {
-    payload_string(
-        payload,
-        &[
-            "task",
-            "prompt",
-            "user_prompt",
-            "userPrompt",
-            "text",
-            "message",
-        ],
-    )
-    .filter(|value| !value.trim().is_empty())
-    .unwrap_or_else(|| "current repository state".to_string())
 }
 
 fn payload_identifier(payload: &Value, keys: &[&str]) -> Option<String> {
@@ -1258,6 +1314,28 @@ mod tests {
     use crate::vault::ensure_vault;
     use tempfile::tempdir;
 
+    fn seed_stop_correlation(repo: &Path, vault: &VaultContext, identity: &LifecycleIdentity) {
+        let payload = json!({"session_id":identity.session_id(),"request_id":identity.request_id(),"task":"current repository state"});
+        let ingress = hook_correlation::Ingress::parse(&payload, HookAdapter::Codex).unwrap();
+        let _lock = acquire_project_lock(repo).unwrap();
+        let (_, established) = hook_correlation::resolve_locked(
+            repo,
+            vault,
+            SupportedAdapter::Codex,
+            AutomationEvent::UserPromptSubmit,
+            &ingress,
+        )
+        .unwrap();
+        assert_eq!(&established, identity);
+        crate::plan::start_or_resume_plan_for_identity(
+            repo,
+            vault,
+            "current repository state",
+            identity,
+        )
+        .unwrap();
+    }
+
     #[test]
     fn stale_hook_claim_cannot_release_or_publish_a_replacement_claim() {
         let mut state = DedupState::default();
@@ -1353,6 +1431,7 @@ mod tests {
             Some("stop-request"),
         )
         .unwrap();
+        seed_stop_correlation(&repo, &context, &identity);
         let event_key = LifecycleEventKey {
             project_id: context.project_id.clone(),
             adapter: "codex".to_string(),
@@ -1411,6 +1490,7 @@ mod tests {
             Some("same-process-stop-request"),
         )
         .unwrap();
+        seed_stop_correlation(&repo, &context, &identity);
         let event_key = LifecycleEventKey {
             project_id: context.project_id.clone(),
             adapter: "codex".to_string(),

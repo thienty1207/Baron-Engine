@@ -92,6 +92,16 @@ The exact forms are discoverable with `baron <group> --help`. The adapter
 bridges load only route-selected Core resources; they do not ask the user to
 run this catalog during a task.
 
+`baron harness intent` accepts `--task`, `--adapter`, `--session-id`, and
+`--request-id` only as a complete set. Supply the canonical task and exact
+adapter/session/request identity from the operation being prepared; Core binds
+the confirmed-intent candidate to that lifecycle identity. Identified Prepare
+and Task State read only the matching durable operation record and never fall
+back to the shared `CURRENT_INTENT.md` projection. Omitting all four selectors
+keeps the legacy intent-recording flow, which is a display/intake artifact and
+does not establish authority for an identified operation. Partial selectors
+are rejected; Core does not infer missing identity from CURRENT state.
+
 ## Ownership and safety contract
 
 Core owns `.baron/core/**`, project identity, Task State, memory, receipts, and

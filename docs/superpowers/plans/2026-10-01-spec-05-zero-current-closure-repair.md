@@ -1,0 +1,39 @@
+# SPEC-05 zero-CURRENT closure repair
+
+Date: 2026-10-01. Base: ecaf362. Starting HEAD: 9bdb979.
+Binding requirement: user-supplied `SPEC-05-FINAL-CLOSURE-REPAIR-ZERO-CURRENT-HOOK-IDENTITY.md` in the primary checkout's `fix-bug/prompt/`.
+
+## Constraints and interfaces
+
+Use the existing SPEC-05 worktree/branch. Preserve unrelated files and legacy single-active behavior when safe. No public version bump, release, tag, SPEC-06 framework, or Hotel Staff edits. Exact full identity and validated ACTIVE/frontmatter are correctness authority; CURRENT is presentation. Durable correlation uses the existing project lock with slow work outside it.
+
+CLI and hook repairs share existing LifecycleIdentity/ACTIVE APIs but have disjoint file ownership. The main implementer owns CLI/plan APIs and docs. A focused worker owns automation hook normalization/correlation and hook regressions. A read-only authority auditor inventories remaining callers. No new unvalidated generic persistence or host field assumptions.
+
+## Task 1: CLI ingress (main)
+
+Write exact A-vs-CURRENT-B proof, receipt, trace and scoring regressions plus no-selector ambiguity/no-mutation tests. Observe RED. Add complete optional task/adapter/session/request selectors using the canonical identity helper; validate exact ACTIVE binding. Receipt identity selects independently of CURRENT. No-selector selects only a validated single active operation; ambiguity fails before evidence writes. Observe GREEN focused CLI/Core suites.
+
+## Task 2: host correlation (focused worker)
+
+Audit official Codex and Claude hook schemas independently. Write host-shaped Prompt/Stop, retry, restart, unknown/ambiguous/malformed/duplicate/stale/capacity regressions; observe RED. Persist bounded correlation with canonical task and full identity under the project lock; validate project/adapter/session/request, ACTIVE and frontmatter on correctness paths. Session-only resolution is permitted only when unique, never newest/CURRENT/guessing. Observe GREEN hook suites.
+
+## Task 3: complete authority inventory (read-only audit, fixes main)
+
+Search every CURRENT/active-plan/current-risk/latest-proof/latest-trace/reconcile caller. Record each as PRESENTATION_ONLY, LEGACY_SINGLE_ACTIVE_SAFE, EXACT_OPERATION_SCOPED, AMBIGUOUS_FAIL_CLOSED, BUG, or OUT_OF_SPEC. Fix owned BUG callers via RED-to-GREEN. Preserve all prior authority/concurrency fixes.
+
+Treat confirmed intent as operation authority too: add an explicit exact-identity producer and durable Repo/Vault per-operation record; keep `CURRENT_INTENT.md` as a latest projection only. Prepare and Task State must read the exact record, fail closed on malformed/mismatched/oversized state, and never accept an unbound CURRENT intent for an identified operation. Keep the legacy intent writer and legacy intake behavior intact.
+
+The UTF-8 boundary panic in replay formatting is a known baseline manifestation that can interrupt `prepare_cli` when matching host history is imported. Reproduce with a synthetic multibyte fixture; fix the byte-boundary truncation without reading real user session trees during routine deterministic tests.
+
+## Task 4: integrated verification and evidence
+
+Run fmt; Core, CLI, adapters and workspace all-targets with -j 1/no-fail-fast; warnings-denied workspace Clippy; locked workspace release build; all prompt focused suites. Parse status JSON, check maintained links and diff ecaf362..HEAD, binary version. Reproduce any claimed baseline exceptions at ecaf362 and final source, investigating changed causes/counts. Inspect actual GitHub status/Actions evidence; never equate absence with success.
+
+## Task 5: independent review and delivery
+
+Commit source/tests and final evidence/docs before independent read-only review of ecaf362..actual HEAD, including every new document. Resolve Critical/Important findings with regressions and fresh verification; re-review if required by the binding prompt. READY only after audit/verification; CLOSED only with independent acceptance. Push scoped branch, verify clean local state and exact remote HEAD. Report limitations honestly.
+
+## Execution ledger
+
+- Start: FIX REQUIRED in all four maintained status artifacts; prior runs marked historical. New verification pending.
+- Ruling: latest user repair prompt overrides the older inline skill's no-re-review restriction if review fixes change final HEAD; final acceptance must include the delivered source/docs.

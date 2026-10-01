@@ -12,7 +12,10 @@ use crate::control_plane::validate_control_plane;
 use crate::domain_language::{read_domain_language, render_domain_language_context};
 use crate::firewall::compact_memory_brief_for_task;
 use crate::harness_improvement::audit_harness;
-use crate::intelligence::{experimental_generation_enabled, select_resume_brief_runtime};
+use crate::intelligence::{
+    experimental_generation_enabled, select_resume_brief_runtime,
+    select_resume_brief_runtime_for_task_state,
+};
 use crate::intelligence41::{
     build_grounded_handoff, refresh_temporal_ledger, render_grounded_handoff,
 };
@@ -74,6 +77,12 @@ fn compile_context_for_task_with_identity(
     let repo_path = repo_path.as_ref();
     let survey = survey_repository(repo_path)?;
     let vault = ensure_vault(vault_path, repo_path)?;
+    let task_state = match identity {
+        Some(identity) => {
+            crate::task_state::compile_task_state_for_operation(repo_path, &vault, identity, task)?
+        }
+        None => compile_task_state(repo_path, &vault, task)?,
+    };
     let domain_language = read_domain_language(repo_path, &vault)?;
     if repo_path.join(".baron/project.toml").exists()
         || std::env::var_os("BARON_CODEX_SESSIONS_ROOT").is_some()
@@ -93,24 +102,44 @@ fn compile_context_for_task_with_identity(
     refresh_temporal_ledger(&vault)?;
     index_session_replay(&vault)?;
     let memory_brief = compact_memory_brief_for_task(&vault, task)?;
-    let (intelligence_generation, resume_brief) = select_resume_brief_runtime(&vault, task, 4_800)?;
-    let grounded_handoff = if matches!(
-        intelligence_generation,
-        crate::intelligence::EngineGeneration::Candidate41
-            | crate::intelligence::EngineGeneration::Candidate42
-    ) {
+    let memory_brief = if identity.is_some() {
+        // These managed memory paths project operation state. Exact Task
+        // State already supplies it; project recall cannot promote CURRENT,
+        // shared indexes, or another operation's artifacts into Tier 1.
+        memory_brief
+            .lines()
+            .filter(|line| {
+                ![
+                    "/Plans/",
+                    "/Continuity/",
+                    "/ProductHarness/",
+                    "/Proofs/",
+                    "/Traces/",
+                ]
+                .iter()
+                .any(|path| line.contains(path))
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        memory_brief
+    };
+    let (intelligence_generation, resume_brief) = match identity {
+        Some(_) => select_resume_brief_runtime_for_task_state(&vault, &task_state, 4_800)?,
+        None => select_resume_brief_runtime(&vault, task, 4_800)?,
+    };
+    let grounded_handoff = if identity.is_none()
+        && matches!(
+            intelligence_generation,
+            crate::intelligence::EngineGeneration::Candidate41
+                | crate::intelligence::EngineGeneration::Candidate42
+        ) {
         build_grounded_handoff(&vault, task, 4_800).ok()
     } else {
         None
     };
     let consolidation = analyze_memory_consolidation(&vault)?;
     let risk = classify_risk(task, &survey);
-    let task_state = match identity {
-        Some(identity) => {
-            crate::task_state::compile_task_state_for_operation(repo_path, &vault, identity, task)?
-        }
-        None => compile_task_state(repo_path, &vault, task)?,
-    };
 
     let mut output = String::new();
     output.push_str(&format!("# Baron Context Bundle - {}\n\n", target.title()));
@@ -140,11 +169,12 @@ fn compile_context_for_task_with_identity(
     output.push_str(&render_platform_focus(repo_path));
     output.push_str(&render_platform_context(repo_path, task));
     output.push_str(&render_architecture_context(repo_path));
-    output.push_str(&render_review_gate(repo_path));
-
-    output.push_str(&render_intent_clarity(repo_path));
-    output.push_str(&render_continuity_resume(repo_path));
-    output.push_str(&render_actionable_recovery(repo_path));
+    if identity.is_none() {
+        output.push_str(&render_review_gate(repo_path));
+        output.push_str(&render_intent_clarity(repo_path));
+        output.push_str(&render_continuity_resume(repo_path));
+        output.push_str(&render_actionable_recovery(repo_path));
+    }
     output.push_str(&render_resume_brief(&resume_brief, 4_800));
     output.push('\n');
     if let Some(handoff) = grounded_handoff {
@@ -169,8 +199,10 @@ fn compile_context_for_task_with_identity(
             output.push_str("## Application Runbook\n\n- No project-owned runbook is available; runtime facts remain unknown.\n\n");
         }
     }
-    output.push_str(&render_execution_state(repo_path));
-    output.push_str(&render_execution_evidence(repo_path));
+    if identity.is_none() {
+        output.push_str(&render_execution_state(repo_path));
+        output.push_str(&render_execution_evidence(repo_path));
+    }
     if domain_language.term_count > 0 && domain_language.mirror_in_sync {
         output.push_str(&render_domain_language_context(repo_path, 1_400)?);
     } else if domain_language.term_count > 0 {
@@ -190,8 +222,10 @@ fn compile_context_for_task_with_identity(
         6,
     )?);
     output.push_str(&render_control_plane_summary(repo_path));
-    output.push_str(&render_harness_improvement_summary(repo_path, &vault));
-    output.push_str(&render_autopilot_context_summary(repo_path, &vault));
+    if identity.is_none() {
+        output.push_str(&render_harness_improvement_summary(repo_path, &vault));
+        output.push_str(&render_autopilot_context_summary(repo_path, &vault));
+    }
     output.push_str(&render_session_replay_summary(&vault, task));
 
     output.push_str(&memory_brief.replacen(
@@ -244,7 +278,17 @@ pub fn compile_context_for_operation(
         crate::operation::SupportedAdapter::Codex => ContextTarget::Codex,
         crate::operation::SupportedAdapter::Claude => ContextTarget::Claude,
     };
-    compile_context_for_task(repo_path, vault_path, target, task)
+    if operation.task_id.is_some()
+        || operation.operation_id.is_some()
+        || operation.session_id.is_some()
+        || operation.request_id.is_some()
+    {
+        let vault = ensure_vault(&vault_path, &repo_path)?;
+        let identity = operation.lifecycle_identity(&vault.project_id)?;
+        compile_context_for_task_with_identity(repo_path, vault_path, target, task, Some(&identity))
+    } else {
+        compile_context_for_task(repo_path, vault_path, target, task)
+    }
 }
 
 /// Compile context using the complete ingress identity so Task State and all

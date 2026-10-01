@@ -7,12 +7,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::load_project_config;
 use crate::continuity::continuity_status;
-use crate::control_plane::route_task;
-use crate::intent::intent_status;
-use crate::operation::{canonical_task_text, task_id_for_task, LifecycleIdentity};
-use crate::plan::plan_status;
-use crate::proof::latest_proof;
-use crate::trace::latest_trace_score;
+use crate::control_plane::{
+    gate_evidence_status_strict_for_operation, route_task, route_task_for_operation,
+};
+use crate::execution_receipt::ReceiptContext;
+use crate::intent::{intent_status, operation_intent_for_identity, operation_intent_path};
+use crate::operation::{
+    canonical_task_text, task_id_for_task, LifecycleIdentity, OperationContext,
+};
+use crate::plan::{active_plan_authority, plan_status, plan_status_for_identity};
+use crate::proof::{latest_proof, proof_for_operation};
+use crate::trace::{latest_trace_score, latest_trace_score_for_operation, TraceOperationBinding};
 use crate::vault::VaultContext;
 use crate::work_shape::decide_work_shape;
 
@@ -70,7 +75,7 @@ pub fn compile_task_state(
     let task = canonical_task_text(task).map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let task_id = task_id_for_task(&vault.project_id, &task)
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    compile_task_state_with_id(repo_root, vault, &task, task_id)
+    compile_task_state_with_id(repo_root, vault, &task, task_id, None)
 }
 
 pub fn compile_task_state_for_operation(
@@ -100,7 +105,13 @@ pub fn compile_task_state_for_operation(
             expected_task_id
         );
     }
-    compile_task_state_with_id(repo_root, vault, &task, identity.task_id().to_string())
+    compile_task_state_with_id(
+        repo_root,
+        vault,
+        &task,
+        identity.task_id().to_string(),
+        Some(identity),
+    )
 }
 
 fn compile_task_state_with_id(
@@ -108,14 +119,38 @@ fn compile_task_state_with_id(
     vault: &VaultContext,
     task: &str,
     task_id: String,
+    identity: Option<&LifecycleIdentity>,
 ) -> Result<TaskStateProjection> {
     let repo_root = repo_root.as_ref();
-    let intent_source = intent_status(repo_root).unwrap_or_default();
-    let plan_source = plan_status(repo_root).unwrap_or_default();
-    let continuity_source = continuity_status(repo_root, vault).unwrap_or_default();
+    if identity.is_none()
+        && active_plan_authority(repo_root)?.is_some_and(|authority| authority.binding.is_some())
+    {
+        bail!("unscoped Task State is ambiguous while identified operation work is active; supply the exact lifecycle identity");
+    }
     let recovery_path = repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md");
     let continuity_path = repo_root.join("docs/baron/continuity/CURRENT.md");
-    let recovery_source = read_bounded(&recovery_path, MAX_FIELD_CHARS * 2);
+    let (intent_source, plan_source, mut continuity_source, recovery_source) = match identity {
+        Some(identity) => (
+            operation_intent_for_identity(repo_root, identity, MAX_FIELD_CHARS * 4)?
+                .unwrap_or_default(),
+            plan_status_for_identity(repo_root, identity)?,
+            operation_scoped_source(&continuity_path, identity, MAX_FIELD_CHARS * 4),
+            operation_scoped_source(&recovery_path, identity, MAX_FIELD_CHARS * 4),
+        ),
+        None => (
+            intent_status(repo_root).unwrap_or_default(),
+            plan_status(repo_root).unwrap_or_default(),
+            continuity_status(repo_root, vault).unwrap_or_default(),
+            read_bounded(&recovery_path, MAX_FIELD_CHARS * 2),
+        ),
+    };
+    if identity.is_some() && field(&plan_source, "- Title: ").is_none() {
+        // A matching lifecycle identity alone is not resumable operation
+        // state. Prompt hooks may record an initial checkpoint before any
+        // exact ACTIVE plan exists; keep that packet diagnostic-only until
+        // the identified operation owns a validated active plan.
+        continuity_source.clear();
+    }
 
     let intent_title = field(&intent_source, "- Title: ");
     let target_behavior = field(&intent_source, "- Target behavior: ")
@@ -124,7 +159,8 @@ fn compile_task_state_with_id(
     let non_goals = section_list(&intent_source, "## Non-Goals");
     let plan_title = field(&plan_source, "- Title: ");
     let plan_status = field(&plan_source, "- Status: ");
-    let plan_next = field(&plan_source, "- Next action: ");
+    let plan_next = field(&plan_source, "- Next action: ")
+        .or_else(|| identity.and_then(|_| canonical_plan_next(&plan_source)));
     let continuity_task = field(&continuity_source, "- Current task: ");
     let continuity_next = field(&continuity_source, "- Next action: ");
     let recovery_outcome = field(&recovery_source, "- Outcome: ");
@@ -132,12 +168,20 @@ fn compile_task_state_with_id(
     let last_successful_step = section_first_line(&recovery_source, "## Last Successful Step")
         .or_else(|| section_first_line(&continuity_source, "## Last Successful Step"));
     let recovery_next = section_first_line(&recovery_source, "## Safe Next Action");
-    let stale_recovery = recovery_is_stale(&continuity_path, &recovery_path);
+    let stale_recovery = !continuity_source.is_empty()
+        && !recovery_source.is_empty()
+        && recovery_is_stale(&continuity_path, &recovery_path);
 
     let work_shape = decide_work_shape(repo_root, task).ok();
-    let route_result = work_shape
-        .as_ref()
-        .map(|decision| route_task(repo_root, task, decision.risk));
+    let route_result = work_shape.as_ref().map(|decision| match identity {
+        Some(identity) => route_task_for_operation(
+            repo_root,
+            task,
+            decision.risk,
+            &OperationContext::from_identity(identity),
+        ),
+        None => route_task(repo_root, task, decision.risk),
+    });
     let route = route_result.as_ref().and_then(|result| {
         result.as_ref().ok().map(|report| TaskStateRoute {
             explanation: bounded(&report.explanation),
@@ -186,9 +230,28 @@ fn compile_task_state_with_id(
         unknowns.push("current route is unknown".to_string());
     }
 
-    let proof_state =
-        latest_proof(repo_root)?.map(|proof| format!("{}: {}", proof.id, bounded(&proof.summary)));
-    let trace_state = latest_trace_score(repo_root)?.map(|trace| {
+    let proof = match identity {
+        Some(identity) => {
+            proof_for_operation(repo_root, &ReceiptContext::for_identity(identity, "proof")?)?
+        }
+        None => latest_proof(repo_root)?.filter(|proof| proof.binding.is_none()),
+    };
+    let trace = match identity {
+        Some(identity) => proof
+            .as_ref()
+            .map(|proof| {
+                let binding = TraceOperationBinding::from_operation(
+                    &OperationContext::from_identity(identity),
+                    &proof.id,
+                )?;
+                latest_trace_score_for_operation(repo_root, &binding)
+            })
+            .transpose()?
+            .flatten(),
+        None => latest_trace_score(repo_root)?.filter(|trace| trace.binding.is_none()),
+    };
+    let proof_state = proof.map(|proof| format!("{}: {}", proof.id, bounded(&proof.summary)));
+    let trace_state = trace.map(|trace| {
         format!(
             "{}/{}; passed={}",
             trace.achieved.as_str(),
@@ -200,6 +263,23 @@ fn compile_task_state_with_id(
         .as_ref()
         .map(|route| route.selected_agents.clone())
         .unwrap_or_default();
+    if let Some(identity) = identity {
+        let gates = gate_evidence_status_strict_for_operation(
+            repo_root,
+            &mandatory_gates,
+            identity.task_id(),
+            identity.operation_id(),
+            identity.adapter().as_str(),
+            Some(identity.session_id()),
+            Some(identity.request_id()),
+        )?;
+        if !gates.passed {
+            unknowns.push(format!(
+                "operation gate evidence is missing: {}",
+                gates.missing_agents.join(", ")
+            ));
+        }
+    }
     let proof_required = work_shape
         .as_ref()
         .map(|decision| decision.proof_required)
@@ -225,6 +305,37 @@ fn compile_task_state_with_id(
         "docs/baron/proofs/INDEX.md".to_string(),
         "docs/baron/traces/INDEX.md".to_string(),
     ];
+    if let Some(identity) = identity {
+        sources.retain(|source| {
+            !source.ends_with("CURRENT.md")
+                && !source.ends_with("CURRENT_INTENT.md")
+                && !source.ends_with("CURRENT_RECOVERY.md")
+        });
+        sources.push("docs/baron/plans/ACTIVE.md".to_string());
+        if let Some(path) = field(&plan_source, "- Plan: ") {
+            sources.push(path);
+        }
+        if !intent_source.is_empty() {
+            let intent_path = operation_intent_path(repo_root, identity);
+            let relative = intent_path
+                .strip_prefix(repo_root)
+                .unwrap_or(&intent_path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            sources.push(relative);
+        }
+        for (relative, source) in [
+            ("docs/baron/continuity/CURRENT.md", &continuity_source),
+            (
+                "docs/baron/continuity/CURRENT_RECOVERY.md",
+                &recovery_source,
+            ),
+        ] {
+            if !source.is_empty() {
+                sources.push(relative.to_string());
+            }
+        }
+    }
     if load_project_config(repo_root).is_err() {
         unknowns.push("project configuration is unavailable".to_string());
         sources.retain(|source| source != ".baron/project.toml");
@@ -467,6 +578,49 @@ fn read_bounded(path: &Path, limit: usize) -> String {
     fs::read_to_string(path)
         .map(|content| content.chars().take(limit).collect())
         .unwrap_or_default()
+}
+
+/// Shared resume/intent Markdown is usable for an identified operation only
+/// when its header carries the complete exact binding. Unbound legacy packets
+/// remain available to diagnostics, but cannot supply another operation's
+/// intent, recovery, or next action. Duplicate identity fields fail closed.
+pub(crate) fn operation_scoped_source(
+    path: &Path,
+    identity: &LifecycleIdentity,
+    limit: usize,
+) -> String {
+    let source = read_bounded(path, limit);
+    let header = source.split("\n## ").next().unwrap_or_default();
+    for (prefix, expected) in [
+        ("- Project ID: ", identity.project_id()),
+        ("- Task ID: ", identity.task_id()),
+        ("- Operation ID: ", identity.operation_id()),
+        ("- Adapter: ", identity.adapter().as_str()),
+        ("- Session ID: ", identity.session_id()),
+        ("- Request ID: ", identity.request_id()),
+    ] {
+        let mut values = header.lines().filter_map(|line| line.strip_prefix(prefix));
+        if values.next().map(|value| value.trim().trim_matches('`')) != Some(expected)
+            || values.next().is_some()
+        {
+            return String::new();
+        }
+    }
+    source
+}
+
+pub(crate) fn canonical_plan_next(source: &str) -> Option<String> {
+    let progress = source.split("## Progress Log\n").nth(1)?;
+    let note = progress.lines().rev().find_map(|line| {
+        line.strip_prefix("- ")?
+            .split_once(" - ")
+            .map(|(_, note)| note.trim())
+    })?;
+    Some(bounded(if note == "Plan started." {
+        "continue from current task scope"
+    } else {
+        note
+    }))
 }
 
 fn field(source: &str, prefix: &str) -> Option<String> {

@@ -354,6 +354,66 @@ pub fn build_resume_brief(
     Ok(brief)
 }
 
+/// Identified runtime resume state comes only from the exact Task State.
+/// Shared CURRENT packets and INDEX summaries remain diagnostic inputs to the
+/// legacy builders below; they must not become another operation's objective.
+pub fn build_resume_brief_for_task_state(
+    context: &VaultContext,
+    state: &crate::task_state::TaskStateProjection,
+    max_chars: usize,
+) -> Result<ResumeBrief> {
+    if state.project_id != context.project_id {
+        bail!("resume Task State does not match the Vault project");
+    }
+    let mut brief = ResumeBrief {
+        schema_version: KNOWLEDGE_SCHEMA_VERSION,
+        project_id: context.project_id.clone(),
+        project_slug: context.project_slug.clone(),
+        source_revision: compute_code_source_fingerprint(&context.repo_root)
+            .unwrap_or_else(|_| "unknown".to_string()),
+        current_objective: redact_sensitive(&state.task),
+        current_phase: state
+            .current_plan
+            .as_deref()
+            .map(redact_sensitive)
+            .unwrap_or_else(|| "unknown".to_string()),
+        last_checkpoint: state
+            .continuity
+            .as_deref()
+            .map(redact_sensitive)
+            .unwrap_or_else(|| "unknown".to_string()),
+        confirmed_decisions: Vec::new(),
+        open_blocker: if state.blockers.is_empty() {
+            "unknown".to_string()
+        } else {
+            redact_sensitive(&state.blockers.join("; "))
+        },
+        affected_files: state.affected_files.clone(),
+        proof_status: state
+            .proof_state
+            .as_deref()
+            .map(redact_sensitive)
+            .unwrap_or_else(|| "unknown".to_string()),
+        trace_status: state
+            .trace_state
+            .as_deref()
+            .map(redact_sensitive)
+            .unwrap_or_else(|| "unknown".to_string()),
+        unknowns: state
+            .unknowns
+            .iter()
+            .map(|value| redact_sensitive(value))
+            .collect(),
+        next_action: redact_sensitive(&state.next_action),
+        // Trusted project memory is rendered separately by the context
+        // firewall. It does not select the operation's resume point.
+        memory_hits: Vec::new(),
+        bounded_chars: 0,
+    };
+    brief.bounded_chars = render_resume_brief(&brief, max_chars).chars().count();
+    Ok(brief)
+}
+
 /// Baron 4.0 candidate Resume Brief. It preserves the 3.8 contract and adds
 /// stronger project-filtered reranking plus explicit abstraction/trust labels.
 pub fn build_resume_brief_v4(

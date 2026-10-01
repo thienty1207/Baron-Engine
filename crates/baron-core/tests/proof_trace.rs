@@ -13,7 +13,7 @@ use baron_core::execution_receipt::{
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
-use baron_core::plan::start_or_resume_plan_for_operation;
+use baron_core::plan::{start_or_resume_plan, start_or_resume_plan_for_operation};
 use baron_core::proof::{
     latest_proof, proof_for_operation, proof_status, record_proof, record_proof_for_operation,
     record_proof_from_receipt_bound, record_proof_with_capabilities_for_operation,
@@ -58,6 +58,297 @@ fn confirm_intent(repo: &std::path::Path, vault: &baron_core::vault::VaultContex
         },
     )
     .unwrap();
+}
+
+fn harness_bytes(repo: &std::path::Path, vault: &baron_core::vault::VaultContext) -> Vec<Vec<u8>> {
+    [
+        repo.join("docs/baron/harness/TEST_MATRIX.md"),
+        vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
+        repo.join("docs/baron/harness/CURRENT.md"),
+        vault.project_root.join("ProductHarness/CURRENT.md"),
+    ]
+    .into_iter()
+    .map(|path| fs::read(path).unwrap())
+    .collect()
+}
+
+fn assert_scoped_proof_preserves_other_harness(proof_kind: &str) {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README alpha",
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+    let second = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README beta",
+        SupportedAdapter::Claude,
+        Some("session-b"),
+        Some("request-b"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&first);
+    start_or_resume_plan_for_operation(&repo, &context, "fix README alpha", &operation).unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README beta",
+        &OperationContext::from_identity(&second),
+    )
+    .unwrap();
+    let story = start_or_resume_intake(&repo, &context, "fix README beta").unwrap();
+    let before = harness_bytes(&repo, &context);
+    let story_before = fs::read(&story.repo_path).unwrap();
+    let vault_story_before = fs::read(&story.vault_path).unwrap();
+    let proof = match proof_kind {
+        "receipt" => {
+            let (receipt, binding) = passing_proof_receipt(&repo, &first);
+            record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &binding).unwrap()
+        }
+        "capability" => record_proof_with_capabilities_for_operation(
+            &repo,
+            &context,
+            &operation,
+            "README alpha verification passed",
+            &[],
+        )
+        .unwrap(),
+        _ => record_proof_for_operation(
+            &repo,
+            &context,
+            &operation,
+            "README alpha verification passed",
+        )
+        .unwrap(),
+    };
+    assert!(
+        harness_bytes(&repo, &context) == before,
+        "{proof_kind} proof for A must preserve B harness bytes"
+    );
+    assert_eq!(fs::read(&story.repo_path).unwrap(), story_before);
+    assert_eq!(fs::read(&story.vault_path).unwrap(), vault_story_before);
+    let binding = proof.binding.unwrap();
+    assert_eq!(binding.operation_id, first.operation_id());
+    assert_ne!(binding.operation_id, second.operation_id());
+    assert!(proof.repo_path.is_file());
+    assert!(proof.vault_path.is_file());
+}
+
+#[test]
+fn scoped_proof_does_not_promote_another_operations_harness() {
+    assert_scoped_proof_preserves_other_harness("free-form");
+}
+
+#[test]
+fn scoped_receipt_proof_does_not_promote_another_operations_harness() {
+    assert_scoped_proof_preserves_other_harness("receipt");
+}
+
+#[test]
+fn scoped_capability_proof_does_not_promote_another_operations_harness() {
+    assert_scoped_proof_preserves_other_harness("capability");
+}
+
+#[test]
+fn scoped_proof_does_not_promote_a_story_shared_by_two_operations_of_the_same_task() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identities = ["request-a", "request-b"].map(|request| {
+        AuthoritativeLifecycleIdentity::resolve(
+            &context.project_id,
+            "fix README shared",
+            SupportedAdapter::Codex,
+            Some("shared-session"),
+            Some(request),
+        )
+        .unwrap()
+    });
+    let operation = OperationContext::from_identity(&identities[0]);
+    let plan = start_or_resume_plan_for_operation(&repo, &context, "fix README shared", &operation)
+        .unwrap();
+    // Model valid persisted concurrent ownership directly: the intake API has
+    // no binding, and a same-title plan start may refuse a second identity.
+    let second_path = repo.join("docs/baron/plans/shared-second.md");
+    let second_content = fs::read_to_string(&plan.repo_path)
+        .unwrap()
+        .replace(identities[0].operation_id(), identities[1].operation_id())
+        .replace(identities[0].request_id(), identities[1].request_id());
+    fs::write(&second_path, second_content).unwrap();
+    let index_path = repo.join("docs/baron/plans/ACTIVE.md");
+    let mut index = fs::read_to_string(&index_path).unwrap();
+    index.push_str(&format!(
+        "<!-- BARON:ACTIVE-PLAN {} -->\n",
+        serde_json::json!({
+            "task_id": identities[1].task_id(),
+            "operation_id": identities[1].operation_id(),
+            "adapter": "codex",
+            "session_id": "shared-session",
+            "request_id": "request-b",
+            "plan_path": "docs/baron/plans/shared-second.md",
+            "status": "in_progress",
+        })
+    ));
+    fs::write(index_path, index).unwrap();
+    start_or_resume_intake(&repo, &context, "fix README shared").unwrap();
+    let before = harness_bytes(&repo, &context);
+    record_proof_for_operation(&repo, &context, &operation, "README verification passed").unwrap();
+    assert!(
+        harness_bytes(&repo, &context) == before,
+        "ambiguous task story changed"
+    );
+}
+
+#[test]
+fn scoped_proof_without_exact_active_ownership_does_not_promote_a_matching_story() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README unowned",
+        SupportedAdapter::Codex,
+        Some("unowned-session"),
+        Some("unowned-request"),
+    )
+    .unwrap();
+    start_or_resume_intake(&repo, &context, "fix README unowned").unwrap();
+    let before = harness_bytes(&repo, &context);
+    record_proof_for_operation(
+        &repo,
+        &context,
+        &OperationContext::from_identity(&identity),
+        "README verification passed",
+    )
+    .unwrap();
+    assert!(
+        harness_bytes(&repo, &context) == before,
+        "unowned story changed"
+    );
+}
+
+#[test]
+fn partial_operation_proof_does_not_promote_the_current_harness() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    start_or_resume_intake(&repo, &context, "fix README beta").unwrap();
+    let before = harness_bytes(&repo, &context);
+    record_proof_with_capabilities_for_operation(
+        &repo,
+        &context,
+        &OperationContext::new(SupportedAdapter::Codex),
+        "README alpha verification passed",
+        &[],
+    )
+    .unwrap();
+    assert!(
+        harness_bytes(&repo, &context) == before,
+        "partial operation changed story"
+    );
+}
+
+#[test]
+fn scoped_proof_uses_the_owned_storys_canonical_risk() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "backend login security",
+        SupportedAdapter::Codex,
+        Some("risk-session"),
+        Some("risk-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(&repo, &context, "backend login security", &operation)
+        .unwrap();
+    confirm_intent(&repo, &context, "backend login security");
+    start_or_resume_intake(&repo, &context, "backend login security").unwrap();
+    let other = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README beta",
+        SupportedAdapter::Claude,
+        Some("other-session"),
+        Some("other-request"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README beta",
+        &OperationContext::from_identity(&other),
+    )
+    .unwrap();
+    let current = repo.join("docs/baron/harness/CURRENT.md");
+    let content = fs::read_to_string(&current)
+        .unwrap()
+        .replace("Risk: `high`", "Risk: `low`");
+    fs::write(current, content).unwrap();
+    record_proof_for_operation(&repo, &context, &operation, "cargo test passed").unwrap();
+    for path in [
+        repo.join("docs/baron/harness/TEST_MATRIX.md"),
+        context.project_root.join("ProductHarness/TEST_MATRIX.md"),
+    ] {
+        let matrix = fs::read_to_string(path).unwrap();
+        assert!(
+            matrix.contains("| backend login security | high | insufficient | cargo test passed |")
+        );
+    }
+}
+
+#[test]
+fn scoped_proof_rejects_malformed_owned_story_before_publication() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README alpha",
+        SupportedAdapter::Codex,
+        Some("story-session"),
+        Some("story-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(&repo, &context, "fix README alpha", &operation).unwrap();
+    let story = start_or_resume_intake(&repo, &context, "fix README alpha").unwrap();
+    let content = fs::read_to_string(&story.repo_path)
+        .unwrap()
+        .replace("Risk: `low`", "Risk: `high`");
+    fs::write(story.repo_path, content).unwrap();
+    let before = harness_bytes(&repo, &context);
+    let result = record_proof_for_operation(&repo, &context, &operation, "README passed");
+    assert!(
+        result.is_err(),
+        "malformed owned story must fail before publishing proof"
+    );
+    assert!(!repo.join("docs/baron/proofs").exists());
+    assert!(!context.project_root.join("Proofs/INDEX.md").exists());
+    assert!(harness_bytes(&repo, &context) == before);
 }
 
 #[test]
@@ -417,12 +708,7 @@ fn high_risk_trace_with_plan_story_proof_and_files_passes_detailed() {
     let context = ensure_vault(&vault, &repo).unwrap();
     confirm_intent(&repo, &context, "backend login security");
     start_or_resume_intake(&repo, &context, "backend login security").unwrap();
-    fs::create_dir_all(repo.join("docs/baron/plans")).unwrap();
-    fs::write(
-        repo.join("docs/baron/plans/CURRENT.md"),
-        "# Current Plan\n\n- Title: backend login security\n- Status: `in_progress`\n",
-    )
-    .unwrap();
+    start_or_resume_plan(&repo, &context, "backend login security").unwrap();
     record_proof(
         &repo,
         &context,
@@ -439,7 +725,12 @@ fn high_risk_trace_with_plan_story_proof_and_files_passes_detailed() {
     .unwrap();
     let score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
 
-    assert_eq!(score.achieved, TraceTier::Detailed);
+    assert_eq!(
+        score.achieved,
+        TraceTier::Detailed,
+        "{score:?}\n{}",
+        fs::read_to_string(&trace.repo_path).unwrap()
+    );
     assert_eq!(score.required, TraceTier::Detailed);
     assert!(score.passed);
     assert!(score.missing_fields.is_empty());
@@ -588,10 +879,17 @@ fn structured_execution_evidence_satisfies_present_required_capability() {
     let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
     let identity = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
-        "task-proof",
+        "fix README typo",
         SupportedAdapter::Codex,
         Some("session-proof"),
         Some("request-proof"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README typo",
+        &OperationContext::from_identity(&identity),
     )
     .unwrap();
     let binding = ReceiptContext::for_identity(&identity, "capability_execution").unwrap();

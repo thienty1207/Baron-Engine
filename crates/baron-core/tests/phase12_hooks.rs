@@ -7,7 +7,8 @@ use baron_core::automation::{
     HookAdapter,
 };
 use baron_core::config::{initialize_project, AdapterKind};
-use baron_core::operation::{OperationContext, SupportedAdapter};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::plan::start_or_resume_plan_for_identity;
 use baron_core::prepare::{prepare, PrepareRequestV1};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -352,13 +353,25 @@ fn precompact_is_cheap_durable_and_byte_stable_on_retry() {
 #[test]
 fn stop_is_not_completion_and_retries_are_idempotent() {
     let (_temp, repo, vault) = project(AdapterKind::Codex);
-    fs::create_dir_all(repo.join("docs/baron/plans")).unwrap();
-    fs::write(
-        repo.join("docs/baron/plans/CURRENT.md"),
-        "# Current Plan\n\n- Title: active\n- Status: `in_progress`\n- Next action: verify\n",
+    let task = "backend login security";
+    handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::UserPromptSubmit,
+        r#"{"session_id":"stop-session","turn_id":"stop-1","prompt":"backend login security"}"#,
     )
     .unwrap();
-    let payload = r#"{"session_id":"stop-session","request_id":"stop-1","stop_hook_active":false}"#;
+    let identity = LifecycleIdentity::resolve(
+        &vault.project_id,
+        task,
+        SupportedAdapter::Codex,
+        Some("stop-session"),
+        Some("stop-1"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &vault, task, &identity).unwrap();
+    let payload = r#"{"session_id":"stop-session","turn_id":"stop-1","stop_hook_active":false}"#;
     let first = handle_hook(
         &repo,
         &vault,
@@ -387,11 +400,11 @@ fn stop_is_not_completion_and_retries_are_idempotent() {
         &vault,
         HookAdapter::Codex,
         AutomationEvent::Stop,
-        r#"{"session_id":"stop-session","request_id":"stop-1","stop_hook_active":true}"#,
+        r#"{"session_id":"stop-session","turn_id":"stop-1","stop_hook_active":true}"#,
     )
     .unwrap();
     assert!(loop_break.contains("continue"));
-    assert_eq!(journal(&vault).lines().count(), 2);
+    assert_eq!(journal(&vault).lines().count(), 3);
 }
 
 #[test]

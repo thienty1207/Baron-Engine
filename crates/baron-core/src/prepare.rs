@@ -11,21 +11,20 @@ use crate::config::{
     find_project_root, load_project_config, resolve_vault_path_for_repo, ProjectPlatform,
 };
 use crate::context::compile_context_for_lifecycle_identity;
-use crate::continuity::continuity_status;
 use crate::control_plane::{
     gate_evidence_status_strict_for_operation, route_task_for_operation, validate_control_plane,
 };
 use crate::execution_receipt::ReceiptContext;
-use crate::harness::harness_status;
-use crate::intent::intent_status;
+use crate::intent::operation_intent_for_identity;
 use crate::operation::{
     canonical_task_text, task_id_for_task, LifecycleIdentity, OperationContext,
     OperationIdentityError, SupportedAdapter,
 };
-use crate::plan::plan_status;
+use crate::plan::plan_status_for_identity;
 use crate::platform::{platform_name, render_platform_context};
 use crate::proof::proof_for_operation;
 use crate::risk::RiskLane;
+use crate::task_state::{canonical_plan_next, operation_scoped_source};
 use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding};
 use crate::vault::ensure_vault;
 use crate::work_shape::{decide_work_shape, DurabilityNeed, JudgmentNeed, LifecycleDepth};
@@ -369,12 +368,22 @@ pub fn prepare(
     let route = route_task_for_operation(&repo_root, &request.task, work_shape.risk, &operation)
         .map_err(project_error)?;
 
-    let intent_source = intent_status(&repo_root).map_err(project_error)?;
-    let plan_source = plan_status(&repo_root).map_err(project_error)?;
-    let harness_source = harness_status(&repo_root).map_err(project_error)?;
-    let continuity_source = continuity_status(&repo_root, &vault).map_err(project_error)?;
+    let intent_source = operation_intent_for_identity(&repo_root, &identity, MAX_STATUS_CHARS)
+        .map_err(project_error)?
+        .unwrap_or_default();
+    let plan_source = plan_status_for_identity(&repo_root, &identity).map_err(project_error)?;
+    let continuity_source = operation_scoped_source(
+        &repo_root.join("docs/baron/continuity/CURRENT.md"),
+        &identity,
+        MAX_STATUS_CHARS,
+    );
+    let recovery_source = operation_scoped_source(
+        &repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
+        &identity,
+        MAX_STATUS_CHARS,
+    );
     let intent = project_intent(&intent_source);
-    let continuity = project_continuity(&plan_source, &continuity_source);
+    let continuity = project_continuity(&plan_source, &continuity_source, &recovery_source);
     let profile_context = render_platform_context(&repo_root, Some(&request.task));
     let profile = project_profile(&config, profile_context);
     let context_text = compile_context_for_lifecycle_identity(
@@ -467,9 +476,7 @@ pub fn prepare(
             message: warning.clone(),
         }));
     }
-    if !harness_source.contains("- Title: ") {
-        unknowns.push("no current Product Harness story is recorded".to_string());
-    }
+    unknowns.push("operation-bound Product Harness story is unknown".to_string());
     if let Some(message) = pending_approval_warning(&repo_root, &vault) {
         warnings.push(PrepareIssue {
             code: "autopilot_approval_pending".to_string(),
@@ -767,11 +774,20 @@ fn project_intent(source: &str) -> PrepareIntent {
     }
 }
 
-fn project_continuity(plan_source: &str, continuity_source: &str) -> PrepareContinuity {
+fn project_continuity(
+    plan_source: &str,
+    continuity_source: &str,
+    recovery_source: &str,
+) -> PrepareContinuity {
     let plan_status = bullet_value(plan_source, "- Status: ");
-    let plan_next_action = bullet_value(plan_source, "- Next action: ");
-    let recovery_outcome = bullet_value(continuity_source, "- Outcome: ");
-    let safe_next_action = section_value(continuity_source, "## Safe Next Action");
+    let plan_next_action = canonical_plan_next(plan_source);
+    let recovery_outcome = bullet_value(recovery_source, "- Outcome: ");
+    let safe_next_action = section_value(recovery_source, "## Safe Next Action")
+        .or_else(|| {
+            bullet_value(continuity_source, "- Next action: ")
+                .filter(|action| !action.starts_with("unknown"))
+        })
+        .or_else(|| plan_next_action.clone());
     let plan_interrupted = matches!(plan_status.as_deref(), Some("interrupted" | "in_progress"));
     let recovery_interrupted = matches!(
         recovery_outcome.as_deref(),
@@ -791,7 +807,11 @@ fn project_continuity(plan_source: &str, continuity_source: &str) -> PrepareCont
         plan_next_action,
         recovery_outcome,
         safe_next_action,
-        summary: bounded(continuity_source, MAX_STATUS_CHARS).0,
+        summary: bounded(
+            &format!("{plan_source}\n{continuity_source}\n{recovery_source}"),
+            MAX_STATUS_CHARS,
+        )
+        .0,
     }
 }
 

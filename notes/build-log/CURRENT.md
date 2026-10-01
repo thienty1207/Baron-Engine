@@ -1,5 +1,14 @@
 # Current Build Note
 
+## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-01)
+
+- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; independent final-range acceptance remains before closure.
+- Checkpoint/source: repair changes are based on `9bdb979` and compared from SPEC-04 closure `ecaf362`; earlier readiness and test summaries below are historical.
+- Proof status: operation-bound intent A/B Prepare, explicit CLI proof/trace selection, cross-operation evidence rejection, and Core plan/intent/hook suites pass. Workspace: 860 passed, 3 baseline installer failures, 4 ignored across 111 targets.
+- Trace status: Codex/Claude host-shaped Prompt -> Stop correlation passes hook identity and CLI tests; final CURRENT/latest caller inventory, UTF-8 boundary, Clippy, locked release build, and release smoke pass. The only workspace failures are the same `Compress-Archive` host issue reproduced at `ecaf362`.
+- Persisted-state boundary: validated operation identity and ACTIVE/frontmatter, mirrored bounded operation-intent state, plus durable host correlation under the project lock. Slow prepare/probes remain outside the lock.
+- Safe next action: obtain two independent read-only reviews over `ecaf362..final implementation HEAD`, fix any Critical/Important findings, then close SPEC-05 and push. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
+
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
 - Current task: finish SPEC-05 implementation and independent adversarial

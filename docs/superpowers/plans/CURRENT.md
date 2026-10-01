@@ -1,5 +1,14 @@
 # Current Baron Build Plan
 
+## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-01)
+
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; not closed until independent acceptance.
+- Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md).
+- Checkpoint: based on 9bdb979, reviewed from SPEC-04 closure ecaf362; exact CLI proof/trace, native hook correlation, operation-bound intent, and UTF-8 bounded replay are implemented.
+- Proof/trace: Core all-targets passed 59 reports; workspace completed 111 reports (860 pass, 3 baseline PowerShell installer failures, 4 ignored); Clippy, release build, and release smoke pass.
+- Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; operation intent is mirrored under operation ID; no singleton/current/latest selector for concurrent operations.
+- Safe next action: obtain two independent read-only reviewers for `ecaf362..final implementation HEAD`; address Critical/Important findings, then close SPEC-05 and push without release/tag/version bump.
+
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
 - Active spec: Multi-Agent Concurrency and Durable State.

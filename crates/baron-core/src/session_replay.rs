@@ -380,7 +380,11 @@ fn query_terms(query: &str) -> Vec<String> {
 fn one_line(value: &str, limit: usize) -> String {
     let mut output = value.split_whitespace().collect::<Vec<_>>().join(" ");
     if output.len() > limit {
-        output.truncate(limit.saturating_sub(3));
+        let mut boundary = limit.saturating_sub(3).min(output.len());
+        while !output.is_char_boundary(boundary) {
+            boundary -= 1;
+        }
+        output.truncate(boundary);
         output.push_str("...");
     }
     output

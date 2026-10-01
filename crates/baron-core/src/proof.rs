@@ -13,8 +13,12 @@ use crate::execution_receipt::{
     load_verified_receipt, receipt_matches_verified_context, ReceiptContext,
     VerifiedExecutionReceipt,
 };
-use crate::harness::{current_harness_risk, update_current_validation_evidence};
+use crate::harness::{
+    current_harness_risk, update_current_validation_evidence,
+    update_current_validation_evidence_for_operation,
+};
 use crate::operation::{OperationContext, SupportedAdapter};
+use crate::plan::{active_plan_authority_for_binding, PlanOperationBinding};
 use crate::risk::RiskLane;
 use crate::safe_io::{
     acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_bytes,
@@ -192,6 +196,12 @@ fn record_proof_internal(
             );
         }
     }
+    if let Some(operation) = operation {
+        // Validate any exact owned story before publishing proof/runtime
+        // artifacts. Otherwise malformed managed harness metadata would fail
+        // only during the later projection update, after evidence was written.
+        crate::harness::current_harness_title_for_operation(repo_root, operation)?;
+    }
     let id = artifact_instance_id(&date)?;
     let repo_path = repo_root
         .join("docs/baron/proofs")
@@ -230,9 +240,36 @@ fn record_proof_internal(
         "# Baron Proof Index\n\n",
         &format!("- `{id}` - {}", summary.trim()),
     )?;
-    let verified =
-        proof_satisfies_risk(summary, current_harness_risk(repo_root)) && capability_gate.passed;
-    update_current_validation_evidence(repo_root, vault, summary.trim(), verified)?;
+    let validation_risk = if let Some(binding) = binding.as_ref() {
+        active_plan_authority_for_binding(
+            repo_root,
+            &PlanOperationBinding {
+                task_id: binding.task_id.clone(),
+                operation_id: binding.operation_id.clone(),
+                adapter: binding.adapter.clone(),
+                session_id: binding.session_id.clone(),
+                request_id: binding.request_id.clone(),
+            },
+        )?
+        .map(|authority| authority.risk)
+        // Without exact plan authority, do not certify a proof from the risk
+        // of whichever unrelated story happens to be in CURRENT.
+        .unwrap_or(RiskLane::High)
+    } else {
+        current_harness_risk(repo_root)
+    };
+    let verified = proof_satisfies_risk(summary, validation_risk) && capability_gate.passed;
+    if let Some(operation) = operation {
+        update_current_validation_evidence_for_operation(
+            repo_root,
+            vault,
+            operation,
+            summary.trim(),
+            verified,
+        )?;
+    } else {
+        update_current_validation_evidence(repo_root, vault, summary.trim(), verified)?;
+    }
     Ok(ProofRecord {
         id,
         summary: summary.trim().to_string(),

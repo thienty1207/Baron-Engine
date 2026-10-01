@@ -591,6 +591,23 @@ fn proof_execute_rejects_repository_local_authority_before_child_side_effect() {
 fn proof_execute_and_record_cross_process_with_exact_binding() {
     let (temp, repo, vault) = init_project();
     let machine_home = temp.path().join("machine-home");
+    Command::cargo_bin("baron")
+        .unwrap()
+        .current_dir(&repo)
+        .env("BARON_HOME", &machine_home)
+        .args([
+            "plan",
+            "start",
+            "cross process proof",
+            "--adapter",
+            "codex",
+            "--session-id",
+            "cross-process-session",
+            "--request-id",
+            "cross-process-request",
+        ])
+        .assert()
+        .success();
     let mut execute = Command::cargo_bin("baron").unwrap();
     let output = execute
         .current_dir(&repo)

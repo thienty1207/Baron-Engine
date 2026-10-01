@@ -7,10 +7,15 @@ use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::operation::OperationContext;
-use crate::proof::latest_proof;
+use crate::execution_receipt::ReceiptContext;
+use crate::operation::{LifecycleIdentity, OperationContext};
+use crate::plan::plan_status_for_identity;
+use crate::proof::{latest_proof, proof_for_operation};
 use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
-use crate::trace::latest_trace_score;
+use crate::task_state::{
+    canonical_plan_next, compile_task_state_for_operation, operation_scoped_source,
+};
+use crate::trace::{latest_trace_score, latest_trace_score_for_operation, TraceOperationBinding};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,26 +128,43 @@ pub fn record_continuity_checkpoint(
     note: &str,
     adapter: &str,
 ) -> Result<ContinuityPacket> {
-    record_continuity_checkpoint_internal(repo_root, vault, note, adapter, None, None, None)
+    record_continuity_checkpoint_internal(
+        repo_root,
+        vault,
+        note,
+        ResumePacketMetadata {
+            adapter,
+            session_id: None,
+            request_id: None,
+            event_key: None,
+            identity: None,
+            changed_files: &[],
+        },
+    )
 }
 
 /// Record a shared continuity packet with explicit operation provenance. The
-/// packet path remains one project-wide record so Codex and Claude can resume
-/// the same task state.
+/// packet path remains a shared latest projection; identified consumers must
+/// match its complete persisted binding before treating it as resume state.
 pub fn record_continuity_checkpoint_for_operation(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
     note: &str,
     operation: &OperationContext,
 ) -> Result<ContinuityPacket> {
+    let identity = checkpoint_identity(vault, operation)?;
     record_continuity_checkpoint_internal(
         repo_root,
         vault,
         note,
-        operation.adapter.as_str(),
-        operation.session_id.as_deref(),
-        operation.request_id.as_deref(),
-        None,
+        ResumePacketMetadata {
+            adapter: operation.adapter.as_str(),
+            session_id: operation.session_id.as_deref(),
+            request_id: operation.request_id.as_deref(),
+            event_key: None,
+            identity: identity.as_ref(),
+            changed_files: &[],
+        },
     )
 }
 
@@ -156,25 +178,44 @@ pub fn record_continuity_checkpoint_for_event(
     operation: &OperationContext,
     event_key: &str,
 ) -> Result<ContinuityPacket> {
+    let identity = checkpoint_identity(vault, operation)?;
     record_continuity_checkpoint_internal(
         repo_root,
         vault,
         note,
-        operation.adapter.as_str(),
-        operation.session_id.as_deref(),
-        operation.request_id.as_deref(),
-        Some(event_key),
+        ResumePacketMetadata {
+            adapter: operation.adapter.as_str(),
+            session_id: operation.session_id.as_deref(),
+            request_id: operation.request_id.as_deref(),
+            event_key: Some(event_key),
+            identity: identity.as_ref(),
+            changed_files: &[],
+        },
     )
+}
+
+fn checkpoint_identity(
+    vault: &VaultContext,
+    operation: &OperationContext,
+) -> Result<Option<LifecycleIdentity>> {
+    if operation.task_id.is_some()
+        || operation.operation_id.is_some()
+        || operation.session_id.is_some()
+        || operation.request_id.is_some()
+    {
+        Ok(Some(operation.lifecycle_identity(&vault.project_id)?))
+    } else {
+        // Preserve adapter/session-only diagnostic callers without inferring
+        // task or operation identity from the latest shared projection.
+        Ok(None)
+    }
 }
 
 fn record_continuity_checkpoint_internal(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
     note: &str,
-    adapter: &str,
-    session_id: Option<&str>,
-    request_id: Option<&str>,
-    event_key: Option<&str>,
+    metadata: ResumePacketMetadata<'_>,
 ) -> Result<ContinuityPacket> {
     let repo_root = repo_root.as_ref();
     let repo_path = repo_root.join("docs/baron/continuity/CURRENT.md");
@@ -183,26 +224,28 @@ fn record_continuity_checkpoint_internal(
     // it before entering the shared continuity mutation critical section.
     let changed_files = changed_files(repo_root);
     let _lock = acquire_project_lock(repo_root)?;
-    if let Some(event_key) = event_key {
-        if checkpoint_has_event_key(&repo_path, event_key)? {
+    if let Some(identity) = metadata.identity {
+        // Validate even retries: an event-key match cannot hide corrupted
+        // ACTIVE/frontmatter authority or authorize a stale checkpoint.
+        plan_status_for_identity(repo_root, identity)?;
+    }
+    if let Some(event_key) = metadata.event_key {
+        if checkpoint_has_event_key(&repo_path, event_key)?
+            && metadata.identity.is_none_or(|identity| {
+                !operation_scoped_source(&repo_path, identity, 8_000).is_empty()
+            })
+        {
             return Ok(ContinuityPacket {
                 repo_path,
                 vault_path,
             });
         }
     }
-    let content = render_resume_packet(
-        repo_root,
-        vault,
-        note,
-        ResumePacketMetadata {
-            adapter,
-            session_id,
-            request_id,
-            event_key,
-            changed_files: &changed_files,
-        },
-    )?;
+    let metadata = ResumePacketMetadata {
+        changed_files: &changed_files,
+        ..metadata
+    };
+    let content = render_resume_packet(repo_root, vault, note, metadata)?;
     write(&repo_path, &content)?;
     write(&vault_path, &content)?;
     append_index(
@@ -248,6 +291,7 @@ struct ResumePacketMetadata<'a> {
     session_id: Option<&'a str>,
     request_id: Option<&'a str>,
     event_key: Option<&'a str>,
+    identity: Option<&'a LifecycleIdentity>,
     changed_files: &'a [String],
 }
 
@@ -257,6 +301,9 @@ fn render_resume_packet(
     note: &str,
     metadata: ResumePacketMetadata<'_>,
 ) -> Result<String> {
+    if let Some(identity) = metadata.identity {
+        return render_operation_resume_packet(repo_root, vault, note, identity, &metadata);
+    }
     let plan = read_optional(&repo_root.join("docs/baron/plans/CURRENT.md"));
     let harness = read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"));
     let proof = latest_proof(repo_root)?;
@@ -340,6 +387,66 @@ fn render_resume_packet(
         recovery_next,
         list_or_none(metadata.changed_files),
         next_action
+    ))
+}
+
+fn render_operation_resume_packet(
+    repo_root: &Path,
+    vault: &VaultContext,
+    note: &str,
+    identity: &LifecycleIdentity,
+    metadata: &ResumePacketMetadata<'_>,
+) -> Result<String> {
+    let plan = plan_status_for_identity(repo_root, identity)?;
+    let title = field(&plan, "- Title: ");
+    let state = title
+        .map(|task| compile_task_state_for_operation(repo_root, vault, identity, Some(task)))
+        .transpose()?;
+    let proof = proof_for_operation(repo_root, &ReceiptContext::for_identity(identity, "proof")?)?;
+    let trace = proof
+        .as_ref()
+        .map(|proof| {
+            let binding = TraceOperationBinding::from_operation(
+                &OperationContext::from_identity(identity),
+                &proof.id,
+            )?;
+            latest_trace_score_for_operation(repo_root, &binding)
+        })
+        .transpose()?
+        .flatten();
+    let recovery = operation_scoped_source(
+        &repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
+        identity,
+        3_600,
+    );
+    let proof_status = proof
+        .map(|proof| format!("recorded `{}` - {}", proof.id, single_line(&proof.summary)))
+        .unwrap_or_else(|| "unknown".to_string());
+    let trace_status = trace
+        .map(|trace| {
+            format!(
+                "scored `{}/{}` passed `{}`",
+                trace.achieved.as_str(),
+                trace.required.as_str(),
+                if trace.passed { "yes" } else { "no" }
+            )
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+    let next = section_first_line(&recovery, "## Safe Next Action")
+        .map(str::to_string)
+        .or_else(|| canonical_plan_next(&plan))
+        .unwrap_or_else(|| {
+            "unknown; inspect exact operation authorities before acting".to_string()
+        });
+    Ok(format!(
+        "# Baron Continuity Resume\n\n- Last updated: {}\n- Project ID: `{}`\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Lifecycle event key: `{}`\n- Latest checkpoint: {}\n- Latest automation event: `unknown`\n- Current task: `{}`\n- Plan status: {}\n- Harness story: `unknown`\n- Harness risk: `unknown`\n- Proof status: {}\n- Trace status: {}\n- Recovery outcome: {}\n- Recovery next action: {}\n- Operation gate state: {}\n- Changed files: {}\n- Next action: {}\n\n## Resume Rules\n\n- Resume only when the full operation binding matches.\n- Unknown evidence cannot authorize completion.\n",
+        now(), identity.project_id(), identity.task_id(), identity.operation_id(), identity.adapter().as_str(), identity.session_id(), identity.request_id(),
+        metadata.event_key.unwrap_or("none"), single_line(note), title.unwrap_or("unknown"), field(&plan, "- Status: ").unwrap_or("`unknown`"), proof_status, trace_status,
+        field(&recovery, "- Outcome: ").unwrap_or("`unknown`"), section_first_line(&recovery, "## Safe Next Action").unwrap_or("unknown"),
+        state.as_ref().map(|state| list_or_none(&state.unknowns)).unwrap_or_else(|| "unknown".to_string()),
+        // Git status is project-wide diagnostic data, never an operation's
+        // affected-file authority. The scoped Task State carries exact files.
+        state.as_ref().map(|state| list_or_none(&state.affected_files)).unwrap_or_else(|| "none".to_string()), next,
     ))
 }
 

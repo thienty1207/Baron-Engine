@@ -1,14 +1,16 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 
 use crate::domain_language::{ensure_domain_language, DomainLanguageStatus};
 use crate::intent::require_confirmed_intent;
+use crate::operation::OperationContext;
+use crate::plan::{active_plan_authority_for_binding, PlanOperationBinding};
 use crate::risk::{classify_risk, RiskLane};
 use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
-use crate::vault::VaultContext;
+use crate::vault::{canonical_project_id, VaultContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HarnessStory {
@@ -190,6 +192,195 @@ pub fn current_harness_title(repo_root: impl AsRef<Path>) -> Option<String> {
         .lines()
         .find_map(|line| line.strip_prefix("- Title: "))
         .map(str::to_string)
+}
+
+/// A legacy story has no operation binding. Associate it only with the one
+/// exact active operation for its canonical task, never with a latest plan or
+/// the plan CURRENT projection. Missing or ambiguous ownership gives no story
+/// authority; malformed managed state remains an error.
+pub fn current_harness_title_for_operation(
+    repo_root: impl AsRef<Path>,
+    operation: &OperationContext,
+) -> Result<Option<String>> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    if operation.task_id.is_none()
+        || operation.operation_id.is_none()
+        || operation.session_id.is_none()
+        || operation.request_id.is_none()
+    {
+        return Ok(None);
+    }
+    let project_id = canonical_project_id(repo_root)?;
+    let identity = operation.lifecycle_identity(&project_id)?;
+    let Some(current) = read_text(repo_root.join("docs/baron/harness/CURRENT.md"))? else {
+        return Ok(None);
+    };
+    let Some(title) = unique_field(&current, "- Title: ")? else {
+        return Ok(None);
+    };
+    if identity.validate_task(title).is_err() {
+        return Ok(None);
+    }
+    let binding = PlanOperationBinding::from_identity(&identity);
+    let Some(authority) = active_plan_authority_for_binding(repo_root, &binding)? else {
+        return Ok(None);
+    };
+    let Some(index) = read_text(repo_root.join("docs/baron/plans/ACTIVE.md"))? else {
+        return Ok(None);
+    };
+    // Exact plan resolution above validates every ACTIVE entry and its linked
+    // frontmatter. This read only rejects ambiguous task ownership; it cannot
+    // grant authority to an unindexed plan discovered by a legacy fallback.
+    let mut task_entries = Vec::new();
+    for line in index.lines() {
+        let Some(json) = line
+            .strip_prefix("<!-- BARON:ACTIVE-PLAN ")
+            .and_then(|value| value.strip_suffix(" -->"))
+        else {
+            continue;
+        };
+        let entry: serde_json::Value = serde_json::from_str(json)?;
+        if entry["task_id"].as_str() == Some(identity.task_id())
+            && entry["status"].as_str() != Some("completed")
+        {
+            task_entries.push(entry);
+        }
+    }
+    let plan_count =
+        active_task_plan_count(&repo_root.join("docs/baron/plans"), identity.task_id())?;
+    if task_entries.len() != 1
+        || task_entries[0]["operation_id"].as_str() != Some(identity.operation_id())
+        || plan_count != 1
+    {
+        return Ok(None);
+    }
+    let Some(story_path) =
+        unique_field(&current, "- Story: `")?.and_then(|value| value.strip_suffix('`'))
+    else {
+        return Ok(None);
+    };
+    let relative = Path::new(story_path);
+    if !relative.starts_with("docs/baron/harness/stories")
+        || !relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        || relative.extension().and_then(|value| value.to_str()) != Some("md")
+    {
+        bail!("current harness story path is outside the managed story root");
+    }
+    let Some(story) = read_text(repo_root.join(relative))? else {
+        return Ok(None);
+    };
+    let Some(story_title) = story
+        .lines()
+        .next()
+        .and_then(|line| line.strip_prefix("# Product Story - "))
+    else {
+        return Ok(None);
+    };
+    if story_title != title || identity.validate_task(story_title).is_err() {
+        return Ok(None);
+    }
+    let risk = classify_risk(story_title);
+    if unique_field(&story, "- Risk: `")?.and_then(|value| value.strip_suffix('`'))
+        != Some(risk.as_str())
+        || authority.risk != risk
+    {
+        bail!("current harness story risk does not match canonical task risk");
+    }
+    Ok(Some(story_title.to_string()))
+}
+
+fn unique_field<'a>(content: &'a str, prefix: &str) -> Result<Option<&'a str>> {
+    let mut fields = content.lines().filter_map(|line| line.strip_prefix(prefix));
+    let value = fields.next();
+    if fields.next().is_some() {
+        bail!("harness ownership field `{prefix}` is duplicated");
+    }
+    Ok(value)
+}
+
+fn active_task_plan_count(root: &Path, task_id: &str) -> Result<usize> {
+    let mut count = 0;
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            bail!("harness ownership cannot traverse a linked managed plan");
+        }
+        if file_type.is_dir() {
+            count += active_task_plan_count(&path, task_id)?;
+        } else if path.extension().and_then(|value| value.to_str()) == Some("md")
+            && !matches!(
+                path.file_name().and_then(|value| value.to_str()),
+                Some("CURRENT.md" | "ACTIVE.md" | "INDEX.md")
+            )
+        {
+            let Some(content) = read_text(path)? else {
+                continue;
+            };
+            let normalized = content.replace("\r\n", "\n");
+            let Some(frontmatter) = normalized
+                .strip_prefix("---\n")
+                .and_then(|value| value.split_once("\n---").map(|(fields, _)| fields))
+            else {
+                continue;
+            };
+            if frontmatter_field(frontmatter, "type")? == Some("baron-plan")
+                && frontmatter_field(frontmatter, "task_id")? == Some(task_id)
+                && frontmatter_field(frontmatter, "status")? != Some("completed")
+            {
+                count += 1;
+            }
+        }
+    }
+    Ok(count)
+}
+
+fn frontmatter_field<'a>(frontmatter: &'a str, key: &str) -> Result<Option<&'a str>> {
+    let mut values = frontmatter.lines().filter_map(|line| {
+        let (candidate, value) = line.split_once(':')?;
+        (candidate.trim() == key).then_some(value.trim())
+    });
+    let value = values.next();
+    if values.next().is_some() {
+        bail!("managed plan frontmatter field `{key}` is duplicated");
+    }
+    Ok(value)
+}
+
+/// Update validation only after re-establishing exact, unique story ownership
+/// under the same project lock used by proof publication.
+pub fn update_current_validation_evidence_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    operation: &OperationContext,
+    evidence: &str,
+    verified: bool,
+) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let Some(title) = current_harness_title_for_operation(repo_root, operation)? else {
+        return Ok(());
+    };
+    if canonical_project_id(repo_root)? != vault.project_id {
+        bail!("harness operation project does not match Vault project");
+    }
+    for path in [
+        repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
+        vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
+    ] {
+        upsert_validation_row(
+            &path,
+            &title,
+            classify_risk(&title),
+            if verified { "verified" } else { "insufficient" },
+            evidence,
+        )?;
+    }
+    Ok(())
 }
 
 pub fn update_current_validation_evidence(

@@ -82,7 +82,9 @@ use baron_core::intelligence::{
 use baron_core::intelligence41::{
     analyze_graph_impact, refresh_temporal_ledger, rollback_temporal_ledger,
 };
-use baron_core::intent::{intent_status, record_intent, IntentBriefInput};
+use baron_core::intent::{
+    intent_status, record_intent, record_intent_for_operation, IntentBriefInput,
+};
 use baron_core::knowledge::{
     benchmark_resume, build_local_code_graph, index_wiki, load_wiki_index, render_resume_brief,
     search_local_code_graph, search_local_code_graph_v5, search_local_code_graph_v6,
@@ -98,9 +100,10 @@ use baron_core::operation::{
     AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
 };
 use baron_core::plan::{
-    active_plan_operation_binding, complete_plan, complete_plan_for_identity, interrupt_plan,
-    interrupt_plan_for_identity, plan_status, start_or_resume_plan_for_identity, update_plan,
-    update_plan_for_identity,
+    active_plan_operation_binding, complete_plan, complete_plan_for_identity,
+    indexed_active_plan_authority_for_binding, interrupt_plan, interrupt_plan_for_identity,
+    plan_status, start_or_resume_plan_for_identity, update_plan, update_plan_for_identity,
+    PlanOperationBinding,
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
 use baron_core::prepare::{
@@ -600,6 +603,9 @@ enum PlanCommands {
     },
 }
 
+// Clap owns this short-lived parsed command value; keep the argument model
+// direct rather than boxing every large flag solely to reduce enum size.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 enum HarnessCommands {
     Status {
@@ -611,6 +617,14 @@ enum HarnessCommands {
     Intent {
         title: String,
         repo_path: Option<PathBuf>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         #[arg(long = "current")]
         current_behavior: String,
         #[arg(long = "target")]
@@ -702,6 +716,8 @@ enum ProofCommands {
     Record {
         summary: String,
         repo_path: Option<PathBuf>,
+        #[arg(long, conflicts_with = "receipt")]
+        task: Option<String>,
         #[arg(long, value_enum)]
         adapter: Option<AdapterArg>,
         #[arg(long = "capability-evidence")]
@@ -712,9 +728,9 @@ enum ProofCommands {
         task_id: Option<String>,
         #[arg(long, requires = "receipt")]
         operation_id: Option<String>,
-        #[arg(long, requires = "receipt")]
+        #[arg(long)]
         session_id: Option<String>,
-        #[arg(long, requires = "receipt")]
+        #[arg(long)]
         request_id: Option<String>,
         #[arg(long, requires = "receipt")]
         gate_kind: Option<String>,
@@ -749,11 +765,27 @@ enum TraceCommands {
         repo_path: Option<PathBuf>,
         #[arg(long, value_enum, default_value_t = OutcomeArg::Completed)]
         outcome: OutcomeArg,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
     },
     Score {
         repo_path: Option<PathBuf>,
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["task", "adapter", "session_id", "request_id"])]
         id: Option<String>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
     },
 }
 
@@ -2766,6 +2798,10 @@ fn run() -> Result<()> {
             HarnessCommands::Intent {
                 title,
                 repo_path,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 current_behavior,
                 target_behavior,
                 scope,
@@ -2777,22 +2813,39 @@ fn run() -> Result<()> {
                 confirmed,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let brief = record_intent(
+                let identity = resolve_plan_identity_selector(
                     &repo_root,
-                    &vault,
-                    IntentBriefInput {
-                        title,
-                        current_behavior,
-                        target_behavior,
-                        scope,
-                        non_goals,
-                        constraints: constraint,
-                        decisions: decision,
-                        required_proof,
-                        unknowns,
-                        confirmed,
-                    },
+                    task.clone(),
+                    adapter,
+                    session_id,
+                    request_id,
                 )?;
+                let input = IntentBriefInput {
+                    title,
+                    current_behavior,
+                    target_behavior,
+                    scope,
+                    non_goals,
+                    constraints: constraint,
+                    decisions: decision,
+                    required_proof,
+                    unknowns,
+                    confirmed,
+                };
+                let brief = if let Some(identity) = identity {
+                    let canonical_task = task
+                        .as_deref()
+                        .context("--task is required for operation-scoped intent")?;
+                    record_intent_for_operation(
+                        &repo_root,
+                        &vault,
+                        canonical_task,
+                        &identity,
+                        input,
+                    )?
+                } else {
+                    record_intent(&repo_root, &vault, input)?
+                };
                 println!("# Baron Harness Intent\n");
                 println!("- Intent ID: `{}`", brief.id);
                 println!("- Title: {}", brief.title);
@@ -2931,6 +2984,7 @@ fn run() -> Result<()> {
             ProofCommands::Record {
                 summary,
                 repo_path,
+                task,
                 adapter,
                 capability_evidence,
                 receipt,
@@ -2942,18 +2996,7 @@ fn run() -> Result<()> {
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
                 let explicit_operation = operation_context_from_arg(adapter)?;
-                let active_operation = active_plan_operation_binding(&repo_root)?
-                    .as_ref()
-                    .map(|binding| binding.to_operation_context())
-                    .transpose()?;
-                if let (Some(explicit), Some(active)) =
-                    (explicit_operation.as_ref(), active_operation.as_ref())
-                {
-                    if explicit.adapter != active.adapter {
-                        bail!("explicit adapter identity does not match the active plan operation");
-                    }
-                }
-                let operation = explicit_operation.clone().or(active_operation.clone());
+                let operation;
                 let proof = if let Some(receipt_id) = receipt {
                     if !capability_evidence.is_empty() {
                         bail!("Use either --receipt or --capability-evidence, not both");
@@ -2966,8 +3009,45 @@ fn run() -> Result<()> {
                         request_id.context("--request-id is required with --receipt")?,
                         gate_kind.context("--gate-kind is required with --receipt")?,
                     );
+                    // The receipt's complete tuple is the explicit selector.
+                    // Never compare its adapter to a singleton presentation.
+                    let identity = LifecycleIdentity::from_parts_checked(
+                        &vault.project_id,
+                        &binding.task_id,
+                        &binding.operation_id,
+                        binding.adapter.parse()?,
+                        &binding.session_id,
+                        &binding.request_id,
+                    )?;
+                    let plan_binding = PlanOperationBinding::from_identity(&identity);
+                    indexed_active_plan_authority_for_binding(&repo_root, &plan_binding)?
+                        .context("no validated active plan matches the receipt operation")?;
+                    operation = Some(OperationContext::from_identity(&identity));
                     record_proof_from_receipt_bound(&repo_root, &vault, &receipt_id, &binding)?
                 } else {
+                    // Adapter-only legacy capability recording remains supported;
+                    // any task/session/request selector requires the full tuple.
+                    let identity = if task.is_some() || session_id.is_some() || request_id.is_some()
+                    {
+                        resolve_plan_identity_selector(
+                            &repo_root, task, adapter, session_id, request_id,
+                        )?
+                    } else {
+                        None
+                    };
+                    let active_operation =
+                        resolve_evidence_plan_binding(&repo_root, identity.as_ref())?
+                            .as_ref()
+                            .map(PlanOperationBinding::to_operation_context)
+                            .transpose()?;
+                    if let (Some(explicit), Some(active)) =
+                        (explicit_operation.as_ref(), active_operation.as_ref())
+                    {
+                        if explicit.adapter != active.adapter {
+                            bail!("explicit adapter identity does not match the selected plan operation");
+                        }
+                    }
+                    operation = active_operation.clone().or(explicit_operation.clone());
                     let capability_evidence = capability_evidence
                         .iter()
                         .map(|value| parse_capability_evidence(value))
@@ -3088,9 +3168,18 @@ fn run() -> Result<()> {
                 summary,
                 repo_path,
                 outcome,
+                task,
+                adapter,
+                session_id,
+                request_id,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let trace = if let Some(plan_binding) = active_plan_operation_binding(&repo_root)? {
+                let identity = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )?;
+                let trace = if let Some(plan_binding) =
+                    resolve_evidence_plan_binding(&repo_root, identity.as_ref())?
+                {
                     let operation = plan_binding.to_operation_context()?;
                     let proof = proof_for_operation(&repo_root, &plan_binding.proof_binding())?
                         .context("operation-bound trace proof is missing")?;
@@ -3110,10 +3199,22 @@ fn run() -> Result<()> {
                 println!("- Trace ID: `{}`", trace.id);
                 println!("- Score status: `unscored`");
             }
-            TraceCommands::Score { repo_path, id } => {
+            TraceCommands::Score {
+                repo_path,
+                id,
+                task,
+                adapter,
+                session_id,
+                request_id,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
+                let identity = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )?;
                 let scoped_id = if id.is_none() {
-                    if let Some(plan_binding) = active_plan_operation_binding(&repo_root)? {
+                    if let Some(plan_binding) =
+                        resolve_evidence_plan_binding(&repo_root, identity.as_ref())?
+                    {
                         let operation = plan_binding.to_operation_context()?;
                         let proof = proof_for_operation(&repo_root, &plan_binding.proof_binding())?
                             .context("operation-bound trace proof is missing")?;
@@ -4647,7 +4748,7 @@ fn resolve_plan_identity_selector(
     }
     if count != supplied.len() {
         bail!(
-            "operation-scoped plan mutation requires --task, --adapter, --session-id, and --request-id together"
+            "operation-scoped selection requires --task, --adapter, --session-id, and --request-id together"
         );
     }
     let task = task.expect("validated complete plan task");
@@ -4671,6 +4772,21 @@ fn resolve_plan_identity_selector(
     )
     .map(Some)
     .map_err(|error| anyhow::anyhow!(error.to_string()))
+}
+
+fn resolve_evidence_plan_binding(
+    repo_root: &Path,
+    identity: Option<&LifecycleIdentity>,
+) -> Result<Option<PlanOperationBinding>> {
+    if let Some(identity) = identity {
+        let binding = PlanOperationBinding::from_identity(identity);
+        indexed_active_plan_authority_for_binding(repo_root, &binding)?
+            .context("no validated active plan matches the explicit operation selector")?;
+        Ok(Some(binding))
+    } else {
+        // Core validates the entire managed set and rejects concurrent ambiguity.
+        active_plan_operation_binding(repo_root)
+    }
 }
 
 #[derive(Debug, serde::Serialize)]

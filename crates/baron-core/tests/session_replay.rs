@@ -2,7 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use baron_core::session_replay::{
-    index_session_replay, replay_session_context, search_session_replay,
+    index_session_replay, render_session_replay_hits, replay_session_context,
+    search_session_replay, SessionReplaySearchResult,
 };
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
@@ -158,4 +159,23 @@ fn replay_queries_reject_incompatible_cache_without_rewriting_it() {
 
     assert!(error.contains("rebuild"));
     assert_eq!(before, fs::read(&report.index_path).unwrap());
+}
+
+#[test]
+fn session_replay_rendering_never_splits_a_multibyte_character() {
+    let hit = SessionReplaySearchResult {
+        message_id: "message-1".to_string(),
+        project_id: "project-1".to_string(),
+        project_slug: "demo".to_string(),
+        source_path: "Sessions/Imported/example.md".to_string(),
+        ordinal: 0,
+        role: "user".to_string(),
+        text: format!("{}éremaining", "a".repeat(216)),
+        score: 1.0,
+    };
+
+    let rendered = render_session_replay_hits(&[hit]);
+
+    assert!(rendered.contains("..."));
+    assert!(rendered.is_char_boundary(rendered.len()));
 }

@@ -8,12 +8,16 @@ use chrono::{Local, NaiveDate, SecondsFormat, TimeZone};
 use serde::{Deserialize, Serialize};
 
 use crate::control_plane::gate_evidence_status_strict_for_operation;
-use crate::harness::{current_harness_risk, current_harness_title};
+use crate::harness::{
+    current_harness_risk, current_harness_title, current_harness_title_for_operation,
+};
 use crate::operation::OperationContext;
-use crate::plan::{active_plan_authority_for_trace_binding_locked, ActivePlanAuthority};
+use crate::plan::{
+    active_plan_authority, active_plan_authority_for_trace_binding_locked, ActivePlanAuthority,
+};
 use crate::proof::{
-    latest_proof, proof_by_id, proof_has_current_receipt, proof_operation_binding,
-    proof_satisfies_risk, ProofRecord,
+    latest_proof, proof_by_id, proof_for_operation, proof_has_current_receipt,
+    proof_operation_binding, proof_satisfies_risk, ProofRecord,
 };
 use crate::risk::RiskLane;
 use crate::safe_io::{
@@ -122,15 +126,20 @@ pub fn record_trace(
     summary: &str,
     outcome: TraceOutcome,
 ) -> Result<TraceRecord> {
-    record_trace_internal(
-        repo_root.as_ref(),
-        vault,
-        summary,
-        outcome,
-        None,
-        None,
-        None,
-    )
+    let repo_root = repo_root.as_ref();
+    if let Some(binding) = active_plan_authority(repo_root)?.and_then(|plan| plan.binding) {
+        let proof = proof_for_operation(repo_root, &binding.proof_binding())?
+            .context("operation-bound trace requires proof for the single active operation")?;
+        let operation = binding.to_operation_context()?;
+        return record_trace_for_operation(
+            repo_root,
+            vault,
+            summary,
+            outcome,
+            &TraceOperationBinding::from_operation(&operation, &proof.id)?,
+        );
+    }
+    record_trace_internal(repo_root, vault, summary, outcome, None, None, None)
 }
 
 /// Record a trace bound to one exact proof and operation. This path never
@@ -217,16 +226,51 @@ fn record_trace_internal(
     let now = Local::now();
     let date = now.format("%Y-%m-%d").to_string();
     let id = artifact_instance_id(&date)?;
+    let legacy_authority = if binding.is_none() {
+        active_plan_authority(repo_root)?
+    } else {
+        None
+    };
     let risk = if binding.is_some() {
         plan_authority
             .context("operation-bound trace plan authority is missing")?
             .risk
+    } else if legacy_authority
+        .as_ref()
+        .is_some_and(|plan| plan.binding.is_some())
+    {
+        legacy_authority
+            .as_ref()
+            .expect("identified legacy authority")
+            .risk
     } else if repo_root.join("docs/baron/harness/CURRENT.md").exists() {
         current_harness_risk(repo_root)
     } else {
-        current_plan_risk(repo_root)
+        legacy_authority
+            .as_ref()
+            .map(|plan| plan.risk)
+            .unwrap_or(RiskLane::Medium)
     };
-    let story = current_harness_title(repo_root);
+    let story_operation = if let Some(binding) = binding {
+        Some(
+            OperationContext::new(binding.adapter.parse()?)
+                .with_task_id(binding.task_id.clone())
+                .with_operation_id(binding.operation_id.clone())
+                .with_session_id(binding.session_id.clone())
+                .with_request_id(binding.request_id.clone()),
+        )
+    } else {
+        legacy_authority
+            .as_ref()
+            .and_then(|plan| plan.binding.as_ref())
+            .map(|binding| binding.to_operation_context())
+            .transpose()?
+    };
+    let story = if let Some(operation) = story_operation.as_ref() {
+        current_harness_title_for_operation(repo_root, operation)?
+    } else {
+        current_harness_title(repo_root)
+    };
     let plan = if binding.is_some() {
         Some(
             plan_authority
@@ -235,11 +279,18 @@ fn record_trace_internal(
                 .clone(),
         )
     } else {
-        current_plan_title(repo_root)
+        legacy_authority.as_ref().map(|plan| plan.title.clone())
     };
     let proof = match bound_proof {
         Some(proof) => Some(proof.clone()),
-        None => latest_proof(repo_root)?,
+        None => {
+            let proof = latest_proof(repo_root)?;
+            if story_operation.is_some() {
+                proof.filter(|proof| proof.binding.is_none())
+            } else {
+                proof
+            }
+        }
     };
     let repo_path = repo_root
         .join("docs/baron/traces")
@@ -298,7 +349,25 @@ pub fn score_trace(
 ) -> Result<TraceScore> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
-    let repo_path = find_trace(repo_root, trace_id)?;
+    let auto_binding = if trace_id.is_none() {
+        active_plan_authority(repo_root)?.and_then(|plan| plan.binding)
+    } else {
+        None
+    };
+    let scoped_id = if let Some(binding) = auto_binding.as_ref() {
+        let proof = proof_for_operation(repo_root, &binding.proof_binding())?
+            .context("operation-bound trace scoring requires proof for the selected operation")?;
+        let expected =
+            TraceOperationBinding::from_operation(&binding.to_operation_context()?, &proof.id)?;
+        Some(
+            trace_for_operation(repo_root, &expected)?
+                .context("operation-bound trace is missing for the selected operation")?
+                .id,
+        )
+    } else {
+        None
+    };
+    let repo_path = find_trace(repo_root, trace_id.or(scoped_id.as_deref()))?;
     let content = fs::read_to_string(&repo_path)?;
     let score = evaluate_trace_score(repo_root, &content)?;
     let updated = replace_score(&content, &score);
@@ -733,26 +802,6 @@ fn collect_markdown(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn current_plan_title(repo_root: &Path) -> Option<String> {
-    let content = fs::read_to_string(repo_root.join("docs/baron/plans/CURRENT.md")).ok()?;
-    content
-        .lines()
-        .find_map(|line| line.strip_prefix("- Title: "))
-        .map(str::to_string)
-}
-
-fn current_plan_risk(repo_root: &Path) -> RiskLane {
-    let content =
-        fs::read_to_string(repo_root.join("docs/baron/plans/CURRENT.md")).unwrap_or_default();
-    if content.contains("- Risk: `high`") {
-        RiskLane::High
-    } else if content.contains("- Risk: `low`") {
-        RiskLane::Low
-    } else {
-        RiskLane::Medium
-    }
 }
 
 fn changed_files(repo_root: &Path) -> Vec<String> {

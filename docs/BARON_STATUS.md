@@ -1,5 +1,14 @@
 # Baron Build Status
 
+## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-01)
+
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; this is not closure until two independent reviewers accept the complete repair range.
+- Task/checkpoint: exact CLI proof/trace ingress, durable native Prompt-to-Stop correlation, and operation-bound intent producer/consumer are implemented; final production CURRENT/latest caller inventory is recorded.
+- Proof/trace: Core all-targets passed 59 targets. Workspace all-targets completed 111 target reports (`860 passed / 3 failed / 4 ignored`); the only failures are three `lifecycle_scripts` tests that fail because this host cannot load `Microsoft.PowerShell.Archive` / `Compress-Archive`, identically reproduced at `ecaf362`. Intent A/B Prepare, hook identity, and UTF-8 boundary regressions pass.
+- Persisted boundary: full lifecycle identity plus validated managed ACTIVE plan/frontmatter remain authoritative; CURRENT is presentation only. Operation intent is keyed by operation ID and verified against all identity fields; hook correlation remains durable, bounded, locked, and fail closed.
+- Verification: formatter, Clippy `-D warnings`, locked release build, release smoke, `baron 5.0.0` version/help checks, 157-file Markdown relative-link check, status JSON, diff check, and retired-adapter grep pass.
+- Safe next action: two independent read-only reviews over `ecaf362..final implementation HEAD`, focused on lock ordering/lost updates and scope/backward compatibility/CURRENT authority; resolve Critical/Important findings before closure. Public binary stays 5.0.0; no release/tag/SPEC-06.
+
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
 - Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; SPEC-04 remains closed at

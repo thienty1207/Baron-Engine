@@ -6,9 +6,12 @@ use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use crate::operation::LifecycleIdentity;
 use crate::risk::{classify_risk, RiskLane};
 use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
 use crate::vault::VaultContext;
+
+pub const MAX_OPERATION_INTENT_CHARS: usize = 3_600;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct IntentBriefInput {
@@ -38,14 +41,85 @@ pub struct IntentBrief {
 pub fn record_intent(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
-    mut input: IntentBriefInput,
+    input: IntentBriefInput,
 ) -> Result<IntentBrief> {
-    let repo_root = repo_root.as_ref();
+    record_intent_internal(repo_root.as_ref(), vault, input, None)
+}
+
+/// Record a confirmed-intent candidate bound to one complete operation.
+/// `CURRENT_INTENT.md` remains a presentation projection; identified consumers
+/// read the durable per-operation copy instead.
+pub fn record_intent_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    canonical_task: &str,
+    identity: &LifecycleIdentity,
+    input: IntentBriefInput,
+) -> Result<IntentBrief> {
+    if identity.project_id() != vault.project_id {
+        bail!(
+            "intent lifecycle identity project `{}` does not match Vault project `{}`",
+            identity.project_id(),
+            vault.project_id
+        );
+    }
+    identity
+        .validate_task(canonical_task)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    record_intent_internal(repo_root.as_ref(), vault, input, Some(identity))
+}
+
+/// Return the exact durable intent for an operation, never falling back to
+/// the shared CURRENT projection. A present file with a missing or conflicting
+/// binding is corrupt authority and therefore an error.
+pub fn operation_intent_for_identity(
+    repo_root: impl AsRef<Path>,
+    identity: &LifecycleIdentity,
+    max_chars: usize,
+) -> Result<Option<String>> {
+    let path = operation_intent_path(repo_root, identity);
+    let Some(content) = read_text(&path)? else {
+        return Ok(None);
+    };
+    if !intent_header_matches_identity(&content, identity) {
+        bail!(
+            "operation-scoped intent does not match its lifecycle identity: {}",
+            path.display()
+        );
+    }
+    let authority_limit = max_chars.min(MAX_OPERATION_INTENT_CHARS);
+    if content.chars().count() > authority_limit {
+        bail!(
+            "operation-scoped intent exceeds its bounded authority limit of {authority_limit} characters"
+        );
+    }
+    Ok(Some(content))
+}
+
+pub fn operation_intent_path(
+    repo_root: impl AsRef<Path>,
+    identity: &LifecycleIdentity,
+) -> std::path::PathBuf {
+    repo_root
+        .as_ref()
+        .join("docs/baron/harness/intent-operations")
+        .join(format!("{}.md", identity.operation_id()))
+}
+
+fn record_intent_internal(
+    repo_root: &Path,
+    vault: &VaultContext,
+    mut input: IntentBriefInput,
+    identity: Option<&LifecycleIdentity>,
+) -> Result<IntentBrief> {
     normalize_input(&mut input);
     validate_input(&input)?;
     let risk = classify_risk(&input.title);
     let date = today();
-    let id = intent_id(&input)?;
+    let id = match identity {
+        Some(identity) => intent_id_for_operation(&input, identity)?,
+        None => intent_id(&input)?,
+    };
     let filename = format!("{}-{}.md", slugify(&input.title), id);
     let repo_path = repo_root
         .join("docs/baron/harness/intents")
@@ -57,8 +131,31 @@ pub fn record_intent(
         .join(&date)
         .join(&filename);
     let _lock = acquire_project_lock(repo_root)?;
+    let operation_path = identity.map(|identity| operation_intent_path(repo_root, identity));
+    let operation_vault_path = identity.map(|identity| {
+        vault
+            .project_root
+            .join("ProductHarness/IntentOperations")
+            .join(format!("{}.md", identity.operation_id()))
+    });
+    for path in operation_path.iter().chain(operation_vault_path.iter()) {
+        if let Some(existing) = read_text(path)? {
+            if !identity.is_some_and(|identity| intent_header_matches_identity(&existing, identity))
+            {
+                bail!(
+                    "existing operation-scoped intent has a conflicting lifecycle identity: {}",
+                    path.display()
+                );
+            }
+        }
+    }
     let resumed = repo_path.is_file();
-    let content = render_intent(&id, &input, risk);
+    let content = render_intent(&id, &input, risk, identity);
+    if identity.is_some() && content.chars().count() > MAX_OPERATION_INTENT_CHARS {
+        bail!(
+            "operation-scoped intent exceeds its bounded authority limit of {MAX_OPERATION_INTENT_CHARS} characters"
+        );
+    }
     if !resumed {
         write(&repo_path, &content)?;
         write(&vault_path, &content)?;
@@ -84,6 +181,12 @@ pub fn record_intent(
                 confirmation(input.confirmed)
             ),
         )?;
+    }
+    if let Some(path) = operation_path {
+        write(&path, &content)?;
+    }
+    if let Some(path) = operation_vault_path {
+        write(&path, &content)?;
     }
     write(
         &repo_root.join("docs/baron/harness/CURRENT_INTENT.md"),
@@ -144,14 +247,31 @@ pub fn intent_status(repo_root: impl AsRef<Path>) -> Result<String> {
     ))
 }
 
-fn render_intent(id: &str, input: &IntentBriefInput, risk: RiskLane) -> String {
+fn render_intent(
+    id: &str,
+    input: &IntentBriefInput,
+    risk: RiskLane,
+    identity: Option<&LifecycleIdentity>,
+) -> String {
+    let identity_header = identity.map_or_else(String::new, |identity| {
+        format!(
+            "- Project ID: `{}`\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
+            identity.project_id(),
+            identity.task_id(),
+            identity.operation_id(),
+            identity.adapter().as_str(),
+            identity.session_id(),
+            identity.request_id()
+        )
+    });
     format!(
         "# Baron Intent Brief\n\n\
 - ID: `{id}`\n\
 - Title: {}\n\
 - Risk: `{}`\n\
 - Confirmation: `{}`\n\
-- Updated: {}\n\n\
+- Updated: {}\n\
+{}\n\
 ## Current Behavior\n\n{}\n\n\
 ## Target Behavior\n\n{}\n\n\
 ## Scope\n\n{}\n\n\
@@ -169,6 +289,7 @@ fn render_intent(id: &str, input: &IntentBriefInput, risk: RiskLane) -> String {
         risk.as_str(),
         confirmation(input.confirmed),
         now(),
+        identity_header,
         input.current_behavior,
         input.target_behavior,
         input.scope,
@@ -219,6 +340,33 @@ fn intent_id(input: &IntentBriefInput) -> Result<String> {
     let bytes = serde_json::to_vec(input)?;
     let digest = Sha256::digest(bytes);
     Ok(format!("intent-{}", hex_prefix(&digest, 8)))
+}
+
+fn intent_id_for_operation(
+    input: &IntentBriefInput,
+    identity: &LifecycleIdentity,
+) -> Result<String> {
+    let bytes = serde_json::to_vec(&(input, identity))?;
+    let digest = Sha256::digest(bytes);
+    Ok(format!("intent-{}", hex_prefix(&digest, 8)))
+}
+
+fn intent_header_matches_identity(content: &str, identity: &LifecycleIdentity) -> bool {
+    let header = content.split("\n## ").next().unwrap_or_default();
+    [
+        ("- Project ID: ", identity.project_id()),
+        ("- Task ID: ", identity.task_id()),
+        ("- Operation ID: ", identity.operation_id()),
+        ("- Adapter: ", identity.adapter().as_str()),
+        ("- Session ID: ", identity.session_id()),
+        ("- Request ID: ", identity.request_id()),
+    ]
+    .into_iter()
+    .all(|(prefix, expected)| {
+        let mut values = header.lines().filter_map(|line| line.strip_prefix(prefix));
+        values.next().map(|value| value.trim().trim_matches('`')) == Some(expected)
+            && values.next().is_none()
+    })
 }
 
 fn hex_prefix(bytes: &[u8], count: usize) -> String {
