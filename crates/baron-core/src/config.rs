@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -6,7 +5,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::identity::{new_identity_binding, project_id_for_path};
 use crate::safe_io::{
-    acquire_project_lock, ensure_directory_chain, read_bytes, read_text_required, replace_text,
+    acquire_project_lock, ensure_directory_chain, read_bytes, read_text, read_text_required,
+    replace_text,
 };
 use crate::vault::ensure_vault_root;
 use crate::vault::project_slug;
@@ -14,6 +14,19 @@ use crate::vault::project_slug;
 const PROJECT_CONFIG_PATH: &str = ".baron/project.toml";
 const LOCAL_CONFIG_PATH: &str = ".baron/local.toml";
 pub const PROJECT_SCHEMA_VERSION: u32 = 4;
+const PROJECT_CONFIG_FIELDS: &[&str] = &[
+    "schema_version",
+    "project_id",
+    "identity_binding",
+    "project_slug",
+    "platform",
+    "platform_extensions",
+    "adapters",
+    "active_adapter",
+    "legacy_active_adapter",
+    "automation",
+];
+const AUTOMATION_CONFIG_FIELDS: &[&str] = &["context", "plan", "harness", "proof", "trace"];
 
 /// A supported Baron integration. Persisted compatibility values are decoded
 /// at the project-config boundary into `ConfiguredAdapter` and never enter
@@ -119,8 +132,6 @@ pub struct AutomationConfig {
     pub harness: bool,
     pub proof: bool,
     pub trace: bool,
-    #[serde(flatten)]
-    pub unknown_fields: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -138,9 +149,6 @@ pub struct ProjectConfig {
     /// consulted by runtime operations or adapter selection.
     pub legacy_adapters: Vec<String>,
     pub legacy_active_adapter: Option<String>,
-    /// Unknown project-level TOML values are retained for forward/backward
-    /// compatibility and are never consulted by runtime routing.
-    pub unknown_fields: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -162,8 +170,6 @@ struct ProjectConfigWire {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     legacy_active_adapter: Option<String>,
     automation: AutomationConfig,
-    #[serde(flatten)]
-    unknown_fields: BTreeMap<String, toml::Value>,
 }
 
 impl Serialize for ProjectConfig {
@@ -196,7 +202,6 @@ impl Serialize for ProjectConfig {
                 None
             },
             automation: self.automation.clone(),
-            unknown_fields: self.unknown_fields.clone(),
         }
         .serialize(serializer)
     }
@@ -243,7 +248,6 @@ impl<'de> Deserialize<'de> for ProjectConfig {
             automation: wire.automation,
             legacy_adapters,
             legacy_active_adapter,
-            unknown_fields: wire.unknown_fields,
         })
     }
 }
@@ -251,50 +255,6 @@ impl<'de> Deserialize<'de> for ProjectConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalConfig {
     pub vault_path: PathBuf,
-    #[serde(flatten)]
-    pub unknown_fields: BTreeMap<String, toml::Value>,
-}
-
-// `toml::Value` deliberately does not implement `Eq` because TOML floats
-// include NaN. These public config types historically implemented `Eq`, so
-// retain that source contract while comparing float payloads by bits. This
-// also makes equality deterministic for opaque forward-compatible fields.
-fn toml_value_eq(left: &toml::Value, right: &toml::Value) -> bool {
-    match (left, right) {
-        (toml::Value::String(left), toml::Value::String(right)) => left == right,
-        (toml::Value::Integer(left), toml::Value::Integer(right)) => left == right,
-        (toml::Value::Float(left), toml::Value::Float(right)) => left.to_bits() == right.to_bits(),
-        (toml::Value::Boolean(left), toml::Value::Boolean(right)) => left == right,
-        (toml::Value::Datetime(left), toml::Value::Datetime(right)) => left == right,
-        (toml::Value::Array(left), toml::Value::Array(right)) => {
-            left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right)
-                    .all(|(left, right)| toml_value_eq(left, right))
-        }
-        (toml::Value::Table(left), toml::Value::Table(right)) => {
-            left.len() == right.len()
-                && left.iter().all(|(key, value)| {
-                    right
-                        .get(key)
-                        .is_some_and(|other| toml_value_eq(value, other))
-                })
-        }
-        _ => false,
-    }
-}
-
-fn toml_map_eq(
-    left: &BTreeMap<String, toml::Value>,
-    right: &BTreeMap<String, toml::Value>,
-) -> bool {
-    left.len() == right.len()
-        && left.iter().all(|(key, value)| {
-            right
-                .get(key)
-                .is_some_and(|other| toml_value_eq(value, other))
-        })
 }
 
 impl PartialEq for AutomationConfig {
@@ -304,7 +264,6 @@ impl PartialEq for AutomationConfig {
             && self.harness == other.harness
             && self.proof == other.proof
             && self.trace == other.trace
-            && toml_map_eq(&self.unknown_fields, &other.unknown_fields)
     }
 }
 
@@ -323,7 +282,6 @@ impl PartialEq for ProjectConfig {
             && self.automation == other.automation
             && self.legacy_adapters == other.legacy_adapters
             && self.legacy_active_adapter == other.legacy_active_adapter
-            && toml_map_eq(&self.unknown_fields, &other.unknown_fields)
     }
 }
 
@@ -332,7 +290,6 @@ impl Eq for ProjectConfig {}
 impl PartialEq for LocalConfig {
     fn eq(&self, other: &Self) -> bool {
         self.vault_path == other.vault_path
-            && toml_map_eq(&self.unknown_fields, &other.unknown_fields)
     }
 }
 
@@ -351,9 +308,45 @@ impl Default for AutomationConfig {
             harness: true,
             proof: true,
             trace: true,
-            unknown_fields: BTreeMap::new(),
         }
     }
+}
+
+/// Preserve unrecognized TOML keys while writing the public source-compatible
+/// config structs, which intentionally do not expose extension storage.
+fn config_text_preserving_unknown_fields(
+    path: &Path,
+    new_content: &str,
+    known_fields: &[&str],
+    nested_known_fields: Option<(&str, &[&str])>,
+) -> Result<String> {
+    let mut updated: toml::Value = toml::from_str(new_content)?;
+    if let Some(existing_content) = read_text(path)? {
+        let existing: toml::Value = toml::from_str(&existing_content)
+            .with_context(|| format!("Could not parse existing config {}", path.display()))?;
+        if let (Some(existing), Some(updated)) = (existing.as_table(), updated.as_table_mut()) {
+            for (key, value) in existing {
+                if !known_fields.contains(&key.as_str()) && !updated.contains_key(key) {
+                    updated.insert(key.clone(), value.clone());
+                }
+            }
+            if let Some((table_name, nested_known)) = nested_known_fields {
+                if let (Some(existing), Some(updated)) = (
+                    existing.get(table_name).and_then(toml::Value::as_table),
+                    updated
+                        .get_mut(table_name)
+                        .and_then(toml::Value::as_table_mut),
+                ) {
+                    for (key, value) in existing {
+                        if !nested_known.contains(&key.as_str()) && !updated.contains_key(key) {
+                            updated.insert(key.clone(), value.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(toml::to_string_pretty(&updated)?)
 }
 
 pub fn initialize_project(
@@ -399,7 +392,6 @@ pub fn initialize_project_with_options(
             automation: AutomationConfig::default(),
             legacy_adapters: Vec::new(),
             legacy_active_adapter: None,
-            unknown_fields: BTreeMap::new(),
         }
     };
     if config.project_id.is_empty() {
@@ -418,7 +410,13 @@ pub fn initialize_project_with_options(
         }
         config.active_adapter = Some(adapter);
     }
-    atomic_write(&project_path, &toml::to_string_pretty(&config)?)?;
+    let project_content = config_text_preserving_unknown_fields(
+        &project_path,
+        &toml::to_string_pretty(&config)?,
+        PROJECT_CONFIG_FIELDS,
+        Some(("automation", AUTOMATION_CONFIG_FIELDS)),
+    )?;
+    atomic_write(&project_path, &project_content)?;
 
     let local_path = repo_root.join(LOCAL_CONFIG_PATH);
     let mut local = if read_bytes(&local_path)?.is_some() {
@@ -426,11 +424,16 @@ pub fn initialize_project_with_options(
     } else {
         LocalConfig {
             vault_path: PathBuf::new(),
-            unknown_fields: BTreeMap::new(),
         }
     };
     local.vault_path = vault_path.as_ref().to_path_buf();
-    atomic_write(&local_path, &toml::to_string_pretty(&local)?)?;
+    let local_content = config_text_preserving_unknown_fields(
+        &local_path,
+        &toml::to_string_pretty(&local)?,
+        &["vault_path"],
+        None,
+    )?;
+    atomic_write(&local_path, &local_content)?;
     write_if_missing(&baron_root.join(".gitignore"), "local.toml\ncache/\ntmp/\n")?;
     Ok(config)
 }
@@ -444,10 +447,14 @@ pub fn set_project_platform(
     let mut config = load_project_config(&repo_root)?;
     config.schema_version = PROJECT_SCHEMA_VERSION;
     reconcile_platform(&mut config, platform);
-    atomic_write(
-        &repo_root.join(PROJECT_CONFIG_PATH),
+    let path = repo_root.join(PROJECT_CONFIG_PATH);
+    let content = config_text_preserving_unknown_fields(
+        &path,
         &toml::to_string_pretty(&config)?,
+        PROJECT_CONFIG_FIELDS,
+        Some(("automation", AUTOMATION_CONFIG_FIELDS)),
     )?;
+    atomic_write(&path, &content)?;
     Ok(config)
 }
 
@@ -469,10 +476,14 @@ pub fn set_active_adapter(
     }
     config.active_adapter = Some(adapter);
     config.schema_version = PROJECT_SCHEMA_VERSION;
-    atomic_write(
-        &repo_root.join(PROJECT_CONFIG_PATH),
+    let path = repo_root.join(PROJECT_CONFIG_PATH);
+    let content = config_text_preserving_unknown_fields(
+        &path,
         &toml::to_string_pretty(&config)?,
+        PROJECT_CONFIG_FIELDS,
+        Some(("automation", AUTOMATION_CONFIG_FIELDS)),
     )?;
+    atomic_write(&path, &content)?;
     Ok(config)
 }
 

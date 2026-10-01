@@ -2,12 +2,12 @@
 
 ## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-01)
 
-- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; this is not closure until two independent reviewers accept the complete repair range.
-- Task/checkpoint: exact CLI proof/trace ingress, durable native Prompt-to-Stop correlation, and operation-bound intent producer/consumer are implemented; final production CURRENT/latest caller inventory is recorded.
-- Proof/trace: Core all-targets passed 59 targets. Workspace all-targets completed 111 target reports (`860 passed / 3 failed / 4 ignored`); the only failures are three `lifecycle_scripts` tests that fail because this host cannot load `Microsoft.PowerShell.Archive` / `Compress-Archive`, identically reproduced at `ecaf362`. Intent A/B Prepare, hook identity, and UTF-8 boundary regressions pass.
-- Persisted boundary: full lifecycle identity plus validated managed ACTIVE plan/frontmatter remain authoritative; CURRENT is presentation only. Operation intent is keyed by operation ID and verified against all identity fields; hook correlation remains durable, bounded, locked, and fail closed.
-- Verification: formatter, Clippy `-D warnings`, locked release build, release smoke, `baron 5.0.0` version/help checks, 157-file Markdown relative-link check, status JSON, diff check, and retired-adapter grep pass.
-- Safe next action: two independent read-only reviews over `ecaf362..final implementation HEAD`, focused on lock ordering/lost updates and scope/backward compatibility/CURRENT authority; resolve Critical/Important findings before closure. Public binary stays 5.0.0; no release/tag/SPEC-06.
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; the three Important findings from `ecaf362..af65881` are fixed and the final local verification is green. Two fresh independent read-only reviews of the complete updated range are now required before closure and push.
+- Task/checkpoint: Stop on a precisely correlated completed operation must not block host shutdown; restore public config struct-literal compatibility without losing unknown TOML fields on managed mutations; serialize shared Vault validation-matrix read/modify/write across checkouts.
+- Proof/trace: completed Stop, public config source compatibility, and cross-checkout Vault lock regressions pass. Full workspace all-targets, focused Core/CLI/adapter suites, formatter, warnings-denied Clippy, locked release build, release smoke, and version check all pass on the repaired source.
+- Persisted boundary: operation identity and validated ACTIVE/frontmatter remain authoritative; CURRENT is presentation only. Shared matrix writes now lock checkout then Vault capsule in a consistent order.
+- Verification: `cargo test --workspace --all-targets --no-fail-fast -j 1` exited 0 using isolated session roots and `BARON_TEST_POWERSHELL` pointed to the bundled PowerShell 7 host; focused hook identity `18/18`, concurrency `16/16`, config `16/16`, plan `51/51`, proof-trace `29/29`, CLI prepare `6/6`, adapters lifecycle `23/23`, and public config compatibility `1/1` passed. `cargo fmt --all -- --check`, workspace Clippy `-D warnings`, locked release build, ignored release smoke, and `baron 5.0.0` version check passed. Final independent reviews remain pending.
+- Safe next action: commit the verified repair/evidence, obtain two fresh read-only reviews over the updated full range, resolve any Critical/Important findings, then close and push. Public binary stays 5.0.0; no release/tag/SPEC-06.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
@@ -68,10 +68,11 @@
   captured as one bounded locked snapshot before that callback. Failed
   post-handoff rollback is fail-closed and refuses to restore any migration
   path when the handoff baseline no longer matches.
-- Deterministic matrix: concurrency `15/15`; config `16/16`; plan `50/50`;
-  proof/trace `21/21`; capability `9/9`; automation `6/6`; harness `5/5`;
-  harness improvement `5/5`; intent `4/4`; continuity `6/6`;
-  control-plane `9/9`; migration `10/10`; Phase-1 retired-adapter gate `8/8`.
+- Deterministic matrix: concurrency `16/16`; config `16/16`; plan `51/51`;
+  proof/trace `29/29`; hook identity `18/18`; capability `9/9`; automation
+  `6/6`; harness `5/5`; harness improvement `5/5`; intent `7/7`; continuity
+  `6/6`; control-plane `9/9`; migration `10/10`; public config compatibility
+  `1/1`; Phase-1 retired-adapter gate `8/8`.
 - Out-of-scope boundary: context/session/replay/cache writers and the
   diagnostic SQLite/index accelerators remain mapped to B-28..B-31; they are
   not promoted to SPEC-05 authority. The SPEC-05 automation hook claim and
@@ -106,29 +107,27 @@
   backup roots are reserved under lock and post-handoff hash conflicts fail
   closed, but full multi-migration handoff serialization belongs to the later
   transaction framework. Neither residual can authorize completion/proof.
-- Workspace verification: Core all-targets and focused suites at `ac11117`,
-  formatter, workspace Clippy with `-D warnings`, locked release build,
-  release binary `baron 5.0.0`, status JSON parsing, maintained Markdown
-  relative-link checks, and diff checks passed. The
-  full workspace run retains only the two known baseline targets:
-  `baron-cli --test lifecycle_scripts` has three host-environment failures
-  because `Microsoft.PowerShell.Archive` cannot load `Compress-Archive`;
-  `baron-cli --test prepare_cli` has one existing `session_replay.rs:383`
-  UTF-8 boundary panic. These are not SPEC-05-owned failures.
-- Baseline reproduction: the same `3`/`1` failures reproduce at SPEC-04
-  closure `ecaf362` and at current `ac11117`, with unchanged failure causes.
-  Core focused proof remains: concurrency `15/15`, config `16/16`, plan
-  `50/50`, proof/trace `21/21`, capability `9/9`, automation `6/6`, harness
-  `5/5`, harness improvement `5/5`, intent `4/4`, continuity `6/6`,
-  control-plane `9/9`, migration `10/10`; retired-adapter gate `8/8`.
+- Workspace verification: `cargo test --workspace --all-targets --no-fail-fast
+  -j 1` exited 0 with isolated session roots and
+  `BARON_TEST_POWERSHELL` set to the bundled PowerShell 7 host. The focused
+  Core, CLI, and adapter suites also pass; the repaired `lifecycle_scripts`
+  target is `7/7`, current `prepare_cli` is `6/6`, and the UTF-8 replay
+  regression is `5/5`. Formatter, workspace Clippy with `-D warnings`, locked
+  release build, explicit release smoke, `baron 5.0.0`, status JSON parsing,
+  maintained-doc checks, and diff checks pass.
+- Baseline comparison: at `ecaf362`, `lifecycle_scripts` `7/7` and
+  `prepare_cli` `5/5` pass when run with the same supported PowerShell 7 test
+  host and isolated session roots. A separate synthetic multibyte fixture
+  reproduces the old `session_replay.rs:383` panic at `ecaf362`; the repaired
+  UTF-8 regression passes on current source. The previous three lifecycle
+  failures were caused by the default host PowerShell selection and are
+  avoided via the test harness's existing `BARON_TEST_POWERSHELL` override.
 - CLI identity proof: exact update/interrupt/complete flow and legacy
   ambiguous-mutation fail-closed behavior pass `4/4` in
   `baron-cli --test plan_identity_cli`.
-- Next action: obtain an independent adversarial verdict over
-  `ecaf362..ac11117` when reviewer quota is available, or leave this honest
-  readiness checkpoint for that review.
-  Preserve the exact `READY FOR ADVERSARIAL REVIEW` verdict; do not mark
-  SPEC-05 closed.
+- Next action: obtain two fresh independent adversarial verdicts over the
+  final committed source and evidence range beginning at `ecaf362`; do not
+  mark SPEC-05 closed until both accept without Critical/Important findings.
 
 ## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 

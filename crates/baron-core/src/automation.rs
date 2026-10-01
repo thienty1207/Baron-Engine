@@ -290,6 +290,7 @@ pub fn handle_hook(
                 | AutomationEvent::Checkpoint
                 | AutomationEvent::Stop
         );
+    let mut stop_completed = false;
     let identity = if let Some(supported) = supported_adapter.filter(|_| correlated) {
         let resolved = (|| -> Result<_> {
             let _lock = acquire_project_lock(repo_root)?;
@@ -298,8 +299,9 @@ pub fn handle_hook(
             hook_correlation::resolve_locked(repo_root, vault, supported, event, &ingress)
         })();
         match resolved {
-            Ok((canonical_task, identity)) => {
+            Ok((canonical_task, identity, completed)) => {
                 task = canonical_task;
+                stop_completed = event == AutomationEvent::Stop && completed;
                 Some(identity)
             }
             Err(error) if event == AutomationEvent::Stop => {
@@ -362,6 +364,20 @@ pub fn handle_hook(
     };
     let event_key = key.stable_id();
 
+    if stop_completed {
+        return completed_stop_response(
+            vault,
+            adapter,
+            event_kind,
+            &event_key,
+            &task_id,
+            identity
+                .as_ref()
+                .context("completed Stop requires identity")?,
+            is_child,
+        );
+    }
+
     if recursion_depth(&payload) > 0 {
         let mut metadata = hook_metadata(
             vault,
@@ -415,7 +431,7 @@ pub fn handle_hook(
     let claim_token = {
         let _lock = acquire_project_lock(repo_root)?;
         if event == AutomationEvent::Stop && !is_child {
-            hook_correlation::verify_stop_locked(
+            let completed = hook_correlation::verify_stop_locked(
                 repo_root,
                 vault,
                 supported_adapter.context("Stop requires a supported adapter")?,
@@ -423,6 +439,19 @@ pub fn handle_hook(
                 identity.as_ref().context("Stop requires identity")?,
             )
             .map_err(|error| anyhow::anyhow!(hook_correlation::failure(&error)))?;
+            if completed {
+                return completed_stop_response(
+                    vault,
+                    adapter,
+                    event_kind,
+                    &event_key,
+                    &task_id,
+                    identity
+                        .as_ref()
+                        .context("completed Stop requires identity")?,
+                    is_child,
+                );
+            }
         }
         let mut dedup = load_dedup_state(vault)?;
         if let Some(response) = dedup_response(&dedup, &event_key) {
@@ -692,8 +721,8 @@ pub fn handle_hook(
     // Slow prepare/context/probes and Stop reconciliation remain outside it.
     let publication = (|| -> Result<String> {
         let _lock = acquire_project_lock(repo_root)?;
-        if event == AutomationEvent::Stop && !is_child {
-            hook_correlation::verify_stop_locked(
+        let response = if event == AutomationEvent::Stop && !is_child {
+            let completed = hook_correlation::verify_stop_locked(
                 repo_root,
                 vault,
                 supported_adapter.context("Stop requires a supported adapter")?,
@@ -701,7 +730,24 @@ pub fn handle_hook(
                 identity.as_ref().context("Stop requires identity")?,
             )
             .map_err(|error| anyhow::anyhow!(hook_correlation::failure(&error)))?;
-        }
+            if completed {
+                completed_stop_response(
+                    vault,
+                    adapter,
+                    event_kind,
+                    &event_key,
+                    &task_id,
+                    identity
+                        .as_ref()
+                        .context("completed Stop requires identity")?,
+                    is_child,
+                )?
+            } else {
+                response.clone()
+            }
+        } else {
+            response.clone()
+        };
         publish_hook_response(
             repo_root,
             vault,
@@ -980,6 +1026,33 @@ fn hook_metadata(
         metadata["request_id"] = json!(identity.request_id());
     }
     metadata
+}
+
+fn completed_stop_response(
+    vault: &VaultContext,
+    adapter: HookAdapter,
+    event_kind: &str,
+    event_key: &str,
+    task_id: &str,
+    identity: &LifecycleIdentity,
+    child: bool,
+) -> Result<String> {
+    let mut metadata = hook_metadata(
+        vault,
+        adapter,
+        event_kind,
+        event_key,
+        task_id,
+        Some(identity),
+        child,
+    );
+    metadata["operation_already_completed"] = json!(true);
+    metadata["stop_is_completion"] = json!(false);
+    Ok(serde_json::to_string(&json!({
+        "continue": true,
+        "systemMessage": "The exact Baron operation is already complete; allowing host Stop without repeating reconciliation.",
+        "baron": metadata
+    }))?)
 }
 
 fn recursion_depth(payload: &Value) -> u64 {
@@ -1318,7 +1391,7 @@ mod tests {
         let payload = json!({"session_id":identity.session_id(),"request_id":identity.request_id(),"task":"current repository state"});
         let ingress = hook_correlation::Ingress::parse(&payload, HookAdapter::Codex).unwrap();
         let _lock = acquire_project_lock(repo).unwrap();
-        let (_, established) = hook_correlation::resolve_locked(
+        let (_, established, completed) = hook_correlation::resolve_locked(
             repo,
             vault,
             SupportedAdapter::Codex,
@@ -1326,6 +1399,7 @@ mod tests {
             &ingress,
         )
         .unwrap();
+        assert!(!completed);
         assert_eq!(&established, identity);
         crate::plan::start_or_resume_plan_for_identity(
             repo,

@@ -334,6 +334,12 @@ fn config_mutations_preserve_unknown_fields_and_legacy_active_values() {
     let local = fs::read_to_string(repo.join(".baron/local.toml")).unwrap();
     assert!(local.contains("future_local_setting = \"preserve-local\""));
     assert!(local.contains("vault_path = "));
+
+    set_active_adapter(&repo, AdapterKind::Claude).unwrap();
+    set_project_platform(&repo, ProjectPlatform::Database).unwrap();
+    let content = fs::read_to_string(repo.join(".baron/project.toml")).unwrap();
+    assert!(content.contains("future_setting = \"preserve-me\""));
+    assert!(content.contains("future_automation_setting = \"preserve-nested\""));
 }
 
 #[test]

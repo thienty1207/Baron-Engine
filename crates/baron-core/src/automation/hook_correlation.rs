@@ -308,10 +308,10 @@ fn indexed_status(repo: &Path, identity: &LifecycleIdentity) -> Result<Option<St
     Ok(found)
 }
 
-pub(super) fn validate_active(repo: &Path, identity: &LifecycleIdentity) -> Result<()> {
+fn validate_stop(repo: &Path, identity: &LifecycleIdentity) -> Result<bool> {
     match indexed_status(repo, identity)?.as_deref() {
-        Some("in_progress" | "interrupted" | "needs_correction" | "blocked") => Ok(()),
-        Some("completed") => bail!("hook correlation selects a completed plan"),
+        Some("in_progress" | "interrupted" | "needs_correction" | "blocked") => Ok(false),
+        Some("completed") => Ok(true),
         _ => bail!("hook correlation has no exact active ACTIVE entry"),
     }
 }
@@ -327,7 +327,7 @@ pub(super) fn resolve_locked(
     adapter: SupportedAdapter,
     event: AutomationEvent,
     ingress: &Ingress,
-) -> Result<(String, LifecycleIdentity)> {
+) -> Result<(String, LifecycleIdentity, bool)> {
     let mut state = load(repo, vault)?;
     let prompt = matches!(
         event,
@@ -352,7 +352,7 @@ pub(super) fn resolve_locked(
             None,
             ingress.turn.as_deref(),
         )?;
-        return Ok((task, identity));
+        return Ok((task, identity, false));
     };
     let mut candidates = Vec::new();
     for entry in &state.entries {
@@ -386,10 +386,12 @@ pub(super) fn resolve_locked(
         {
             bail!("hook correlation task conflicts with established host turn");
         }
-        if stop {
-            validate_active(repo, &identity)?;
-        }
-        return Ok((entry.canonical_task.clone(), identity));
+        let completed = if stop {
+            validate_stop(repo, &identity)?
+        } else {
+            false
+        };
+        return Ok((entry.canonical_task.clone(), identity, completed));
     }
     if !prompt {
         // Historical Baron callers can still supply the original task with a
@@ -404,8 +406,8 @@ pub(super) fn resolve_locked(
                 Some(session),
                 ingress.turn.as_deref(),
             )?;
-            validate_active(repo, &identity)?;
-            return Ok((task, identity));
+            let completed = validate_stop(repo, &identity)?;
+            return Ok((task, identity, completed));
         }
         if stop || ingress.native_turn || ingress.turn.is_none() && !state.entries.is_empty() {
             bail!("unknown hook correlation for host session/turn");
@@ -421,7 +423,7 @@ pub(super) fn resolve_locked(
             Some(session),
             ingress.turn.as_deref(),
         )?;
-        return Ok((task, identity));
+        return Ok((task, identity, false));
     }
     let task = ingress
         .task
@@ -481,7 +483,7 @@ pub(super) fn resolve_locked(
         bail!("hook correlation publication exceeds byte bound");
     }
     replace_text(repo.join(MAP_PATH), &(content + "\n"))?;
-    Ok((task, identity))
+    Ok((task, identity, false))
 }
 
 pub(super) fn verify_stop_locked(
@@ -490,12 +492,13 @@ pub(super) fn verify_stop_locked(
     adapter: SupportedAdapter,
     ingress: &Ingress,
     expected: &LifecycleIdentity,
-) -> Result<()> {
-    let (_, identity) = resolve_locked(repo, vault, adapter, AutomationEvent::Stop, ingress)?;
+) -> Result<bool> {
+    let (_, identity, completed) =
+        resolve_locked(repo, vault, adapter, AutomationEvent::Stop, ingress)?;
     if identity != *expected {
         bail!("hook correlation identity changed during delivery");
     }
-    Ok(())
+    Ok(completed)
 }
 
 pub(super) fn failure(error: &anyhow::Error) -> String {

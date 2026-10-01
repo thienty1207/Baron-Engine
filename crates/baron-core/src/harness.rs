@@ -27,6 +27,7 @@ pub fn ensure_harness_workspace(
 ) -> Result<DomainLanguageStatus> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     ensure_domain_language(repo_root, vault)
 }
 
@@ -37,6 +38,10 @@ pub fn start_or_resume_intake(
 ) -> Result<HarnessStory> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    // Shared Vault writes always follow checkout -> capsule lock ordering.
+    // Separate worktrees can share one capsule, so the checkout lock alone
+    // cannot serialize updates to its read-modify-write documents.
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     ensure_harness_workspace(repo_root, vault)?;
     let title = title.trim();
     let risk = classify_risk(title);
@@ -121,6 +126,7 @@ pub fn record_decision(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     append(
         &repo_root.join("docs/baron/harness/DECISIONS.md"),
         "# Product Decisions\n\n",
@@ -140,6 +146,7 @@ pub fn record_friction(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let item = format!("- [ ] {} - {}", now(), summary.trim());
     append(
         &repo_root.join("docs/baron/harness/FRICTION.md"),
@@ -368,6 +375,7 @@ pub fn update_current_validation_evidence_for_operation(
     if canonical_project_id(repo_root)? != vault.project_id {
         bail!("harness operation project does not match Vault project");
     }
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     for path in [
         repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
         vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
@@ -395,6 +403,7 @@ pub fn update_current_validation_evidence(
         return Ok(());
     };
     let risk = current_harness_risk(repo_root);
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     upsert_validation_row(
         &repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
         &title,

@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Obtain two independent read-only reviews of the complete SPEC-05 repair range ecaf362..final implementation HEAD; resolve any Critical/Important findings, then close SPEC-05 and push without a release or tag.",
+  "nextAction": "Commit the verified repair and evidence, then obtain two independent read-only reviews of the updated ecaf362..HEAD range; close and push only after acceptance.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
@@ -36,13 +36,12 @@
       "finalCommit": "ecaf362",
       "branch": "codex/spec-04-proof-trace-gate-completion-integrity",
       "knownBlockers": [
-        "lifecycle_scripts cannot load Microsoft.PowerShell.Archive in the host PowerShell",
-        "prepare_cli exposes an existing UTF-8 boundary panic in session_replay"
+        "At ecaf362, the synthetic multibyte session_replay fixture exposes the UTF-8 boundary panic repaired in SPEC-05",
+        "Windows lifecycle tests need the supported BARON_TEST_POWERSHELL override to use the bundled PowerShell 7 host in this environment"
       ]
     },
     "verificationBlockers": [
-      "two independent read-only adversarial reviews of the complete repair range are pending",
-      "the three lifecycle_scripts installer failures are an unchanged baseline host PowerShell module limitation"
+      "two fresh independent read-only reviews of the final committed source and evidence range are pending"
     ],
     "implementationCommits": [
       "b4e5f77",
@@ -61,32 +60,30 @@
       "eeae7d8",
       "cc6fbfc",
       "d161d05",
-      "ac11117"
+      "ac11117",
+      "af65881"
     ],
-    "closureBasis": "READY FOR ADVERSARIAL REVIEW on 2026-10-01. Workspace all-targets completed with 860 passed, 3 failed, and 4 ignored tests across 111 target reports; all three failures are the exact lifecycle_scripts Compress-Archive failures reproduced at ecaf362. Core all-targets passed 59 targets; workspace Clippy with -D warnings, locked release build, release smoke, formatter, status JSON, relative links, and retired-adapter gate passed. Two independent final-range reviews remain before closure.",
+    "closureBasis": "The three Important findings from the earlier review of ecaf362..af65881 are repaired with focused regressions: exact completed Stop permits shutdown, public config struct literals remain source-compatible, and shared-Vault validation-matrix writes lock across checkouts. Workspace all-targets and focused verification pass. SPEC-05 remains READY FOR ADVERSARIAL REVIEW until two fresh independent reviewers accept the committed final range.",
     "verification": {
-      "focusedConcurrencyMatrix": "PASS: focused regressions and full workspace run cover lock/lost-update, hook identity, exact plan/proof/trace/gate/intent selection, recovery, and legacy ambiguity",
-      "cliExecution": "PASS: 37 CLI target reports passed; lifecycle_scripts alone has 3 host PowerShell Compress-Archive failures reproduced at ecaf362",
-      "coreAllTargets": "PASS: 59 target reports, zero failed targets",
-      "workspaceAllTargets": "BASELINE HOST LIMITATION: 860 passed, 3 failed, 4 ignored tests across 111 target reports; all three failures are lifecycle_scripts and identical to ecaf362",
+      "focusedConcurrencyMatrix": "PASS: concurrency 16/16, config 16/16, plan 51/51, proof_trace 29/29, hook_identity 18/18, intent 7/7, continuity 6/6, migration 10/10, and public_config_compat 1/1",
+      "cliExecution": "PASS: workspace all-targets and focused CLI suites pass; plan_identity_cli 4/4, operation_evidence_cli 9/9, phase12_hooks_cli 6/6, intent_operation_cli 2/2, execution_cli 15/15, and prepare_cli 6/6",
+      "coreAllTargets": "PASS: included in the successful cargo test --workspace --all-targets --no-fail-fast -j 1 run",
+      "workspaceAllTargets": "PASS: cargo test --workspace --all-targets --no-fail-fast -j 1 exited 0 with isolated Codex/Claude session roots and BARON_TEST_POWERSHELL set to the bundled PowerShell 7 executable",
       "format": "PASS: cargo fmt --all -- --check",
       "clippyWarningsDenied": "PASS: cargo clippy --workspace --all-targets -- -D warnings",
       "releaseBuild": "PASS: cargo build --workspace --release --locked",
       "binaryVersion": "PASS: target/release/baron.exe --version reports baron 5.0.0",
-      "diffCheck": "PASS: git diff ecaf362 --check",
-      "maintainedMarkdownRelativeLinks": "PASS: 157 Markdown files checked; no missing repository-relative links",
+      "releaseSmoke": "PASS: ignored phase14_release release_binary_smokes_codex_claude_and_database_without_source_tree_assets",
+      "diffCheck": "PASS: git diff ecaf362 --check after the final review package edit",
+      "maintainedMarkdownRelativeLinks": "PASS: maintained-doc integration test plus repository-relative links in the five updated status/plan/audit documents",
       "mutationInventory": "Recorded classifications: LOCKED_TRANSACTION for shared read-modify-write and hook claim/publication; LOCKED_APPEND for journals/runtime JSONL; LOCKED_CREATE_NEW for unique artifacts; LOCKED_ATOMIC_REPLACE for upserts; DIAGNOSTIC_LAST_WRITER_WINS for capability cache; READ_ONLY for authority readers; SLOW_WORK_OUTSIDE_LOCK for probes/Git/external installer; OUT_OF_SCOPE for diagnostic/report-only writers. Final production CURRENT/latest search returned 239 matched lines in Core/CLI; residual uses are classified as exact-operation, presentation, legacy-single-active, ambiguous-fail-closed, or out-of-scope. No known owned Critical/Important BUG; independent review pending.",
       "legacyCompatibility": "PASS: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "PASS: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "PENDING: two independent read-only reviews over ecaf362..final implementation HEAD, separately focused on lock ordering/lost updates and scope/backward compatibility/CURRENT authority",
-      "workspaceKnownFailures": [
-        "powershell_installer_rejects_signature_tampering_before_touching_existing_binary: Microsoft.PowerShell.Archive could not load Compress-Archive; also reproduced at ecaf362",
-        "native_installer_supports_install_update_rollback_and_uninstall: same host PowerShell Compress-Archive failure; also reproduced at ecaf362",
-        "powershell_installer_makes_baron_available_in_the_current_session: same host PowerShell Compress-Archive failure; also reproduced at ecaf362"
-      ]
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: two fresh independent read-only reviews of the committed final range are pending",
+      "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-01-spec-05-zero-current-closure-repair.md",
-    "nextAction": "Complete two independent read-only reviews of the complete final implementation range; close and push only if neither reports Critical/Important findings. No release, tag, or version bump."
+    "nextAction": "Commit the verified fixes and evidence, obtain two independent read-only reviews over ecaf362..HEAD, close only after acceptance, then push the scoped branch. No release, tag, or version bump."
   },
   "securityRemediation": {
     "status": "complete",

@@ -2,12 +2,12 @@
 
 ## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-01)
 
-- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; independent final-range acceptance remains before closure.
-- Checkpoint/source: repair changes are based on `9bdb979` and compared from SPEC-04 closure `ecaf362`; earlier readiness and test summaries below are historical.
-- Proof status: operation-bound intent A/B Prepare, explicit CLI proof/trace selection, cross-operation evidence rejection, and Core plan/intent/hook suites pass. Workspace: 860 passed, 3 baseline installer failures, 4 ignored across 111 targets.
-- Trace status: Codex/Claude host-shaped Prompt -> Stop correlation passes hook identity and CLI tests; final CURRENT/latest caller inventory, UTF-8 boundary, Clippy, locked release build, and release smoke pass. The only workspace failures are the same `Compress-Archive` host issue reproduced at `ecaf362`.
-- Persisted-state boundary: validated operation identity and ACTIVE/frontmatter, mirrored bounded operation-intent state, plus durable host correlation under the project lock. Slow prepare/probes remain outside the lock.
-- Safe next action: obtain two independent read-only reviews over `ecaf362..final implementation HEAD`, fix any Critical/Important findings, then close SPEC-05 and push. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
+- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; three Important findings from `ecaf362..af65881` are fixed and verified. Two fresh independent reviews of the committed final range remain before closure.
+- Checkpoint/source: exact completed Stop now permits shutdown, public config literals compile without extension fields, and validation-matrix updates take the shared Vault capsule lock after the checkout lock.
+- Proof status: workspace all-targets exited 0; focused hook identity `18/18`, concurrency `16/16`, config `16/16`, plan `51/51`, proof-trace `29/29`, prepare CLI `6/6`, adapter lifecycle `23/23`, and public config compatibility `1/1` all pass.
+- Trace status: Stop still validates exact ACTIVE/frontmatter; config mutations preserve forward TOML fields; cross-checkout worker waits for the shared Vault lock. Formatter, warnings-denied Clippy, locked release build and release smoke pass. Two new final-range reviews remain pending.
+- Persisted-state boundary: validated operation identity and ACTIVE/frontmatter remain authoritative; shared matrix RMW follows checkout -> Vault lock order; CURRENT stays a projection.
+- Safe next action: commit the verified repair/evidence, obtain two fresh independent read-only reviews, resolve any Critical/Important findings, then close and push. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
@@ -26,9 +26,9 @@
   full operation identity; legacy ambiguous mutations fail closed. The
   migration handoff baseline is captured under one bounded lock before
   external installation.
-- Proof status: focused changed suites pass — concurrency `15/15`, config
-  `16/16`, plan `50/50`, proof/trace `21/21`, capability `9/9`, automation
-  `6/6`, harness `5/5`, harness improvement `5/5`, intent `4/4`, continuity
+- Proof status: focused changed suites pass — concurrency `16/16`, config
+  `16/16`, plan `51/51`, proof/trace `29/29`, capability `9/9`, automation
+  `6/6`, harness `5/5`, harness improvement `5/5`, intent `7/7`, continuity
   `6/6`, control-plane `9/9`, and migration `10/10`. Phase-1 retired-adapter
   gate passes `8/8`.
 - Trace status: the first fresh adversarial review found Important findings;
@@ -60,23 +60,23 @@
 - CLI identity result: exact update/interrupt/complete and legacy ambiguity
   fail-closed tests pass `4/4` in `baron-cli --test plan_identity_cli`.
 - Workspace result: `cargo test --workspace --all-targets --no-fail-fast -j 1`
-  completed with all other workspace targets passing. The only failures are
-  the known three `lifecycle_scripts` host failures from unavailable
-  `Microsoft.PowerShell.Archive`/`Compress-Archive` and one existing
-  `prepare_cli` panic at `session_replay.rs:383`. Formatter, workspace
-  warnings-denied Clippy, locked release build, release binary `baron 5.0.0`,
-  status JSON parsing, maintained Markdown relative-link checks, and diff
-  checks pass.
-- Baseline result: the same three lifecycle-script failures and one prepare
-  panic reproduce at SPEC-04 closure `ecaf362`; current `ac11117` shows the
-  same causes, so they are not regressions from SPEC-05.
+  exited 0 with isolated session roots and `BARON_TEST_POWERSHELL` set to the
+  bundled PowerShell 7 host. Current lifecycle scripts pass `7/7`, current
+  `prepare_cli` passes `6/6`, and the UTF-8 replay regression passes `5/5`.
+  Formatter, workspace warnings-denied Clippy, locked release build, explicit
+  release smoke, `baron 5.0.0`, status JSON parsing, maintained docs tests, and
+  diff checks pass.
+- Baseline result: `ecaf362` lifecycle scripts `7/7` and prepare CLI `5/5`
+  also pass under the same supported test environment. The synthetic
+  multibyte replay fixture reproduces the old `session_replay.rs:383` panic at
+  `ecaf362`; the current boundary regression passes. The earlier three
+  lifecycle failures were specific to default host PowerShell selection.
 - Persisted-state boundary: no project/Vault data or unrelated worktree files
   were changed. The active plan, source/tests, and maintained status/build-log
   documents are the only intended repository artifacts.
-- Safe next action: retain the final workspace/Clippy/release/JSON/diff
-  evidence and obtain an independent adversarial verdict over
-  `ecaf362..ac11117` when reviewer quota is available. Leave SPEC-05 at
-  `READY FOR ADVERSARIAL REVIEW`, not closed.
+- Safe next action: commit the verified repair/evidence and obtain two fresh
+  independent reviews over the final `ecaf362..HEAD` range. Leave SPEC-05 at
+  `READY FOR ADVERSARIAL REVIEW`; close only after both accept.
 
 ## SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
 

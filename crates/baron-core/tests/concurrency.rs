@@ -15,7 +15,9 @@ use baron_core::capability::{
 use baron_core::config::{load_project_config, AdapterKind};
 use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
 use baron_core::control_plane::record_gate_evidence;
-use baron_core::harness::{record_friction, start_or_resume_intake};
+use baron_core::harness::{
+    record_friction, start_or_resume_intake, update_current_validation_evidence,
+};
 use baron_core::harness_improvement::record_intervention;
 use baron_core::identity::project_id_for_path;
 use baron_core::intent::{record_intent, IntentBriefInput};
@@ -484,6 +486,79 @@ fn plan_and_trace_lock_timeouts_fail_without_writing_state() {
     assert!(!repo.join("docs/baron/traces").exists());
 }
 
+#[test]
+fn validation_matrix_update_waits_for_shared_vault_lock_across_checkouts() {
+    let temp = tempdir().unwrap();
+    let repo_a = temp.path().join("checkout-a");
+    let repo_b = temp.path().join("checkout-b");
+    let vault = temp.path().join("shared-vault");
+    fs::create_dir_all(&repo_a).unwrap();
+    baron_core::config::initialize_project(&repo_a, AdapterKind::Codex, &vault).unwrap();
+    let context_a = ensure_vault(&vault, &repo_a).unwrap();
+
+    fs::create_dir_all(repo_b.join(".baron")).unwrap();
+    fs::copy(
+        repo_a.join(".baron/project.toml"),
+        repo_b.join(".baron/project.toml"),
+    )
+    .unwrap();
+    let mut context_b = vault_context_without_create(&vault, &repo_b).unwrap();
+    context_b.project_root = context_a.project_root.clone();
+
+    for (repo, title) in [(&repo_a, "checkout A"), (&repo_b, "checkout B")] {
+        let harness = repo.join("docs/baron/harness");
+        fs::create_dir_all(&harness).unwrap();
+        fs::write(
+            harness.join("CURRENT.md"),
+            format!("# Current Product Harness\n\n- Title: {title}\n- Risk: `low`\n"),
+        )
+        .unwrap();
+    }
+    update_current_validation_evidence(&repo_a, &context_a, "checkout A evidence", true).unwrap();
+
+    let ready = temp.path().join("matrix-ready");
+    fs::create_dir_all(&ready).unwrap();
+    let vault_lock = acquire_project_lock(&context_a.project_root).unwrap();
+    let mut child = Command::new(env::current_exe().unwrap())
+        .args(["--exact", "concurrency_worker", "--nocapture"])
+        .env("BARON_CONCURRENCY_WORKER", "1")
+        .env("BARON_CONCURRENCY_MODE", "matrix-update")
+        .env("BARON_CONCURRENCY_REPO", &repo_b)
+        .env("BARON_CONCURRENCY_VAULT", &vault)
+        .env("BARON_CONCURRENCY_INDEX", "shared")
+        .env("BARON_CONCURRENCY_READY", &ready)
+        .env("BARON_CONCURRENCY_SHARED_PROJECT", &context_a.project_root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !ready.join("attempting").exists() {
+        assert!(Instant::now() < deadline, "matrix worker did not start");
+        thread::sleep(Duration::from_millis(10));
+    }
+    thread::sleep(Duration::from_millis(250));
+    let completed_while_locked = child.try_wait().unwrap().is_some();
+    drop(vault_lock);
+    let output = child.wait_with_output().unwrap();
+
+    assert!(
+        !completed_while_locked,
+        "a separate checkout updated shared Vault state without acquiring its resource lock"
+    );
+    assert!(
+        output.status.success(),
+        "matrix worker failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let matrix =
+        fs::read_to_string(context_a.project_root.join("ProductHarness/TEST_MATRIX.md")).unwrap();
+    assert!(matrix.contains("| checkout A |"));
+    assert!(matrix.contains("| checkout B |"));
+}
+
 fn run_timeout_worker(mode: &str, repo: &Path, vault: &Path) -> std::process::Output {
     let output = Command::new(env::current_exe().unwrap())
         .args(["--exact", "concurrency_worker", "--nocapture"])
@@ -693,7 +768,10 @@ fn concurrency_worker() {
     let repo = PathBuf::from(env::var_os("BARON_CONCURRENCY_REPO").unwrap());
     let vault = PathBuf::from(env::var_os("BARON_CONCURRENCY_VAULT").unwrap());
     let index = env::var("BARON_CONCURRENCY_INDEX").unwrap();
-    if !matches!(mode.as_str(), "timeout" | "plan-timeout" | "trace-timeout") {
+    if !matches!(
+        mode.as_str(),
+        "timeout" | "plan-timeout" | "trace-timeout" | "matrix-update"
+    ) {
         let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
         let release = PathBuf::from(env::var_os("BARON_CONCURRENCY_RELEASE").unwrap());
         fs::write(ready.join(format!("ready-{index}")), b"ready").unwrap();
@@ -726,6 +804,17 @@ fn concurrency_worker() {
             )
             .unwrap();
             println!("HOOK_OK");
+        }
+        "matrix-update" => {
+            let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
+            fs::write(ready.join("attempting"), b"attempting").unwrap();
+            let shared_project =
+                PathBuf::from(env::var_os("BARON_CONCURRENCY_SHARED_PROJECT").unwrap());
+            let mut context = context;
+            context.project_root = shared_project;
+            update_current_validation_evidence(&repo, &context, "checkout B evidence", true)
+                .unwrap();
+            println!("MATRIX_UPDATED");
         }
         "trace" => {
             let trace = record_trace(

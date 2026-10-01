@@ -550,15 +550,8 @@ fn native_prompt_without_prompt_text_is_rejected() {
 }
 
 #[test]
-fn active_frontmatter_corruption_and_completed_plan_block_cached_stop() {
-    for corruption in [
-        "request",
-        "unsafe",
-        "duplicate",
-        "shared_path",
-        "status",
-        "completed",
-    ] {
+fn active_frontmatter_corruption_blocks_cached_stop() {
+    for corruption in ["request", "unsafe", "duplicate", "shared_path", "status"] {
         let (_temp, repo, vault) = project();
         let a = establish(
             &repo,
@@ -668,6 +661,94 @@ fn completed_cleanup_requires_current_active_frontmatter_agreement_before_any_wr
     );
     assert_eq!(map, fs::read(repo.join(MAP)).unwrap());
     assert_eq!(before, authority_side_effects(&repo, &vault));
+}
+
+#[test]
+fn stop_for_exact_completed_operation_does_not_block_host_shutdown() {
+    let (_temp, repo, vault) = project();
+    let identity = establish(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        "finished-session",
+        Some("finished-turn"),
+        "fix README and verify completion",
+    );
+    passing(&repo, &vault, &identity);
+    complete_plan_for_identity(&repo, &vault, "README verification passed", &identity).unwrap();
+
+    let stop = deliver(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::Stop,
+        host(
+            HookAdapter::Codex,
+            "Stop",
+            "finished-session",
+            Some("finished-turn"),
+            None,
+        ),
+    );
+
+    assert_ne!(
+        stop["decision"], "block",
+        "completed Stop was blocked: {stop}"
+    );
+}
+
+#[test]
+fn stop_for_completed_operation_still_rejects_frontmatter_identity_mismatch() {
+    let (_temp, repo, vault) = project();
+    let identity = establish(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        "finished-session",
+        Some("finished-turn"),
+        "fix README and verify completion",
+    );
+    passing(&repo, &vault, &identity);
+    complete_plan_for_identity(&repo, &vault, "README verification passed", &identity).unwrap();
+
+    let index = fs::read_to_string(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let row = index
+        .lines()
+        .find(|line| line.starts_with("<!-- BARON:ACTIVE-PLAN "))
+        .unwrap();
+    let entry: Value = serde_json::from_str(
+        row.strip_prefix("<!-- BARON:ACTIVE-PLAN ")
+            .unwrap()
+            .strip_suffix(" -->")
+            .unwrap(),
+    )
+    .unwrap();
+    let plan_path = repo.join(entry["plan_path"].as_str().unwrap());
+    let plan = fs::read_to_string(&plan_path).unwrap();
+    fs::write(
+        &plan_path,
+        plan.replace("request_id: finished-turn", "request_id: foreign-turn"),
+    )
+    .unwrap();
+
+    let stop = deliver(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::Stop,
+        host(
+            HookAdapter::Codex,
+            "Stop",
+            "finished-session",
+            Some("finished-turn"),
+            None,
+        ),
+    );
+
+    assert_eq!(
+        stop["decision"], "block",
+        "mismatched completed authority was allowed: {stop}"
+    );
 }
 
 #[test]

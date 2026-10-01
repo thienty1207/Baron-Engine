@@ -2,12 +2,13 @@
 
 ## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-01)
 
-- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; not closed until independent acceptance.
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; the three Important findings from `ecaf362..af65881` are fixed and verified. Two fresh independent read-only reviews of the committed final range remain before closure. Not closed yet.
 - Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md).
-- Checkpoint: based on 9bdb979, reviewed from SPEC-04 closure ecaf362; exact CLI proof/trace, native hook correlation, operation-bound intent, and UTF-8 bounded replay are implemented.
-- Proof/trace: Core all-targets passed 59 reports; workspace completed 111 reports (860 pass, 3 baseline PowerShell installer failures, 4 ignored); Clippy, release build, and release smoke pass.
-- Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; operation intent is mirrored under operation ID; no singleton/current/latest selector for concurrent operations.
-- Safe next action: obtain two independent read-only reviewers for `ecaf362..final implementation HEAD`; address Critical/Important findings, then close SPEC-05 and push without release/tag/version bump.
+- Checkpoint: exact completed Stop, source-compatible public config structs with mutation-time unknown TOML preservation, and shared-capsule Vault locking now have focused RED-to-GREEN fixes.
+- Proof/trace: workspace all-targets exited 0; focused Core, CLI and adapter suites pass, including hook identity `18/18`, concurrency `16/16`, config `16/16`, plan `51/51`, proof-trace `29/29`, public config compatibility `1/1`, prepare CLI `6/6`, and adapter lifecycle `23/23`.
+- Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; shared validation-matrix writes serialize checkout -> Vault; CURRENT remains presentation only.
+- Verification: formatter, workspace Clippy `-D warnings`, locked release build, explicit release smoke, and `baron 5.0.0` check passed. Tests use isolated session roots and the existing `BARON_TEST_POWERSHELL` override to bundled PowerShell 7; baseline lifecycle and prepare CLI targets also pass with the same host. Full review is pending.
+- Safe next action: commit the verified fixes and evidence, then obtain two fresh independent read-only reviews over the updated `ecaf362..HEAD`; close and push only after both accept without Critical/Important findings.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
@@ -29,9 +30,9 @@
   `CURRENT.md` remains a presentation projection. Plan lifecycle, trace, and
   identified Stop/reconcile mutations now resolve the exact full operation
   identity; legacy ambiguous mutations fail closed.
-- Proof checkpoint: focused concurrency `15/15`, config `16/16`, plan `50/50`,
-  proof/trace `21/21`, capability `9/9`, automation `6/6`, harness `5/5`,
-  harness improvement `5/5`, intent `4/4`, continuity `6/6`, control-plane
+- Proof checkpoint: focused concurrency `16/16`, config `16/16`, plan `51/51`,
+  proof/trace `29/29`, capability `9/9`, automation `6/6`, harness `5/5`,
+  harness improvement `5/5`, intent `7/7`, continuity `6/6`, control-plane
   `9/9`, migration `10/10`; retired-adapter gate `8/8`.
 - Adversarial checkpoint: the first fresh review identified Important issues
   in lock scope, plan-index history, config preservation, capability cache
@@ -64,20 +65,20 @@
   automation hook claim/journal publication remains a locked SPEC-05 mutation.
 - CLI identity evidence: exact update/interrupt/complete and legacy ambiguity
   fail-closed tests pass `4/4` in `baron-cli --test plan_identity_cli`.
-- Workspace evidence: all remaining workspace targets passed; only the known
-  `lifecycle_scripts` PowerShell archive-module failures and the existing
-  `prepare_cli` UTF-8 boundary panic remain. The same 3/1 failures reproduce
-  at `ecaf362` and current `ac11117`, so they are pre-existing blockers.
-  Formatter, workspace warnings-denied Clippy, locked release build, release
-  binary `baron 5.0.0`, status JSON parsing, maintained Markdown
-  relative-link checks, and diff checks pass.
+- Workspace evidence: `cargo test --workspace --all-targets --no-fail-fast
+  -j 1` exits 0 with isolated session roots and the supported PowerShell 7
+  test-host override. Current lifecycle scripts pass `7/7`; current
+  `prepare_cli` passes `6/6`; the UTF-8 replay regression passes `5/5`.
+  Formatter, workspace warnings-denied Clippy, locked release build, explicit
+  release smoke, release binary `baron 5.0.0`, status JSON parsing, maintained
+  docs tests, and diff checks pass.
 - Persisted-state boundary: only SPEC-05 source/tests, this active plan, and
   maintained status/build-log evidence are in scope. Project/Vault data,
   unrelated user files, release metadata, and public version remain untouched.
-- Safe next action: preserve the final verification evidence and obtain an
-  independent adversarial verdict over `ecaf362..ac11117` when reviewer quota
-  is available. Keep the public version at `5.0.0`; do not release or tag.
-  Retain `READY FOR ADVERSARIAL REVIEW`; do not close SPEC-05.
+- Safe next action: commit the verified repair/evidence and obtain two fresh
+  independent reviews over the final `ecaf362..HEAD` range. Keep the public
+  version at `5.0.0`; do not release or tag. Do not close SPEC-05 until both
+  reviewers accept.
 
 ## Baron 5.0.1 Stabilization - SPEC-04 Managed Plan-Path Authority Fix (closed, 2026-09-22)
 
