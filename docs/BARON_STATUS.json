@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Commit the fully verified cached Stop replay repair and evidence, obtain two fresh independent reviews over ecaf362..the exact HEAD, then close and push only after both accept with zero Critical/Important findings.",
+  "nextAction": "Commit verified SPEC-05 source, tests, and evidence; obtain two fresh independent read-only reviews of the exact ecaf362..HEAD range, resolve any Critical/Important findings, then close and push only after acceptance.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
@@ -41,7 +41,7 @@
       ]
     },
     "verificationBlockers": [
-      "Two fresh independent read-only reviews of the exact committed ecaf362..HEAD range must accept with zero Critical/Important findings before closure or push"
+      "Two fresh independent read-only reviewers must accept the exact committed ecaf362..HEAD range before SPEC-05 can be closed or pushed"
     ],
     "implementationCommits": [
       "b4e5f77",
@@ -65,15 +65,15 @@
       "8ec3458",
       "c68e01d"
     ],
-    "closureBasis": "The latest review found an Important stale Stop retry: after a passing response, newer failing same-operation trace evidence followed by identical Stop could reuse the cached pass. The regression observed continue=true/reconciliation_passed=true before the fix; it now verifies a block with the dedup cache and again through journal-only recovery. Active identified retries bypass historical Stop responses and recompute exact-operation reconciliation at publication. Current verification passes: Core 559/0 across 60 result suites; CLI 188/0 across 38; adapters 124/0 across 14; workspace 871/0 across 112; fmt, warnings-denied Clippy, locked release build, explicit release smoke, baron 5.0.0, JSON/link/retired-adapter checks, and git diff ecaf362 --check. The Core/CLI source-tree authority scan returns 249 matching lines including inline tests. Status is READY FOR ADVERSARIAL REVIEW, not closed; two fresh independent reviews of the exact committed range remain. Public version stays 5.0.0. Minor shared Vault index, journal-size, live-claim trimming, and trace-scan-lock findings remain documented.",
+    "closureBasis": "The two Important findings from the fresh review of ecaf362..c739b5f are repaired with RED-to-GREEN regressions: completed LifecycleIdentity reuse is rejected, and a stale/malformed CURRENT projection cannot veto the sole validated active identified operation. Multi-active legacy selection remains ambiguous and fail-closed; unbound legacy plans retain CURRENT-linked compatibility. Current Core/CLI/adapters/workspace, fmt, Clippy, locked release, explicit smoke, baron 5.0.0, JSON, maintained-link, retired-adapter and diff checks pass. Two fresh independent reviews of the exact final committed range remain before closure or push. The Core/CLI source-tree scan returns 252 matching lines. Four Minor shared Vault index, journal-size, live-claim trimming, and trace-scan-lock findings remain documented for reassessment.",
     "verification": {
-      "focusedConcurrencyMatrix": "PASS on final source: concurrency 16/16, config 16/16, plan 51/51, proof_trace 29/29, hook_identity 20/20, automation integration 6/6 plus cached Stop replay regression, intent 7/7, continuity 6/6, migration 10/10, and public_config_compat 1/1",
+      "focusedConcurrencyMatrix": "PASS on final source: concurrency 16/16, config 16/16, plan 53/53, proof_trace 29/29, hook_identity 20/20, automation integration 6/6 plus cached Stop replay regression, intent 7/7, continuity 6/6, migration 10/10, operation_identity 10/10, and public_config_compat 1/1",
       "stopReplayFreshness": "PASS: current focused regression observed stale continue=true/reconciliation_passed=true before the fix, then verified current failing evidence blocks through both dedup-cache and journal-only replay",
       "postStopReplayFixIntegratedGates": "PASS on final source: Core/CLI/adapters/workspace all-targets, fmt, warnings-denied Clippy, locked release build, explicit ignored release smoke, binary version, status JSON, maintained Markdown links, retired-adapter gate, and diff check",
       "cliExecution": "PASS on final source: separate baron-cli all-targets 188 passed/0 failed across 38 suites (one release-only test ignored); plan_identity_cli 4/4, operation_evidence_cli 9/9, phase12_hooks_cli 6/6, intent_operation_cli 2/2, execution_cli 15/15, and prepare_cli 6/6",
-      "coreAllTargets": "PASS on final source: separate baron-core --all-targets --no-fail-fast -j 1 exited 0; 559 passed/0 failed across 60 suites",
+      "coreAllTargets": "PASS on final source: cargo test -p baron-core --all-targets --no-fail-fast -j 1 exited 0; 561 passed/0 failed across 60 suites",
       "adaptersAllTargets": "PASS on final source: separate baron-adapters --all-targets --no-fail-fast -j 1 exited 0; 124 passed/0 failed across 14 suites (three ignored)",
-      "workspaceAllTargets": "PASS on final source: cargo test --workspace --all-targets --no-fail-fast -j 1 exited 0; 871 passed/0 failed across 112 result suites (four ignored), with isolated Codex/Claude session roots and bundled PowerShell 7",
+      "workspaceAllTargets": "PASS on final source: cargo test --workspace --all-targets --no-fail-fast -j 1 exited 0; 873 passed/0 failed across 112 result suites (four ignored), with isolated Codex/Claude session roots and bundled PowerShell 7",
       "format": "PASS on final source: cargo fmt --all -- --check",
       "clippyWarningsDenied": "PASS on final source: cargo clippy --workspace --all-targets -- -D warnings; exit 0",
       "releaseBuild": "PASS on final source: cargo build --workspace --release --locked; exit 0",
@@ -81,15 +81,15 @@
       "releaseSmoke": "PASS on final source: ignored phase14_release release_binary_smokes_codex_claude_and_database_without_source_tree_assets; exit 0",
       "diffCheck": "PASS on final source: git diff ecaf362 --check",
       "maintainedMarkdownRelativeLinks": "PASS on final source: relative-link scan covered five maintained Markdown files, checked the repository-local plan target, and found 0 broken links",
-      "mutationInventory": "Recorded classifications: LOCKED_TRANSACTION for shared read-modify-write and hook claim/publication; LOCKED_APPEND for journals/runtime JSONL; LOCKED_CREATE_NEW for unique artifacts; LOCKED_ATOMIC_REPLACE for upserts; DIAGNOSTIC_LAST_WRITER_WINS for capability cache; READ_ONLY for authority readers; SLOW_WORK_OUTSIDE_LOCK for probes/Git/external installer; OUT_OF_SCOPE for diagnostic/report-only writers. Current Core/CLI source-tree scan returns 249 matching lines including inline tests; production caller classifications are in the authority audit. Four reviewer Minors remain documented for final reassessment.",
+      "mutationInventory": "Recorded classifications: LOCKED_TRANSACTION for shared read-modify-write and hook claim/publication; LOCKED_APPEND for journals/runtime JSONL; LOCKED_CREATE_NEW for unique artifacts; LOCKED_ATOMIC_REPLACE for upserts; DIAGNOSTIC_LAST_WRITER_WINS for capability cache; READ_ONLY for authority readers; SLOW_WORK_OUTSIDE_LOCK for probes/Git/external installer; OUT_OF_SCOPE for diagnostic/report-only writers. Current Core/CLI source-tree scan returns 252 matching lines including inline tests; all production authority caller groups are classified in the audit. Four reviewer Minors remain documented for final reassessment.",
       "reviewDisposition": "Earlier reviewers produced one ACCEPT and one FIX REQUIRED; the latter's Important stale Stop replay issue was fixed and verified. Two fresh independent read-only reviews of the exact committed ecaf362..HEAD range remain mandatory before closure or push.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: current-source gates pass and the Important stale Stop replay issue has a RED-to-GREEN fix. Two fresh independent read-only reviews over the exact committed ecaf362..HEAD range remain before closure or push.",
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: completed identity reuse and stale-CURRENT veto findings from ecaf362..c739b5f are repaired and locally verified. Two fresh independent read-only reviews of the exact final ecaf362..HEAD range remain mandatory before closure or push.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-01-spec-05-zero-current-closure-repair.md",
-    "nextAction": "Commit the final verified source/evidence state, obtain two fresh independent read-only reviews over ecaf362..the exact HEAD, resolve Critical/Important findings and repeat verification/review, then close and push only after acceptance. No release, tag, or version bump."
+    "nextAction": "Commit verified source/tests/evidence, obtain two fresh independent read-only accepts of the exact ecaf362..HEAD range, then close and push only after acceptance. No release, tag, or version bump."
   },
   "securityRemediation": {
     "status": "complete",

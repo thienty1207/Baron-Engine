@@ -2,13 +2,13 @@
 
 ## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-02)
 
-- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`, not closed. The stale same-event Stop replay fix is verified; previous ACCEPT/FIX REQUIRED verdicts apply only to earlier ranges. Two fresh reviews of the exact committed range remain; not pushed.
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`, not closed. The completed-identity reuse and stale-CURRENT veto findings from `ecaf362..c739b5f` are fixed and have RED-to-GREEN coverage; multiple active plans remain fail-closed as ambiguous.
 - Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md).
-- Checkpoint: Stop retries for the same active identified operation ignore historical dedup/journal responses, claim a fresh fenced delivery, and reconcile current evidence at publication. The regression first received cached `continue:true/reconciliation_passed:true` after a newer failing trace, then passed for both the retained dedup cache and journal-only recovery path.
-- Proof/trace: RED reproduced cached `continue:true/reconciliation_passed:true` after a newer trace failed. GREEN blocks with either dedup cache or journal-only recovery. Current tests: Core 559/0, CLI 188/0, adapters 124/0, workspace 871/0.
+- Checkpoint: completed LifecycleIdentity cannot replace its completed ACTIVE row or revive its old proof/trace/hook authority. For a sole identified plan, exact authority, completion status, Core trace, and legacy no-selector update ignore stale/malformed CURRENT and use validated ACTIVE/frontmatter; multiple managed active plans fail explicitly as ambiguous. Unbound legacy behavior still requires its compatible CURRENT pointer.
+- Proof/trace: the stale Stop replay regression remains GREEN with either dedup cache or journal-only recovery. The new plan regression first failed on stale CURRENT in authority selection and again in `update_plan`; it passes after removing CURRENT from identified no-selector resolution.
 - Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; shared validation-matrix writes serialize checkout -> Vault; CURRENT remains presentation only. Stop journal response is historical; it cannot authorize a retry.
-- Verification: fmt, all package/workspace targets, warnings-denied Clippy, locked release build, explicit release smoke, `baron 5.0.0`, 249-line source caller scan, authority audit, status JSON, maintained relative links, retired-adapter gate, and diff check pass. Public version remains `5.0.0`.
-- Safe next action: commit source/evidence and obtain two fresh independent read-only reviews of exact `ecaf362..HEAD`; fix/reverify any Critical/Important issue, then close and push only after both accept.
+- Verification: Core 561/0, CLI 188/0, adapters 124/0, workspace 873/0; fmt, warnings-denied Clippy, locked release build, explicit smoke, `baron 5.0.0`, 252-line source scan, JSON/docs/retired-adapter checks and diff check pass. Test runs use isolated host session roots and bundled PowerShell 7. No hosted CI result is claimed. Public version remains `5.0.0`.
+- Safe next action: commit the verified repair and evidence, then obtain two fresh independent read-only reviews of exact `ecaf362..HEAD`. Push and close only after both accept.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
