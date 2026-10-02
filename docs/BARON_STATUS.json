@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-01",
+  "lastUpdated": "2026-10-02",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Commit the verified repair and evidence, then obtain two independent read-only reviews of the updated ecaf362..HEAD range; close and push only after acceptance.",
+  "nextAction": "Commit the verified session-only Stop repair and evidence, obtain two fresh independent read-only reviews over ecaf362..HEAD, then close and push only after acceptance.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
@@ -41,7 +41,7 @@
       ]
     },
     "verificationBlockers": [
-      "two fresh independent read-only reviews of the final committed source and evidence range are pending"
+      "two fresh independent read-only reviews of the updated committed source and evidence range are pending"
     ],
     "implementationCommits": [
       "b4e5f77",
@@ -61,11 +61,12 @@
       "cc6fbfc",
       "d161d05",
       "ac11117",
-      "af65881"
+      "af65881",
+      "8ec3458"
     ],
-    "closureBasis": "The three Important findings from the earlier review of ecaf362..af65881 are repaired with focused regressions: exact completed Stop permits shutdown, public config struct literals remain source-compatible, and shared-Vault validation-matrix writes lock across checkouts. Workspace all-targets and focused verification pass. SPEC-05 remains READY FOR ADVERSARIAL REVIEW until two fresh independent reviewers accept the committed final range.",
+    "closureBasis": "The three Important findings from the earlier ecaf362..af65881 review are repaired with focused regressions: exact completed Stop permits shutdown, public config struct literals remain source-compatible, and shared-Vault validation-matrix writes lock across checkouts. A later review found that session-only Claude Stop could select a sole stale completed mapping while another active plan in the same adapter/session lacked a mapping; the new regression observed RED and now fails closed by cross-checking all validated ACTIVE bindings for that host session. Core, CLI, adapter, workspace, Clippy, locked release, and release smoke verification pass. One Minor shared Vault Plans/INDEX.md discovery-index lost-update risk is deferred; it does not authorize operation/evidence. SPEC-05 remains READY FOR ADVERSARIAL REVIEW until two fresh independent reviewers accept the updated committed range.",
     "verification": {
-      "focusedConcurrencyMatrix": "PASS: concurrency 16/16, config 16/16, plan 51/51, proof_trace 29/29, hook_identity 18/18, intent 7/7, continuity 6/6, migration 10/10, and public_config_compat 1/1",
+      "focusedConcurrencyMatrix": "PASS: concurrency 16/16, config 16/16, plan 51/51, proof_trace 29/29, hook_identity 19/19 including the session-only Stop regression, intent 7/7, continuity 6/6, migration 10/10, and public_config_compat 1/1",
       "cliExecution": "PASS: workspace all-targets and focused CLI suites pass; plan_identity_cli 4/4, operation_evidence_cli 9/9, phase12_hooks_cli 6/6, intent_operation_cli 2/2, execution_cli 15/15, and prepare_cli 6/6",
       "coreAllTargets": "PASS: included in the successful cargo test --workspace --all-targets --no-fail-fast -j 1 run",
       "workspaceAllTargets": "PASS: cargo test --workspace --all-targets --no-fail-fast -j 1 exited 0 with isolated Codex/Claude session roots and BARON_TEST_POWERSHELL set to the bundled PowerShell 7 executable",
@@ -76,14 +77,15 @@
       "releaseSmoke": "PASS: ignored phase14_release release_binary_smokes_codex_claude_and_database_without_source_tree_assets",
       "diffCheck": "PASS: git diff ecaf362 --check after the final review package edit",
       "maintainedMarkdownRelativeLinks": "PASS: maintained-doc integration test plus repository-relative links in the five updated status/plan/audit documents",
-      "mutationInventory": "Recorded classifications: LOCKED_TRANSACTION for shared read-modify-write and hook claim/publication; LOCKED_APPEND for journals/runtime JSONL; LOCKED_CREATE_NEW for unique artifacts; LOCKED_ATOMIC_REPLACE for upserts; DIAGNOSTIC_LAST_WRITER_WINS for capability cache; READ_ONLY for authority readers; SLOW_WORK_OUTSIDE_LOCK for probes/Git/external installer; OUT_OF_SCOPE for diagnostic/report-only writers. Final production CURRENT/latest search returned 239 matched lines in Core/CLI; residual uses are classified as exact-operation, presentation, legacy-single-active, ambiguous-fail-closed, or out-of-scope. No known owned Critical/Important BUG; independent review pending.",
+      "mutationInventory": "Recorded classifications: LOCKED_TRANSACTION for shared read-modify-write and hook claim/publication; LOCKED_APPEND for journals/runtime JSONL; LOCKED_CREATE_NEW for unique artifacts; LOCKED_ATOMIC_REPLACE for upserts; DIAGNOSTIC_LAST_WRITER_WINS for capability cache; READ_ONLY for authority readers; SLOW_WORK_OUTSIDE_LOCK for probes/Git/external installer; OUT_OF_SCOPE for diagnostic/report-only writers. Final production CURRENT/latest search returned 239 matched lines in Core/CLI; residual uses are classified as exact-operation, presentation, legacy-single-active, ambiguous-fail-closed, or out-of-scope. The session-only Stop Important finding is fixed and covered; one discovery-only Vault INDEX lost-update Minor is deferred. Fresh final-range review is pending.",
+      "reviewDisposition": "Two independent reviewers assessed ecaf362..8ec3458: one Important session-only Stop ambiguity was reproduced and fixed with RED-to-GREEN regression; one Minor Vault Plans/INDEX.md lost-update risk is deferred because ACTIVE and plan files remain authority. Both reviewers must freshly assess the updated final committed range before closure.",
       "legacyCompatibility": "PASS: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "PASS: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: two fresh independent read-only reviews of the committed final range are pending",
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: two fresh independent read-only reviews of the updated ecaf362..HEAD range are pending; earlier Important finding is fixed, Minor discovery-index race is deferred",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-01-spec-05-zero-current-closure-repair.md",
-    "nextAction": "Commit the verified fixes and evidence, obtain two independent read-only reviews over ecaf362..HEAD, close only after acceptance, then push the scoped branch. No release, tag, or version bump."
+    "nextAction": "Commit the verified session-only Stop fix and evidence, obtain two fresh independent read-only reviews over ecaf362..HEAD, close only after acceptance, then push the scoped branch. No release, tag, or version bump."
   },
   "securityRemediation": {
     "status": "complete",

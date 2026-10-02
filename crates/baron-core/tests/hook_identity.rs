@@ -524,6 +524,51 @@ fn old_claude_completed_turn_cannot_be_replaced_by_new_session_only_authority() 
 }
 
 #[test]
+fn old_claude_session_only_stop_cannot_hide_unmapped_active_operation() {
+    let (_temp, repo, vault) = project();
+    let completed = establish(
+        &repo,
+        &vault,
+        HookAdapter::Claude,
+        "shared-session",
+        None,
+        "fix README alpha typo",
+    );
+    passing(&repo, &vault, &completed);
+    complete_plan_for_identity(&repo, &vault, "README verified", &completed).unwrap();
+
+    let active_without_hook_mapping = LifecycleIdentity::resolve(
+        &vault.project_id,
+        "fix README beta typo",
+        SupportedAdapter::Claude,
+        Some("shared-session"),
+        Some("cli-created-operation"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(
+        &repo,
+        &vault,
+        "fix README beta typo",
+        &active_without_hook_mapping,
+    )
+    .unwrap();
+
+    let stop = deliver(
+        &repo,
+        &vault,
+        HookAdapter::Claude,
+        AutomationEvent::Stop,
+        host(HookAdapter::Claude, "Stop", "shared-session", None, None),
+    );
+    assert_eq!(
+        stop["decision"], "block",
+        "session-only Stop must not resolve to a completed mapping while another operation is active: {stop}"
+    );
+    assert_ne!(stop["baron"]["reconciliation_passed"], true);
+    assert!(stop.to_string().contains("ambiguous"), "{stop}");
+}
+
+#[test]
 fn native_prompt_without_prompt_text_is_rejected() {
     let (_temp, repo, vault) = project();
     for adapter in [HookAdapter::Codex, HookAdapter::Claude] {

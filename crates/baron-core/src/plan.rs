@@ -227,6 +227,27 @@ pub fn indexed_active_plan_authority_for_binding(
     }))
 }
 
+/// Return every validated active operation bound to one host adapter/session.
+/// Session-only hook events use this to reject a correlation when another
+/// operation in the same host session has no matching turn identifier.
+pub(crate) fn active_plan_bindings_for_session(
+    repo_root: impl AsRef<Path>,
+    adapter: SupportedAdapter,
+    session_id: &str,
+) -> Result<Vec<PlanOperationBinding>> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    load_active_plan_index(repo_root)?
+        .into_iter()
+        .filter(|entry| {
+            is_active_plan_status(&entry.status)
+                && entry.adapter == adapter.as_str()
+                && entry.session_id == session_id
+        })
+        .map(|entry| entry.binding())
+        .collect()
+}
+
 /// Resolve the plan authority carried by an operation-bound trace. The trace
 /// module uses the locked variant for its publication revalidation.
 pub fn active_plan_authority_for_trace_binding(

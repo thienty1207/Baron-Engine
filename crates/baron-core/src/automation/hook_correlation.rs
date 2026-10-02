@@ -24,7 +24,9 @@ use super::{adapter_name, now, AutomationEvent, HookAdapter};
 use crate::operation::{
     canonical_task_text, LifecycleIdentity, SupportedAdapter, MAX_IDENTIFIER_CHARS,
 };
-use crate::plan::{active_plan_authority_for_binding, PlanOperationBinding};
+use crate::plan::{
+    active_plan_authority_for_binding, active_plan_bindings_for_session, PlanOperationBinding,
+};
 use crate::prepare::PREPARE_MAX_INPUT_BYTES;
 use crate::safe_io::{read_text, replace_text};
 use crate::vault::{canonical_project_id, VaultContext};
@@ -385,6 +387,15 @@ pub(super) fn resolve_locked(
             .is_some_and(|task| task != &entry.canonical_task)
         {
             bail!("hook correlation task conflicts with established host turn");
+        }
+        if stop && ingress.turn.is_none() {
+            let selected = PlanOperationBinding::from_identity(&identity);
+            if active_plan_bindings_for_session(repo, adapter, session)?
+                .into_iter()
+                .any(|active| active != selected)
+            {
+                bail!("hook correlation session-only Stop is ambiguous across active operations");
+            }
         }
         let completed = if stop {
             validate_stop(repo, &identity)?

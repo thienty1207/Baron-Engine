@@ -1,13 +1,13 @@
 # Current Build Note
 
-## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-01)
+## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-02)
 
-- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; three Important findings from `ecaf362..af65881` are fixed and verified. Two fresh independent reviews of the committed final range remain before closure.
-- Checkpoint/source: exact completed Stop now permits shutdown, public config literals compile without extension fields, and validation-matrix updates take the shared Vault capsule lock after the checkout lock.
-- Proof status: workspace all-targets exited 0; focused hook identity `18/18`, concurrency `16/16`, config `16/16`, plan `51/51`, proof-trace `29/29`, prepare CLI `6/6`, adapter lifecycle `23/23`, and public config compatibility `1/1` all pass.
-- Trace status: Stop still validates exact ACTIVE/frontmatter; config mutations preserve forward TOML fields; cross-checkout worker waits for the shared Vault lock. Formatter, warnings-denied Clippy, locked release build and release smoke pass. Two new final-range reviews remain pending.
+- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; all four identified Important findings are fixed and locally verified. Two fresh independent reviews of the updated final range remain before closure.
+- Checkpoint/source: in addition to exact completed Stop, source-compatible public config literals and shared Vault matrix locking, session-only Stop now checks all validated ACTIVE bindings for the same adapter/session and fails closed on an unmapped concurrent operation.
+- Proof status: Core, CLI, adapter and workspace all-target runs exited 0; the focused new regression was RED then GREEN; hook identity `19/19`, concurrency `16/16`, config `16/16`, plan `51/51`, proof-trace `29/29`, operation-evidence CLI `9/9`, adapter lifecycle `23/23`, and public config compatibility `1/1` pass.
+- Trace status: Stop validates exact ACTIVE/frontmatter and rejects session-only ambiguity across live operations; config mutations preserve forward TOML fields; cross-checkout worker waits for the shared Vault lock. Formatter, warnings-denied Clippy, locked release build and release smoke pass. Two updated-range reviews remain pending. A Minor shared Vault `Plans/INDEX.md` lost-update risk is deferred as discovery-only.
 - Persisted-state boundary: validated operation identity and ACTIVE/frontmatter remain authoritative; shared matrix RMW follows checkout -> Vault lock order; CURRENT stays a projection.
-- Safe next action: commit the verified repair/evidence, obtain two fresh independent read-only reviews, resolve any Critical/Important findings, then close and push. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
+- Safe next action: commit the verified source/test/evidence update, obtain two fresh independent read-only reviews of `ecaf362..HEAD`, resolve any Critical/Important findings, then close and push. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
