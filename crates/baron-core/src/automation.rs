@@ -436,6 +436,10 @@ pub fn handle_hook(
     let _active_guard = ActiveHookGuard {
         key: event_key.clone(),
     };
+    // An earlier Stop response only describes evidence as of that delivery.
+    // Retries for the same host event must reconcile again because operation
+    // evidence can change while the operation remains active.
+    let refresh_stop_response = event == AutomationEvent::Stop && !is_child;
 
     let claim_token = {
         let _lock = acquire_project_lock(repo_root)?;
@@ -463,13 +467,15 @@ pub fn handle_hook(
             }
         }
         let mut dedup = load_dedup_state(vault)?;
-        if let Some(response) = dedup_response(&dedup, &event_key) {
-            return Ok(response);
-        }
-        if let Some(response) = journal_response(&journal_path(vault), &event_key)? {
-            dedup_store_response(&mut dedup, &event_key, &response);
-            save_dedup_state(vault, &dedup)?;
-            return Ok(response);
+        if !refresh_stop_response {
+            if let Some(response) = dedup_response(&dedup, &event_key) {
+                return Ok(response);
+            }
+            if let Some(response) = journal_response(&journal_path(vault), &event_key)? {
+                dedup_store_response(&mut dedup, &event_key, &response);
+                save_dedup_state(vault, &dedup)?;
+                return Ok(response);
+            }
         }
         if dedup_claim_is_live(&dedup, &event_key) {
             let mut metadata = hook_metadata(
@@ -720,6 +726,7 @@ pub fn handle_hook(
             &event_key,
             &claim_token,
             &response,
+            refresh_stop_response,
         )
     })();
     match publication {
@@ -1025,16 +1032,19 @@ fn publish_hook_response(
     event_key: &str,
     claim_token: &str,
     response: &str,
+    refresh_stop_response: bool,
 ) -> Result<String> {
     let _lock = acquire_project_lock(repo_root)?;
     let mut dedup = load_dedup_state(vault)?;
-    if let Some(existing) = dedup_response(&dedup, event_key) {
-        return Ok(existing);
-    }
-    if let Some(existing) = journal_response(&journal_path(vault), event_key)? {
-        dedup_store_response(&mut dedup, event_key, &existing);
-        save_dedup_state(vault, &dedup)?;
-        return Ok(existing);
+    if !refresh_stop_response {
+        if let Some(existing) = dedup_response(&dedup, event_key) {
+            return Ok(existing);
+        }
+        if let Some(existing) = journal_response(&journal_path(vault), event_key)? {
+            dedup_store_response(&mut dedup, event_key, &existing);
+            save_dedup_state(vault, &dedup)?;
+            return Ok(existing);
+        }
     }
     if !dedup_claim_matches(&dedup, event_key, claim_token) {
         bail!(
@@ -1045,6 +1055,8 @@ fn publish_hook_response(
     renew_dedup_claim_from_state(&mut dedup, event_key, claim_token)?;
     let mut published_entry = entry.clone();
     published_entry.response = Some(response.to_string());
+    // The journal's first Stop response is historical only. Stop retries do
+    // not recover it; the fenced dedup cache is refreshed after reconciliation.
     append_journal_locked(vault, &published_entry)?;
     dedup_store_response(&mut dedup, event_key, response);
     save_dedup_state(vault, &dedup)?;
@@ -1475,8 +1487,13 @@ mod tests {
     use crate::vault::ensure_vault;
     use tempfile::tempdir;
 
-    fn seed_stop_correlation(repo: &Path, vault: &VaultContext, identity: &LifecycleIdentity) {
-        let payload = json!({"session_id":identity.session_id(),"request_id":identity.request_id(),"task":"current repository state"});
+    fn seed_stop_correlation(
+        repo: &Path,
+        vault: &VaultContext,
+        identity: &LifecycleIdentity,
+        task: &str,
+    ) {
+        let payload = json!({"session_id":identity.session_id(),"request_id":identity.request_id(),"task":task});
         let ingress = hook_correlation::Ingress::parse(&payload, HookAdapter::Codex).unwrap();
         let _lock = acquire_project_lock(repo).unwrap();
         let (_, established, completed) = hook_correlation::resolve_locked(
@@ -1489,13 +1506,7 @@ mod tests {
         .unwrap();
         assert!(!completed);
         assert_eq!(&established, identity);
-        crate::plan::start_or_resume_plan_for_identity(
-            repo,
-            vault,
-            "current repository state",
-            identity,
-        )
-        .unwrap();
+        crate::plan::start_or_resume_plan_for_identity(repo, vault, task, identity).unwrap();
     }
 
     #[test]
@@ -1720,6 +1731,123 @@ mod tests {
     }
 
     #[test]
+    fn stop_replay_reconciles_latest_operation_evidence_after_cached_pass() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault_root = temp.path().join("vault");
+        std::fs::create_dir_all(&repo).unwrap();
+        initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
+        let vault = ensure_vault(&vault_root, &repo).unwrap();
+        let identity = LifecycleIdentity::resolve(
+            &vault.project_id,
+            "fix README typo",
+            SupportedAdapter::Codex,
+            Some("stop-replay-session"),
+            Some("stop-replay-turn"),
+        )
+        .unwrap();
+        seed_stop_correlation(&repo, &vault, &identity, "fix README typo");
+
+        let operation = OperationContext::from_identity(&identity);
+        let proof = crate::proof::record_proof_for_operation(
+            &repo,
+            &vault,
+            &operation,
+            "README verification passed",
+        )
+        .unwrap();
+        let binding =
+            crate::trace::TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+        let passing_trace = crate::trace::record_trace_for_operation(
+            &repo,
+            &vault,
+            "README typo fixed and verified",
+            crate::trace::TraceOutcome::Completed,
+            &binding,
+        )
+        .unwrap();
+        assert!(
+            crate::trace::score_trace(&repo, &vault, Some(&passing_trace.id))
+                .unwrap()
+                .passed
+        );
+        assert!(
+            reconcile_for_operation(&repo, &vault, &identity)
+                .unwrap()
+                .passed
+        );
+
+        let stop_payload = r#"{"session_id":"stop-replay-session","request_id":"stop-replay-turn","stop_hook_active":false}"#;
+        let first: Value = serde_json::from_str(
+            &handle_hook(
+                &repo,
+                &vault,
+                HookAdapter::Codex,
+                AutomationEvent::Stop,
+                stop_payload,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(first["continue"], true);
+        assert_eq!(first["baron"]["reconciliation_passed"], true);
+
+        let failing_trace = crate::trace::record_trace_for_operation(
+            &repo,
+            &vault,
+            "",
+            crate::trace::TraceOutcome::Failed,
+            &binding,
+        )
+        .unwrap();
+        assert!(
+            !crate::trace::score_trace(&repo, &vault, Some(&failing_trace.id))
+                .unwrap()
+                .passed
+        );
+
+        // Re-open the Vault handle to exercise durable dedup/journal recovery
+        // rather than relying on process-local hook state.
+        let restarted_vault = ensure_vault(&vault_root, &repo).unwrap();
+        let replay: Value = serde_json::from_str(
+            &handle_hook(
+                &repo,
+                &restarted_vault,
+                HookAdapter::Codex,
+                AutomationEvent::Stop,
+                stop_payload,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            replay["decision"], "block",
+            "identical Stop replay must reconcile current evidence: {replay}"
+        );
+        assert_eq!(replay["baron"]["reconciliation_passed"], false);
+
+        // Simulate losing the bounded cache after restart: the journal still
+        // contains the original passing response and must not authorize Stop.
+        std::fs::remove_file(repo.join(DEDUP_PATH)).unwrap();
+        let replay_from_journal: Value = serde_json::from_str(
+            &handle_hook(
+                &repo,
+                &restarted_vault,
+                HookAdapter::Codex,
+                AutomationEvent::Stop,
+                stop_payload,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            replay_from_journal["decision"], "block",
+            "journal recovery must not reuse a historical Stop pass: {replay_from_journal}"
+        );
+        assert_eq!(replay_from_journal["baron"]["reconciliation_passed"], false);
+    }
+
+    #[test]
     fn live_duplicate_stop_claim_fails_closed_while_reconciliation_is_pending() {
         let temp = tempdir().unwrap();
         let repo = temp.path().join("repo");
@@ -1735,7 +1863,7 @@ mod tests {
             Some("stop-request"),
         )
         .unwrap();
-        seed_stop_correlation(&repo, &context, &identity);
+        seed_stop_correlation(&repo, &context, &identity, "current repository state");
         let event_key = LifecycleEventKey {
             project_id: context.project_id.clone(),
             adapter: "codex".to_string(),
@@ -1794,7 +1922,7 @@ mod tests {
             Some("same-process-stop-request"),
         )
         .unwrap();
-        seed_stop_correlation(&repo, &context, &identity);
+        seed_stop_correlation(&repo, &context, &identity, "current repository state");
         let event_key = LifecycleEventKey {
             project_id: context.project_id.clone(),
             adapter: "codex".to_string(),
