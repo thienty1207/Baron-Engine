@@ -290,6 +290,20 @@ fn active_plan_authority_for_binding_locked(
 pub fn active_plan_authority(repo_root: impl AsRef<Path>) -> Result<Option<ActivePlanAuthority>> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    if let Some(active) = sole_active_managed_plan(repo_root)? {
+        if active.binding.is_some() {
+            active.ensure_authority()?;
+            return Ok(Some(ActivePlanAuthority {
+                title: active.title,
+                risk: active.risk,
+                binding: active.binding,
+            }));
+        }
+    }
+
+    // Keep the historical CURRENT-linked path for unbound legacy plans. An
+    // identified operation is selected from validated managed plan authority
+    // above, never accepted or vetoed by the presentation pointer.
     let Some(active) = resolve_legacy_active_plan(repo_root)? else {
         return Ok(None);
     };
@@ -307,18 +321,43 @@ pub fn active_plan_authority(repo_root: impl AsRef<Path>) -> Result<Option<Activ
 pub fn active_plan_operation_binding(
     repo_root: impl AsRef<Path>,
 ) -> Result<Option<PlanOperationBinding>> {
-    Ok(active_plan_authority(repo_root)?.and_then(|authority| authority.binding))
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    if let Some(active) = sole_active_managed_plan(repo_root)? {
+        if active.binding.is_some() {
+            active.ensure_authority()?;
+            return Ok(active.binding);
+        }
+    }
+
+    // Preserve CURRENT-based compatibility and integrity checks for legacy
+    // unbound plans. An identified active operation above never uses CURRENT
+    // to select or veto its binding.
+    Ok(resolve_legacy_active_plan(repo_root)?.and_then(|active| active.binding))
 }
 
 /// Evaluate the current active plan using the same scoped completion evidence
 /// consumed by plan completion and completion-integrity diagnostics. A
-/// completed plan is not an active reconciliation target; a malformed active
-/// pointer remains a failing reconciliation target.
+/// completed plan is not an active reconciliation target. Identified active
+/// operations are resolved from validated managed authority, independently of
+/// the human-facing CURRENT projection.
 pub fn active_plan_completion_evidence_status(
     repo_root: impl AsRef<Path>,
 ) -> Result<Option<CompletionEvidenceStatus>> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    match sole_active_managed_plan(repo_root) {
+        Ok(Some(active)) if active.binding.is_some() => {
+            return Ok(Some(completion_evidence_status(repo_root, &active)?));
+        }
+        Err(error) => {
+            return Ok(Some(CompletionEvidenceStatus {
+                passed: false,
+                issues: vec![error.to_string()],
+            }));
+        }
+        Ok(_) => {}
+    }
     match resolve_legacy_active_plan(repo_root) {
         Ok(Some(active)) => Ok(Some(completion_evidence_status(repo_root, &active)?)),
         Ok(None)
@@ -455,7 +494,7 @@ fn start_or_resume_plan_internal(
     let title = title.trim();
     let _lock = acquire_project_lock(repo_root)?;
     let matching_active = match binding {
-        Some(requested) => active_plan_for_binding(repo_root, requested)?,
+        Some(requested) => active_plan_for_new_operation(repo_root, requested)?,
         None => resolve_legacy_active_plan(repo_root)?,
     };
     if matching_active.is_none() {
@@ -1149,9 +1188,36 @@ fn active_plan_for_binding(
     repo_root: &Path,
     binding: &PlanOperationBinding,
 ) -> Result<Option<ActivePlan>> {
+    active_plan_for_binding_with_completion_policy(repo_root, binding, false)
+}
+
+fn active_plan_for_new_operation(
+    repo_root: &Path,
+    binding: &PlanOperationBinding,
+) -> Result<Option<ActivePlan>> {
+    active_plan_for_binding_with_completion_policy(repo_root, binding, true)
+}
+
+fn active_plan_for_binding_with_completion_policy(
+    repo_root: &Path,
+    binding: &PlanOperationBinding,
+    reject_completed: bool,
+) -> Result<Option<ActivePlan>> {
     let mut matches = Vec::new();
     for entry in load_active_plan_index(repo_root)? {
-        if !is_active_plan_status(&entry.status) || entry.binding()? != *binding {
+        if entry.binding()? != *binding {
+            continue;
+        }
+        if entry.status == "completed" {
+            if reject_completed {
+                bail!(
+                    "operation `{}` is already completed; a new lifecycle requires a fresh operation identity",
+                    binding.operation_id
+                );
+            }
+            continue;
+        }
+        if !is_active_plan_status(&entry.status) {
             continue;
         }
         let path = resolve_managed_plan_path(repo_root, &entry.plan_path)?;
@@ -1177,7 +1243,7 @@ fn active_plan_for_binding(
     // Existing identified plans created before ACTIVE.md was introduced remain
     // readable. Discover one by validated Baron frontmatter, then the caller
     // registers the exact path under the same project lock before publishing.
-    find_identified_active_plan(repo_root, binding)
+    find_identified_active_plan(repo_root, binding, reject_completed)
 }
 
 fn load_identified_active_plan(
@@ -1211,6 +1277,7 @@ fn load_identified_active_plan(
 fn find_identified_active_plan(
     repo_root: &Path,
     expected: &PlanOperationBinding,
+    reject_completed: bool,
 ) -> Result<Option<ActivePlan>> {
     let mut paths = Vec::new();
     collect_managed_plan_files(&repo_root.join(MANAGED_PLAN_ROOT), &mut paths)?;
@@ -1222,6 +1289,16 @@ fn find_identified_active_plan(
         }
         let metadata = load_plan_file_metadata(&path)
             .with_context(|| format!("managed Baron plan is malformed: {}", path.display()))?;
+        if reject_completed
+            && metadata.status == "completed"
+            && metadata.operation_binding()?.as_ref() == Some(expected)
+        {
+            load_identified_active_plan(repo_root, &path, expected)?;
+            bail!(
+                "operation `{}` is already completed; a new lifecycle requires a fresh operation identity",
+                expected.operation_id
+            );
+        }
         if !is_active_plan_status(&metadata.status) {
             continue;
         }
@@ -1423,34 +1500,103 @@ fn require_legacy_active_plan(repo_root: &Path) -> Result<ActivePlan> {
 }
 
 fn resolve_legacy_active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
-    // Legacy callers may validate an existing compatibility projection, but
-    // it never disambiguates an identified concurrent operation.
-    let current = active_plan(repo_root)?;
-    if let Some(current) = current.as_ref() {
-        current.ensure_authority()?;
-    }
-    let identified = discover_identified_active_plans(repo_root)?;
-    if identified.len() > 1 {
+    // Count managed active plans before consulting CURRENT. For an identified
+    // operation, the exact ACTIVE/frontmatter binding is authority; a stale,
+    // missing, or malformed presentation pointer cannot veto the sole plan.
+    let managed_active = discover_active_managed_plans(repo_root)?;
+    if managed_active.len() > 1 {
         bail!(
-            "legacy plan mutation is ambiguous: {} identified active operations exist; provide an exact operation identity",
-            identified.len()
+            "legacy plan mutation is ambiguous: {} managed active plans exist; provide an exact operation identity",
+            managed_active.len()
         );
     }
-    if let Some(candidate) = identified.into_iter().next() {
-        if let Some(current) = current.as_ref() {
-            if candidate.path != current.path || candidate.binding != current.binding {
-                bail!("legacy plan mutation is ambiguous: CURRENT.md is not the sole identified active operation");
-            }
+    if let Some(candidate) = managed_active.into_iter().next() {
+        if candidate.binding.is_some() {
+            return Ok(Some(candidate));
+        }
+
+        // Unbound legacy plans still require the compatibility pointer to
+        // identify the exact path because they have no lifecycle identity.
+        let current = active_plan(repo_root)?;
+        let Some(current) = current else {
+            return Ok(None);
+        };
+        current.ensure_authority()?;
+        if current.path != candidate.path {
+            bail!("legacy plan mutation is ambiguous: CURRENT.md does not identify the sole unbound managed plan");
         }
         return Ok(Some(candidate));
     }
+
+    // With no managed active operation, retain historical CURRENT behavior for
+    // out-of-tree and pre-identity legacy plans.
+    let current = active_plan(repo_root)?;
     let Some(current) = current else {
         return Ok(None);
     };
+    current.ensure_authority()?;
     if !is_active_plan_status(&current.status) {
         return Ok(None);
     }
     Ok(Some(current))
+}
+
+fn discover_active_managed_plans(repo_root: &Path) -> Result<Vec<ActivePlan>> {
+    // Validate every managed ACTIVE entry before scanning plan files, so a
+    // malformed indexed authority cannot be hidden by the CURRENT projection.
+    let _ = load_active_plan_index(repo_root)?;
+    let mut paths = Vec::new();
+    collect_managed_plan_files(&repo_root.join(MANAGED_PLAN_ROOT), &mut paths)?;
+    let mut matches = Vec::new();
+    for path in paths {
+        let content = read_text_required(&path)?;
+        if !claims_baron_plan(&content) {
+            continue;
+        }
+        let metadata = load_plan_file_metadata(&path)
+            .with_context(|| format!("managed Baron plan is malformed: {}", path.display()))?;
+        if !is_active_plan_status(&metadata.status) {
+            continue;
+        }
+        let binding = metadata.operation_binding()?;
+        let active = if let Some(binding) = binding {
+            load_identified_active_plan(repo_root, &path, &binding)?
+        } else {
+            validate_linked_plan_authority(repo_root, &metadata)?;
+            ActivePlan {
+                title: metadata.title,
+                path: path.clone(),
+                status: metadata.status.clone(),
+                risk: metadata.risk,
+                task_id: metadata.task_id,
+                binding: None,
+                linked_status: Some(metadata.status),
+                authority_issues: Vec::new(),
+            }
+        };
+        if matches.iter().any(|existing: &ActivePlan| {
+            existing.path == active.path
+                || (active.binding.is_some() && existing.binding == active.binding)
+        }) {
+            bail!(
+                "multiple active Baron plans claim one operation or path: {}",
+                path.display()
+            );
+        }
+        matches.push(active);
+    }
+    Ok(matches)
+}
+
+fn sole_active_managed_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
+    let mut active_plans = discover_active_managed_plans(repo_root)?;
+    if active_plans.len() > 1 {
+        bail!(
+            "operation selection is ambiguous: {} managed active plans exist; provide an exact operation identity",
+            active_plans.len()
+        );
+    }
+    Ok(active_plans.pop())
 }
 
 fn discover_identified_active_plans(repo_root: &Path) -> Result<Vec<ActivePlan>> {

@@ -19,10 +19,10 @@ use baron_core::operation::{
     SupportedAdapter,
 };
 use baron_core::plan::{
-    active_plan_authority, complete_plan, complete_plan_for_identity, interrupt_plan,
-    interrupt_plan_for_identity, plan_status, start_or_resume_plan,
-    start_or_resume_plan_for_identity, start_or_resume_plan_for_operation, update_plan,
-    update_plan_for_identity,
+    active_plan_authority, active_plan_operation_binding, complete_plan,
+    complete_plan_for_identity, interrupt_plan, interrupt_plan_for_identity, plan_status,
+    start_or_resume_plan, start_or_resume_plan_for_identity, start_or_resume_plan_for_operation,
+    update_plan, update_plan_for_identity,
 };
 use baron_core::proof::{
     record_proof, record_proof_for_operation, record_proof_from_receipt_bound,
@@ -461,6 +461,224 @@ fn operation_scoped_plan_mutations_keep_a_and_b_isolated_end_to_end() {
 }
 
 #[test]
+fn completed_operation_identity_cannot_reopen_a_plan() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let title = "fix README completion alpha";
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("completion-session"),
+        Some("completion-turn"),
+    )
+    .unwrap();
+    let plan = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &operation,
+        "README completion verification passed",
+    )
+    .unwrap();
+    let trace_binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README completion task finished",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+    complete_plan_for_identity(
+        &repo,
+        &context,
+        "README completion verification passed",
+        &identity,
+    )
+    .unwrap();
+
+    let active_index = fs::read_to_string(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let completed_plan = fs::read_to_string(&plan.repo_path).unwrap();
+    let plan_count = fs::read_dir(plan.repo_path.parent().unwrap())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "md")
+        })
+        .count();
+
+    let error = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap_err();
+
+    assert!(error.to_string().contains("completed"), "{error:#}");
+    assert_eq!(
+        fs::read_to_string(repo.join("docs/baron/plans/ACTIVE.md")).unwrap(),
+        active_index,
+        "replaying a completed lifecycle identity must not rewrite ACTIVE authority"
+    );
+    assert_eq!(fs::read_to_string(&plan.repo_path).unwrap(), completed_plan);
+    assert_eq!(
+        fs::read_dir(plan.repo_path.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "md"))
+            .count(),
+        plan_count,
+        "a completed lifecycle identity must not create a replacement plan"
+    );
+}
+
+#[test]
+fn sole_active_operation_ignores_stale_current_for_binding_and_authority() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let active_title = "fix README alpha typo";
+    let completed_title = "fix README beta typo";
+    let active_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        active_title,
+        SupportedAdapter::Codex,
+        Some("active-session"),
+        Some("active-turn"),
+    )
+    .unwrap();
+    let completed_identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        completed_title,
+        SupportedAdapter::Claude,
+        Some("completed-session"),
+        Some("completed-turn"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, active_title, &active_identity).unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, completed_title, &completed_identity)
+        .unwrap();
+    let completed_operation = OperationContext::from_identity(&completed_identity);
+    let proof = record_proof_for_operation(
+        &repo,
+        &context,
+        &completed_operation,
+        "Beta README verification passed",
+    )
+    .unwrap();
+    let trace_binding =
+        TraceOperationBinding::from_operation(&completed_operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Beta README task finished",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+    complete_plan_for_identity(
+        &repo,
+        &context,
+        "Beta README verification passed",
+        &completed_identity,
+    )
+    .unwrap();
+    assert!(fs::read_to_string(repo.join("docs/baron/plans/CURRENT.md"))
+        .unwrap()
+        .contains("Status: `completed`"));
+
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let current_projection = fs::read_to_string(&current_path).unwrap();
+    let current_plan_line = current_projection
+        .lines()
+        .find(|line| line.starts_with("- Plan: `"))
+        .unwrap();
+    let stale_projection = current_projection.replace(
+        current_plan_line,
+        "- Plan: `docs/baron/plans/missing-current-projection.md`",
+    );
+    fs::write(&current_path, stale_projection).unwrap();
+
+    let authority = active_plan_authority(&repo).unwrap().unwrap();
+    assert_eq!(
+        authority.binding.unwrap().operation_id,
+        active_identity.operation_id(),
+        "CURRENT is presentation-only and must not veto Core authority for the sole active operation"
+    );
+
+    let active_operation = OperationContext::from_identity(&active_identity);
+    record_proof_for_operation(
+        &repo,
+        &context,
+        &active_operation,
+        "Alpha README verification passed",
+    )
+    .unwrap();
+    let trace = record_trace(
+        &repo,
+        &context,
+        "Alpha README lifecycle finished",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    assert_eq!(
+        trace.binding.as_ref().unwrap().operation_id,
+        active_identity.operation_id(),
+        "legacy trace ingress must bind to the sole active operation, not completed CURRENT"
+    );
+    let score = score_trace(&repo, &context, None).unwrap();
+    assert_eq!(
+        score.binding.as_ref().unwrap().operation_id,
+        active_identity.operation_id(),
+        "auto trace scoring must use the sole active operation, not completed CURRENT"
+    );
+    let completion_status = baron_core::plan::active_plan_completion_evidence_status(&repo)
+        .unwrap()
+        .unwrap();
+    assert!(
+        !completion_status
+            .issues
+            .iter()
+            .any(|issue| issue.contains("CURRENT")),
+        "completion/reconciliation status must not depend on a stale CURRENT projection: {:?}",
+        completion_status.issues
+    );
+
+    let binding = active_plan_operation_binding(&repo).unwrap().unwrap();
+
+    assert_eq!(
+        binding.operation_id,
+        active_identity.operation_id(),
+        "CURRENT is a presentation pointer and must not veto the sole validated active operation"
+    );
+
+    update_plan(
+        &repo,
+        &context,
+        "Alpha resumed after a stale CURRENT projection",
+    )
+    .unwrap();
+}
+
+#[test]
 fn operation_trace_uses_a_plan_when_current_points_to_b() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
@@ -787,7 +1005,7 @@ fn snapshot_tree(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     snapshot
 }
 
-fn assert_outside_plan_pointer_is_rejected(relative_path: &str) {
+fn assert_outside_plan_pointer_is_ignored_for_identified_operation(relative_path: &str) {
     let (_temp, repo, context, identity, plan_path) = identified_plan_fixture(
         "backend login security",
         SupportedAdapter::Codex,
@@ -800,35 +1018,40 @@ fn assert_outside_plan_pointer_is_rejected(relative_path: &str) {
     fs::write(&target, &linked).unwrap();
     let target_before = fs::read(&target).unwrap();
     let linked_before = fs::read(&plan_path).unwrap();
-    let vault_plans_before = snapshot_tree(&context.project_root.join("Plans"));
     rewrite_current_plan_pointer(&repo, relative_path);
 
-    assert!(active_plan_authority(&repo).is_err());
-    assert!(complete_plan(&repo, &context, "verification attempted").is_err());
+    let authority = active_plan_authority(&repo).unwrap().unwrap();
+    assert_eq!(
+        authority.binding.unwrap().operation_id,
+        identity.operation_id(),
+        "CURRENT must not replace the exact ACTIVE/frontmatter operation"
+    );
     let reconciliation = reconcile(&repo).unwrap();
     assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .all(|gap| !gap.contains("CURRENT")));
     assert_stop_blocks(&repo, &context, "backend login security", &identity);
-    assert!(update_plan(&repo, &context, "forged pointer must not mutate").is_err());
+    update_plan(&repo, &context, "canonical operation continued").unwrap();
 
     assert_eq!(fs::read(target).unwrap(), target_before);
-    assert_eq!(fs::read(&plan_path).unwrap(), linked_before);
-    assert_eq!(
-        snapshot_tree(&context.project_root.join("Plans")),
-        vault_plans_before
+    assert_ne!(fs::read(&plan_path).unwrap(), linked_before);
+}
+
+#[test]
+fn outside_current_plan_pointers_cannot_replace_active_authority_or_mutate_targets() {
+    assert_outside_plan_pointer_is_ignored_for_identified_operation("README.md");
+    assert_outside_plan_pointer_is_ignored_for_identified_operation("src/fake.md");
+    assert_outside_plan_pointer_is_ignored_for_identified_operation("docs/fake-plan.md");
+    assert_outside_plan_pointer_is_ignored_for_identified_operation(
+        "docs/baron/plans-evil/fake.md",
     );
 }
 
 #[test]
-fn outside_current_plan_pointers_cannot_become_authority_or_mutate_targets() {
-    assert_outside_plan_pointer_is_rejected("README.md");
-    assert_outside_plan_pointer_is_rejected("src/fake.md");
-    assert_outside_plan_pointer_is_rejected("docs/fake-plan.md");
-    assert_outside_plan_pointer_is_rejected("docs/baron/plans-evil/fake.md");
-}
-
-#[test]
-fn managed_plan_without_type_marker_cannot_be_authority() {
-    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+fn current_pointer_without_type_marker_cannot_veto_active_authority() {
+    let (_temp, repo, _context, identity, plan_path) = identified_plan_fixture(
         "backend login security",
         SupportedAdapter::Codex,
         "active-session",
@@ -845,13 +1068,26 @@ fn managed_plan_without_type_marker_cannot_be_authority() {
     fs::write(&target, format!("{content}\n")).unwrap();
     rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
 
-    assert!(active_plan_authority(&repo).is_err());
-    assert!(!reconcile(&repo).unwrap().passed);
+    assert_eq!(
+        active_plan_authority(&repo)
+            .unwrap()
+            .unwrap()
+            .binding
+            .unwrap()
+            .operation_id,
+        identity.operation_id()
+    );
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .all(|gap| !gap.contains("CURRENT")));
 }
 
 #[test]
-fn managed_plan_body_only_metadata_cannot_be_authority() {
-    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+fn current_pointer_body_only_metadata_cannot_veto_active_authority() {
+    let (_temp, repo, _context, identity, plan_path) = identified_plan_fixture(
         "backend login security",
         SupportedAdapter::Codex,
         "active-session",
@@ -868,8 +1104,21 @@ fn managed_plan_body_only_metadata_cannot_be_authority() {
     fs::write(&target, format!("# Fake\n\n{frontmatter}\n")).unwrap();
     rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
 
-    assert!(active_plan_authority(&repo).is_err());
-    assert!(!reconcile(&repo).unwrap().passed);
+    assert_eq!(
+        active_plan_authority(&repo)
+            .unwrap()
+            .unwrap()
+            .binding
+            .unwrap()
+            .operation_id,
+        identity.operation_id()
+    );
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .all(|gap| !gap.contains("CURRENT")));
 }
 
 #[test]
@@ -916,10 +1165,10 @@ fn duplicate_operation_id_in_managed_plan_frontmatter_fails_closed() {
 
 #[cfg(unix)]
 #[test]
-fn managed_plan_symlink_cannot_become_authority() {
+fn current_symlink_pointer_cannot_veto_active_authority() {
     use std::os::unix::fs::symlink;
 
-    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+    let (_temp, repo, _context, identity, plan_path) = identified_plan_fixture(
         "backend login security",
         SupportedAdapter::Codex,
         "active-session",
@@ -930,18 +1179,31 @@ fn managed_plan_symlink_cannot_become_authority() {
     symlink(repo.join("README.md"), &target).unwrap();
     rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
 
-    assert!(active_plan_authority(&repo).is_err());
-    assert!(!reconcile(&repo).unwrap().passed);
+    assert_eq!(
+        active_plan_authority(&repo)
+            .unwrap()
+            .unwrap()
+            .binding
+            .unwrap()
+            .operation_id,
+        identity.operation_id()
+    );
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .all(|gap| !gap.contains("CURRENT")));
     assert!(complete_plan(&repo, &_context, "verification attempted").is_err());
     assert!(fs::read(&plan_path).is_ok());
 }
 
 #[cfg(windows)]
 #[test]
-fn managed_plan_reparse_or_symlink_cannot_become_authority() {
+fn current_reparse_or_symlink_pointer_cannot_veto_active_authority() {
     use std::os::windows::fs::symlink_file;
 
-    let (_temp, repo, _context, _identity, plan_path) = identified_plan_fixture(
+    let (_temp, repo, _context, identity, plan_path) = identified_plan_fixture(
         "backend login security",
         SupportedAdapter::Codex,
         "active-session",
@@ -972,8 +1234,21 @@ fn managed_plan_reparse_or_symlink_cannot_become_authority() {
     }
     rewrite_current_plan_pointer(&repo, &repo_relative_path(&repo, &target));
 
-    assert!(active_plan_authority(&repo).is_err());
-    assert!(!reconcile(&repo).unwrap().passed);
+    assert_eq!(
+        active_plan_authority(&repo)
+            .unwrap()
+            .unwrap()
+            .binding
+            .unwrap()
+            .operation_id,
+        identity.operation_id()
+    );
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(!reconciliation.passed);
+    assert!(reconciliation
+        .gaps
+        .iter()
+        .all(|gap| !gap.contains("CURRENT")));
     assert!(complete_plan(&repo, &_context, "verification attempted").is_err());
     assert!(fs::read(&plan_path).is_ok());
 }
@@ -1035,7 +1310,7 @@ fn assert_stop_blocks(
     );
 }
 
-fn assert_current_metadata_mismatch_blocks<F>(mutate: F)
+fn assert_current_metadata_mismatch_is_presentation_only<F>(mutate: F)
 where
     F: FnOnce(String, &AuthoritativeLifecycleIdentity) -> String,
 {
@@ -1049,14 +1324,20 @@ where
     let current = fs::read_to_string(&current_path).unwrap();
     fs::write(&current_path, mutate(current, &identity)).unwrap();
 
+    let authority = active_plan_authority(&repo).unwrap().unwrap();
+    assert_eq!(
+        authority.binding.unwrap().operation_id,
+        identity.operation_id(),
+        "CURRENT metadata cannot veto or substitute the exact operation authority"
+    );
     let error = complete_plan(&repo, &context, "verification attempted").unwrap_err();
-    assert!(error.to_string().contains("authority mismatch"));
+    assert!(!error.to_string().contains("authority mismatch"));
     let reconciliation = reconcile(&repo).unwrap();
     assert!(!reconciliation.passed);
     assert!(reconciliation
         .gaps
         .iter()
-        .any(|gap| gap.contains("CURRENT")));
+        .all(|gap| !gap.contains("CURRENT")));
     assert_stop_blocks(&repo, &context, "backend login security", &identity);
     assert!(fs::read_to_string(plan_path)
         .unwrap()
@@ -1470,15 +1751,15 @@ fn historical_legacy_task_id_is_preserved_during_lifecycle_projection() {
 }
 
 #[test]
-fn current_risk_mismatch_fails_closed() {
-    assert_current_metadata_mismatch_blocks(|current, _| {
+fn current_risk_mismatch_is_presentation_only() {
+    assert_current_metadata_mismatch_is_presentation_only(|current, _| {
         current.replace("- Risk: `high`", "- Risk: `low`")
     });
 }
 
 #[test]
-fn current_task_id_mismatch_fails_closed() {
-    assert_current_metadata_mismatch_blocks(|current, identity| {
+fn current_task_id_mismatch_is_presentation_only() {
+    assert_current_metadata_mismatch_is_presentation_only(|current, identity| {
         current.replace(
             &format!("- Task ID: `{}`", identity.task_id()),
             "- Task ID: `tampered-task`",
@@ -1487,8 +1768,8 @@ fn current_task_id_mismatch_fails_closed() {
 }
 
 #[test]
-fn current_operation_id_mismatch_fails_closed() {
-    assert_current_metadata_mismatch_blocks(|current, identity| {
+fn current_operation_id_mismatch_is_presentation_only() {
+    assert_current_metadata_mismatch_is_presentation_only(|current, identity| {
         current.replace(
             &format!("- Operation ID: `{}`", identity.operation_id()),
             "- Operation ID: `tampered-operation`",
@@ -1497,15 +1778,15 @@ fn current_operation_id_mismatch_fails_closed() {
 }
 
 #[test]
-fn current_adapter_mismatch_fails_closed() {
-    assert_current_metadata_mismatch_blocks(|current, _| {
+fn current_adapter_mismatch_is_presentation_only() {
+    assert_current_metadata_mismatch_is_presentation_only(|current, _| {
         current.replace("- Adapter: `codex`", "- Adapter: `claude`")
     });
 }
 
 #[test]
-fn current_session_id_mismatch_fails_closed() {
-    assert_current_metadata_mismatch_blocks(|current, identity| {
+fn current_session_id_mismatch_is_presentation_only() {
+    assert_current_metadata_mismatch_is_presentation_only(|current, identity| {
         current.replace(
             &format!("- Session ID: `{}`", identity.session_id()),
             "- Session ID: `tampered-session`",
@@ -1514,8 +1795,8 @@ fn current_session_id_mismatch_fails_closed() {
 }
 
 #[test]
-fn current_request_id_mismatch_fails_closed() {
-    assert_current_metadata_mismatch_blocks(|current, identity| {
+fn current_request_id_mismatch_is_presentation_only() {
+    assert_current_metadata_mismatch_is_presentation_only(|current, identity| {
         current.replace(
             &format!("- Request ID: `{}`", identity.request_id()),
             "- Request ID: `tampered-request`",
@@ -1524,8 +1805,8 @@ fn current_request_id_mismatch_fails_closed() {
 }
 
 #[test]
-fn current_title_mismatch_fails_closed() {
-    assert_current_metadata_mismatch_blocks(|current, _| {
+fn current_title_mismatch_is_presentation_only() {
+    assert_current_metadata_mismatch_is_presentation_only(|current, _| {
         current.replace("- Title: backend login security", "- Title: unrelated task")
     });
 }
@@ -1597,10 +1878,9 @@ fn current_risk_and_operation_swap_cannot_authorize_low_risk_evidence() {
 
     let reconciliation = reconcile(&repo).unwrap();
     assert!(!reconciliation.passed);
-    assert!(reconciliation
-        .gaps
-        .iter()
-        .any(|gap| gap.contains("risk") || gap.contains("binding")));
+    assert!(reconciliation.gaps.iter().any(|gap| {
+        gap.contains("risk") || gap.contains("binding") || gap.contains("ambiguous")
+    }));
     // The forged display cannot downgrade A; valid B evidence is usable only
     // through B's exact identity and never completes A.
     assert_stop_blocks(&repo, &context, "backend login security", &active);
@@ -1797,7 +2077,7 @@ fn identified_and_legacy_plan_metadata_states_cannot_cross_authorize() {
     assert!(reconciliation
         .gaps
         .iter()
-        .any(|gap| gap.contains("binding state")));
+        .all(|gap| !gap.contains("binding state")));
     assert_stop_blocks(&repo, &context, "fix README typo", &_identity);
     assert!(fs::read_to_string(plan_path)
         .unwrap()
