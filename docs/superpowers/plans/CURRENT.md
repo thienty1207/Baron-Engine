@@ -2,13 +2,13 @@
 
 ## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-02)
 
-- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; two Important findings from `ecaf362..fcc6b79` were fixed with RED-to-GREEN regressions. One Minor Vault `Plans/INDEX.md` lost-update risk is deferred because it is discovery-only, not authority. Two fresh final-range reviews remain; not closed or pushed.
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`, not closed. The stale same-event Stop replay fix is verified; previous ACCEPT/FIX REQUIRED verdicts apply only to earlier ranges. Two fresh reviews of the exact committed range remain; not pushed.
 - Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md).
-- Checkpoint: session-only Stop detects validated legacy active plan frontmatter even without an ACTIVE row. Under the final publication lock, Stop now recomputes exact-operation reconciliation so newer proof/trace changes cannot leave stale pass metadata.
-- Proof/trace: both new regressions were observed RED then GREEN. Full workspace all-targets exits 0; explicit Core `558/0`, CLI `188/0` (1 ignored smoke separately passed), adapters `124/0` (3 historical ignored). Focused hook identity `20/20`, plan `51/51`, automation unit `6/6`, concurrency `16/16`, config `16/16`, proof_trace `29/29`, and phase12 hook suites are green.
-- Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; shared validation-matrix writes serialize checkout -> Vault; CURRENT remains presentation only.
-- Verification: fmt, warnings-denied workspace Clippy, locked release build, explicit release smoke, and `baron 5.0.0` pass. Status JSON parses; maintained-doc tests pass 12/12 and 2/2; relative-link scan 1/0; retired-adapter gate empty; final diff check passes. Host-session tests use isolated roots and bundled PowerShell 7 override.
-- Safe next action: commit the verified source/tests/docs, request two fresh independent read-only reviews over the exact `ecaf362..HEAD`, then push and close only after both accept.
+- Checkpoint: Stop retries for the same active identified operation ignore historical dedup/journal responses, claim a fresh fenced delivery, and reconcile current evidence at publication. The regression first received cached `continue:true/reconciliation_passed:true` after a newer failing trace, then passed for both the retained dedup cache and journal-only recovery path.
+- Proof/trace: RED reproduced cached `continue:true/reconciliation_passed:true` after a newer trace failed. GREEN blocks with either dedup cache or journal-only recovery. Current tests: Core 559/0, CLI 188/0, adapters 124/0, workspace 871/0.
+- Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; shared validation-matrix writes serialize checkout -> Vault; CURRENT remains presentation only. Stop journal response is historical; it cannot authorize a retry.
+- Verification: fmt, all package/workspace targets, warnings-denied Clippy, locked release build, explicit release smoke, `baron 5.0.0`, 249-line source caller scan, authority audit, status JSON, maintained relative links, retired-adapter gate, and diff check pass. Public version remains `5.0.0`.
+- Safe next action: commit source/evidence and obtain two fresh independent read-only reviews of exact `ecaf362..HEAD`; fix/reverify any Critical/Important issue, then close and push only after both accept.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

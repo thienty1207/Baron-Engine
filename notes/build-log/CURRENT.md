@@ -2,12 +2,12 @@
 
 ## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-02)
 
-- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; two Important gaps from `ecaf362..fcc6b79` (unindexed legacy active plan; stale Stop reconciliation after evidence changes) are fixed with focused RED-to-GREEN regressions. Two fresh reviews of the committed final range remain.
-- Checkpoint/source: session-only Stop cross-checks validated managed plan frontmatter in addition to ACTIVE rows. Final Stop response publication rechecks exact identity and completion evidence under the project lock.
-- Proof status: legacy-plan regression RED returned `continue:true` for completed A despite unindexed active B; GREEN blocks as ambiguous. Race regression RED published `reconciliation_passed:true` after a newer failing trace; GREEN blocks. Full workspace exits 0; separate Core 558/0, CLI 188/0, adapters 124/0; fmt, warnings-denied Clippy, locked release build/smoke pass, binary is `baron 5.0.0`.
-- Trace status: caller audit found 244 production-source matches and no remaining owned BUG; status JSON parses, maintained-doc tests pass 12/12 and 2/2, relative-link check is 1 checked/0 broken, retired-adapter grep is empty, and diff check passes. The Minor shared Vault `Plans/INDEX.md` lost-update risk remains deferred as discovery-only. Not closed or pushed.
-- Persisted-state boundary: validated operation identity and ACTIVE/frontmatter remain authoritative; shared matrix RMW follows checkout -> Vault lock order; CURRENT stays a projection.
-- Safe next action: commit the verified source/tests/evidence, obtain two fresh independent read-only reviews over the exact `ecaf362..HEAD`, resolve any Critical/Important findings and repeat review. Push/closure remain gated on acceptance. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
+- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; the cached Stop replay Important finding is fixed and its regression is GREEN through both dedup and journal-only replay.
+- Checkpoint/source: active identified Stop retries bypass historical response shortcuts, take a new fenced claim, and recompute exact-operation reconciliation under the final publication lock. Operation identity and validated ACTIVE/frontmatter remain authority; CURRENT remains a projection.
+- Proof status: RED returned cached `continue:true/reconciliation_passed:true` after newer trace evidence failed. GREEN now blocks on the latest evidence with the cache present and with only the old passing journal response available.
+- Verification: Core 559/0, CLI 188/0, adapters 124/0, workspace 871/0; respective result-suite counts 60/38/14/112. Fmt, workspace Clippy `-D warnings`, locked release build, explicit release smoke, binary `baron 5.0.0`, status JSON, maintained relative links, retired-adapter gate, and diff check pass. Runs isolated real host session roots and use bundled PowerShell 7.
+- Trace/audit status: current source scan is 249 Core/CLI matching lines including inline tests; production authority callers and Codex/Claude contracts are classified in the audit. Minor shared Vault index, journal-size, in-flight claim trim, and trace archive lock findings remain documented for adversarial disposition. Not closed or pushed; no hosted CI status is claimed.
+- Next action: commit the verified source/evidence state, obtain two fresh read-only reviews over exact `ecaf362..HEAD`, resolve and reverify any Critical/Important issue, then record closure and push only after acceptance. Public version remains 5.0.0; no release, tag, or SPEC-06 expansion.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
