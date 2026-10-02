@@ -237,15 +237,14 @@ pub(crate) fn active_plan_bindings_for_session(
 ) -> Result<Vec<PlanOperationBinding>> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
-    load_active_plan_index(repo_root)?
+    Ok(discover_identified_active_plans(repo_root)?
         .into_iter()
-        .filter(|entry| {
-            is_active_plan_status(&entry.status)
-                && entry.adapter == adapter.as_str()
-                && entry.session_id == session_id
+        .filter_map(|active| {
+            active.binding.filter(|binding| {
+                binding.adapter == adapter.as_str() && binding.session_id == session_id
+            })
         })
-        .map(|entry| entry.binding())
-        .collect()
+        .collect())
 }
 
 /// Resolve the plan authority carried by an operation-bound trace. The trace

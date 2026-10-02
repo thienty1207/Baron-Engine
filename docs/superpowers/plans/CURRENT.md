@@ -2,13 +2,13 @@
 
 ## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-02)
 
-- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; three earlier Important findings and the post-review session-only Stop finding are fixed and verified. Two fresh independent read-only reviews of the updated committed range remain before closure. One Minor Vault `Plans/INDEX.md` lost-update risk is deferred because it is discovery-only, not authority. Not closed yet.
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; two Important findings from `ecaf362..fcc6b79` were fixed with RED-to-GREEN regressions. One Minor Vault `Plans/INDEX.md` lost-update risk is deferred because it is discovery-only, not authority. Two fresh final-range reviews remain; not closed or pushed.
 - Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md).
-- Checkpoint: a session-only Claude Stop is ambiguous if another active plan shares its adapter/session, even when that plan lacks a hook correlation row; completed stale mappings can no longer mask it. The regression was observed RED then GREEN.
-- Proof/trace: Core, CLI, adapter, and workspace all-target suites exited 0; hook identity `19/19`, concurrency `16/16`, config `16/16`, plan `51/51`, proof-trace `29/29`, operation-evidence CLI `9/9`, public config compatibility `1/1`, and adapter lifecycle `23/23` pass.
+- Checkpoint: session-only Stop detects validated legacy active plan frontmatter even without an ACTIVE row. Under the final publication lock, Stop now recomputes exact-operation reconciliation so newer proof/trace changes cannot leave stale pass metadata.
+- Proof/trace: both new regressions were observed RED then GREEN. Full workspace all-targets exits 0; explicit Core `558/0`, CLI `188/0` (1 ignored smoke separately passed), adapters `124/0` (3 historical ignored). Focused hook identity `20/20`, plan `51/51`, automation unit `6/6`, concurrency `16/16`, config `16/16`, proof_trace `29/29`, and phase12 hook suites are green.
 - Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; shared validation-matrix writes serialize checkout -> Vault; CURRENT remains presentation only.
-- Verification: fmt, Clippy `-D warnings`, locked release build, explicit release smoke, and `baron 5.0.0` check passed. Tests use isolated session roots and the `BARON_TEST_POWERSHELL` override to bundled PowerShell 7. Full updated-range review is pending.
-- Safe next action: commit the verified fix and evidence, then obtain two fresh independent read-only reviews over the updated `ecaf362..HEAD`; close and push only after both accept without Critical/Important findings.
+- Verification: fmt, warnings-denied workspace Clippy, locked release build, explicit release smoke, and `baron 5.0.0` pass. Status JSON parses; maintained-doc tests pass 12/12 and 2/2; relative-link scan 1/0; retired-adapter gate empty; final diff check passes. Host-session tests use isolated roots and bundled PowerShell 7 override.
+- Safe next action: commit the verified source/tests/docs, request two fresh independent read-only reviews over the exact `ecaf362..HEAD`, then push and close only after both accept.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

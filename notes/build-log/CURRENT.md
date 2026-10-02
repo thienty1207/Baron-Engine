@@ -2,12 +2,12 @@
 
 ## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-02)
 
-- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; all four identified Important findings are fixed and locally verified. Two fresh independent reviews of the updated final range remain before closure.
-- Checkpoint/source: in addition to exact completed Stop, source-compatible public config literals and shared Vault matrix locking, session-only Stop now checks all validated ACTIVE bindings for the same adapter/session and fails closed on an unmapped concurrent operation.
-- Proof status: Core, CLI, adapter and workspace all-target runs exited 0; the focused new regression was RED then GREEN; hook identity `19/19`, concurrency `16/16`, config `16/16`, plan `51/51`, proof-trace `29/29`, operation-evidence CLI `9/9`, adapter lifecycle `23/23`, and public config compatibility `1/1` pass.
-- Trace status: Stop validates exact ACTIVE/frontmatter and rejects session-only ambiguity across live operations; config mutations preserve forward TOML fields; cross-checkout worker waits for the shared Vault lock. Formatter, warnings-denied Clippy, locked release build and release smoke pass. Two updated-range reviews remain pending. A Minor shared Vault `Plans/INDEX.md` lost-update risk is deferred as discovery-only.
+- Current task/status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; two Important gaps from `ecaf362..fcc6b79` (unindexed legacy active plan; stale Stop reconciliation after evidence changes) are fixed with focused RED-to-GREEN regressions. Two fresh reviews of the committed final range remain.
+- Checkpoint/source: session-only Stop cross-checks validated managed plan frontmatter in addition to ACTIVE rows. Final Stop response publication rechecks exact identity and completion evidence under the project lock.
+- Proof status: legacy-plan regression RED returned `continue:true` for completed A despite unindexed active B; GREEN blocks as ambiguous. Race regression RED published `reconciliation_passed:true` after a newer failing trace; GREEN blocks. Full workspace exits 0; separate Core 558/0, CLI 188/0, adapters 124/0; fmt, warnings-denied Clippy, locked release build/smoke pass, binary is `baron 5.0.0`.
+- Trace status: caller audit found 244 production-source matches and no remaining owned BUG; status JSON parses, maintained-doc tests pass 12/12 and 2/2, relative-link check is 1 checked/0 broken, retired-adapter grep is empty, and diff check passes. The Minor shared Vault `Plans/INDEX.md` lost-update risk remains deferred as discovery-only. Not closed or pushed.
 - Persisted-state boundary: validated operation identity and ACTIVE/frontmatter remain authoritative; shared matrix RMW follows checkout -> Vault lock order; CURRENT stays a projection.
-- Safe next action: commit the verified source/test/evidence update, obtain two fresh independent read-only reviews of `ecaf362..HEAD`, resolve any Critical/Important findings, then close and push. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
+- Safe next action: commit the verified source/tests/evidence, obtain two fresh independent read-only reviews over the exact `ecaf362..HEAD`, resolve any Critical/Important findings and repeat review. Push/closure remain gated on acceptance. Public version stays 5.0.0; no release, tag, or SPEC-06 expansion.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

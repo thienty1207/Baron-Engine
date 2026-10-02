@@ -37,6 +37,15 @@ const DEDUP_PATH: &str = ".baron/cache/automation-dedup.json";
 
 static ACTIVE_HOOK_KEYS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
+#[cfg(test)]
+type StopPublicationHook = Box<dyn FnOnce() + Send>;
+
+#[cfg(test)]
+type StopPublicationPause = (std::path::PathBuf, StopPublicationHook);
+
+#[cfg(test)]
+static STOP_BEFORE_PUBLICATION: OnceLock<Mutex<Option<StopPublicationPause>>> = OnceLock::new();
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AutomationEvent {
@@ -625,59 +634,17 @@ pub fn handle_hook(
                         .as_ref()
                         .context("identified Stop hooks require a complete lifecycle identity")?;
                     let report = reconcile_for_operation(repo_root, vault, lifecycle_identity)?;
-                    let metadata = hook_metadata(
+                    let response_context = StopResponseContext {
                         vault,
                         adapter,
                         event_kind,
-                        &event_key,
-                        &task_id,
-                        identity.as_ref(),
-                        false,
-                    );
-                    if !report.passed && !stop_hook_active {
-                        json!({
-                            "decision": "block",
-                            "completed": false,
-                            "reason": format!(
-                                "Baron completion gate is not satisfied: {}. Record the missing evidence or interrupt the active plan before ending.",
-                                report.gaps.join("; ")
-                            ),
-                            "baron": {
-                                "project_id": metadata["project_id"],
-                                "adapter": metadata["adapter"],
-                                "event": metadata["event"],
-                                "event_key": metadata["event_key"],
-                                "task_id": metadata["task_id"],
-                                "operation_id": metadata["operation_id"],
-                                "session_id": metadata["session_id"],
-                                "request_id": metadata["request_id"],
-                                "stop_is_completion": false,
-                                "reconciliation_passed": false
-                            }
-                        })
-                    } else {
-                        json!({
-                            "continue": true,
-                            "completed": false,
-                            "systemMessage": if report.passed {
-                                "Baron reconciliation passed; Stop does not mark completion."
-                            } else {
-                                "Baron reconciliation already requested once; avoid a hook loop and preserve the active state."
-                            },
-                            "baron": {
-                                "project_id": metadata["project_id"],
-                                "adapter": metadata["adapter"],
-                                "event": metadata["event"],
-                                "event_key": metadata["event_key"],
-                                "task_id": metadata["task_id"],
-                                "operation_id": metadata["operation_id"],
-                                "session_id": metadata["session_id"],
-                                "request_id": metadata["request_id"],
-                                "stop_is_completion": false,
-                                "reconciliation_passed": report.passed
-                            }
-                        })
-                    }
+                        event_key: &event_key,
+                        task_id: &task_id,
+                        identity: lifecycle_identity,
+                        stop_hook_active,
+                        child: false,
+                    };
+                    stop_reconciliation_response(&response_context, &report)
                 }
                 _ => {
                     renew_dedup_claim(repo_root, vault, &event_key, &claim_token)?;
@@ -717,34 +684,32 @@ pub fn handle_hook(
             return Err(error.into());
         }
     };
+    #[cfg(test)]
+    if event == AutomationEvent::Stop {
+        pause_stop_before_publication(repo_root);
+    }
     // Revalidate correlation and ACTIVE under the same lock as publication.
-    // Slow prepare/context/probes and Stop reconciliation remain outside it.
+    // Prepare/context/probes and the first reconciliation stay outside; the
+    // final exact-operation evidence check runs with authority publication.
     let publication = (|| -> Result<String> {
         let _lock = acquire_project_lock(repo_root)?;
         let response = if event == AutomationEvent::Stop && !is_child {
-            let completed = hook_correlation::verify_stop_locked(
-                repo_root,
+            let response_context = StopResponseContext {
                 vault,
+                adapter,
+                event_kind,
+                event_key: &event_key,
+                task_id: &task_id,
+                identity: identity.as_ref().context("Stop requires identity")?,
+                stop_hook_active,
+                child: is_child,
+            };
+            finalize_stop_response_locked(
+                repo_root,
                 supported_adapter.context("Stop requires a supported adapter")?,
                 &ingress,
-                identity.as_ref().context("Stop requires identity")?,
-            )
-            .map_err(|error| anyhow::anyhow!(hook_correlation::failure(&error)))?;
-            if completed {
-                completed_stop_response(
-                    vault,
-                    adapter,
-                    event_kind,
-                    &event_key,
-                    &task_id,
-                    identity
-                        .as_ref()
-                        .context("completed Stop requires identity")?,
-                    is_child,
-                )?
-            } else {
-                response.clone()
-            }
+                &response_context,
+            )?
         } else {
             response.clone()
         };
@@ -763,6 +728,25 @@ pub fn handle_hook(
             release_dedup_claim(repo_root, vault, &event_key, &claim_token);
             Err(error)
         }
+    }
+}
+
+#[cfg(test)]
+fn pause_stop_before_publication(repo_root: &Path) {
+    let slot = STOP_BEFORE_PUBLICATION.get_or_init(|| Mutex::new(None));
+    let callback = {
+        let mut slot = slot.lock().unwrap_or_else(|poison| poison.into_inner());
+        if slot
+            .as_ref()
+            .is_some_and(|(expected_repo, _)| expected_repo == repo_root)
+        {
+            slot.take().map(|(_, callback)| callback)
+        } else {
+            None
+        }
+    };
+    if let Some(callback) = callback {
+        callback();
     }
 }
 
@@ -863,6 +847,110 @@ pub fn reconcile_for_operation(
         active_plan: true,
         gaps: status.issues,
     })
+}
+
+struct StopResponseContext<'a> {
+    vault: &'a VaultContext,
+    adapter: HookAdapter,
+    event_kind: &'a str,
+    event_key: &'a str,
+    task_id: &'a str,
+    identity: &'a LifecycleIdentity,
+    stop_hook_active: bool,
+    child: bool,
+}
+
+fn stop_reconciliation_response(
+    context: &StopResponseContext<'_>,
+    report: &ReconciliationReport,
+) -> Value {
+    let metadata = hook_metadata(
+        context.vault,
+        context.adapter,
+        context.event_kind,
+        context.event_key,
+        context.task_id,
+        Some(context.identity),
+        context.child,
+    );
+    if !report.passed && !context.stop_hook_active {
+        json!({
+            "decision": "block",
+            "completed": false,
+            "reason": format!(
+                "Baron completion gate is not satisfied: {}. Record the missing evidence or interrupt the active plan before ending.",
+                report.gaps.join("; ")
+            ),
+            "baron": {
+                "project_id": metadata["project_id"],
+                "adapter": metadata["adapter"],
+                "event": metadata["event"],
+                "event_key": metadata["event_key"],
+                "task_id": metadata["task_id"],
+                "operation_id": metadata["operation_id"],
+                "session_id": metadata["session_id"],
+                "request_id": metadata["request_id"],
+                "stop_is_completion": false,
+                "reconciliation_passed": false
+            }
+        })
+    } else {
+        json!({
+            "continue": true,
+            "completed": false,
+            "systemMessage": if report.passed {
+                "Baron reconciliation passed; Stop does not mark completion."
+            } else {
+                "Baron reconciliation already requested once; avoid a hook loop and preserve the active state."
+            },
+            "baron": {
+                "project_id": metadata["project_id"],
+                "adapter": metadata["adapter"],
+                "event": metadata["event"],
+                "event_key": metadata["event_key"],
+                "task_id": metadata["task_id"],
+                "operation_id": metadata["operation_id"],
+                "session_id": metadata["session_id"],
+                "request_id": metadata["request_id"],
+                "stop_is_completion": false,
+                "reconciliation_passed": report.passed
+            }
+        })
+    }
+}
+
+/// Revalidate identity and the exact operation evidence while holding the
+/// publication lock. Evidence can change after the initial, unlocked
+/// reconciliation; a stale passing response must never be published.
+fn finalize_stop_response_locked(
+    repo_root: &Path,
+    supported_adapter: SupportedAdapter,
+    ingress: &hook_correlation::Ingress,
+    context: &StopResponseContext<'_>,
+) -> Result<String> {
+    let completed = hook_correlation::verify_stop_locked(
+        repo_root,
+        context.vault,
+        supported_adapter,
+        ingress,
+        context.identity,
+    )
+    .map_err(|error| anyhow::anyhow!(hook_correlation::failure(&error)))?;
+    if completed {
+        return completed_stop_response(
+            context.vault,
+            context.adapter,
+            context.event_kind,
+            context.event_key,
+            context.task_id,
+            context.identity,
+            context.child,
+        );
+    }
+
+    let current_report = reconcile_for_operation(repo_root, context.vault, context.identity)?;
+    serde_json::to_string(&stop_reconciliation_response(context, &current_report))
+        .map_err(Into::into)
 }
 
 pub fn automation_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Result<String> {
@@ -1487,6 +1575,148 @@ mod tests {
 
         assert_eq!(recovered, response);
         assert_eq!(dedup_response(&state, event_key).as_deref(), Some(response));
+    }
+
+    #[test]
+    fn stop_publication_rejects_reconciliation_staled_by_new_operation_trace() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault_root = temp.path().join("vault");
+        std::fs::create_dir_all(&repo).unwrap();
+        initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
+        let vault = ensure_vault(&vault_root, &repo).unwrap();
+        let identity = LifecycleIdentity::resolve(
+            &vault.project_id,
+            "fix README typo",
+            SupportedAdapter::Codex,
+            Some("publication-race-session"),
+            Some("publication-race-turn"),
+        )
+        .unwrap();
+        let prompt = json!({
+            "session_id": "publication-race-session",
+            "request_id": "publication-race-turn",
+            "task": "fix README typo"
+        });
+        let ingress = hook_correlation::Ingress::parse(&prompt, HookAdapter::Codex).unwrap();
+        {
+            let _lock = acquire_project_lock(&repo).unwrap();
+            let (_, established, completed) = hook_correlation::resolve_locked(
+                &repo,
+                &vault,
+                SupportedAdapter::Codex,
+                AutomationEvent::UserPromptSubmit,
+                &ingress,
+            )
+            .unwrap();
+            assert_eq!(established, identity);
+            assert!(!completed);
+        }
+        crate::plan::start_or_resume_plan_for_identity(&repo, &vault, "fix README typo", &identity)
+            .unwrap();
+
+        let operation = OperationContext::from_identity(&identity);
+        let proof = crate::proof::record_proof_for_operation(
+            &repo,
+            &vault,
+            &operation,
+            "README verification passed",
+        )
+        .unwrap();
+        let binding =
+            crate::trace::TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+        let passing_trace = crate::trace::record_trace_for_operation(
+            &repo,
+            &vault,
+            "README typo fixed and verified",
+            crate::trace::TraceOutcome::Completed,
+            &binding,
+        )
+        .unwrap();
+        assert!(
+            crate::trace::score_trace(&repo, &vault, Some(&passing_trace.id))
+                .unwrap()
+                .passed
+        );
+        assert!(
+            reconcile_for_operation(&repo, &vault, &identity)
+                .unwrap()
+                .passed
+        );
+
+        let publication_gate = std::sync::Arc::new((
+            std::sync::Mutex::new((false, false)),
+            std::sync::Condvar::new(),
+        ));
+        let hook_gate = publication_gate.clone();
+        *STOP_BEFORE_PUBLICATION
+            .get_or_init(|| Mutex::new(None))
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = Some((
+            repo.clone(),
+            Box::new(move || {
+                let (state, changed) = &*hook_gate;
+                let mut state = state.lock().unwrap();
+                state.0 = true;
+                changed.notify_all();
+                while !state.1 {
+                    state = changed.wait(state).unwrap();
+                }
+            }),
+        ));
+
+        let stop_repo = repo.clone();
+        let stop_vault = vault.clone();
+        let stop = std::thread::spawn(move || {
+            handle_hook(
+                &stop_repo,
+                &stop_vault,
+                HookAdapter::Codex,
+                AutomationEvent::Stop,
+                r#"{"session_id":"publication-race-session","request_id":"publication-race-turn","stop_hook_active":false}"#,
+            )
+        });
+        {
+            let (state, changed) = &*publication_gate;
+            let mut state = state.lock().unwrap();
+            while !state.0 {
+                let (next, timeout) = changed
+                    .wait_timeout(state, std::time::Duration::from_secs(15))
+                    .unwrap();
+                state = next;
+                assert!(!timeout.timed_out(), "Stop did not reach final publication");
+            }
+        }
+
+        // Another process can publish newer evidence for this exact operation
+        // after the first reconciliation and before Stop response publication.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let failing_trace = crate::trace::record_trace_for_operation(
+            &repo,
+            &vault,
+            "",
+            crate::trace::TraceOutcome::Failed,
+            &binding,
+        )
+        .unwrap();
+        assert!(
+            !crate::trace::score_trace(&repo, &vault, Some(&failing_trace.id))
+                .unwrap()
+                .passed
+        );
+
+        {
+            let (state, changed) = &*publication_gate;
+            let mut state = state.lock().unwrap();
+            state.1 = true;
+            changed.notify_all();
+        }
+        let response: Value = serde_json::from_str(&stop.join().unwrap().unwrap()).unwrap();
+        assert_eq!(
+            response["decision"], "block",
+            "Stop must not publish a stale passing reconciliation: {response}"
+        );
+        assert_eq!(response["baron"]["reconciliation_passed"], false);
     }
 
     #[test]

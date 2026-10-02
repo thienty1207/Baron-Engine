@@ -569,6 +569,83 @@ fn old_claude_session_only_stop_cannot_hide_unmapped_active_operation() {
 }
 
 #[test]
+fn old_claude_session_only_stop_detects_legacy_active_plan_without_index_row() {
+    let (_temp, repo, vault) = project();
+    let completed = establish(
+        &repo,
+        &vault,
+        HookAdapter::Claude,
+        "shared-legacy-session",
+        None,
+        "fix README alpha typo",
+    );
+    passing(&repo, &vault, &completed);
+    complete_plan_for_identity(&repo, &vault, "README verified", &completed).unwrap();
+
+    let legacy_active = LifecycleIdentity::resolve(
+        &vault.project_id,
+        "fix README beta typo",
+        SupportedAdapter::Claude,
+        Some("shared-legacy-session"),
+        Some("legacy-cli-operation"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &vault, "fix README beta typo", &legacy_active)
+        .unwrap();
+
+    // Simulate an identified managed plan written before ACTIVE.md existed.
+    // Its validated frontmatter remains discoverable authority, but neither
+    // repo nor Vault projection has an index row for it.
+    for index in [
+        repo.join("docs/baron/plans/ACTIVE.md"),
+        vault.project_root.join("Plans/ACTIVE.md"),
+    ] {
+        if !index.exists() {
+            continue;
+        }
+        let contents = fs::read_to_string(&index).unwrap();
+        let retained = contents
+            .lines()
+            .filter(|line| {
+                let Some(encoded) = line
+                    .strip_prefix("<!-- BARON:ACTIVE-PLAN ")
+                    .and_then(|line| line.strip_suffix(" -->"))
+                else {
+                    return true;
+                };
+                serde_json::from_str::<Value>(encoded)
+                    .ok()
+                    .and_then(|row| row["operation_id"].as_str().map(str::to_owned))
+                    .as_deref()
+                    != Some(legacy_active.operation_id())
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(index, format!("{retained}\n")).unwrap();
+    }
+
+    let stop = deliver(
+        &repo,
+        &vault,
+        HookAdapter::Claude,
+        AutomationEvent::Stop,
+        host(
+            HookAdapter::Claude,
+            "Stop",
+            "shared-legacy-session",
+            None,
+            None,
+        ),
+    );
+    assert_eq!(
+        stop["decision"], "block",
+        "session-only Stop must detect a validated legacy active plan without an ACTIVE row: {stop}"
+    );
+    assert_ne!(stop["baron"]["reconciliation_passed"], true);
+    assert!(stop.to_string().contains("ambiguous"), "{stop}");
+}
+
+#[test]
 fn native_prompt_without_prompt_text_is_rejected() {
     let (_temp, repo, vault) = project();
     for adapter in [HookAdapter::Codex, HookAdapter::Claude] {
