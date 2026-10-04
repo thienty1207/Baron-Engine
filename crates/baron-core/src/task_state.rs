@@ -6,7 +6,7 @@ use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::config::load_project_config;
-use crate::continuity::continuity_status;
+use crate::continuity::{continuity_status, operation_checkpoint_path, operation_recovery_path};
 use crate::control_plane::{
     gate_evidence_status_strict_for_operation, route_task, route_task_for_operation,
 };
@@ -127,8 +127,12 @@ fn compile_task_state_with_id(
     {
         bail!("unscoped Task State is ambiguous while identified operation work is active; supply the exact lifecycle identity");
     }
-    let recovery_path = repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md");
-    let continuity_path = repo_root.join("docs/baron/continuity/CURRENT.md");
+    let recovery_path = identity
+        .map(|identity| operation_recovery_path(repo_root, identity))
+        .unwrap_or_else(|| repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"));
+    let continuity_path = identity
+        .map(|identity| operation_checkpoint_path(repo_root, identity))
+        .unwrap_or_else(|| repo_root.join("docs/baron/continuity/CURRENT.md"));
     let (intent_source, plan_source, mut continuity_source, recovery_source) = match identity {
         Some(identity) => (
             operation_intent_for_identity(repo_root, identity, MAX_FIELD_CHARS * 4)?
@@ -589,7 +593,15 @@ pub(crate) fn operation_scoped_source(
     identity: &LifecycleIdentity,
     limit: usize,
 ) -> String {
-    let source = read_bounded(path, limit);
+    // Reject managed symlinks/reparse ancestors; a matching identity header
+    // in an external file must not turn it into owned operation state.
+    let source = crate::safe_io::read_text(path)
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+        .chars()
+        .take(limit)
+        .collect::<String>();
     let header = source.split("\n## ").next().unwrap_or_default();
     for (prefix, expected) in [
         ("- Project ID: ", identity.project_id()),

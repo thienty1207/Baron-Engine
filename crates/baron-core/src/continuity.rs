@@ -9,9 +9,15 @@ use sha2::{Digest, Sha256};
 
 use crate::execution_receipt::ReceiptContext;
 use crate::operation::{LifecycleIdentity, OperationContext};
-use crate::plan::plan_status_for_identity;
+use crate::plan::{
+    indexed_active_plan_authority_for_binding, managed_active_plan_operation_binding,
+    plan_status_for_identity, PlanOperationBinding,
+};
 use crate::proof::{latest_proof, proof_for_operation};
-use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_text,
+    replace_text,
+};
 use crate::task_state::{
     canonical_plan_next, compile_task_state_for_operation, operation_scoped_source,
 };
@@ -65,12 +71,58 @@ pub struct RecoveryPacket {
 pub fn record_recovery(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
-    mut input: RecoveryInput,
+    input: RecoveryInput,
 ) -> Result<RecoveryPacket> {
-    let repo_root = repo_root.as_ref();
+    record_recovery_internal(repo_root.as_ref(), vault, input, None)
+}
+
+/// Persist actionable recovery for one exact operation. Public input/packet
+/// shapes remain compatible; selectors are an additive API, not new fields.
+pub fn record_recovery_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    input: RecoveryInput,
+    identity: &LifecycleIdentity,
+) -> Result<RecoveryPacket> {
+    record_recovery_internal(repo_root.as_ref(), vault, input, Some(identity))
+}
+
+fn record_recovery_internal(
+    repo_root: &Path,
+    vault: &VaultContext,
+    mut input: RecoveryInput,
+    explicit_identity: Option<&LifecycleIdentity>,
+) -> Result<RecoveryPacket> {
     normalize_recovery_input(&mut input);
     validate_recovery_input(&input)?;
-    let id = recovery_id(&input)?;
+    let _lock = acquire_project_lock(repo_root)?;
+    let selected = if explicit_identity.is_none() {
+        managed_active_plan_operation_binding(repo_root)?
+            .map(|binding| {
+                binding
+                    .to_operation_context()?
+                    .lifecycle_identity(&vault.project_id)
+                    .map_err(anyhow::Error::from)
+            })
+            .transpose()?
+    } else {
+        None
+    };
+    let identity = explicit_identity.or(selected.as_ref());
+    if let Some(identity) = identity {
+        anyhow::ensure!(
+            identity.project_id() == vault.project_id,
+            "recovery identity does not match Vault project"
+        );
+        indexed_active_plan_authority_for_binding(
+            repo_root,
+            &PlanOperationBinding::from_identity(identity),
+        )?
+        .context("no validated active plan matches recovery identity")?;
+    }
+    // Shared Vault projections/indexes are serialized after the checkout lock.
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    let id = recovery_id(&input, identity)?;
     let date = Local::now().format("%Y-%m-%d").to_string();
     let filename = format!("{id}.md");
     let repo_path = repo_root
@@ -82,11 +134,16 @@ pub fn record_recovery(
         .join("Continuity/Recovery")
         .join(&date)
         .join(&filename);
-    let _lock = acquire_project_lock(repo_root)?;
-    let resumed = repo_path.is_file();
-    let content = render_recovery(repo_root, &id, &input)?;
+    let existing = existing_mirrored_packet(&repo_path, &vault_path, identity)?;
+    let resumed = existing.is_some();
+    let content = match existing {
+        Some(content) => content,
+        None => render_recovery(repo_root, &id, &input, identity)?,
+    };
+    if read_text(&repo_path)?.is_none() {
+        create_new_text(&repo_path, &content)?;
+    }
     if !resumed {
-        write(&repo_path, &content)?;
         append_recovery_index(
             &repo_root.join("docs/baron/continuity/RECOVERY_INDEX.md"),
             &id,
@@ -102,8 +159,23 @@ pub fn record_recovery(
             &vault.project_root,
         )?;
     }
-    if !vault_path.is_file() {
-        write(&vault_path, &content)?;
+    if read_text(&vault_path)?.is_none() {
+        create_new_text(&vault_path, &content)?;
+    }
+    if let Some(identity) = identity {
+        let operation_path = operation_recovery_path(repo_root, identity);
+        let capsule_path = vault
+            .project_root
+            .join("Continuity/Operations")
+            .join(identity.operation_id())
+            .join("RECOVERY.md");
+        // An old delivery must not replace a newer recovery for this operation.
+        if !resumed || read_text(&operation_path)?.is_none() {
+            write(&operation_path, &content)?;
+        }
+        if !resumed || read_text(&capsule_path)?.is_none() {
+            write(&capsule_path, &content)?;
+        }
     }
     write(
         &repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
@@ -143,9 +215,8 @@ pub fn record_continuity_checkpoint(
     )
 }
 
-/// Record a shared continuity packet with explicit operation provenance. The
-/// packet path remains a shared latest projection; identified consumers must
-/// match its complete persisted binding before treating it as resume state.
+/// Persist a separate immutable checkpoint for the exact operation. Shared
+/// CURRENT is updated only as a human-facing latest projection.
 pub fn record_continuity_checkpoint_for_operation(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
@@ -170,7 +241,7 @@ pub fn record_continuity_checkpoint_for_operation(
 
 /// Record a checkpoint tied to one normalized lifecycle event. Retrying the
 /// same event is a byte-stable no-op once the event key is already present in
-/// the shared resume packet.
+/// that operation's immutable event packet, even after another checkpoint.
 pub fn record_continuity_checkpoint_for_event(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
@@ -228,6 +299,93 @@ fn record_continuity_checkpoint_internal(
         // Validate even retries: an event-key match cannot hide corrupted
         // ACTIVE/frontmatter authority or authorize a stale checkpoint.
         plan_status_for_identity(repo_root, identity)?;
+    }
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    if let Some(identity) = metadata.identity {
+        let id = match metadata.event_key {
+            Some(key) => format!("event-{:x}", Sha256::digest(key.as_bytes())),
+            None => artifact_instance_id(&Local::now().format("%Y%m%d").to_string())?,
+        };
+        let repo_path = repo_root
+            .join("docs/baron/continuity/operations")
+            .join(identity.operation_id())
+            .join("checkpoints")
+            .join(format!("{id}.md"));
+        let vault_path = vault
+            .project_root
+            .join("Continuity/Operations")
+            .join(identity.operation_id())
+            .join("Checkpoints")
+            .join(format!("{id}.md"));
+        if let Some(content) = existing_mirrored_packet(&repo_path, &vault_path, Some(identity))? {
+            if read_text(&repo_path)?.is_none() {
+                create_new_text(&repo_path, &content)?;
+            }
+            if read_text(&vault_path)?.is_none() {
+                create_new_text(&vault_path, &content)?;
+            }
+            // Repair an interrupted first publication without regressing a
+            // newer per-operation pointer or another operation's CURRENT.
+            let operation_path = operation_checkpoint_path(repo_root, identity);
+            let capsule_path = vault
+                .project_root
+                .join("Continuity/Operations")
+                .join(identity.operation_id())
+                .join("CHECKPOINT.md");
+            if read_text(&operation_path)?.is_none() {
+                write(&operation_path, &content)?;
+            }
+            if read_text(&capsule_path)?.is_none() {
+                write(&capsule_path, &content)?;
+            }
+            return Ok(ContinuityPacket {
+                repo_path,
+                vault_path,
+            });
+        }
+        let content = render_resume_packet(
+            repo_root,
+            vault,
+            note,
+            ResumePacketMetadata {
+                changed_files: &changed_files,
+                ..metadata
+            },
+        )?;
+        create_new_text(&repo_path, &content)?;
+        if read_text(&vault_path)?.is_none() {
+            create_new_text(&vault_path, &content)?;
+        }
+        write(&operation_checkpoint_path(repo_root, identity), &content)?;
+        write(
+            &vault
+                .project_root
+                .join("Continuity/Operations")
+                .join(identity.operation_id())
+                .join("CHECKPOINT.md"),
+            &content,
+        )?;
+        write(
+            &repo_root.join("docs/baron/continuity/CURRENT.md"),
+            &content,
+        )?;
+        write(&vault.project_root.join("Continuity/CURRENT.md"), &content)?;
+        append_index(
+            &repo_root.join("docs/baron/continuity/INDEX.md"),
+            note.trim(),
+            &repo_path,
+            repo_root,
+        )?;
+        append_index(
+            &vault.project_root.join("Continuity/INDEX.md"),
+            note.trim(),
+            &vault_path,
+            &vault.project_root,
+        )?;
+        return Ok(ContinuityPacket {
+            repo_path,
+            vault_path,
+        });
     }
     if let Some(event_key) = metadata.event_key {
         if checkpoint_has_event_key(&repo_path, event_key)?
@@ -415,7 +573,7 @@ fn render_operation_resume_packet(
         .transpose()?
         .flatten();
     let recovery = operation_scoped_source(
-        &repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
+        &operation_recovery_path(repo_root, identity),
         identity,
         3_600,
     );
@@ -450,11 +608,42 @@ fn render_operation_resume_packet(
     ))
 }
 
-fn render_recovery(repo_root: &Path, id: &str, input: &RecoveryInput) -> Result<String> {
-    let plan = read_optional(&repo_root.join("docs/baron/plans/CURRENT.md"));
-    let harness = read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"));
-    let proof = latest_proof(repo_root)?;
-    let trace = latest_trace_score(repo_root)?;
+fn render_recovery(
+    repo_root: &Path,
+    id: &str,
+    input: &RecoveryInput,
+    identity: Option<&LifecycleIdentity>,
+) -> Result<String> {
+    let plan = match identity {
+        Some(identity) => plan_status_for_identity(repo_root, identity)?,
+        None => read_optional(&repo_root.join("docs/baron/plans/CURRENT.md")),
+    };
+    let harness = if identity.is_none() {
+        read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"))
+    } else {
+        String::new()
+    };
+    let proof = match identity {
+        Some(identity) => {
+            proof_for_operation(repo_root, &ReceiptContext::for_identity(identity, "proof")?)?
+        }
+        None => latest_proof(repo_root)?.filter(|proof| proof.binding.is_none()),
+    };
+    let trace = match identity {
+        Some(identity) => proof
+            .as_ref()
+            .map(|proof| {
+                let binding = TraceOperationBinding::from_operation(
+                    &OperationContext::from_identity(identity),
+                    &proof.id,
+                )?;
+                latest_trace_score_for_operation(repo_root, &binding)
+            })
+            .transpose()?
+            .flatten(),
+        None => latest_trace_score(repo_root)?.filter(|trace| trace.binding.is_none()),
+    };
+    let provenance = identity.map(|identity| format!("- Project ID: `{}`\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n", identity.project_id(), identity.task_id(), identity.operation_id(), identity.adapter().as_str(), identity.session_id(), identity.request_id())).unwrap_or_default();
     let plan_title = field(&plan, "- Title: ").unwrap_or("unknown");
     let harness_title = field(&harness, "- Title: ").unwrap_or("unknown");
     let harness_risk = field(&harness, "- Risk: `")
@@ -476,6 +665,8 @@ fn render_recovery(repo_root: &Path, id: &str, input: &RecoveryInput) -> Result<
     Ok(format!(
         "# Baron Actionable Recovery\n\n\
 - Recovery ID: `{id}`\n\
+- Binding: {}\n\
+{}\
 - Outcome: `{}`\n\
 - Recorded: {}\n\n\
 ## Root Cause\n\n{}\n\n\
@@ -494,6 +685,12 @@ fn render_recovery(repo_root: &Path, id: &str, input: &RecoveryInput) -> Result<
 - Preserve this failed attempt even after a later retry succeeds.\n\
 - Reconcile repo state before retrying.\n\
 - Do not claim completion until required proof and trace pass.\n",
+        if identity.is_some() {
+            "exact operation"
+        } else {
+            "legacy unbound"
+        },
+        provenance,
         input.outcome.as_str(),
         now(),
         input.root_cause,
@@ -540,14 +737,58 @@ fn normalize_recovery_input(input: &mut RecoveryInput) {
     }
 }
 
-fn recovery_id(input: &RecoveryInput) -> Result<String> {
-    let digest = Sha256::digest(serde_json::to_vec(input)?);
+fn recovery_id(input: &RecoveryInput, identity: Option<&LifecycleIdentity>) -> Result<String> {
+    let bytes = match identity {
+        Some(identity) => serde_json::to_vec(&(identity.operation_id(), input))?,
+        None => serde_json::to_vec(input)?,
+    };
+    let digest = Sha256::digest(bytes);
     let suffix = digest
         .iter()
         .take(8)
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     Ok(format!("recovery-{suffix}"))
+}
+
+pub(crate) fn operation_checkpoint_path(repo_root: &Path, identity: &LifecycleIdentity) -> PathBuf {
+    repo_root
+        .join("docs/baron/continuity/operations")
+        .join(identity.operation_id())
+        .join("CHECKPOINT.md")
+}
+
+pub(crate) fn operation_recovery_path(repo_root: &Path, identity: &LifecycleIdentity) -> PathBuf {
+    repo_root
+        .join("docs/baron/continuity/operations")
+        .join(identity.operation_id())
+        .join("RECOVERY.md")
+}
+
+fn existing_mirrored_packet(
+    repo_path: &Path,
+    vault_path: &Path,
+    identity: Option<&LifecycleIdentity>,
+) -> Result<Option<String>> {
+    let repo = read_text(repo_path)?;
+    let vault = read_text(vault_path)?;
+    if let (Some(repo), Some(vault)) = (&repo, &vault) {
+        anyhow::ensure!(
+            repo == vault,
+            "conflicting repo/Vault continuity artifact; preserve both and recover explicitly"
+        );
+    }
+    if let Some(identity) = identity {
+        for (path, content) in [(repo_path, &repo), (vault_path, &vault)] {
+            if content.is_some() {
+                anyhow::ensure!(
+                    !operation_scoped_source(path, identity, 8_000).is_empty(),
+                    "continuity artifact binding mismatch"
+                );
+            }
+        }
+    }
+    Ok(repo.or(vault))
 }
 
 fn append_recovery_index(
@@ -682,7 +923,10 @@ fn append_index(path: &Path, note: &str, current: &Path, root: &Path) -> Result<
     let row = format!(
         "- {} - [{}]({}) - {}",
         now(),
-        "CURRENT",
+        current
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("checkpoint"),
         normalize(current, root),
         single_line(note)
     );

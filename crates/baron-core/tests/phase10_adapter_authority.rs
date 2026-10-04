@@ -417,12 +417,28 @@ fn operation_continuity_and_journal_are_shared_with_exact_provenance() {
         &claude,
     )
     .unwrap();
-    assert_eq!(first.repo_path, second.repo_path);
-    assert_eq!(first.vault_path, second.vault_path);
-    let continuity = fs::read_to_string(first.repo_path).unwrap();
-    assert!(continuity.contains("- Adapter: `claude`"));
-    assert!(continuity.contains("- Session ID: `session-claude`"));
-    assert!(continuity.contains("- Request ID: `request-claude`"));
+    assert_ne!(first.repo_path, second.repo_path);
+    assert_ne!(first.vault_path, second.vault_path);
+    let codex_continuity = fs::read_to_string(&first.repo_path).unwrap();
+    let claude_continuity = fs::read_to_string(&second.repo_path).unwrap();
+    assert!(codex_continuity.contains("- Adapter: `codex`"));
+    assert!(codex_continuity.contains("- Session ID: `session-codex`"));
+    assert!(codex_continuity.contains("- Request ID: `request-codex`"));
+    assert!(codex_continuity.contains("Codex completed the shared step"));
+    assert!(claude_continuity.contains("- Adapter: `claude`"));
+    assert!(claude_continuity.contains("- Session ID: `session-claude`"));
+    assert!(claude_continuity.contains("- Request ID: `request-claude`"));
+    assert!(claude_continuity.contains("Claude resumed the shared step"));
+    assert_eq!(
+        codex_continuity,
+        fs::read_to_string(&first.vault_path).unwrap()
+    );
+    assert_eq!(
+        claude_continuity,
+        fs::read_to_string(&second.vault_path).unwrap()
+    );
+    let current = fs::read_to_string(repo.join("docs/baron/continuity/CURRENT.md")).unwrap();
+    assert_eq!(current, claude_continuity);
 
     record_lifecycle_event_for_operation(&vault, &codex, AutomationEvent::Prompt).unwrap();
     record_lifecycle_event_for_operation(&vault, &claude, AutomationEvent::Prompt).unwrap();

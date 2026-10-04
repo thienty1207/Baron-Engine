@@ -373,12 +373,12 @@ pub fn prepare(
         .unwrap_or_default();
     let plan_source = plan_status_for_identity(&repo_root, &identity).map_err(project_error)?;
     let continuity_source = operation_scoped_source(
-        &repo_root.join("docs/baron/continuity/CURRENT.md"),
+        &crate::continuity::operation_checkpoint_path(&repo_root, &identity),
         &identity,
         MAX_STATUS_CHARS,
     );
     let recovery_source = operation_scoped_source(
-        &repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
+        &crate::continuity::operation_recovery_path(&repo_root, &identity),
         &identity,
         MAX_STATUS_CHARS,
     );

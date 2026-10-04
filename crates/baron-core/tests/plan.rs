@@ -461,6 +461,52 @@ fn operation_scoped_plan_mutations_keep_a_and_b_isolated_end_to_end() {
 }
 
 #[test]
+fn identified_mutation_requires_active_index_not_only_legacy_frontmatter() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("missing-index");
+    fs::create_dir_all(&repo).unwrap();
+    let vault = ensure_vault(temp.path().join("Vault"), &repo).unwrap();
+    let identity = LifecycleIdentity::resolve(
+        &vault.project_id,
+        "fix README typo",
+        SupportedAdapter::Codex,
+        Some("indexed-session"),
+        Some("indexed-request"),
+    )
+    .unwrap();
+    let plan =
+        start_or_resume_plan_for_identity(&repo, &vault, "fix README typo", &identity).unwrap();
+    fs::remove_file(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let before = fs::read(&plan.repo_path).unwrap();
+    let current = fs::read(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    let result = update_plan_for_identity(&repo, &vault, "must not publish", &identity);
+    assert!(
+        result.is_err(),
+        "unindexed frontmatter authorized a mutation"
+    );
+    assert!(result.unwrap_err().to_string().contains("ACTIVE"));
+    assert!(interrupt_plan_for_identity(&repo, &vault, "must not interrupt", &identity).is_err());
+    assert!(update_plan(&repo, &vault, "legacy must not publish").is_err());
+    assert_eq!(fs::read(&plan.repo_path).unwrap(), before);
+    assert_eq!(
+        fs::read(repo.join("docs/baron/plans/CURRENT.md")).unwrap(),
+        current
+    );
+    // An explicit start/resume can safely migrate an old indexed-less plan
+    // under the lock, after which mutation is authorized again.
+    let restored =
+        start_or_resume_plan_for_identity(&repo, &vault, "fix README typo", &identity).unwrap();
+    assert_eq!(restored.repo_path, plan.repo_path);
+    update_plan_for_identity(
+        &repo,
+        &vault,
+        "safe after authority registration",
+        &identity,
+    )
+    .unwrap();
+}
+
+#[test]
 fn completed_operation_identity_cannot_reopen_a_plan() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

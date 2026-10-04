@@ -336,6 +336,20 @@ pub fn active_plan_operation_binding(
     Ok(resolve_legacy_active_plan(repo_root)?.and_then(|active| active.binding))
 }
 
+/// Inspect only canonical managed plans, without consulting the legacy UI
+/// projection. Used by recovery ingress to preserve unbound diagnostic packets
+/// while refusing ambiguous concurrent operation selection.
+pub(crate) fn managed_active_plan_operation_binding(
+    repo_root: &Path,
+) -> Result<Option<PlanOperationBinding>> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let Some(active) = sole_active_managed_plan(repo_root)? else {
+        return Ok(None);
+    };
+    active.ensure_authority()?;
+    Ok(active.binding)
+}
+
 /// Evaluate the current active plan using the same scoped completion evidence
 /// consumed by plan completion and completion-integrity diagnostics. A
 /// completed plan is not an active reconciliation target. Identified active
@@ -1484,6 +1498,8 @@ fn require_active_plan_for_binding(
     repo_root: &Path,
     binding: &PlanOperationBinding,
 ) -> Result<ActivePlan> {
+    indexed_active_plan_authority_for_binding(repo_root, binding)?
+        .context("identified mutation requires validated ACTIVE authority; explicitly start/resume the legacy plan first")?;
     let active = active_plan_for_binding(repo_root, binding)?.with_context(|| {
         format!(
             "No active Baron plan for operation `{}`.",
@@ -1495,8 +1511,13 @@ fn require_active_plan_for_binding(
 }
 
 fn require_legacy_active_plan(repo_root: &Path) -> Result<ActivePlan> {
-    resolve_legacy_active_plan(repo_root)?
-        .context("No active Baron plan. Run `baron plan start \"<title>\"`.")
+    let active = resolve_legacy_active_plan(repo_root)?
+        .context("No active Baron plan. Run `baron plan start \"<title>\"`.")?;
+    if let Some(binding) = active.binding.as_ref() {
+        indexed_active_plan_authority_for_binding(repo_root, binding)?
+            .context("identified mutation requires validated ACTIVE authority; explicitly start/resume the legacy plan first")?;
+    }
+    Ok(active)
 }
 
 fn resolve_legacy_active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {

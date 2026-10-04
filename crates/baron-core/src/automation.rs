@@ -314,11 +314,7 @@ pub fn handle_hook(
                 Some(identity)
             }
             Err(error) if event == AutomationEvent::Stop => {
-                let legacy_loop = stop_hook_active
-                    && ingress.turn.is_none()
-                    && ingress.task.is_none()
-                    && read_text(repo_root.join(".baron/state/hook-correlations.json"))?.is_none();
-                return hook_correlation::blocked(&error, adapter, legacy_loop);
+                return hook_correlation::blocked(&error, adapter, false);
             }
             Err(error) => bail!("{}", hook_correlation::failure(&error)),
         }
@@ -418,7 +414,7 @@ pub fn handle_hook(
                 is_child,
             );
             metadata["recursion_guard"] = json!(true);
-            if event == AutomationEvent::Stop && !stop_hook_active {
+            if event == AutomationEvent::Stop {
                 metadata["reconciliation_pending"] = json!(true);
                 return Ok(serde_json::to_string(&json!({
                     "decision": "block",
@@ -488,7 +484,7 @@ pub fn handle_hook(
                 is_child,
             );
             metadata["deduplicated"] = json!(true);
-            if event == AutomationEvent::Stop && !stop_hook_active {
+            if event == AutomationEvent::Stop {
                 metadata["reconciliation_pending"] = json!(true);
                 return Ok(serde_json::to_string(&json!({
                     "decision": "block",
@@ -647,7 +643,6 @@ pub fn handle_hook(
                         event_key: &event_key,
                         task_id: &task_id,
                         identity: lifecycle_identity,
-                        stop_hook_active,
                         child: false,
                     };
                     stop_reconciliation_response(&response_context, &report)
@@ -707,7 +702,6 @@ pub fn handle_hook(
                 event_key: &event_key,
                 task_id: &task_id,
                 identity: identity.as_ref().context("Stop requires identity")?,
-                stop_hook_active,
                 child: is_child,
             };
             finalize_stop_response_locked(
@@ -863,7 +857,6 @@ struct StopResponseContext<'a> {
     event_key: &'a str,
     task_id: &'a str,
     identity: &'a LifecycleIdentity,
-    stop_hook_active: bool,
     child: bool,
 }
 
@@ -880,7 +873,8 @@ fn stop_reconciliation_response(
         Some(context.identity),
         context.child,
     );
-    if !report.passed && !context.stop_hook_active {
+    // A host retry flag is not identity, reconciliation, or completion evidence.
+    if !report.passed {
         json!({
             "decision": "block",
             "completed": false,
@@ -905,11 +899,7 @@ fn stop_reconciliation_response(
         json!({
             "continue": true,
             "completed": false,
-            "systemMessage": if report.passed {
-                "Baron reconciliation passed; Stop does not mark completion."
-            } else {
-                "Baron reconciliation already requested once; avoid a hook loop and preserve the active state."
-            },
+            "systemMessage": "Baron reconciliation passed; Stop does not mark completion.",
             "baron": {
                 "project_id": metadata["project_id"],
                 "adapter": metadata["adapter"],
@@ -1590,6 +1580,12 @@ mod tests {
 
     #[test]
     fn stop_publication_rejects_reconciliation_staled_by_new_operation_trace() {
+        for stop_hook_active in [false, true] {
+            assert_stop_publication_rechecks_failed_evidence(stop_hook_active);
+        }
+    }
+
+    fn assert_stop_publication_rechecks_failed_evidence(stop_hook_active: bool) {
         let temp = tempdir().unwrap();
         let repo = temp.path().join("repo");
         let vault_root = temp.path().join("vault");
@@ -1684,7 +1680,12 @@ mod tests {
                 &stop_vault,
                 HookAdapter::Codex,
                 AutomationEvent::Stop,
-                r#"{"session_id":"publication-race-session","request_id":"publication-race-turn","stop_hook_active":false}"#,
+                &json!({
+                    "session_id": "publication-race-session",
+                    "request_id": "publication-race-turn",
+                    "stop_hook_active": stop_hook_active
+                })
+                .to_string(),
             )
         });
         {
@@ -1732,6 +1733,12 @@ mod tests {
 
     #[test]
     fn stop_replay_reconciles_latest_operation_evidence_after_cached_pass() {
+        for stop_hook_active in [false, true] {
+            assert_stop_replay_rechecks_failed_evidence(stop_hook_active);
+        }
+    }
+
+    fn assert_stop_replay_rechecks_failed_evidence(stop_hook_active: bool) {
         let temp = tempdir().unwrap();
         let repo = temp.path().join("repo");
         let vault_root = temp.path().join("vault");
@@ -1777,14 +1784,19 @@ mod tests {
                 .passed
         );
 
-        let stop_payload = r#"{"session_id":"stop-replay-session","request_id":"stop-replay-turn","stop_hook_active":false}"#;
+        let stop_payload = json!({
+            "session_id": "stop-replay-session",
+            "request_id": "stop-replay-turn",
+            "stop_hook_active": stop_hook_active
+        })
+        .to_string();
         let first: Value = serde_json::from_str(
             &handle_hook(
                 &repo,
                 &vault,
                 HookAdapter::Codex,
                 AutomationEvent::Stop,
-                stop_payload,
+                &stop_payload,
             )
             .unwrap(),
         )
@@ -1815,7 +1827,7 @@ mod tests {
                 &restarted_vault,
                 HookAdapter::Codex,
                 AutomationEvent::Stop,
-                stop_payload,
+                &stop_payload,
             )
             .unwrap(),
         )
@@ -1835,7 +1847,7 @@ mod tests {
                 &restarted_vault,
                 HookAdapter::Codex,
                 AutomationEvent::Stop,
-                stop_payload,
+                &stop_payload,
             )
             .unwrap(),
         )
@@ -1849,6 +1861,12 @@ mod tests {
 
     #[test]
     fn live_duplicate_stop_claim_fails_closed_while_reconciliation_is_pending() {
+        for stop_hook_active in [false, true] {
+            assert_live_duplicate_stop_claim_blocks(stop_hook_active);
+        }
+    }
+
+    fn assert_live_duplicate_stop_claim_blocks(stop_hook_active: bool) {
         let temp = tempdir().unwrap();
         let repo = temp.path().join("repo");
         let vault = temp.path().join("vault");
@@ -1872,7 +1890,7 @@ mod tests {
             event_kind: "stop".to_string(),
             task_id: identity.task_id().to_string(),
             child_id: None,
-            stop_hook_active: false,
+            stop_hook_active,
         }
         .stable_id();
         let dedup_path = repo.join(DEDUP_PATH);
@@ -1892,22 +1910,39 @@ mod tests {
         )
         .unwrap();
 
+        let pending_claim = fs::read(&dedup_path).unwrap();
         let response = handle_hook(
             &repo,
             &context,
             HookAdapter::Codex,
             AutomationEvent::Stop,
-            r#"{"session_id":"stop-session","request_id":"stop-request","stop_hook_active":false}"#,
+            &json!({
+                "session_id": "stop-session",
+                "request_id": "stop-request",
+                "stop_hook_active": stop_hook_active
+            })
+            .to_string(),
         )
         .unwrap();
         let response: Value = serde_json::from_str(&response).unwrap();
         assert_eq!(response["decision"], "block");
         assert_eq!(response["completed"], false);
         assert_eq!(response["baron"]["reconciliation_pending"], true);
+        assert_eq!(
+            pending_claim,
+            fs::read(&dedup_path).unwrap(),
+            "a duplicate must preserve the pending owner's claim"
+        );
     }
 
     #[test]
     fn same_process_duplicate_stop_fails_closed_while_reconciliation_is_pending() {
+        for stop_hook_active in [false, true] {
+            assert_same_process_duplicate_stop_blocks(stop_hook_active);
+        }
+    }
+
+    fn assert_same_process_duplicate_stop_blocks(stop_hook_active: bool) {
         let temp = tempdir().unwrap();
         let repo = temp.path().join("repo");
         let vault = temp.path().join("vault");
@@ -1931,7 +1966,7 @@ mod tests {
             event_kind: "stop".to_string(),
             task_id: identity.task_id().to_string(),
             child_id: None,
-            stop_hook_active: false,
+            stop_hook_active,
         }
         .stable_id();
         let active = ACTIVE_HOOK_KEYS.get_or_init(|| Mutex::new(HashSet::new()));
@@ -1945,7 +1980,12 @@ mod tests {
             &context,
             HookAdapter::Codex,
             AutomationEvent::Stop,
-            r#"{"session_id":"same-process-stop-session","request_id":"same-process-stop-request","stop_hook_active":false}"#,
+            &json!({
+                "session_id": "same-process-stop-session",
+                "request_id": "same-process-stop-request",
+                "stop_hook_active": stop_hook_active
+            })
+            .to_string(),
         )
         .unwrap();
 

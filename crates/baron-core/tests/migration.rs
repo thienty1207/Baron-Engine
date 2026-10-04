@@ -320,6 +320,68 @@ fn failed_install_does_not_clobber_changes_after_handoff() {
 }
 
 #[test]
+fn failure_after_partial_import_requires_recovery() {
+    let (_temp, repo, vault) = legacy_fixture();
+    // Backup can preserve this directory, but importing the trace as a file
+    // fails after Vault memory and the repository plan have been published.
+    fs::create_dir_all(repo.join("docs/baron/traces/legacy-trace.md")).unwrap();
+    let mut installer_called = false;
+    let error = execute_agent_bootstrap_migration(&repo, None, |_, _| {
+        installer_called = true;
+        Ok(())
+    })
+    .unwrap_err();
+
+    assert!(!installer_called);
+    assert!(error.to_string().contains("regular file"));
+    assert_eq!(
+        fs::read_to_string(capsule_root(&vault, &repo).join("Facts.md")).unwrap(),
+        "# Facts\n\n- Legacy API uses Rust.\n"
+    );
+    assert!(repo
+        .join("docs/baron/plans/2026-05-21/2026-05-21-auth.md")
+        .is_file());
+    let state: serde_json::Value =
+        serde_json::from_slice(&fs::read(repo.join(".baron/migration-state.json")).unwrap())
+            .unwrap();
+    let backup = PathBuf::from(state["backup_root"].as_str().unwrap());
+    let failure: serde_json::Value =
+        serde_json::from_slice(&fs::read(backup.join("failure.json")).unwrap()).unwrap();
+    assert!(backup.join("source-vault/legacy-demo/Facts.md").is_file());
+    assert!(failure["rollback"].is_null());
+    assert!(failure["rollbackError"].as_str().is_some());
+    assert_eq!(failure["status"], "needs_recovery");
+    assert_eq!(state["status"], "needs_recovery");
+}
+
+#[test]
+fn failed_automatic_restoration_reports_rollback_failed() {
+    let (_temp, repo, vault) = legacy_fixture();
+    let result = execute_agent_bootstrap_migration(&repo, None, |_, _| {
+        let backup = fs::read_dir(vault.join("Artifacts/Baron/Migrations"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        // Corrupt the recovery copy without changing the live handoff paths.
+        fs::remove_file(backup.join("repo/AGENTS.md")).unwrap();
+        anyhow::bail!("install failure with missing recovery copy")
+    });
+    assert!(result.is_err());
+    let state: serde_json::Value =
+        serde_json::from_slice(&fs::read(repo.join(".baron/migration-state.json")).unwrap())
+            .unwrap();
+    let backup = PathBuf::from(state["backup_root"].as_str().unwrap());
+    let failure: serde_json::Value =
+        serde_json::from_slice(&fs::read(backup.join("failure.json")).unwrap()).unwrap();
+    assert!(failure["rollbackError"].as_str().is_some());
+    assert_eq!(failure["status"], "rollback_failed");
+    assert_eq!(state["status"], "rollback_failed");
+    assert!(repo.join("AGENTS.md").is_file());
+}
+
+#[test]
 fn migration_releases_project_lock_while_install_callback_runs() {
     let (_temp, repo, _vault) = legacy_fixture();
     let contender_repo = repo.clone();
@@ -336,6 +398,58 @@ fn migration_releases_project_lock_while_install_callback_runs() {
         Ok(())
     })
     .unwrap();
+}
+
+#[test]
+fn unchanged_markdown_containing_the_import_can_roll_back() {
+    let (_temp, repo, vault) = legacy_fixture();
+    let target = repo.join("docs/baron/plans/2026-05-21/2026-05-21-auth.md");
+    let existing =
+        "# Existing plan\n\n# Auth Plan\n\n- verified old plan\n\n- Additional user content\n";
+    write(&target, existing);
+
+    execute_agent_bootstrap_migration(&repo, None, |_, _| {
+        anyhow::bail!("install failed after a no-op Markdown import")
+    })
+    .unwrap_err();
+
+    let state: serde_json::Value =
+        serde_json::from_slice(&fs::read(repo.join(".baron/migration-state.json")).unwrap())
+            .unwrap();
+    assert_eq!(state["status"], "rolled_back");
+    assert_eq!(fs::read_to_string(target).unwrap(), existing);
+    assert!(!capsule_root(&vault, &repo).join("Facts.md").exists());
+}
+
+#[test]
+fn malformed_handoff_manifest_requires_recovery_and_preserves_the_original_error() {
+    let (_temp, repo, vault) = legacy_fixture();
+    let error = execute_agent_bootstrap_migration(&repo, None, |_, _| {
+        let backup = fs::read_dir(vault.join("Artifacts/Baron/Migrations"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        write(&backup.join("manifest.json"), "{malformed");
+        anyhow::bail!("original installer failure")
+    })
+    .unwrap_err();
+
+    assert_eq!(error.to_string(), "original installer failure");
+    let state: serde_json::Value =
+        serde_json::from_slice(&fs::read(repo.join(".baron/migration-state.json")).unwrap())
+            .unwrap();
+    let backup = PathBuf::from(state["backup_root"].as_str().unwrap());
+    let failure: serde_json::Value =
+        serde_json::from_slice(&fs::read(backup.join("failure.json")).unwrap()).unwrap();
+    assert_eq!(state["status"], "needs_recovery");
+    assert_eq!(failure["status"], "needs_recovery");
+    assert_eq!(failure["error"], "original installer failure");
+    assert!(failure["rollback"].is_null());
+    assert!(failure["rollbackError"].as_str().is_some());
+    assert!(backup.join("repo/AGENTS.md").is_file());
+    assert!(capsule_root(&vault, &repo).join("Facts.md").is_file());
 }
 
 #[test]

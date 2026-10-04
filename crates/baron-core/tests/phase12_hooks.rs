@@ -395,7 +395,7 @@ fn stop_is_not_completion_and_retries_are_idempotent() {
     assert_eq!(first, second);
     assert_eq!(before_retry, journal(&vault));
 
-    let loop_break = handle_hook(
+    let retry = handle_hook(
         &repo,
         &vault,
         HookAdapter::Codex,
@@ -403,7 +403,13 @@ fn stop_is_not_completion_and_retries_are_idempotent() {
         r#"{"session_id":"stop-session","turn_id":"stop-1","stop_hook_active":true}"#,
     )
     .unwrap();
-    assert!(loop_break.contains("continue"));
+    // The host's retry flag cannot waive failed operation reconciliation.
+    let retry = json(&retry);
+    assert_eq!(retry["decision"], "block");
+    assert_eq!(retry["completed"], false);
+    assert_eq!(retry["baron"]["reconciliation_passed"], false);
+    assert_eq!(retry["baron"]["operation_id"], identity.operation_id());
+    assert_ne!(retry["continue"], true);
     assert_eq!(journal(&vault).lines().count(), 3);
 }
 

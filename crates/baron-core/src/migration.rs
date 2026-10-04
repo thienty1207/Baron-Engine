@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::safe_io::{
-    acquire_project_lock, ensure_directory_chain, read_bytes, read_text, read_text_required,
-    replace_file,
+    acquire_project_lock, ensure_directory_chain, project_lock_path, read_bytes, read_text,
+    read_text_required, replace_file, ProjectMutationLock,
 };
-use crate::vault::{ensure_vault, project_slug};
+use crate::vault::{ensure_vault, project_slug, vault_context_without_create, VaultContext};
 
 const LEGACY_CONFIG: &str = "vault.config.json";
 const LEGACY_MANIFEST: &str = ".agent-bootstrap-manifest.json";
@@ -136,6 +136,8 @@ struct BackupManifest {
     vault_root: PathBuf,
     #[serde(default)]
     post_handoff_captured: bool,
+    #[serde(default)]
+    capsule_relative: Option<String>,
     entries: Vec<BackupEntry>,
 }
 
@@ -150,7 +152,7 @@ struct BackupEntry {
     post_handoff_hash: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum BackupScope {
     Repo,
@@ -322,7 +324,7 @@ where
     write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
 
     let result: Result<MigrationReceipt> = (|| {
-        let destination = ensure_vault(&destination_vault, &inventory.repo_root)?;
+        let destination = ensure_migration_vault(&destination_vault, &mut backup_manifest)?;
         let mut import_records = Vec::new();
         import_legacy_vault(
             &inventory.source_project_root,
@@ -330,24 +332,29 @@ where
             &backup_root,
             &mut import_records,
             &inventory.repo_root,
+            &mut backup_manifest,
         )?;
         import_repo_data(
             &inventory.repo_root,
             &backup_root,
             &mut import_records,
             &inventory.repo_root,
+            &mut backup_manifest,
         )?;
-        let quarantined_count = quarantine_invalid_assets(&inventory, &backup_root, &migration_id)?;
+        let quarantined_count = quarantine_invalid_assets(
+            &inventory,
+            &backup_root,
+            &migration_id,
+            &mut backup_manifest,
+        )?;
 
-        // Persist a per-path handoff baseline immediately before the external
-        // installer runs. If the installer fails, automatic rollback restores
-        // only paths whose bytes are still exactly at this baseline; a writer
-        // that used the released project lock can therefore never be silently
-        // overwritten by rollback.
+        // Seal the hashes recorded at publication, never adopt a later read of
+        // an imported path as migration-owned output. The installer is unlocked.
         capture_post_handoff_state(&inventory.repo_root, &mut backup_manifest)?;
         write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
         install_baron(&inventory.repo_root, &destination_vault)?;
         let _lock = acquire_project_lock(&inventory.repo_root)?;
+        let _capsule_lock = lock_manifest_capsule(&backup_manifest)?;
         register_valid_custom_assets(&inventory)?;
         remove_legacy_managed_block(&inventory.repo_root.join("AGENTS.md"))?;
         let removed_count = cleanup_legacy_runtime(&inventory)?;
@@ -388,49 +395,56 @@ where
     match result {
         Ok(receipt) => Ok(receipt),
         Err(error) => {
-            if let Ok(_lock) = acquire_project_lock(&inventory.repo_root) {
-                let manifest = read_json::<BackupManifest>(&backup_root.join("manifest.json"))
-                    .unwrap_or(backup_manifest);
-                let rollback = if manifest.post_handoff_captured {
+            // Only a successfully persisted handoff authorizes automatic
+            // restoration. Partial imports keep their recovery copies.
+            let manifest = read_json::<BackupManifest>(&backup_root.join("manifest.json"));
+            let post_handoff_captured = manifest
+                .as_ref()
+                .is_ok_and(|manifest| manifest.post_handoff_captured);
+            let rollback = match manifest {
+                Ok(manifest) if manifest.post_handoff_captured => {
                     restore_from_manifest_if_unchanged(&manifest, &backup_root).map(|outcome| {
                         serde_json::json!({
                             "restored": outcome.restored,
                             "conflicts": outcome.conflicts
                         })
                     })
-                } else {
-                    Err(anyhow::anyhow!(
-                        "automatic migration rollback has no persisted handoff baseline"
-                    ))
-                };
-                let rollback_conflicts = rollback
-                    .as_ref()
-                    .ok()
-                    .and_then(|value| value.get("conflicts"))
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or_default();
-                let failure = serde_json::json!({
-                    "migrationId": migration_id,
-                    "status": if rollback_conflicts > 0 {
-                        "rolled_back_with_conflicts"
-                    } else {
-                        "rolled_back"
-                    },
-                    "error": error.to_string(),
-                    "rollback": rollback.as_ref().ok(),
-                    "rollbackError": rollback.as_ref().err().map(|value| value.to_string()),
-                    "updatedAt": now()
-                });
-                let _ = write_json(&backup_root.join("failure.json"), &failure);
+                }
+                Ok(_) => Err(anyhow::anyhow!(
+                    "automatic migration rollback has no persisted handoff baseline"
+                )),
+                Err(manifest_error) => Err(manifest_error),
+            };
+            let rollback_conflicts = rollback
+                .as_ref()
+                .ok()
+                .and_then(|value| value.get("conflicts"))
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or_default();
+            let status = if !post_handoff_captured {
+                "needs_recovery"
+            } else if rollback.is_err() {
+                "rollback_failed"
+            } else if rollback_conflicts > 0 {
+                "rolled_back_with_conflicts"
+            } else {
+                "rolled_back"
+            };
+            let failure = serde_json::json!({
+                "migrationId": migration_id,
+                "status": status,
+                "error": error.to_string(),
+                "rollback": rollback.as_ref().ok(),
+                "rollbackError": rollback.as_ref().err().map(|value| value.to_string()),
+                "updatedAt": now()
+            });
+            let _ = write_json(&backup_root.join("failure.json"), &failure);
+            if let Ok(_lock) = acquire_project_lock(&inventory.repo_root) {
                 let _ = write_state(
                     &inventory.repo_root,
                     MigrationState {
                         migration_id,
-                        status: if rollback_conflicts > 0 {
-                            "rolled_back_with_conflicts".to_string()
-                        } else {
-                            "rolled_back".to_string()
-                        },
+                        status: status.to_string(),
                         vault_root: destination_vault,
                         backup_root,
                         updated_at: now(),
@@ -542,8 +556,8 @@ fn create_backup_manifest(
             None,
         )?;
     }
-    let destination_slug = project_slug(&inventory.repo_root);
-    let destination_project = destination_vault.join("Projects").join(destination_slug);
+    let destination = vault_context_without_create(destination_vault, &inventory.repo_root)?;
+    let destination_project = &destination.project_root;
     let mut repo_paths = BTreeSet::new();
     for path in [
         LEGACY_CONFIG,
@@ -590,7 +604,13 @@ fn create_backup_manifest(
         .strip_prefix(destination_vault)
         .map(normalize)
         .unwrap_or_else(|_| format!("Projects/{}", project_slug(&inventory.repo_root)));
-    for file in ["README.md", "Facts.md", "Decisions.md", "Tasks.md"] {
+    for file in [
+        "README.md",
+        "Facts.md",
+        "Decisions.md",
+        "Tasks.md",
+        ".baron-project.json",
+    ] {
         vault_paths.insert(format!("{destination_relative}/{file}"));
     }
     if inventory.source_project_root.exists() {
@@ -614,6 +634,14 @@ fn create_backup_manifest(
         vault_paths.insert(relative.to_string());
     }
     for relative in vault_paths {
+        // Back up each shared capsule file under checkout -> capsule locks;
+        // source traversal and the complete backup scan stay outside them.
+        let _lock = acquire_project_lock(&inventory.repo_root)?;
+        let _capsule_lock = if destination_project.is_dir() {
+            Some(acquire_project_lock(destination_project)?)
+        } else {
+            None
+        };
         entries.push(backup_entry(
             BackupScope::Vault,
             destination_vault,
@@ -627,6 +655,7 @@ fn create_backup_manifest(
         repo_root: inventory.repo_root.clone(),
         vault_root: destination_vault.to_path_buf(),
         post_handoff_captured: false,
+        capsule_relative: Some(destination_relative),
         entries,
     })
 }
@@ -707,8 +736,8 @@ fn backup_entry(
         relative_path: relative.to_string(),
         existed,
         was_directory,
+        post_handoff_hash: original_hash.clone(),
         original_hash,
-        post_handoff_hash: None,
     })
 }
 
@@ -718,6 +747,7 @@ fn import_legacy_vault(
     backup_root: &Path,
     records: &mut Vec<ImportRecord>,
     mutation_root: &Path,
+    manifest: &mut BackupManifest,
 ) -> Result<()> {
     if !source_root.exists() || source_root == destination_root {
         return Ok(());
@@ -726,7 +756,12 @@ fn import_legacy_vault(
         source_root,
         destination_root,
         true,
-        Some((backup_root, records)),
+        Some(CopyPublication {
+            backup_root,
+            records,
+            manifest,
+            capsule_root: Some(destination_root),
+        }),
         Some(mutation_root),
     )
 }
@@ -736,6 +771,7 @@ fn import_repo_data(
     backup_root: &Path,
     records: &mut Vec<ImportRecord>,
     mutation_root: &Path,
+    manifest: &mut BackupManifest,
 ) -> Result<()> {
     for (source, destination) in [
         ("docs/superpowers/plans", "docs/baron/plans"),
@@ -752,7 +788,12 @@ fn import_repo_data(
                 &source,
                 &repo_root.join(destination),
                 true,
-                Some((backup_root, records)),
+                Some(CopyPublication {
+                    backup_root,
+                    records,
+                    manifest,
+                    capsule_root: None,
+                }),
                 Some(mutation_root),
             )?;
         }
@@ -764,6 +805,7 @@ fn quarantine_invalid_assets(
     inventory: &MigrationInventory,
     backup_root: &Path,
     migration_id: &str,
+    manifest: &mut BackupManifest,
 ) -> Result<usize> {
     let mut count = 0;
     for item in &inventory.items {
@@ -783,12 +825,20 @@ fn quarantine_invalid_assets(
             .join(migration_id)
             .join(&item.relative_path);
         let vault_quarantine = backup_root.join("quarantine").join(&item.relative_path);
+        let source_entry = prepare_publication(manifest, backup_root, &source)?;
+        let quarantine_root = inventory
+            .repo_root
+            .join(".baron/quarantine")
+            .join(migration_id);
+        let quarantine_entry = prepare_publication(manifest, backup_root, &quarantine_root)?;
         // The copy-to-quarantine and source removal are one logical mutation
         // for this asset. Keep the lock bounded to the current asset rather
         // than the full inventory/quarantine scan.
         copy_path(&source, &repo_quarantine, false, None, None)?;
         copy_path(&source, &vault_quarantine, false, None, None)?;
         remove_path(&source)?;
+        manifest.entries[source_entry].post_handoff_hash = None;
+        manifest.entries[quarantine_entry].post_handoff_hash = hash_path(&quarantine_root)?;
         count += 1;
     }
     Ok(count)
@@ -917,21 +967,133 @@ fn verify_native_state(repo_root: &Path) -> Result<()> {
     Ok(())
 }
 
-fn capture_post_handoff_state(repo_root: &Path, manifest: &mut BackupManifest) -> Result<()> {
-    // The handoff baseline is one correctness-sensitive snapshot. Holding the
-    // project lock for the complete read set prevents a Baron writer from
-    // being captured halfway through the manifest and then being mistaken for
-    // pre-handoff state during conditional rollback. The external installer
-    // still runs after this bounded section with the lock released.
-    let _lock = acquire_project_lock(repo_root)?;
-    for entry in &mut manifest.entries {
-        let root = match entry.scope {
-            BackupScope::Repo => &manifest.repo_root,
-            BackupScope::Vault => &manifest.vault_root,
-        };
-        let target = validate_restore_target(root, &entry.relative_path, "handoff baseline")?;
-        entry.post_handoff_hash = hash_path(&target)?;
+fn manifest_capsule_relative(manifest: &BackupManifest) -> Option<&str> {
+    manifest.capsule_relative.as_deref().or_else(|| {
+        // Older private manifests used the slug capsule. Keep them readable.
+        manifest.entries.iter().find_map(|entry| {
+            if entry.scope != BackupScope::Vault {
+                return None;
+            }
+            let suffix = entry.relative_path.strip_prefix("Projects/")?;
+            let slash = suffix.find('/').unwrap_or(suffix.len());
+            Some(&entry.relative_path[.."Projects/".len() + slash])
+        })
+    })
+}
+
+fn lock_manifest_capsule(manifest: &BackupManifest) -> Result<Option<ProjectMutationLock>> {
+    let Some(relative) = manifest_capsule_relative(manifest) else {
+        return Ok(None);
+    };
+    let capsule = validate_restore_target(&manifest.vault_root, relative, "capsule lock")?;
+    // Keep the capsule and its lock directory as stable scaffolding. Rollback
+    // restores individual data paths, never removes this shared lock inode.
+    ensure_directory_chain(&capsule)?;
+    Ok(Some(acquire_project_lock(capsule)?))
+}
+
+fn ensure_migration_vault(
+    vault_root: &Path,
+    manifest: &mut BackupManifest,
+) -> Result<VaultContext> {
+    let _checkout = acquire_project_lock(&manifest.repo_root)?;
+    let _capsule = lock_manifest_capsule(manifest)?;
+    let _vault = acquire_project_lock(vault_root)?;
+    let capsule_relative = manifest
+        .capsule_relative
+        .as_deref()
+        .context("Missing migration capsule")?;
+    // The finite scaffold set is published by ensure_vault. Validate its old
+    // bytes before setup and record its output while the same locks are held.
+    // Creating the destination capsule first also keeps the legacy source in
+    // place: migration copies data instead of renaming the source capsule.
+    let setup_paths = [
+        "README.md",
+        "Facts.md",
+        "Decisions.md",
+        "Tasks.md",
+        ".baron-project.json",
+    ]
+    .map(|file| format!("{capsule_relative}/{file}"));
+    let globals = [
+        "AGENTS.md",
+        "Init.md",
+        "Artifacts/Baron/APPROVED_GLOBAL.md",
+        "Artifacts/Baron/GLOBAL_CANDIDATES.md",
+        "Artifacts/Baron/memory-engine-state.json",
+    ];
+    let entries = manifest
+        .entries
+        .iter()
+        .enumerate()
+        .filter_map(|(index, entry)| {
+            (entry.scope == BackupScope::Vault
+                && (setup_paths.contains(&entry.relative_path)
+                    || globals.contains(&entry.relative_path.as_str())))
+            .then_some(index)
+        })
+        .collect::<Vec<_>>();
+    for &index in &entries {
+        let entry = &manifest.entries[index];
+        if hash_path(&vault_root.join(&entry.relative_path))? != entry.original_hash {
+            bail!("Migration setup baseline changed: {}", entry.relative_path);
+        }
     }
+    let destination = ensure_vault(vault_root, &manifest.repo_root)?;
+    for index in entries {
+        let entry = &mut manifest.entries[index];
+        entry.post_handoff_hash = hash_path(&vault_root.join(&entry.relative_path))?;
+    }
+    Ok(destination)
+}
+
+fn prepare_publication(
+    manifest: &mut BackupManifest,
+    backup_root: &Path,
+    target: &Path,
+) -> Result<usize> {
+    let (scope, root, backup_scope) = if target.starts_with(&manifest.repo_root) {
+        (BackupScope::Repo, &manifest.repo_root, "repo")
+    } else if target.starts_with(&manifest.vault_root) {
+        (BackupScope::Vault, &manifest.vault_root, "vault")
+    } else {
+        bail!(
+            "Migration publication escapes its roots: {}",
+            target.display()
+        );
+    };
+    let relative = normalize(target.strip_prefix(root)?);
+    let index = if let Some(index) = manifest
+        .entries
+        .iter()
+        .position(|entry| entry.scope == scope && entry.relative_path == relative)
+    {
+        index
+    } else {
+        // Binary conflicts publish to LegacyImport, not the nominal target.
+        // Back up and track the actual path before its first publication.
+        manifest.entries.push(backup_entry(
+            scope,
+            root,
+            &relative,
+            &backup_root.join(backup_scope),
+        )?);
+        manifest.entries.len() - 1
+    };
+    if hash_path(target)? != manifest.entries[index].post_handoff_hash {
+        bail!(
+            "Migration publication baseline changed: {}",
+            target.display()
+        );
+    }
+    Ok(index)
+}
+
+fn capture_post_handoff_state(repo_root: &Path, manifest: &mut BackupManifest) -> Result<()> {
+    let _lock = acquire_project_lock(repo_root)?;
+    let _capsule_lock = lock_manifest_capsule(manifest)?;
+    // Expected hashes were initialized from the backup and advanced only at
+    // our own publications. A reread here would adopt a writer in the gap.
     manifest.post_handoff_captured = true;
     Ok(())
 }
@@ -946,6 +1108,9 @@ fn restore_from_manifest_if_unchanged(
     manifest: &BackupManifest,
     backup_root: &Path,
 ) -> Result<ConditionalRollback> {
+    let _lock = acquire_project_lock(&manifest.repo_root)?;
+    let _capsule_lock = lock_manifest_capsule(manifest)?;
+    let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
     let mut conflicts = 0;
     for entry in &manifest.entries {
         let root = match entry.scope {
@@ -974,6 +1139,17 @@ fn restore_from_manifest_if_unchanged(
 }
 
 fn restore_from_manifest(manifest: &BackupManifest, backup_root: &Path) -> Result<usize> {
+    let _lock = acquire_project_lock(&manifest.repo_root)?;
+    let _capsule_lock = lock_manifest_capsule(manifest)?;
+    let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
+    let mut lock_paths = vec![
+        project_lock_path(&manifest.repo_root)?,
+        project_lock_path(&manifest.vault_root)?,
+    ];
+    if let Some(relative) = manifest_capsule_relative(manifest) {
+        let capsule = validate_restore_target(&manifest.vault_root, relative, "capsule lock")?;
+        lock_paths.push(project_lock_path(capsule)?);
+    }
     let mut plan = Vec::with_capacity(manifest.entries.len());
     for entry in &manifest.entries {
         let (root, backup_scope) = match entry.scope {
@@ -981,6 +1157,16 @@ fn restore_from_manifest(manifest: &BackupManifest, backup_root: &Path) -> Resul
             BackupScope::Vault => (&manifest.vault_root, backup_root.join("vault")),
         };
         let target = validate_restore_target(root, &entry.relative_path, "restore target")?;
+        // Older manifests can contain an entire capsule directory. Never
+        // remove/replace the inode backing a held lock, even during explicit
+        // rollback; validate the complete restore set before touching data.
+        if is_mutation_lock_path(&target) || lock_paths.iter().any(|lock| lock.starts_with(&target))
+        {
+            bail!(
+                "Migration restore target contains a live mutation lock: {}",
+                target.display()
+            );
+        }
         let backup = if entry.existed {
             Some(validate_restore_target(
                 &backup_scope,
@@ -990,6 +1176,14 @@ fn restore_from_manifest(manifest: &BackupManifest, backup_root: &Path) -> Resul
         } else {
             None
         };
+        if let Some(backup) = &backup {
+            if hash_path(backup)? != entry.original_hash {
+                bail!(
+                    "Migration recovery copy is missing or changed: {}",
+                    backup.display()
+                );
+            }
+        }
         plan.push((entry, target, backup));
     }
 
@@ -1312,13 +1506,25 @@ fn push_runtime_item(
     Ok(())
 }
 
+struct CopyPublication<'a> {
+    backup_root: &'a Path,
+    records: &'a mut Vec<ImportRecord>,
+    manifest: &'a mut BackupManifest,
+    capsule_root: Option<&'a Path>,
+}
+
 fn copy_path(
     source: &Path,
     destination: &Path,
     merge: bool,
-    mut records: Option<(&Path, &mut Vec<ImportRecord>)>,
+    mut publication: Option<CopyPublication<'_>>,
     mutation_root: Option<&Path>,
 ) -> Result<()> {
+    // A legacy capsule may carry an old lock marker. Lock files are live
+    // coordination scaffolding, never imported or restored project data.
+    if is_mutation_lock_path(destination) {
+        return Ok(());
+    }
     let metadata = fs::symlink_metadata(source)
         .with_context(|| format!("Could not inspect migration source: {}", source.display()))?;
     if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
@@ -1335,9 +1541,12 @@ fn copy_path(
                 &entry.path(),
                 &destination.join(entry.file_name()),
                 merge,
-                records
-                    .as_mut()
-                    .map(|(backup, records)| (*backup, &mut **records)),
+                publication.as_mut().map(|publication| CopyPublication {
+                    backup_root: publication.backup_root,
+                    records: &mut *publication.records,
+                    manifest: &mut *publication.manifest,
+                    capsule_root: publication.capsule_root,
+                }),
                 mutation_root,
             )?;
         }
@@ -1356,26 +1565,39 @@ fn copy_path(
     // outside the critical section. The lock starts before the shared
     // destination read (hash/merge decision) and covers publication plus the
     // import record.
+    // Read the source once, before destination locks. Both publication and its
+    // expected hash use these exact bytes, even if the source later changes.
+    let source_bytes = read_bytes(source)?
+        .ok_or_else(|| anyhow::anyhow!("Migration source disappeared: {}", source.display()))?;
+    let source_hash = format!("{:x}", Sha256::digest(&source_bytes));
     let _lock = mutation_root.map(acquire_project_lock).transpose()?;
-    let source_hash = hash_file(source)?;
-    let final_destination = if merge && destination.exists() {
+    let _capsule_lock = publication
+        .as_ref()
+        .and_then(|publication| publication.capsule_root)
+        .map(acquire_project_lock)
+        .transpose()?;
+    let (final_destination, output) = if merge && destination.exists() {
         let existing_hash = hash_file(destination)?;
         if existing_hash == source_hash {
-            destination.to_path_buf()
+            (destination.to_path_buf(), None)
         } else if is_markdown(source) && is_markdown(destination) {
-            let source_content = read_text_required(source)?;
+            let source_content = std::str::from_utf8(&source_bytes)?;
             let destination_content = read_text_required(destination)?;
-            if is_placeholder_markdown(&destination_content) {
-                copy_file_safe(source, destination)?;
+            let output = if is_placeholder_markdown(&destination_content) {
+                Some(source_bytes.clone())
             } else if !destination_content.contains(source_content.trim()) {
-                let merged = format!(
-                    "{}\n\n<!-- BARON:LEGACY-IMPORT -->\n\n{}\n",
-                    destination_content.trim_end(),
-                    source_content.trim()
-                );
-                atomic_write(destination, merged.as_bytes())?;
-            }
-            destination.to_path_buf()
+                Some(
+                    format!(
+                        "{}\n\n<!-- BARON:LEGACY-IMPORT -->\n\n{}\n",
+                        destination_content.trim_end(),
+                        source_content.trim()
+                    )
+                    .into_bytes(),
+                )
+            } else {
+                None
+            };
+            (destination.to_path_buf(), output)
         } else {
             let conflict = destination
                 .parent()
@@ -1389,19 +1611,40 @@ fn copy_path(
                         .as_ref(),
                 );
             ensure_directory_chain(conflict.parent().unwrap())?;
-            copy_file_safe(source, &conflict)?;
-            conflict
+            (conflict, Some(source_bytes.clone()))
         }
     } else {
-        copy_file_safe(source, destination)?;
-        destination.to_path_buf()
+        (destination.to_path_buf(), Some(source_bytes.clone()))
     };
-    if let Some((_, records)) = records.as_mut() {
-        records.push(ImportRecord {
+    let entry = publication
+        .as_mut()
+        .map(|publication| {
+            prepare_publication(
+                publication.manifest,
+                publication.backup_root,
+                &final_destination,
+            )
+        })
+        .transpose()?;
+    let destination_hash = if let Some(output) = &output {
+        atomic_write(&final_destination, output)?;
+        if output == &source_bytes {
+            if let Ok(metadata) = fs::symlink_metadata(source) {
+                let _ = fs::set_permissions(&final_destination, metadata.permissions());
+            }
+        }
+        format!("{:x}", Sha256::digest(output))
+    } else {
+        hash_file(&final_destination)?
+    };
+    if let Some(publication) = publication.as_mut() {
+        publication.manifest.entries[entry.context("Missing migration publication entry")?]
+            .post_handoff_hash = Some(destination_hash.clone());
+        publication.records.push(ImportRecord {
             source: normalize(source),
             destination: normalize(&final_destination),
             source_hash,
-            destination_hash: hash_file(&final_destination)?,
+            destination_hash,
         });
     }
     Ok(())
@@ -1522,19 +1765,15 @@ fn atomic_write(path: &Path, content: &[u8]) -> Result<()> {
     replace_file(path, content)
 }
 
-fn copy_file_safe(source: &Path, destination: &Path) -> Result<()> {
-    let content = read_bytes(source)?
-        .ok_or_else(|| anyhow::anyhow!("Migration source disappeared: {}", source.display()))?;
-    replace_file(destination, &content).with_context(|| {
-        format!(
-            "Could not publish migration file: {}",
-            destination.display()
-        )
-    })?;
-    if let Ok(metadata) = fs::symlink_metadata(source) {
-        let _ = fs::set_permissions(destination, metadata.permissions());
-    }
-    Ok(())
+fn is_mutation_lock_path(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case(".baron-mutation.lock"))
+        && path
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case(".baron"))
 }
 
 fn hash_path(path: &Path) -> Result<Option<String>> {
@@ -1573,6 +1812,10 @@ fn hash_file(path: &Path) -> Result<String> {
 }
 
 fn collect_files(root: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
+    // Volatile lock markers do not belong in backup hashes or import sets.
+    if is_mutation_lock_path(root) {
+        return Ok(());
+    }
     let metadata = match fs::symlink_metadata(root) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -1679,4 +1922,293 @@ fn now() -> String {
 
 fn normalize(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity::{capsule_key, project_id_for_path};
+    use tempfile::tempdir;
+
+    #[test]
+    fn pre_handoff_repo_writer_is_not_adopted_as_rollback_baseline() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&vault).unwrap();
+        let repo = repo.canonicalize().unwrap();
+        let source = repo.join("docs/superpowers/plans/plan.md");
+        let target = repo.join("docs/baron/plans/plan.md");
+        atomic_write(&source, b"# Imported plan\n").unwrap();
+        let inventory = MigrationInventory {
+            repo_root: repo.clone(),
+            source_vault: vault.clone(),
+            source_project_root: vault.join("Projects/legacy"),
+            project_slug: "legacy".into(),
+            items: Vec::new(),
+        };
+        let backup = vault.join("Artifacts/Baron/Migrations/test");
+        let mut manifest = create_backup_manifest(&inventory, &vault, &backup, "test").unwrap();
+        let mut records = Vec::new();
+        import_repo_data(&repo, &backup, &mut records, &repo, &mut manifest).unwrap();
+        assert_eq!(read_bytes(&target).unwrap().unwrap(), b"# Imported plan\n");
+        // Deterministically schedule the writer in the gap between import and
+        // handoff capture. These are the real publication/rollback functions.
+        {
+            let _writer = acquire_project_lock(&repo).unwrap();
+            atomic_write(&target, b"# Foreign plan must survive\n").unwrap();
+        }
+        capture_post_handoff_state(&repo, &mut manifest).unwrap();
+        let _rollback = acquire_project_lock(&repo).unwrap();
+        let outcome = restore_from_manifest_if_unchanged(&manifest, &backup).unwrap();
+        assert!(
+            outcome.conflicts > 0,
+            "foreign bytes require a rollback conflict"
+        );
+        assert_eq!(
+            read_bytes(&target).unwrap().unwrap(),
+            b"# Foreign plan must survive\n"
+        );
+    }
+
+    #[test]
+    fn backup_manifest_targets_the_identity_bound_capsule() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&vault).unwrap();
+        let repo = repo.canonicalize().unwrap();
+        let capsule = capsule_key(&project_slug(&repo), &project_id_for_path(&repo).unwrap());
+        let relative = format!("Projects/{capsule}/Facts.md");
+        atomic_write(&vault.join(&relative), b"# Existing memory\n").unwrap();
+        let inventory = MigrationInventory {
+            repo_root: repo,
+            source_vault: vault.clone(),
+            source_project_root: vault.join("Projects/legacy"),
+            project_slug: "legacy".into(),
+            items: Vec::new(),
+        };
+        let backup = vault.join("Artifacts/Baron/Migrations/test");
+        let manifest = create_backup_manifest(&inventory, &vault, &backup, "test").unwrap();
+        assert!(manifest.entries.iter().any(|entry| {
+            matches!(entry.scope, BackupScope::Vault)
+                && entry.relative_path == relative
+                && entry.existed
+        }));
+        assert_eq!(
+            read_bytes(backup.join("vault").join(relative))
+                .unwrap()
+                .unwrap(),
+            b"# Existing memory\n"
+        );
+    }
+
+    #[test]
+    fn pre_handoff_capsule_writer_requires_a_rollback_conflict() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&vault).unwrap();
+        let repo = repo.canonicalize().unwrap();
+        let source = vault.join("Projects/legacy");
+        atomic_write(&source.join("Facts.md"), b"# Imported memory\n").unwrap();
+        let inventory = MigrationInventory {
+            repo_root: repo.clone(),
+            source_vault: vault.clone(),
+            source_project_root: source.clone(),
+            project_slug: "legacy".into(),
+            items: Vec::new(),
+        };
+        let backup = vault.join("Artifacts/Baron/Migrations/test");
+        let mut manifest = create_backup_manifest(&inventory, &vault, &backup, "test").unwrap();
+        let destination = ensure_migration_vault(&vault, &mut manifest).unwrap();
+        let mut records = Vec::new();
+        import_legacy_vault(
+            &source,
+            &destination.project_root,
+            &backup,
+            &mut records,
+            &repo,
+            &mut manifest,
+        )
+        .unwrap();
+        let target = destination.project_root.join("Facts.md");
+        // Another checkout shares the capsule, but does not share this repo's
+        // lock. Complete its write before handoff capture, without sleeps.
+        let other_repo = temp.path().join("other-checkout");
+        ensure_directory_chain(&other_repo).unwrap();
+        {
+            let _checkout = acquire_project_lock(&other_repo).unwrap();
+            let _capsule = acquire_project_lock(&destination.project_root).unwrap();
+            atomic_write(&target, b"# Foreign memory must survive\n").unwrap();
+        }
+        capture_post_handoff_state(&repo, &mut manifest).unwrap();
+        let _rollback = acquire_project_lock(&repo).unwrap();
+        let outcome = restore_from_manifest_if_unchanged(&manifest, &backup).unwrap();
+        assert!(
+            outcome.conflicts > 0,
+            "shared capsule changes must be detected"
+        );
+        assert_eq!(
+            read_bytes(&target).unwrap().unwrap(),
+            b"# Foreign memory must survive\n"
+        );
+    }
+
+    #[test]
+    fn import_cannot_publish_while_another_checkout_holds_the_capsule_lock() {
+        use std::sync::mpsc;
+
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let other_repo = temp.path().join("other-checkout");
+        let source = temp.path().join("source");
+        let capsule = temp.path().join("capsule");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&other_repo).unwrap();
+        atomic_write(&source.join("Facts.md"), b"# Imported memory\n").unwrap();
+        atomic_write(&capsule.join("Facts.md"), b"# Existing memory\n").unwrap();
+        let backup = temp.path().join("backup");
+        let mut manifest = BackupManifest {
+            migration_id: "test".into(),
+            repo_root: repo.clone(),
+            vault_root: temp.path().to_path_buf(),
+            post_handoff_captured: false,
+            capsule_relative: Some("capsule".into()),
+            entries: vec![backup_entry(
+                BackupScope::Vault,
+                temp.path(),
+                "capsule/Facts.md",
+                &backup.join("vault"),
+            )
+            .unwrap()],
+        };
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let held_capsule = capsule.clone();
+        let holder = std::thread::spawn(move || {
+            let _checkout = acquire_project_lock(&other_repo).unwrap();
+            let _capsule = acquire_project_lock(&held_capsule).unwrap();
+            ready_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+        });
+        ready_rx.recv().unwrap();
+        let result = import_legacy_vault(
+            &source,
+            &capsule,
+            &backup,
+            &mut Vec::new(),
+            &repo,
+            &mut manifest,
+        );
+        release_tx.send(()).unwrap();
+        holder.join().unwrap();
+        assert!(
+            result.is_err(),
+            "a held capsule lock must prevent publication"
+        );
+        assert_eq!(
+            read_bytes(capsule.join("Facts.md")).unwrap().unwrap(),
+            b"# Existing memory\n"
+        );
+    }
+
+    #[test]
+    fn importing_a_legacy_lock_file_preserves_the_live_capsule_lock() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        let source = vault.join("Projects/legacy");
+        let capsule = vault.join("Projects/capsule");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&capsule).unwrap();
+        atomic_write(&source.join("Facts.md"), b"# Legacy memory\n").unwrap();
+        atomic_write(
+            &source.join(".baron/.baron-mutation.lock"),
+            b"legacy lock marker\n",
+        )
+        .unwrap();
+        let backup = vault.join("backup");
+        let mut manifest = BackupManifest {
+            migration_id: "test".into(),
+            repo_root: repo.clone(),
+            vault_root: vault,
+            post_handoff_captured: false,
+            capsule_relative: Some("Projects/capsule".into()),
+            entries: Vec::new(),
+        };
+        let _checkout = acquire_project_lock(&repo).unwrap();
+        let _capsule = acquire_project_lock(&capsule).unwrap();
+        let lock_path = capsule.join(".baron/.baron-mutation.lock");
+        let mut records = Vec::new();
+        import_legacy_vault(
+            &source,
+            &capsule,
+            &backup,
+            &mut records,
+            &repo,
+            &mut manifest,
+        )
+        .unwrap();
+        assert!(lock_path.is_file());
+        assert_eq!(
+            read_bytes(capsule.join("Facts.md")).unwrap().unwrap(),
+            b"# Legacy memory\n"
+        );
+        assert!(records
+            .iter()
+            .all(|record| !record.destination.ends_with(".baron-mutation.lock")));
+        let contender = std::thread::spawn(move || {
+            crate::safe_io::acquire_project_lock_with_timeout(
+                capsule,
+                std::time::Duration::from_millis(100),
+            )
+            .is_err()
+        });
+        assert!(
+            contender.join().unwrap(),
+            "the original lock must still exclude writers"
+        );
+    }
+
+    #[test]
+    fn legacy_directory_restore_fails_closed_before_removing_a_live_capsule_lock() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        let capsule = vault.join("Projects/capsule");
+        ensure_directory_chain(&repo).unwrap();
+        atomic_write(&capsule.join("Facts.md"), b"# Original memory\n").unwrap();
+        let backup = vault.join("backup");
+        let entry = backup_entry(
+            BackupScope::Vault,
+            &vault,
+            "Projects/capsule",
+            &backup.join("vault"),
+        )
+        .unwrap();
+        // This is the older private manifest shape: no capsule_relative field.
+        let manifest: BackupManifest = serde_json::from_value(serde_json::json!({
+            "migration_id": "test",
+            "repo_root": repo,
+            "vault_root": vault,
+            "post_handoff_captured": true,
+            "entries": [entry]
+        }))
+        .unwrap();
+        atomic_write(&capsule.join("Facts.md"), b"# Current memory\n").unwrap();
+        let _checkout = acquire_project_lock(&repo).unwrap();
+        let _capsule = acquire_project_lock(&capsule).unwrap();
+        let lock_path = capsule.join(".baron/.baron-mutation.lock");
+        let error = restore_from_manifest(&manifest, &backup).unwrap_err();
+        assert!(error.to_string().contains("mutation lock"));
+        assert!(lock_path.is_file());
+        assert_eq!(
+            read_bytes(capsule.join("Facts.md")).unwrap().unwrap(),
+            b"# Current memory\n"
+        );
+    }
 }

@@ -47,8 +47,8 @@ use baron_core::config::{
 };
 use baron_core::context::{compile_context_for_operation, compile_context_why, ContextTarget};
 use baron_core::continuity::{
-    continuity_status, record_continuity_checkpoint_for_operation, record_recovery, RecoveryInput,
-    RecoveryOutcome,
+    continuity_status, record_continuity_checkpoint_for_operation, record_recovery,
+    record_recovery_for_operation, RecoveryInput, RecoveryOutcome,
 };
 use baron_core::control_plane::{
     gate_evidence_status_strict, record_gate_evidence, record_gate_evidence_with_receipt_bound,
@@ -1069,6 +1069,14 @@ enum ContinuityCommands {
     Recover {
         root_cause: String,
         repo_path: Option<PathBuf>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         #[arg(long, value_enum)]
         outcome: RecoveryOutcomeArg,
         #[arg(long = "last-success")]
@@ -4003,6 +4011,10 @@ fn run() -> Result<()> {
             ContinuityCommands::Recover {
                 root_cause,
                 repo_path,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 outcome,
                 last_successful_step,
                 evidence,
@@ -4016,19 +4028,24 @@ fn run() -> Result<()> {
                     RecoveryOutcomeArg::Blocked => RecoveryOutcome::Blocked,
                     RecoveryOutcomeArg::Interrupted => RecoveryOutcome::Interrupted,
                 };
-                let packet = record_recovery(
-                    &repo_root,
-                    &vault,
-                    RecoveryInput {
-                        outcome,
-                        root_cause,
-                        last_successful_step,
-                        evidence,
-                        affected_files,
-                        next_action,
-                        retry_conditions,
-                    },
+                let identity = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
                 )?;
+                let input = RecoveryInput {
+                    outcome,
+                    root_cause,
+                    last_successful_step,
+                    evidence,
+                    affected_files,
+                    next_action,
+                    retry_conditions,
+                };
+                let packet = match identity {
+                    Some(identity) => {
+                        record_recovery_for_operation(&repo_root, &vault, input, &identity)?
+                    }
+                    None => record_recovery(&repo_root, &vault, input)?,
+                };
                 println!("# Baron Actionable Recovery\n");
                 println!("- Recovery ID: `{}`", packet.id);
                 println!("- Outcome: `{}`", packet.outcome.as_str());

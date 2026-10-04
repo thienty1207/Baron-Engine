@@ -8,7 +8,7 @@ use baron_core::context::{
 };
 use baron_core::continuity::{
     record_continuity_checkpoint_for_event, record_continuity_checkpoint_for_operation,
-    record_recovery, RecoveryInput, RecoveryOutcome,
+    record_recovery, record_recovery_for_operation, RecoveryInput, RecoveryOutcome,
 };
 use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::start_or_resume_plan_for_identity;
@@ -83,20 +83,30 @@ fn foreign_shared_state(f: &Fixture) {
         &f.repo.join("docs/baron/harness/CURRENT.md"),
         "# Product Harness\n\n- Title: B-only story\n- Risk: `high`\n",
     );
-    record_recovery(
-        &f.repo,
-        &f.vault,
-        RecoveryInput {
-            outcome: RecoveryOutcome::Interrupted,
-            root_cause: "B-only blocker".into(),
-            last_successful_step: "B-only successful step".into(),
-            evidence: vec!["B-only evidence".into()],
-            affected_files: vec!["B-only.rs".into()],
-            next_action: "B-only recovery action".into(),
-            retry_conditions: vec![],
-        },
-    )
-    .unwrap();
+    if f.a.task_id() == f.b.task_id() {
+        // A different operation without a plan may only leave diagnostic
+        // shared state; it cannot publish actionable identified recovery.
+        write(
+            &f.repo.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
+            "# Foreign legacy recovery\n\n## Safe Next Action\n\nB-only recovery action\n",
+        );
+    } else {
+        record_recovery_for_operation(
+            &f.repo,
+            &f.vault,
+            RecoveryInput {
+                outcome: RecoveryOutcome::Interrupted,
+                root_cause: "B-only blocker".into(),
+                last_successful_step: "B-only successful step".into(),
+                evidence: vec!["B-only evidence".into()],
+                affected_files: vec!["B-only.rs".into()],
+                next_action: "B-only recovery action".into(),
+                retry_conditions: vec![],
+            },
+            &f.b,
+        )
+        .unwrap();
+    }
     record_continuity_checkpoint_for_operation(
         &f.repo,
         &f.vault,
@@ -149,6 +159,208 @@ fn identified_checkpoint_uses_a_plan_and_evidence_while_current_and_latest_are_b
     assert!(!content.contains(&b_proof));
     assert!(!content.contains("B-only"), "{content}");
     assert_eq!(content, fs::read_to_string(packet.vault_path).unwrap());
+}
+
+#[test]
+fn checkpoint_a_survives_checkpoint_b_and_event_a_retry() {
+    // Replacing the shared CURRENT projection must not erase A's durable
+    // packet or make A's identified Task State forget its checkpoint.
+    let f = fixture(B_TASK);
+    plans(&f, B_TASK);
+    let a = record_continuity_checkpoint_for_event(
+        &f.repo,
+        &f.vault,
+        "A-only durable checkpoint",
+        &OperationContext::from_identity(&f.a),
+        "durable-event-a",
+    )
+    .unwrap();
+    let a_bytes = fs::read(&a.repo_path).unwrap();
+    let b = record_continuity_checkpoint_for_event(
+        &f.repo,
+        &f.vault,
+        "B-only durable checkpoint",
+        &OperationContext::from_identity(&f.b),
+        "durable-event-b",
+    )
+    .unwrap();
+    assert_eq!(
+        fs::read(&a.repo_path).unwrap(),
+        a_bytes,
+        "B erased A's packet"
+    );
+    assert_ne!(a.repo_path, b.repo_path);
+    assert_eq!(fs::read(&a.vault_path).unwrap(), a_bytes);
+    let state = compile_task_state_for_operation(&f.repo, &f.vault, &f.a, Some(A_TASK)).unwrap();
+    assert!(state.continuity.is_some(), "{state:?}");
+    let fresh_vault = ensure_vault(&f.vault_root, &f.repo).unwrap();
+    assert!(
+        compile_task_state_for_operation(&f.repo, &fresh_vault, &f.a, Some(A_TASK))
+            .unwrap()
+            .continuity
+            .is_some()
+    );
+    let prepared = prepare(
+        PrepareRequestV1 {
+            schema_version: 1,
+            task: A_TASK.into(),
+            session_id: Some("session-a".into()),
+            request_id: Some("request-a".into()),
+        },
+        "codex",
+        &f.repo,
+        None,
+    )
+    .unwrap();
+    assert!(prepared.continuity.available, "{prepared:#?}");
+    let current_before_retry = fs::read(f.repo.join("docs/baron/continuity/CURRENT.md")).unwrap();
+    let retry = record_continuity_checkpoint_for_event(
+        &f.repo,
+        &f.vault,
+        "ignored duplicate A note",
+        &OperationContext::from_identity(&f.a),
+        "durable-event-a",
+    )
+    .unwrap();
+    assert_eq!(retry.repo_path, a.repo_path);
+    assert_eq!(fs::read(retry.repo_path).unwrap(), a_bytes);
+    assert_eq!(
+        fs::read(f.repo.join("docs/baron/continuity/CURRENT.md")).unwrap(),
+        current_before_retry
+    );
+}
+
+#[test]
+fn unscoped_recovery_fails_without_writes_when_two_operations_are_active() {
+    // Guessing from CURRENT must never persist an actionable mixed recovery.
+    let f = fixture(B_TASK);
+    plans(&f, B_TASK);
+    let result = record_recovery(
+        &f.repo,
+        &f.vault,
+        RecoveryInput {
+            outcome: RecoveryOutcome::Failed,
+            root_cause: "A-only failure".into(),
+            last_successful_step: "A-only successful step".into(),
+            evidence: vec!["A-only evidence".into()],
+            affected_files: vec!["README.md".into()],
+            next_action: "A-only safe retry".into(),
+            retry_conditions: vec![],
+        },
+    );
+    assert!(
+        result.is_err(),
+        "ambiguous recovery was published: {result:?}"
+    );
+    assert!(result.unwrap_err().to_string().contains("ambiguous"));
+    assert!(!f
+        .repo
+        .join("docs/baron/continuity/CURRENT_RECOVERY.md")
+        .exists());
+    assert!(!f
+        .vault
+        .project_root
+        .join("Continuity/CURRENT_RECOVERY.md")
+        .exists());
+    assert!(!f.repo.join("docs/baron/continuity/recovery").exists());
+}
+
+#[test]
+fn exact_recovery_preserves_a_evidence_and_state_after_b_recovery() {
+    let f = fixture(B_TASK);
+    plans(&f, B_TASK);
+    let a_proof = evidence(&f, &f.a, "A-only verified state");
+    let b_proof = evidence(&f, &f.b, "B-only verified state");
+    let input = RecoveryInput {
+        outcome: RecoveryOutcome::Failed,
+        root_cause: "shared failure description".into(),
+        last_successful_step: "confirmed exact operation".into(),
+        evidence: vec!["focused check failed".into()],
+        affected_files: vec!["README.md".into()],
+        next_action: "retry exact check".into(),
+        retry_conditions: vec![],
+    };
+    let a = record_recovery_for_operation(&f.repo, &f.vault, input.clone(), &f.a).unwrap();
+    let bytes = fs::read_to_string(&a.repo_path).unwrap();
+    assert!(bytes.contains(&format!("- Operation ID: `{}`", f.a.operation_id())));
+    assert!(bytes.contains(A_TASK));
+    assert!(bytes.contains(&a_proof));
+    assert!(!bytes.contains(&b_proof));
+    assert!(!bytes.contains(B_TASK));
+    let b = record_recovery_for_operation(&f.repo, &f.vault, input.clone(), &f.b).unwrap();
+    assert_ne!(a.id, b.id, "different operation recoveries collided");
+    assert_eq!(fs::read_to_string(&a.repo_path).unwrap(), bytes);
+    assert_eq!(fs::read_to_string(&a.vault_path).unwrap(), bytes);
+    let state = compile_task_state_for_operation(&f.repo, &f.vault, &f.a, Some(A_TASK)).unwrap();
+    assert!(state.recovery.is_some(), "{state:?}");
+    assert_eq!(
+        state.last_successful_step.as_deref(),
+        Some("confirmed exact operation")
+    );
+    assert_eq!(state.next_action, "retry exact check");
+    assert_eq!(state.affected_files, vec!["README.md"]);
+    assert!(
+        record_recovery_for_operation(&f.repo, &f.vault, input, &f.a)
+            .unwrap()
+            .resumed
+    );
+}
+
+#[test]
+fn checkpoint_retry_rejects_a_conflicting_vault_artifact() {
+    let f = fixture(B_TASK);
+    plans(&f, B_TASK);
+    let packet = record_continuity_checkpoint_for_event(
+        &f.repo,
+        &f.vault,
+        "A checkpoint",
+        &OperationContext::from_identity(&f.a),
+        "conflict-event",
+    )
+    .unwrap();
+    write(&packet.vault_path, "foreign checkpoint bytes");
+    assert!(record_continuity_checkpoint_for_event(
+        &f.repo,
+        &f.vault,
+        "retry",
+        &OperationContext::from_identity(&f.a),
+        "conflict-event"
+    )
+    .is_err());
+    assert_eq!(
+        fs::read_to_string(packet.vault_path).unwrap(),
+        "foreign checkpoint bytes"
+    );
+}
+
+#[test]
+fn sole_active_recovery_ignores_current_and_old_retry_keeps_newer_operation_state() {
+    let f = fixture(B_TASK);
+    start_or_resume_plan_for_identity(&f.repo, &f.vault, A_TASK, &f.a).unwrap();
+    write(
+        &f.repo.join("docs/baron/plans/CURRENT.md"),
+        "malformed presentation only",
+    );
+    let mut input = RecoveryInput {
+        outcome: RecoveryOutcome::Blocked,
+        root_cause: "first A-only blocker".into(),
+        last_successful_step: "first A-only step".into(),
+        evidence: vec![],
+        affected_files: vec!["README.md".into()],
+        next_action: "first A-only action".into(),
+        retry_conditions: vec![],
+    };
+    let first = record_recovery(&f.repo, &f.vault, input.clone()).unwrap();
+    assert!(fs::read_to_string(&first.repo_path)
+        .unwrap()
+        .contains(&format!("- Operation ID: `{}`", f.a.operation_id())));
+    let old = input.clone();
+    input.root_cause = "second A-only blocker".into();
+    input.next_action = "second A-only action".into();
+    record_recovery_for_operation(&f.repo, &f.vault, input, &f.a).unwrap();
+    assert!(record_recovery(&f.repo, &f.vault, old).unwrap().resumed);
+    let state = compile_task_state_for_operation(&f.repo, &f.vault, &f.a, Some(A_TASK)).unwrap();
+    assert_eq!(state.next_action, "second A-only action");
 }
 
 #[test]

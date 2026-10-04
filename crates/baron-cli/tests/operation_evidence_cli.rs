@@ -171,6 +171,75 @@ fn field(output: &[u8], label: &str) -> String {
 }
 
 #[test]
+fn recovery_cli_selects_a_while_current_is_b() {
+    let f = Fixture::new(true);
+    let proof = f.proof();
+    f.command()
+        .args([
+            "continuity",
+            "recover",
+            "A-only failure",
+            "--outcome",
+            "failed",
+            "--last-success",
+            "A-only verified step",
+            "--next-action",
+            "retry A-only check",
+            "--affected-file",
+            "README.md",
+        ])
+        .args(f.selector())
+        .assert()
+        .success();
+    let content =
+        fs::read_to_string(f.repo.join("docs/baron/continuity/CURRENT_RECOVERY.md")).unwrap();
+    assert!(content.contains(&format!("- Operation ID: `{}`", f.a.operation_id())));
+    assert!(content.contains(&proof.id));
+    assert!(content.contains(TASK_A));
+    assert!(!content.contains(TASK_B));
+}
+
+#[test]
+fn recovery_cli_no_selector_fails_before_publishing_with_two_active_plans() {
+    let f = Fixture::new(true);
+    let before = f.snapshot();
+    f.command()
+        .args([
+            "continuity",
+            "recover",
+            "ambiguous failure",
+            "--outcome",
+            "failed",
+            "--last-success",
+            "previous step",
+            "--next-action",
+            "retry check",
+        ])
+        .assert()
+        .failure()
+        .stderr(contains("ambiguous"));
+    assert_eq!(f.snapshot(), before);
+    f.command()
+        .args([
+            "continuity",
+            "recover",
+            "partial identity failure",
+            "--outcome",
+            "failed",
+            "--last-success",
+            "previous step",
+            "--next-action",
+            "retry check",
+            "--task",
+            TASK_A,
+        ])
+        .assert()
+        .failure()
+        .stderr(contains("together"));
+    assert_eq!(f.snapshot(), before);
+}
+
+#[test]
 fn proof_record_explicit_a_never_uses_current_b() {
     let f = Fixture::new(true);
     f.command()
