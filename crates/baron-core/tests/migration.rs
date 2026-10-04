@@ -1,14 +1,18 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::identity::{capsule_key, project_id_for_path};
 use baron_core::migration::{
-    execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
-    rollback_migration, MigrationAction, MigrationAssetKind,
+    execute_agent_bootstrap_migration, execute_agent_bootstrap_migration_with_outputs,
+    inventory_agent_bootstrap, migration_status, rollback_migration, MigrationAction,
+    MigrationAssetKind, MigrationInstallOutputs,
 };
 use baron_core::safe_io::acquire_project_lock_with_timeout;
 use baron_core::vault::project_slug;
 use sha2::{Digest, Sha256};
+use std::sync::mpsc;
+use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -212,11 +216,8 @@ fn migration_imports_data_quarantines_invalid_assets_and_retires_runtime() {
 #[test]
 fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
     let (_temp, repo, vault) = legacy_fixture();
-    let receipt = execute_agent_bootstrap_migration(&repo, None, |repo, _vault| {
-        write(&repo.join(".baron/project.toml"), "schema_version = 1\n");
-        Ok(())
-    })
-    .unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let receipt = execute_agent_bootstrap_migration(&repo, None, |_repo, _vault| Ok(())).unwrap();
     write(&repo.join("after-migration.txt"), "keep me\n");
     write(
         &repo.join("docs/baron/plans/post-migration-plan.md"),
@@ -234,7 +235,7 @@ fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
     assert!(repo.join("vault.config.json").exists());
     assert!(repo.join("scripts/agent-memory.js").exists());
     assert!(repo.join(".codex/agents/unsafe-agent.toml").exists());
-    assert!(!repo.join(".baron/project.toml").exists());
+    assert!(repo.join(".baron/project.toml").exists());
     assert!(!repo
         .join(".baron/quarantine")
         .join(&receipt.migration_id)
@@ -248,6 +249,120 @@ fn rollback_restores_legacy_paths_without_touching_unrelated_files() {
         .exists());
     assert!(project_root.join("post-migration-memory.md").exists());
     assert!(migration_status(&repo).unwrap().contains("rolled_back"));
+}
+
+#[test]
+fn explicit_rollback_preserves_modified_imports_and_records_recovery() {
+    let (_temp, repo, vault) = legacy_fixture();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let receipt = execute_agent_bootstrap_migration(&repo, None, |_repo, _vault| Ok(())).unwrap();
+    let imported_memory = capsule_root(&vault, &repo).join("Facts.md");
+    let user_update = "# User update after migration\n";
+    write(&imported_memory, user_update);
+
+    let result = rollback_migration(&repo, &vault, &receipt.migration_id);
+
+    assert!(
+        result.is_err(),
+        "rollback must reject a changed managed target"
+    );
+    assert_eq!(fs::read_to_string(&imported_memory).unwrap(), user_update);
+    assert!(!repo.join("vault.config.json").exists());
+    assert!(migration_status(&repo).unwrap().contains("needs_recovery"));
+    assert!(receipt.backup_root.join("failure.json").is_file());
+}
+
+#[test]
+fn explicit_rollback_without_handoff_baseline_requires_recovery() {
+    let (_temp, repo, vault) = legacy_fixture();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let receipt = execute_agent_bootstrap_migration(&repo, None, |_repo, _vault| Ok(())).unwrap();
+    let imported_memory = capsule_root(&vault, &repo).join("Facts.md");
+    let imported_bytes = fs::read(&imported_memory).unwrap();
+    let manifest_path = receipt.backup_root.join("manifest.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["post_handoff_captured"] = serde_json::Value::Bool(false);
+    fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+    let result = rollback_migration(&repo, &vault, &receipt.migration_id);
+
+    let error = result.expect_err("rollback must reject an incomplete baseline");
+    assert!(
+        error
+            .to_string()
+            .contains("no complete persisted handoff baseline"),
+        "rollback should identify the missing baseline, got: {error}"
+    );
+    assert_eq!(fs::read(&imported_memory).unwrap(), imported_bytes);
+    assert!(!repo.join("vault.config.json").exists());
+    assert!(migration_status(&repo).unwrap().contains("needs_recovery"));
+    assert!(receipt.backup_root.join("failure.json").is_file());
+}
+
+#[test]
+fn installer_return_window_edit_is_not_adopted_as_migration_output() {
+    let (_temp, repo, vault) = legacy_fixture();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let project_config = repo.join(".baron/project.toml");
+    let (locked_tx, locked_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let (callback_ready_tx, callback_ready_rx) = mpsc::channel();
+    let migration_repo = repo.clone();
+    let migration = thread::spawn(move || {
+        execute_agent_bootstrap_migration_with_outputs(
+            &migration_repo,
+            None,
+            move |repo_root, _vault_root| {
+                let mut installer_bytes = fs::read(repo_root.join(".baron/project.toml"))?;
+                installer_bytes.extend_from_slice(b"\n# successful installer output\n");
+                fs::write(repo_root.join(".baron/project.toml"), installer_bytes)?;
+                let outputs = MigrationInstallOutputs::capture(
+                    repo_root,
+                    _vault_root,
+                    vec![".baron/project.toml".to_string()],
+                    Vec::new(),
+                )?;
+
+                let held_repo = repo_root.to_path_buf();
+                let holder_release = release_rx;
+                let _ = thread::spawn(move || {
+                    let _lock =
+                        acquire_project_lock_with_timeout(&held_repo, Duration::from_secs(5))
+                            .unwrap();
+                    locked_tx.send(()).unwrap();
+                    holder_release.recv_timeout(Duration::from_secs(5)).unwrap();
+                });
+                locked_rx.recv_timeout(Duration::from_secs(5))?;
+                callback_ready_tx.send(()).unwrap();
+                Ok(outputs)
+            },
+        )
+    });
+
+    callback_ready_rx
+        .recv_timeout(Duration::from_secs(10))
+        .expect("installer callback did not reach the return window");
+    let mut user_edit = fs::read(&project_config).unwrap();
+    user_edit.extend_from_slice(b"\n# user edit after installer success\n");
+    fs::write(&project_config, &user_edit).unwrap();
+    release_tx.send(()).unwrap();
+
+    let migration_result = migration.join().unwrap();
+    let rollback_result = match migration_result {
+        Ok(receipt) => rollback_migration(&repo, &vault, &receipt.migration_id),
+        Err(error) => Err(error),
+    };
+
+    assert!(
+        rollback_result.is_err(),
+        "a user edit in the installer-return window must block rollback"
+    );
+    assert_eq!(
+        fs::read(&project_config).unwrap(),
+        user_edit,
+        "installer output capture must not adopt and later erase the concurrent user edit"
+    );
 }
 
 #[test]

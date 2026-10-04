@@ -226,20 +226,6 @@ fn record_proof_internal(
         binding: binding.as_ref(),
         trusted_receipt: trusted_receipt.map(|(receipt, _)| receipt),
     });
-    preflight_publication_paths(repo_root, vault, &repo_path, &vault_path)?;
-    record_runtime_execution(repo_root, capability_evidence)?;
-    create_new_text(&vault_path, &content)?;
-    create_new_text(&repo_path, &content)?;
-    append(
-        &repo_root.join("docs/baron/proofs/INDEX.md"),
-        "# Baron Proof Index\n\n",
-        &format!("- `{id}` - {}", summary.trim()),
-    )?;
-    append(
-        &vault.project_root.join("Proofs/INDEX.md"),
-        "# Baron Proof Index\n\n",
-        &format!("- `{id}` - {}", summary.trim()),
-    )?;
     let validation_risk = if let Some(binding) = binding.as_ref() {
         active_plan_authority_for_binding(
             repo_root,
@@ -259,6 +245,24 @@ fn record_proof_internal(
         current_harness_risk(repo_root)
     };
     let verified = proof_satisfies_risk(summary, validation_risk) && capability_gate.passed;
+    // Reserve shared Vault mutation authority before publishing any proof or
+    // runtime evidence. Otherwise a later TEST_MATRIX lock timeout could
+    // return an error while the proof itself remained usable.
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    preflight_publication_paths(repo_root, vault, &repo_path, &vault_path)?;
+    record_runtime_execution(repo_root, capability_evidence)?;
+    create_new_text(&vault_path, &content)?;
+    create_new_text(&repo_path, &content)?;
+    append(
+        &repo_root.join("docs/baron/proofs/INDEX.md"),
+        "# Baron Proof Index\n\n",
+        &format!("- `{id}` - {}", summary.trim()),
+    )?;
+    append(
+        &vault.project_root.join("Proofs/INDEX.md"),
+        "# Baron Proof Index\n\n",
+        &format!("- `{id}` - {}", summary.trim()),
+    )?;
     if let Some(operation) = operation {
         update_current_validation_evidence_for_operation(
             repo_root,

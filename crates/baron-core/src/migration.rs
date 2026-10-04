@@ -101,6 +101,60 @@ pub struct RollbackReport {
     pub restored_count: usize,
 }
 
+/// A managed target and the content hash observed by the installer callback
+/// before it returns. Migration rechecks this hash under the publication locks
+/// so a concurrent post-install edit cannot become rollback authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MigrationInstallOutput {
+    pub relative_path: String,
+    pub content_hash: Option<String>,
+}
+
+/// Exact managed targets published by a successful installer callback. These
+/// captured hashes become rollback authority only after the callback reports
+/// success and migration verifies the bytes have not changed; failed or raced
+/// installer output stays outside the expected baseline for recovery.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MigrationInstallOutputs {
+    pub repo_paths: Vec<MigrationInstallOutput>,
+    pub vault_paths: Vec<MigrationInstallOutput>,
+}
+
+impl MigrationInstallOutputs {
+    /// Capture expected hashes at the end of a successful installer callback.
+    /// `execute_agent_bootstrap_migration_with_outputs` later verifies these
+    /// hashes again under the repo/capsule/Vault lock ordering before making
+    /// them rollback expectations.
+    pub fn capture(
+        repo_root: impl AsRef<Path>,
+        vault_root: impl AsRef<Path>,
+        repo_paths: Vec<String>,
+        vault_paths: Vec<String>,
+    ) -> Result<Self> {
+        fn capture_scope(root: &Path, paths: Vec<String>) -> Result<Vec<MigrationInstallOutput>> {
+            paths
+                .into_iter()
+                .map(|path| {
+                    let relative_path = path.replace('\\', "/");
+                    if !is_safe_relative_path(&relative_path) {
+                        bail!("Migration installer returned an unsafe output path: {path}");
+                    }
+                    let target = validate_restore_target(root, &relative_path, "installer output")?;
+                    Ok(MigrationInstallOutput {
+                        relative_path,
+                        content_hash: hash_path(&target)?,
+                    })
+                })
+                .collect()
+        }
+
+        Ok(Self {
+            repo_paths: capture_scope(repo_root.as_ref(), repo_paths)?,
+            vault_paths: capture_scope(vault_root.as_ref(), vault_paths)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportRecord {
     pub source: String,
@@ -304,6 +358,20 @@ pub fn execute_agent_bootstrap_migration<F>(
 where
     F: FnOnce(&Path, &Path) -> Result<()>,
 {
+    execute_agent_bootstrap_migration_with_outputs(repo_path, vault_override, move |repo, vault| {
+        install_baron(repo, vault)?;
+        Ok(MigrationInstallOutputs::default())
+    })
+}
+
+pub fn execute_agent_bootstrap_migration_with_outputs<F>(
+    repo_path: impl AsRef<Path>,
+    vault_override: Option<&Path>,
+    install_baron: F,
+) -> Result<MigrationReceipt>
+where
+    F: FnOnce(&Path, &Path) -> Result<MigrationInstallOutputs>,
+{
     // Inventory and backup are read-only/backup work and intentionally happen
     // without the project lock. Each actual migration publication below takes
     // the lock only around the bounded read/merge/write operation that it is
@@ -352,12 +420,19 @@ where
         // an imported path as migration-owned output. The installer is unlocked.
         capture_post_handoff_state(&inventory.repo_root, &mut backup_manifest)?;
         write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
-        install_baron(&inventory.repo_root, &destination_vault)?;
+        let install_outputs = install_baron(&inventory.repo_root, &destination_vault)?;
         let _lock = acquire_project_lock(&inventory.repo_root)?;
         let _capsule_lock = lock_manifest_capsule(&backup_manifest)?;
-        register_valid_custom_assets(&inventory)?;
+        let _vault_lock = acquire_project_lock(&destination_vault)?;
+        capture_installer_outputs(&mut backup_manifest, &install_outputs)?;
+        register_valid_custom_assets(&inventory, &mut backup_manifest)?;
+        let agents_unchanged =
+            post_handoff_target_matches(&backup_manifest, BackupScope::Repo, "AGENTS.md")?;
         remove_legacy_managed_block(&inventory.repo_root.join("AGENTS.md"))?;
-        let removed_count = cleanup_legacy_runtime(&inventory)?;
+        if agents_unchanged {
+            record_post_handoff_target(&mut backup_manifest, BackupScope::Repo, "AGENTS.md")?;
+        }
+        let removed_count = cleanup_legacy_runtime(&inventory, &mut backup_manifest)?;
         verify_imports(&import_records)?;
         verify_native_state(&inventory.repo_root)?;
 
@@ -389,6 +464,8 @@ where
                 updated_at: now(),
             },
         )?;
+        record_post_handoff_target(&mut backup_manifest, BackupScope::Repo, BARON_STATE)?;
+        write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
         Ok(receipt)
     })();
 
@@ -520,7 +597,33 @@ pub fn rollback_migration(
             vault_root.display()
         );
     }
-    let restored_count = restore_from_manifest(&manifest, &backup_root)?;
+    if !manifest.post_handoff_captured {
+        let message = "Explicit migration rollback has no complete persisted handoff baseline";
+        record_rollback_conflict(&manifest, &backup_root, 0, message)?;
+        bail!("{message}; migration recovery data was preserved");
+    }
+    let rollback = restore_from_manifest_if_unchanged(&manifest, &backup_root)?;
+    if rollback.conflicts > 0 {
+        let conflict_paths = rollback
+            .conflict_paths
+            .iter()
+            .take(8)
+            .cloned()
+            .collect::<Vec<_>>();
+        let remaining = rollback.conflicts.saturating_sub(conflict_paths.len());
+        let conflict_suffix = if remaining == 0 {
+            conflict_paths.join(", ")
+        } else {
+            format!("{}, and {remaining} more", conflict_paths.join(", "))
+        };
+        let message = format!(
+            "Explicit migration rollback found {} changed managed target(s): {conflict_suffix}",
+            rollback.conflicts,
+        );
+        record_rollback_conflict(&manifest, &backup_root, rollback.conflicts, &message)?;
+        bail!("{message}; migration recovery data was preserved");
+    }
+    let restored_count = rollback.restored;
     write_state(
         &repo_root,
         MigrationState {
@@ -536,6 +639,37 @@ pub fn rollback_migration(
         status: "rolled_back".to_string(),
         restored_count,
     })
+}
+
+fn record_rollback_conflict(
+    manifest: &BackupManifest,
+    backup_root: &Path,
+    conflicts: usize,
+    message: &str,
+) -> Result<()> {
+    write_state(
+        &manifest.repo_root,
+        MigrationState {
+            migration_id: manifest.migration_id.clone(),
+            status: "needs_recovery".to_string(),
+            vault_root: manifest.vault_root.clone(),
+            backup_root: backup_root.to_path_buf(),
+            updated_at: now(),
+        },
+    )?;
+    let _capsule_lock = lock_manifest_capsule(manifest)?;
+    let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
+    write_json(
+        &backup_root.join("failure.json"),
+        &serde_json::json!({
+            "migrationId": manifest.migration_id,
+            "status": "needs_recovery",
+            "error": message,
+            "rollback": {"restored": 0, "conflicts": conflicts},
+            "rollbackError": message,
+            "updatedAt": now()
+        }),
+    )
 }
 
 fn create_backup_manifest(
@@ -741,6 +875,104 @@ fn backup_entry(
     })
 }
 
+fn post_handoff_target_matches(
+    manifest: &BackupManifest,
+    scope: BackupScope,
+    relative_path: &str,
+) -> Result<bool> {
+    let root = match scope {
+        BackupScope::Repo => &manifest.repo_root,
+        BackupScope::Vault => &manifest.vault_root,
+    };
+    let entry = manifest
+        .entries
+        .iter()
+        .find(|entry| entry.scope == scope && entry.relative_path == relative_path)
+        .with_context(|| format!("Migration manifest does not track {relative_path}"))?;
+    let target = root.join(relative_path);
+    Ok(hash_path(&target)? == entry.post_handoff_hash)
+}
+
+fn ensure_post_handoff_target_unchanged(
+    manifest: &BackupManifest,
+    scope: BackupScope,
+    relative_path: &str,
+) -> Result<()> {
+    if !post_handoff_target_matches(manifest, scope, relative_path)? {
+        let root = match scope {
+            BackupScope::Repo => &manifest.repo_root,
+            BackupScope::Vault => &manifest.vault_root,
+        };
+        let target = root.join(relative_path);
+        bail!(
+            "Migration publication baseline changed: {}",
+            target.display()
+        );
+    }
+    Ok(())
+}
+
+fn record_post_handoff_target(
+    manifest: &mut BackupManifest,
+    scope: BackupScope,
+    relative_path: &str,
+) -> Result<()> {
+    let root = match scope {
+        BackupScope::Repo => &manifest.repo_root,
+        BackupScope::Vault => &manifest.vault_root,
+    };
+    let hash = hash_path(&root.join(relative_path))?;
+    let entry = manifest
+        .entries
+        .iter_mut()
+        .find(|entry| entry.scope == scope && entry.relative_path == relative_path)
+        .with_context(|| format!("Migration manifest does not track {relative_path}"))?;
+    entry.post_handoff_hash = hash;
+    Ok(())
+}
+
+fn capture_installer_outputs(
+    manifest: &mut BackupManifest,
+    outputs: &MigrationInstallOutputs,
+) -> Result<()> {
+    let mut captured: Vec<(usize, Option<String>)> = Vec::new();
+    for (scope, paths) in [
+        (BackupScope::Repo, &outputs.repo_paths),
+        (BackupScope::Vault, &outputs.vault_paths),
+    ] {
+        let root = match scope {
+            BackupScope::Repo => &manifest.repo_root,
+            BackupScope::Vault => &manifest.vault_root,
+        };
+        for output in paths {
+            let normalized = &output.relative_path;
+            if !is_safe_relative_path(normalized) {
+                bail!("Migration installer returned an unsafe output path: {normalized}");
+            }
+            let entry_index = manifest
+                .entries
+                .iter()
+                .position(|entry| entry.scope == scope && entry.relative_path == *normalized)
+                .with_context(|| {
+                    format!("Migration backup does not track installer output {normalized}")
+                })?;
+            let target = validate_restore_target(root, normalized, "installer output")?;
+            let current_hash = hash_path(&target)?;
+            if current_hash != output.content_hash {
+                bail!(
+                    "Migration installer output changed before locked publication: {}",
+                    target.display()
+                );
+            }
+            captured.push((entry_index, output.content_hash.clone()));
+        }
+    }
+    for (entry_index, content_hash) in captured {
+        manifest.entries[entry_index].post_handoff_hash = content_hash;
+    }
+    Ok(())
+}
+
 fn import_legacy_vault(
     source_root: &Path,
     destination_root: &Path,
@@ -844,7 +1076,10 @@ fn quarantine_invalid_assets(
     Ok(count)
 }
 
-fn register_valid_custom_assets(inventory: &MigrationInventory) -> Result<()> {
+fn register_valid_custom_assets(
+    inventory: &MigrationInventory,
+    manifest: &mut BackupManifest,
+) -> Result<()> {
     let valid_skills = inventory
         .items
         .iter()
@@ -859,6 +1094,13 @@ fn register_valid_custom_assets(inventory: &MigrationInventory) -> Result<()> {
             item.kind == MigrationAssetKind::CustomAgent && item.action == MigrationAction::Import
         })
         .collect::<Vec<_>>();
+    if !valid_skills.is_empty() {
+        ensure_post_handoff_target_unchanged(
+            manifest,
+            BackupScope::Repo,
+            ".codex/skills/INDEX.md",
+        )?;
+    }
     append_custom_routes(
         &inventory.repo_root.join(".codex/skills/INDEX.md"),
         "Imported Custom Skills",
@@ -869,6 +1111,16 @@ fn register_valid_custom_assets(inventory: &MigrationInventory) -> Result<()> {
             )
         }),
     )?;
+    if !valid_skills.is_empty() {
+        record_post_handoff_target(manifest, BackupScope::Repo, ".codex/skills/INDEX.md")?;
+    }
+    if !valid_agents.is_empty() {
+        ensure_post_handoff_target_unchanged(
+            manifest,
+            BackupScope::Repo,
+            ".codex/agents/INDEX.md",
+        )?;
+    }
     append_custom_routes(
         &inventory.repo_root.join(".codex/agents/INDEX.md"),
         "Imported Custom Agents",
@@ -878,7 +1130,11 @@ fn register_valid_custom_assets(inventory: &MigrationInventory) -> Result<()> {
                 item.relative_path.trim_start_matches(".codex/agents/")
             )
         }),
-    )
+    )?;
+    if !valid_agents.is_empty() {
+        record_post_handoff_target(manifest, BackupScope::Repo, ".codex/agents/INDEX.md")?;
+    }
+    Ok(())
 }
 
 fn append_custom_routes(
@@ -904,13 +1160,17 @@ fn append_custom_routes(
     atomic_write(path, content.as_bytes())
 }
 
-fn cleanup_legacy_runtime(inventory: &MigrationInventory) -> Result<usize> {
+fn cleanup_legacy_runtime(
+    inventory: &MigrationInventory,
+    manifest: &mut BackupManifest,
+) -> Result<usize> {
     let mut removed = 0;
     for item in &inventory.items {
         if item.action != MigrationAction::Remove {
             continue;
         }
         let path = inventory.repo_root.join(&item.relative_path);
+        ensure_post_handoff_target_unchanged(manifest, BackupScope::Repo, &item.relative_path)?;
         if !path.exists() {
             continue;
         }
@@ -928,6 +1188,7 @@ fn cleanup_legacy_runtime(inventory: &MigrationInventory) -> Result<usize> {
         };
         if safe {
             remove_path(&path)?;
+            record_post_handoff_target(manifest, BackupScope::Repo, &item.relative_path)?;
             removed += 1;
         }
     }
@@ -1098,10 +1359,11 @@ fn capture_post_handoff_state(repo_root: &Path, manifest: &mut BackupManifest) -
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ConditionalRollback {
     restored: usize,
     conflicts: usize,
+    conflict_paths: Vec<String>,
 }
 
 fn restore_from_manifest_if_unchanged(
@@ -1111,7 +1373,7 @@ fn restore_from_manifest_if_unchanged(
     let _lock = acquire_project_lock(&manifest.repo_root)?;
     let _capsule_lock = lock_manifest_capsule(manifest)?;
     let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
-    let mut conflicts = 0;
+    let mut conflict_paths = Vec::new();
     for entry in &manifest.entries {
         let root = match entry.scope {
             BackupScope::Repo => &manifest.repo_root,
@@ -1119,22 +1381,31 @@ fn restore_from_manifest_if_unchanged(
         };
         let target = validate_restore_target(root, &entry.relative_path, "rollback target")?;
         if hash_path(&target)? != entry.post_handoff_hash {
-            conflicts += 1;
+            conflict_paths.push(format!(
+                "{}:{}",
+                match entry.scope {
+                    BackupScope::Repo => "repo",
+                    BackupScope::Vault => "vault",
+                },
+                entry.relative_path
+            ));
         }
     }
-    if conflicts > 0 {
+    if !conflict_paths.is_empty() {
         // Do not partially restore a multi-path migration when any path was
         // changed after the external handoff. Leaving every path untouched is
         // fail-closed and avoids replacing a concurrent writer's bytes with
         // the pre-migration backup.
         return Ok(ConditionalRollback {
             restored: 0,
-            conflicts,
+            conflicts: conflict_paths.len(),
+            conflict_paths,
         });
     }
     Ok(ConditionalRollback {
         restored: restore_from_manifest(manifest, backup_root)?,
         conflicts: 0,
+        conflict_paths: Vec::new(),
     })
 }
 

@@ -15,6 +15,7 @@ use baron_core::capability::{
 use baron_core::config::{load_project_config, AdapterKind};
 use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
 use baron_core::control_plane::record_gate_evidence;
+use baron_core::execution_receipt::ReceiptContext;
 use baron_core::harness::{
     record_friction, start_or_resume_intake, update_current_validation_evidence,
 };
@@ -23,7 +24,7 @@ use baron_core::identity::project_id_for_path;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::{complete_plan, start_or_resume_plan_for_identity};
-use baron_core::proof::{record_proof, record_proof_for_operation};
+use baron_core::proof::{proof_for_operation, record_proof, record_proof_for_operation};
 use baron_core::safe_io::acquire_project_lock;
 use baron_core::trace::{
     record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
@@ -468,6 +469,68 @@ fn proof_mutation_lock_timeout_fails_without_writing_state() {
 }
 
 #[test]
+fn proof_vault_lock_timeout_does_not_publish_usable_operation_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("proof-timeout-repo");
+    let vault = temp.path().join("proof-timeout-vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let title = "fix README formatting";
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("proof-vault-timeout-session"),
+        Some("proof-vault-timeout-request"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+    start_or_resume_intake(&repo, &context, title).unwrap();
+    let binding = ReceiptContext::for_identity(&identity, "proof").unwrap();
+    assert!(proof_for_operation(&repo, &binding).unwrap().is_none());
+    let matrix_path = context.project_root.join("ProductHarness/TEST_MATRIX.md");
+    let matrix_before = fs::read(&matrix_path).unwrap();
+
+    let ready = temp.path().join("proof-vault-timeout-ready");
+    fs::create_dir_all(&ready).unwrap();
+    let vault_lock = acquire_project_lock(&context.project_root).unwrap();
+    let child = Command::new(env::current_exe().unwrap())
+        .args(["--exact", "concurrency_worker", "--nocapture"])
+        .env("BARON_CONCURRENCY_WORKER", "1")
+        .env("BARON_CONCURRENCY_MODE", "proof-vault-timeout")
+        .env("BARON_CONCURRENCY_REPO", &repo)
+        .env("BARON_CONCURRENCY_VAULT", &vault)
+        .env("BARON_CONCURRENCY_INDEX", "proof-timeout")
+        .env("BARON_CONCURRENCY_READY", &ready)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !ready.join("attempting").exists() {
+        assert!(Instant::now() < deadline, "proof worker did not start");
+        thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().unwrap();
+    drop(vault_lock);
+
+    assert!(
+        output.status.success(),
+        "proof worker failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("PROOF_TIMEOUT_OK"));
+    assert!(
+        proof_for_operation(&repo, &binding).unwrap().is_none(),
+        "a failed proof command must not leave usable operation evidence"
+    );
+    assert_eq!(fs::read(matrix_path).unwrap(), matrix_before);
+    assert!(!repo.join("docs/baron/proofs").exists());
+}
+
+#[test]
 fn plan_and_trace_lock_timeouts_fail_without_writing_state() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("timeout-repo");
@@ -770,7 +833,7 @@ fn concurrency_worker() {
     let index = env::var("BARON_CONCURRENCY_INDEX").unwrap();
     if !matches!(
         mode.as_str(),
-        "timeout" | "plan-timeout" | "trace-timeout" | "matrix-update"
+        "timeout" | "plan-timeout" | "trace-timeout" | "matrix-update" | "proof-vault-timeout"
     ) {
         let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
         let release = PathBuf::from(env::var_os("BARON_CONCURRENCY_RELEASE").unwrap());
@@ -989,6 +1052,31 @@ fn concurrency_worker() {
                 .to_string()
                 .contains("Timed out waiting for Baron mutation lock"));
             println!("TRACE_TIMEOUT_OK");
+        }
+        "proof-vault-timeout" => {
+            let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
+            fs::write(ready.join("attempting"), b"attempting").unwrap();
+            let title = "fix README formatting";
+            let identity = LifecycleIdentity::resolve(
+                &context.project_id,
+                title,
+                SupportedAdapter::Codex,
+                Some("proof-vault-timeout-session"),
+                Some("proof-vault-timeout-request"),
+            )
+            .unwrap();
+            let operation = OperationContext::from_identity(&identity);
+            let error = record_proof_for_operation(
+                &repo,
+                &context,
+                &operation,
+                "proof must not survive a Vault lock timeout",
+            )
+            .unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Timed out waiting for Baron mutation lock"));
+            println!("PROOF_TIMEOUT_OK");
         }
         "plan" => {
             let title = format!("concurrent plan instance {index}");

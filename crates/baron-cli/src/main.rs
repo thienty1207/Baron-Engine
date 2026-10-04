@@ -93,8 +93,8 @@ use baron_core::knowledge::{
 use baron_core::memory::{analyze_memory_consolidation, stage_memory_consolidation};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::migration::{
-    execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
-    render_migration_inventory, rollback_migration,
+    execute_agent_bootstrap_migration_with_outputs, inventory_agent_bootstrap, migration_status,
+    render_migration_inventory, rollback_migration, MigrationInstallOutputs,
 };
 use baron_core::operation::{
     AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
@@ -3311,60 +3311,112 @@ fn run() -> Result<()> {
                 println!("- Status: `closed`");
             }
         },
-        Some(Commands::Migrate { command }) => match command {
-            MigrationCommands::AgentBootstrap {
-                repo_path,
-                dry_run,
-                vault,
-            } => {
-                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
-                if dry_run {
-                    let inventory = inventory_agent_bootstrap(&repo_path, vault.as_deref())?;
-                    print!("{}", render_migration_inventory(&inventory));
-                } else {
-                    let receipt = execute_agent_bootstrap_migration(
-                        &repo_path,
-                        vault.as_deref(),
-                        |repo_root, vault_root| {
-                            initialize_project(repo_root, AdapterKind::Codex, vault_root)?;
-                            install_adapter(repo_root, AgentAdapter::Codex)?;
-                            let context = ensure_vault(vault_root, repo_root)?;
-                            build_memory_index(&context)?;
-                            Ok(())
-                        },
-                    )?;
-                    println!("# Baron Agent Bootstrap Migration\n");
-                    println!("- Migration ID: `{}`", receipt.migration_id);
-                    println!("- Status: `{}`", receipt.status);
-                    println!("- Imported: {}", receipt.imported_count);
-                    println!("- Quarantined: {}", receipt.quarantined_count);
-                    println!("- Removed: {}", receipt.removed_count);
-                    println!("- Backup: `{}`", receipt.backup_root.display());
-                    println!("- Runtime dependency on Agent Bootstrap: none");
+        Some(Commands::Migrate { command }) => {
+            match command {
+                MigrationCommands::AgentBootstrap {
+                    repo_path,
+                    dry_run,
+                    vault,
+                } => {
+                    let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                    if dry_run {
+                        let inventory = inventory_agent_bootstrap(&repo_path, vault.as_deref())?;
+                        print!("{}", render_migration_inventory(&inventory));
+                    } else {
+                        let receipt =
+                            execute_agent_bootstrap_migration_with_outputs(
+                                &repo_path,
+                                vault.as_deref(),
+                                |repo_root, vault_root| {
+                                    initialize_project(repo_root, AdapterKind::Codex, vault_root)?;
+                                    let install = install_adapter(repo_root, AgentAdapter::Codex)?;
+                                    let context = ensure_vault(vault_root, repo_root)?;
+                                    build_memory_index(&context)?;
+
+                                    let tracked_repo_outputs = [
+                                        "AGENTS.md",
+                                        ".codex/INDEX.md",
+                                        ".codex/agents/INDEX.md",
+                                        ".codex/agents/code-reviewer.toml",
+                                        ".codex/agents/security-auditor.toml",
+                                        ".codex/agents/test-engineer.toml",
+                                    ];
+                                    let mut repo_paths = vec![
+                                        ".baron/project.toml".to_string(),
+                                        ".baron/local.toml".to_string(),
+                                        ".baron/.gitignore".to_string(),
+                                    ];
+                                    repo_paths.extend(install.managed_files.into_iter().filter(
+                                        |path| tracked_repo_outputs.contains(&path.as_str()),
+                                    ));
+                                    let capsule = context
+                                        .project_root
+                                        .strip_prefix(vault_root)?
+                                        .to_string_lossy()
+                                        .replace('\\', "/");
+                                    let mut vault_paths = [
+                                        "README.md",
+                                        "Facts.md",
+                                        "Decisions.md",
+                                        "Tasks.md",
+                                        ".baron-project.json",
+                                    ]
+                                    .into_iter()
+                                    .map(|file| format!("{capsule}/{file}"))
+                                    .collect::<Vec<_>>();
+                                    for path in [
+                                        &context.approved_global_path,
+                                        &context.global_candidates_path,
+                                        &context.state_path,
+                                        &context.index_path,
+                                    ] {
+                                        vault_paths.push(
+                                            path.strip_prefix(vault_root)?
+                                                .to_string_lossy()
+                                                .replace('\\', "/"),
+                                        );
+                                    }
+                                    MigrationInstallOutputs::capture(
+                                        repo_root,
+                                        vault_root,
+                                        repo_paths,
+                                        vault_paths,
+                                    )
+                                },
+                            )?;
+                        println!("# Baron Agent Bootstrap Migration\n");
+                        println!("- Migration ID: `{}`", receipt.migration_id);
+                        println!("- Status: `{}`", receipt.status);
+                        println!("- Imported: {}", receipt.imported_count);
+                        println!("- Quarantined: {}", receipt.quarantined_count);
+                        println!("- Removed: {}", receipt.removed_count);
+                        println!("- Backup: `{}`", receipt.backup_root.display());
+                        println!("- Runtime dependency on Agent Bootstrap: none");
+                    }
+                }
+                MigrationCommands::Status { repo_path } => {
+                    let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                    print!("{}", migration_status(repo_path)?);
+                }
+                MigrationCommands::Rollback {
+                    id,
+                    repo_path,
+                    vault,
+                } => {
+                    let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                    let vault = if let Some(vault) = vault {
+                        vault
+                    } else {
+                        resolve_vault_path_for_repo(None, &repo_path)?
+                    };
+                    let report = rollback_migration(&repo_path, &vault, &id)?;
+                    println!("# Baron Migration Rollback\n");
+                    println!("- Migration ID: `{}`", report.migration_id);
+                    println!("- Status: `{}`", report.status);
+                    println!("- Restored paths: {}", report.restored_count);
                 }
             }
-            MigrationCommands::Status { repo_path } => {
-                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
-                print!("{}", migration_status(repo_path)?);
-            }
-            MigrationCommands::Rollback {
-                id,
-                repo_path,
-                vault,
-            } => {
-                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
-                let vault = if let Some(vault) = vault {
-                    vault
-                } else {
-                    resolve_vault_path_for_repo(None, &repo_path)?
-                };
-                let report = rollback_migration(&repo_path, &vault, &id)?;
-                println!("# Baron Migration Rollback\n");
-                println!("- Migration ID: `{}`", report.migration_id);
-                println!("- Status: `{}`", report.status);
-                println!("- Restored paths: {}", report.restored_count);
-            }
-        },
+        }
         Some(Commands::Capability { command }) => match command {
             CapabilityCommands::Register {
                 capability,
