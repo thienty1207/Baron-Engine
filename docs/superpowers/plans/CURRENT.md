@@ -1,14 +1,14 @@
 # Current Baron Build Plan
 
-## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-02)
+## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-04)
 
-- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`, not closed. The completed-identity reuse and stale-CURRENT veto findings from `ecaf362..c739b5f` are fixed and have RED-to-GREEN coverage; multiple active plans remain fail-closed as ambiguous.
+- Task/status: all known Critical/Important closure findings are repaired and the complete local gate set passed. No closure or new push yet. The earlier reviewer 1 was INCONCLUSIVE after quota and reviewer 2 returned FIX REQUIRED on `ecaf362..9283841`; neither is acceptance of the final range.
 - Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md).
-- Checkpoint: completed LifecycleIdentity cannot replace its completed ACTIVE row or revive its old proof/trace/hook authority. For a sole identified plan, exact authority, completion status, Core trace, and legacy no-selector update ignore stale/malformed CURRENT and use validated ACTIVE/frontmatter; multiple managed active plans fail explicitly as ambiguous. Unbound legacy behavior still requires its compatible CURRENT pointer.
-- Proof/trace: the stale Stop replay regression remains GREEN with either dedup cache or journal-only recovery. The new plan regression first failed on stale CURRENT in authority selection and again in `update_plan`; it passes after removing CURRENT from identified no-selector resolution.
-- Persisted-state boundary: exact identity -> ACTIVE -> managed plan frontmatter; shared validation-matrix writes serialize checkout -> Vault; CURRENT remains presentation only. Stop journal response is historical; it cannot authorize a retry.
-- Verification: Core 561/0, CLI 188/0, adapters 124/0, workspace 873/0; fmt, warnings-denied Clippy, locked release build, explicit smoke, `baron 5.0.0`, 252-line source scan, JSON/docs/retired-adapter checks and diff check pass. Test runs use isolated host session roots and bundled PowerShell 7. No hosted CI result is claimed. Public version remains `5.0.0`.
-- Safe next action: commit the verified repair and evidence, then obtain two fresh independent read-only reviews of exact `ecaf362..HEAD`. Push and close only after both accept.
+- Checkpoint: immutable operation/event continuity archives and operation-local CHECKPOINT/RECOVERY; additive exact recovery selectors; missing-ACTIVE mutations reject; shared improvements merge durable Vault state under checkout -> capsule locks; migration hashes only its own publication and protects live locks; failed/pending/unknown Stop retries block independently of stop_hook_active.
+- Proof status: Core 584/0, CLI 190/0 (one ignored), adapters 124/0 (three ignored), workspace 898/0 (four ignored); plan 54/54, plan_identity_cli 4/4, proof_trace 29/29, operation_evidence_cli 11/11, phase12_hooks 11/11, phase12_hooks_cli 6/6, concurrency 16/16, config 16/16, capability 9/9, control_plane 9/9, continuity 6/6, intent 7/7, harness 5/5, harness_improvement 10/10, migration 14/14, operation_identity 10/10, execution_receipt 5/5. Fmt, Clippy, locked release build/smoke, JSON, seven maintained link targets, retired-adapter and diff checks pass.
+- Trace/audit: recovery's actionable mixed composition was BUG and is now EXACT_OPERATION_SCOPED. The combined caller scan has 261 source lines (115 for the first pattern set), not the old 252. Four documented Minor limitations await reassessment.
+- Persisted-state boundary: exact LifecycleIdentity -> indexed ACTIVE -> canonical managed frontmatter. CURRENT is presentation only. No project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff changes.
+- Safe next action: commit the verified source/tests/evidence and readiness status; obtain two fresh independent read-only accepts on exact `ecaf362..<final HEAD>`, then close and push the scoped branch. Public binary stays baron 5.0.0. Four documented Minor topics remain for reviewers to reassess.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

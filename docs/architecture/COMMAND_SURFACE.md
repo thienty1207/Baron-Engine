@@ -104,6 +104,15 @@ are rejected; Core does not infer missing identity from CURRENT state.
 
 ## Ownership and safety contract
 
+Maintainer proof/trace and `continuity recover` ingress accepts the same complete
+`--task`, `--adapter`, `--session-id`, `--request-id` selector set. Explicit
+selection validates exact ACTIVE/frontmatter authority. Recovery without a
+selector may use only a validated single active operation; multiple active
+plans fail before publication. Identified checkpoints and recoveries persist
+separate operation records in Repo and Vault, so another operation's CURRENT
+projection cannot erase their resume state. An old unindexed identified plan
+must be explicitly started/resumed to register ACTIVE before mutation.
+
 Core owns `.baron/core/**`, project identity, Task State, memory, receipts, and
 workflow semantics. Codex owns its `AGENTS.md`, `.agents/`, and managed `.codex`
 projection. Claude owns its `CLAUDE.md`, `.claude/` bridge, wrappers, and
