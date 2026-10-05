@@ -2,13 +2,13 @@
 
 ## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-05)
 
-The three Important findings from reviews of `ecaf362..868f7c1` have regression-backed RED→GREEN repairs: shared Vault ACTIVE rows are merged under repo→Vault locking, plan/trace writes fail without mutation under Vault lock contention, and rollback accepts only the verified marker-deletion restart state. Fresh isolated workspace all-targets passed 911/0/4 across 112 suites; direct CLI all-targets passed 190/0/1 across 38 suites; adapters passed 124/0/3 across 14 suites. Core, fmt, Clippy, locked release build, `baron 5.0.0`, ignored release smoke 1/1, CLI help checks, JSON parsing, and post-edit docs checks passed.
+Two prior exact-range reviews of `ecaf362..868f7c1` returned FIX REQUIRED. Current integrated verification passes: workspace 916/0/4 across 112 suites; Core 602/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored; fmt and Clippy `-D warnings`; locked workspace release build; `baron 5.0.0`; CLI help; ignored release smoke 1/1; public trust docs 12/12; status JSON, changed-doc relative links, retired-adapter gate, and diff check. Baseline comparison is recorded in the final verification plan. Status is READY FOR ADVERSARIAL REVIEW; two fresh exact-range reviewers remain.
 
 - Detailed evidence: [SPEC-05 final local verification](../../docs/superpowers/plans/2026-10-05-spec-05-final-verification.md).
-- Failure honesty: each expected RED was distinguished from unrelated failures. The first plan test run exposed a missing fixture `project.toml`; after correcting setup, it failed on the reported lost A row. The earlier misconfigured CLI run that scanned host session roots was cancelled; isolated CLI/workspace reruns passed without writing host session files.
-- Audit/status: current authority-pattern scan remains 261 lines; all production caller groups are classified, with no `BUG` disposition and four documented Minor topics for reviewers. The old FIX REQUIRED verdicts are not acceptance. No GitHub CI result is claimed.
+- Failure honesty: test commands used unique nonexistent Codex/Claude session-root paths and bundled PowerShell 7 where required. Previous review verdicts are not acceptance; local runs are not claimed as GitHub CI.
+- Audit/status: current Core/CLI source search finds 258 authority-pattern matches. The harness audit uses operation-scoped completion evidence and reports multiple active plans as ambiguous.
 - Persisted-state boundary: exact identity -> indexed ACTIVE -> canonical frontmatter; CURRENT is latest presentation. Only SPEC-05 source/tests and maintained evidence/docs are intended changes. No release/tag/version bump, SPEC-06, or Hotel Staff work.
-- Review gate: after the final evidence commit, two fresh independent reviewers must ACCEPT exact `ecaf362..<final HEAD>`. Repair/retest/re-review any Critical/Important result; close and push only after both accept. Public version remains `5.0.0`.
+- Review gate: after the final evidence commit and complete local verification, two fresh independent reviewers must ACCEPT exact `ecaf362..<final HEAD>`. Close and push only after both accept. Public version remains `5.0.0`.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

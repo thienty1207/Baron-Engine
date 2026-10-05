@@ -1369,6 +1369,7 @@ pub fn record_gate_evidence(
 ) -> Result<GateEvidence> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
     let vault_path = vault.project_root.join("ControlPlane/GATES.md");
     let item = format!("- {} - `{}` - {}", now(), agent.trim(), summary.trim());
@@ -1420,6 +1421,7 @@ pub fn record_gate_evidence_with_receipt_bound(
     let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
     let vault_path = vault.project_root.join("ControlPlane/GATES.md");
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let receipt = load_verified_receipt(repo_root, receipt_id)?;
     if receipt.as_receipt() != initial_receipt.as_receipt()
         || !receipt_matches_verified_context(&receipt, binding)?

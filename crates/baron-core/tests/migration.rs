@@ -171,7 +171,7 @@ fn inventory_is_read_only_and_classifies_legacy_assets() {
 fn migration_imports_data_quarantines_invalid_assets_and_retires_runtime() {
     let (_temp, repo, vault) = legacy_fixture();
 
-    let receipt = execute_agent_bootstrap_migration(&repo, None, |repo, _vault| {
+    let receipt = execute_agent_bootstrap_migration_with_outputs(&repo, None, |repo, vault| {
         write(
             &repo.join(".baron/project.toml"),
             "schema_version = 1\nproject_slug = \"demo\"\nadapters = [\"codex\"]\n",
@@ -180,7 +180,12 @@ fn migration_imports_data_quarantines_invalid_assets_and_retires_runtime() {
             &repo.join("AGENTS.md"),
             "# User Rules\n\nKeep this.\n\n<!-- BARON:MANAGED:START -->\nBaron native\n<!-- BARON:MANAGED:END -->\n",
         );
-        Ok(())
+        MigrationInstallOutputs::capture(
+            repo,
+            vault,
+            vec![".baron/project.toml".to_string(), "AGENTS.md".to_string()],
+            Vec::new(),
+        )
     })
     .unwrap();
 
@@ -363,6 +368,75 @@ fn installer_return_window_edit_is_not_adopted_as_migration_output() {
         user_edit,
         "installer output capture must not adopt and later erase the concurrent user edit"
     );
+}
+
+#[test]
+fn installer_return_window_edit_inside_agents_managed_block_is_preserved() {
+    let (_temp, repo, vault) = legacy_fixture();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let agents_path = repo.join("AGENTS.md");
+    let (locked_tx, locked_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let (callback_ready_tx, callback_ready_rx) = mpsc::channel();
+    let migration_repo = repo.clone();
+    let migration = thread::spawn(move || {
+        execute_agent_bootstrap_migration_with_outputs(
+            &migration_repo,
+            None,
+            move |repo_root, vault_root| {
+                let mut installer_bytes = fs::read(repo_root.join(".baron/project.toml"))?;
+                installer_bytes.extend_from_slice(b"\n# successful installer output\n");
+                fs::write(repo_root.join(".baron/project.toml"), installer_bytes)?;
+                let outputs = MigrationInstallOutputs::capture(
+                    repo_root,
+                    vault_root,
+                    vec![".baron/project.toml".to_string()],
+                    Vec::new(),
+                )?;
+
+                let held_repo = repo_root.to_path_buf();
+                let holder_release = release_rx;
+                let _ = thread::spawn(move || {
+                    let _lock =
+                        acquire_project_lock_with_timeout(&held_repo, Duration::from_secs(5))
+                            .unwrap();
+                    locked_tx.send(()).unwrap();
+                    holder_release.recv_timeout(Duration::from_secs(5)).unwrap();
+                });
+                locked_rx.recv_timeout(Duration::from_secs(5))?;
+                callback_ready_tx.send(()).unwrap();
+                Ok(outputs)
+            },
+        )
+    });
+
+    callback_ready_rx
+        .recv_timeout(Duration::from_secs(10))
+        .expect("installer callback did not reach the return window");
+    let mut user_edit = fs::read(&agents_path).unwrap();
+    let current = String::from_utf8(user_edit.clone()).unwrap();
+    user_edit = current
+        .replace(
+            "legacy runtime instructions",
+            "user-owned managed-block edit",
+        )
+        .into_bytes();
+    fs::write(&agents_path, &user_edit).unwrap();
+    release_tx.send(()).unwrap();
+
+    let result = migration.join().unwrap();
+    assert!(
+        result.is_err(),
+        "migration must fail closed when AGENTS.md changed after installer capture"
+    );
+    assert_eq!(
+        fs::read(&agents_path).unwrap(),
+        user_edit,
+        "managed-block cleanup must preserve an edit made after installer capture"
+    );
+    assert!(migration_status(&repo)
+        .unwrap()
+        .contains("rolled_back_with_conflicts"));
 }
 
 #[test]

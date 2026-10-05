@@ -126,7 +126,7 @@ fn new_proof_trace_and_plan_instances_have_collision_resistant_names() {
 }
 
 #[test]
-fn concurrent_legacy_capsule_migration_preserves_one_project_identity() {
+fn concurrent_legacy_capsule_resolution_preserves_one_project_identity() {
     const WORKER_COUNT: usize = 6;
     let temp = tempdir().unwrap();
     let repo = temp.path().join("legacy-project");
@@ -170,7 +170,8 @@ fn concurrent_legacy_capsule_migration_preserves_one_project_identity() {
 
     assert_eq!(identities.len(), 1);
     assert_eq!(project_roots.len(), 1);
-    assert!(!legacy_root.exists());
+    assert!(legacy_root.exists());
+    assert_eq!(project_roots.first().unwrap(), &legacy_root);
     assert!(project_roots.first().unwrap().join("Facts.md").exists());
 }
 
@@ -657,6 +658,54 @@ fn plan_and_trace_lock_timeouts_fail_without_writing_state() {
 }
 
 #[test]
+fn shared_vault_intent_and_gate_history_timeouts_do_not_publish_repo_only_rows() {
+    let temp = tempdir().unwrap();
+    for mode in ["intent-vault-timeout", "gate-vault-timeout"] {
+        let repo = temp.path().join(format!("{mode}-repo"));
+        let vault = temp.path().join(format!("{mode}-vault"));
+        fs::create_dir_all(&repo).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let ready = temp.path().join(format!("{mode}-ready"));
+        fs::create_dir_all(&ready).unwrap();
+        let vault_lock = acquire_project_lock(&context.project_root).unwrap();
+        let child = Command::new(env::current_exe().unwrap())
+            .args(["--exact", "concurrency_worker", "--nocapture"])
+            .env("BARON_CONCURRENCY_WORKER", "1")
+            .env("BARON_CONCURRENCY_MODE", mode)
+            .env("BARON_CONCURRENCY_REPO", &repo)
+            .env("BARON_CONCURRENCY_VAULT", &vault)
+            .env("BARON_CONCURRENCY_INDEX", "shared-history-timeout")
+            .env("BARON_CONCURRENCY_READY", &ready)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ready.join("attempting").exists() {
+            assert!(Instant::now() < deadline, "{mode} worker did not start");
+            thread::sleep(Duration::from_millis(10));
+        }
+        let output = child.wait_with_output().unwrap();
+        drop(vault_lock);
+
+        assert!(
+            output.status.success(),
+            "{mode} worker failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!repo.join("docs/baron/harness/intents").exists());
+        assert!(!repo.join("docs/baron/control-plane/GATES.md").exists());
+        assert!(!context
+            .project_root
+            .join("ProductHarness/INTENTS.md")
+            .exists());
+        assert!(!context.project_root.join("ControlPlane/GATES.md").exists());
+    }
+}
+
+#[test]
 fn validation_matrix_update_waits_for_shared_vault_lock_across_checkouts() {
     let temp = tempdir().unwrap();
     let repo_a = temp.path().join("checkout-a");
@@ -943,6 +992,8 @@ fn concurrency_worker() {
         "timeout"
             | "plan-timeout"
             | "trace-timeout"
+            | "intent-vault-timeout"
+            | "gate-vault-timeout"
             | "matrix-update"
             | "proof-vault-timeout"
             | "trace-vault-timeout"
@@ -1230,6 +1281,44 @@ fn concurrency_worker() {
                 .to_string()
                 .contains("Timed out waiting for Baron mutation lock"));
             println!("TRACE_VAULT_TIMEOUT_OK");
+        }
+        "intent-vault-timeout" | "gate-vault-timeout" => {
+            let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
+            fs::write(ready.join("attempting"), b"attempting").unwrap();
+            let error = if mode == "intent-vault-timeout" {
+                record_intent(
+                    &repo,
+                    &context,
+                    IntentBriefInput {
+                        title: "shared Vault intent lock timeout".to_string(),
+                        current_behavior: "Current behavior is recorded.".to_string(),
+                        target_behavior: "Target behavior is explicit.".to_string(),
+                        scope: "Only the operation intent is in scope.".to_string(),
+                        non_goals: Vec::new(),
+                        constraints: Vec::new(),
+                        decisions: Vec::new(),
+                        required_proof: "The history write is serialized.".to_string(),
+                        unknowns: Vec::new(),
+                        confirmed: true,
+                    },
+                )
+                .unwrap_err()
+            } else {
+                record_gate_evidence(
+                    &repo,
+                    &context,
+                    "code-reviewer",
+                    "The shared gate history writer must respect the Vault mutation lock.",
+                )
+                .unwrap_err()
+            };
+            assert!(
+                error
+                    .to_string()
+                    .contains("Timed out waiting for Baron mutation lock"),
+                "{error:#}"
+            );
+            println!("SHARED_HISTORY_TIMEOUT_OK");
         }
         "plan" => {
             let title = format!("concurrent plan instance {index}");

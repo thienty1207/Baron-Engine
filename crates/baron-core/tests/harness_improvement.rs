@@ -9,8 +9,13 @@ use baron_core::harness_improvement::{
     audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
     verify_open_stories,
 };
-use baron_core::plan::start_or_resume_plan;
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::plan::{start_or_resume_plan, start_or_resume_plan_for_identity};
+use baron_core::proof::record_proof_for_operation;
 use baron_core::safe_io::acquire_project_lock;
+use baron_core::trace::{
+    record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
+};
 use baron_core::vault::{ensure_vault, VaultContext};
 use tempfile::tempdir;
 
@@ -52,6 +57,61 @@ fn audit_scores_context_reads_and_reports_harness_gaps() {
     .unwrap();
     let improved = audit_harness(&repo, &context).unwrap();
     assert!(improved.context_read_score > audit.context_read_score);
+}
+
+#[test]
+fn harness_audit_does_not_treat_current_b_evidence_as_unambiguous_for_a_and_b() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let a_title = "fix README alpha typo";
+    let b_title = "fix README beta typo";
+    let a = LifecycleIdentity::resolve(
+        &context.project_id,
+        a_title,
+        SupportedAdapter::Codex,
+        Some("audit-alpha-session"),
+        Some("audit-alpha-turn"),
+    )
+    .unwrap();
+    let b = LifecycleIdentity::resolve(
+        &context.project_id,
+        b_title,
+        SupportedAdapter::Claude,
+        Some("audit-beta-session"),
+        Some("audit-beta-prompt"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, a_title, &a).unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, b_title, &b).unwrap();
+
+    let operation_b = OperationContext::from_identity(&b);
+    let proof =
+        record_proof_for_operation(&repo, &context, &operation_b, "Beta verification passed")
+            .unwrap();
+    let trace_binding = TraceOperationBinding::from_operation(&operation_b, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Beta README changes verified",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let audit = audit_harness(&repo, &context).unwrap();
+    assert!(
+        audit.diagnostics.iter().any(|item| item.contains("ambiguous")),
+        "CURRENT=B and B's passing evidence must not make an unscoped audit look authoritative: {:?}",
+        audit.diagnostics
+    );
 }
 
 #[test]

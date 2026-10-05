@@ -193,6 +193,23 @@ fn checkpoint_a_survives_checkpoint_b_and_event_a_retry() {
     assert_eq!(fs::read(&a.vault_path).unwrap(), a_bytes);
     let state = compile_task_state_for_operation(&f.repo, &f.vault, &f.a, Some(A_TASK)).unwrap();
     assert!(state.continuity.is_some(), "{state:?}");
+    let checkpoint_source = f
+        .repo
+        .join("docs/baron/continuity/operations")
+        .join(f.a.operation_id())
+        .join("CHECKPOINT.md")
+        .strip_prefix(&f.repo)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    assert!(
+        state.sources.contains(&checkpoint_source),
+        "expected source `{checkpoint_source}`, got {:?}",
+        state.sources
+    );
+    assert!(!state
+        .sources
+        .contains(&"docs/baron/continuity/CURRENT.md".to_string()));
     let fresh_vault = ensure_vault(&f.vault_root, &f.repo).unwrap();
     assert!(
         compile_task_state_for_operation(&f.repo, &fresh_vault, &f.a, Some(A_TASK))
@@ -299,6 +316,23 @@ fn exact_recovery_preserves_a_evidence_and_state_after_b_recovery() {
     );
     assert_eq!(state.next_action, "retry exact check");
     assert_eq!(state.affected_files, vec!["README.md"]);
+    let recovery_source = f
+        .repo
+        .join("docs/baron/continuity/operations")
+        .join(f.a.operation_id())
+        .join("RECOVERY.md")
+        .strip_prefix(&f.repo)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    assert!(
+        state.sources.contains(&recovery_source),
+        "expected source `{recovery_source}`, got {:?}",
+        state.sources
+    );
+    assert!(!state
+        .sources
+        .contains(&"docs/baron/continuity/CURRENT_RECOVERY.md".to_string()));
     assert!(
         record_recovery_for_operation(&f.repo, &f.vault, input, &f.a)
             .unwrap()

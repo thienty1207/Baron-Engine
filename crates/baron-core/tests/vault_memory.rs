@@ -64,7 +64,7 @@ fn repositories_with_the_same_name_use_different_vault_capsules() {
 }
 
 #[test]
-fn legacy_slug_capsule_migrates_without_losing_markdown() {
+fn matching_legacy_capsule_stays_in_place_so_its_mutation_lock_remains_stable() {
     let temp = tempdir().unwrap();
     let vault = temp.path().join("Vault");
     let repo = temp.path().join("legacy-app");
@@ -85,13 +85,13 @@ fn legacy_slug_capsule_migrates_without_losing_markdown() {
 
     let context = ensure_vault(&vault, &repo).unwrap();
 
-    assert_ne!(context.project_root, legacy_capsule);
-    assert!(!legacy_capsule.exists());
+    assert_eq!(context.project_root, legacy_capsule);
+    assert!(legacy_capsule.exists());
     assert!(read(&context.project_root.join("Facts.md")).contains("Existing legacy memory"));
 }
 
 #[test]
-fn foreign_legacy_slug_capsule_is_not_migrated_across_project_identities() {
+fn foreign_legacy_slug_capsule_is_not_reused_across_project_identities() {
     let temp = tempdir().unwrap();
     let vault = temp.path().join("Vault");
     let owner = temp.path().join("one").join("same-app");
@@ -114,7 +114,7 @@ fn foreign_legacy_slug_capsule_is_not_migrated_across_project_identities() {
 
     let error = ensure_vault(&vault, &other).unwrap_err().to_string();
 
-    assert!(error.contains("Refusing to migrate legacy capsule"));
+    assert!(error.contains("Refusing to use legacy capsule"));
     assert!(error.contains(&owner_id));
     assert!(legacy_capsule.exists());
     let other_id = project_id_for_path(&other).unwrap();

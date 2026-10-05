@@ -5,11 +5,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
-use crate::proof::latest_proof;
+use crate::plan::active_plan_completion_evidence_status;
 use crate::safe_io::{
     acquire_project_lock, append_text, ensure_directory_chain, read_text, replace_text,
 };
-use crate::trace::latest_trace_score;
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,14 +67,13 @@ pub fn audit_harness(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Resul
     if !context_observed {
         diagnostics.push("context was not observed in the automation journal".to_string());
     }
-    if repo_root.join("docs/baron/plans/CURRENT.md").exists() && latest_proof(repo_root)?.is_none()
-    {
-        diagnostics.push("active work proof is missing".to_string());
-    }
-    if repo_root.join("docs/baron/plans/CURRENT.md").exists()
-        && latest_trace_score(repo_root)?.is_none()
-    {
-        diagnostics.push("passing trace score is missing".to_string());
+    if let Some(evidence) = active_plan_completion_evidence_status(repo_root)? {
+        diagnostics.extend(
+            evidence
+                .issues
+                .into_iter()
+                .map(|issue| format!("active plan evidence: {issue}")),
+        );
     }
 
     let friction =

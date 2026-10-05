@@ -328,15 +328,17 @@ fn compile_task_state_with_id(
                 .replace('\\', "/");
             sources.push(relative);
         }
-        for (relative, source) in [
-            ("docs/baron/continuity/CURRENT.md", &continuity_source),
-            (
-                "docs/baron/continuity/CURRENT_RECOVERY.md",
-                &recovery_source,
-            ),
+        for (path, source) in [
+            (&continuity_path, &continuity_source),
+            (&recovery_path, &recovery_source),
         ] {
             if !source.is_empty() {
-                sources.push(relative.to_string());
+                let relative = path
+                    .strip_prefix(repo_root)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                sources.push(relative);
             }
         }
     }

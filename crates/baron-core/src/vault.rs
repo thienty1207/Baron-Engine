@@ -23,6 +23,12 @@ pub struct VaultContext {
     pub global_candidates_path: PathBuf,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum VaultScaffoldPhase {
+    Before,
+    After,
+}
+
 pub fn resolve_vault_path(cli_vault: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(path) = cli_vault {
         return Ok(path);
@@ -88,6 +94,21 @@ pub fn ensure_vault(
     vault_path: impl AsRef<Path>,
     repo_path: impl AsRef<Path>,
 ) -> Result<VaultContext> {
+    ensure_vault_with_scaffold_observer(vault_path, repo_path, |_, _| Ok(()))
+}
+
+/// Runs transaction checks around scaffold publication while checkout, Vault,
+/// and capsule locks are all held. Migration uses this to validate its source
+/// baseline before writes and capture rollback hashes before releasing the
+/// shared capsule lock.
+pub(crate) fn ensure_vault_with_scaffold_observer<Observer>(
+    vault_path: impl AsRef<Path>,
+    repo_path: impl AsRef<Path>,
+    mut observe_scaffold: Observer,
+) -> Result<VaultContext>
+where
+    Observer: FnMut(&VaultContext, VaultScaffoldPhase) -> Result<()>,
+{
     let vault_root = vault_path.as_ref().to_path_buf();
     let repo_root = repo_path.as_ref().canonicalize().with_context(|| {
         format!(
@@ -95,23 +116,16 @@ pub fn ensure_vault(
             repo_path.as_ref().display()
         )
     })?;
-    // Identity discovery, legacy capsule migration, and capsule metadata are
-    // one project initialization transaction. Holding the project lock for
-    // the complete boundary prevents a second initializer from observing the
-    // old capsule after identity resolution and racing the rename/publication.
+    // Keep config identity reads ordered with project config writers.
     let _lock = acquire_project_lock(&repo_root)?;
     let identity = resolve_project_identity(&repo_root)?;
-    let project_slug = identity.project_slug.clone();
     let projects_root = vault_root.join("Projects");
     ensure_directory_chain(&projects_root)?;
-    let project_root = projects_root.join(&identity.capsule_key);
-    migrate_legacy_capsule(
-        &projects_root,
-        &project_slug,
-        &identity.project_id,
-        &identity.identity_binding,
-        &project_root,
-    )?;
+    // Checkouts that carry the same persisted project identity must resolve to
+    // one capsule even when their folder basenames differ. Serialize discovery
+    // and initialization across checkouts using the shared Vault root lock.
+    let _vault_identity_lock = acquire_project_lock(&vault_root)?;
+    let (project_root, project_slug) = resolve_capsule_location(&projects_root, &identity)?;
     let baron_artifacts_root = vault_root.join("Artifacts").join("Baron");
     let context = VaultContext {
         vault_root: vault_root.clone(),
@@ -127,6 +141,16 @@ pub fn ensure_vault(
         baron_artifacts_root: baron_artifacts_root.clone(),
     };
 
+    // Existing capsules are protected during both observer phases. If this is
+    // a new capsule, the shared Vault identity lock prevents another normal
+    // initializer from creating it between the preflight and publication.
+    let existing_capsule_lock = if context.project_root.is_dir() {
+        Some(acquire_project_lock(&context.project_root)?)
+    } else {
+        None
+    };
+    observe_scaffold(&context, VaultScaffoldPhase::Before)?;
+
     ensure_vault_root(&context.vault_root)?;
     ensure_directory_chain(&context.project_root).with_context(|| {
         format!(
@@ -134,6 +158,10 @@ pub fn ensure_vault(
             context.project_root.display()
         )
     })?;
+    let _capsule_lock = match existing_capsule_lock {
+        Some(lock) => lock,
+        None => acquire_project_lock(&context.project_root)?,
+    };
     write_capsule_metadata(&context)?;
     write_if_missing(
         &context.project_root.join("README.md"),
@@ -160,6 +188,7 @@ pub fn ensure_vault(
         ensure_directory_chain(context.project_root.join(directory))?;
     }
 
+    observe_scaffold(&context, VaultScaffoldPhase::After)?;
     Ok(context)
 }
 
@@ -175,10 +204,15 @@ pub fn vault_context_without_create(
         )
     })?;
     let identity = resolve_project_identity(&repo_root)?;
-    let project_slug = identity.project_slug.clone();
-    let project_root = vault_root
-        .join("Projects")
-        .join(capsule_key(&project_slug, &identity.project_id));
+    let projects_root = vault_root.join("Projects");
+    let (project_root, project_slug) = locate_existing_capsule(&projects_root, &identity)?
+        .map(|(path, metadata)| (path, metadata.project_slug))
+        .unwrap_or_else(|| {
+            (
+                projects_root.join(&identity.capsule_key),
+                identity.project_slug.clone(),
+            )
+        });
     let baron_artifacts_root = vault_root.join("Artifacts").join("Baron");
     Ok(VaultContext {
         vault_root,
@@ -236,51 +270,126 @@ fn resolve_project_identity(repo_root: &Path) -> Result<ProjectIdentity> {
     ))
 }
 
+fn resolve_capsule_location(
+    projects_root: &Path,
+    identity: &ProjectIdentity,
+) -> Result<(PathBuf, String)> {
+    if let Some((existing_root, metadata)) = locate_existing_capsule(projects_root, identity)? {
+        return Ok((existing_root, metadata.project_slug));
+    }
+
+    let project_root = projects_root.join(&identity.capsule_key);
+    if project_root.exists() {
+        bail!(
+            "Refusing to reuse an unbound or conflicting project capsule: {}",
+            project_root.display()
+        );
+    }
+    let legacy_root = projects_root.join(&identity.project_slug);
+    if legacy_root.exists() {
+        validate_legacy_capsule_owner(&legacy_root, identity)?;
+        return Ok((legacy_root, identity.project_slug.clone()));
+    }
+    Ok((project_root, identity.project_slug.clone()))
+}
+
+fn locate_existing_capsule(
+    projects_root: &Path,
+    identity: &ProjectIdentity,
+) -> Result<Option<(PathBuf, CapsuleMetadata)>> {
+    let entries = match fs::read_dir(projects_root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!(
+                    "Could not read project capsules: {}",
+                    projects_root.display()
+                )
+            })
+        }
+    };
+    let mut entries = entries.collect::<std::result::Result<Vec<_>, _>>()?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut match_found: Option<(PathBuf, CapsuleMetadata)> = None;
+    for entry in entries {
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if !file_type.is_dir() && !file_type.is_symlink() {
+            continue;
+        }
+        let Some(metadata) = load_capsule_metadata(&path)? else {
+            continue;
+        };
+        if metadata.project_id != identity.project_id {
+            continue;
+        }
+        let binding_matches = metadata.identity_binding == identity.identity_binding
+            || (metadata.identity_binding.is_empty()
+                && metadata.project_slug == identity.project_slug);
+        if !binding_matches {
+            bail!(
+                "Project ID `{}` is already bound to a different Vault capsule identity: {}",
+                identity.project_id,
+                path.display()
+            );
+        }
+        if metadata.schema_version == 0 || metadata.project_slug.trim().is_empty() {
+            bail!("Project capsule metadata is incomplete: {}", path.display());
+        }
+        let entry_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        let expected_key = capsule_key(&metadata.project_slug, &metadata.project_id);
+        if !entry_name.eq_ignore_ascii_case(&expected_key)
+            && !entry_name.eq_ignore_ascii_case(&metadata.project_slug)
+        {
+            bail!(
+                "Project capsule path does not match its persisted metadata: {}",
+                path.display()
+            );
+        }
+        if match_found.is_some() {
+            bail!(
+                "Project ID `{}` resolves to multiple Vault capsules; refusing to choose one",
+                identity.project_id
+            );
+        }
+        match_found = Some((path, metadata));
+    }
+    Ok(match_found)
+}
+
 pub(crate) fn canonical_project_id(repo_root: &Path) -> Result<String> {
     Ok(resolve_project_identity(repo_root)?.project_id)
 }
 
-fn migrate_legacy_capsule(
-    projects_root: &Path,
-    project_slug: &str,
-    project_id: &str,
-    identity_binding: &str,
-    project_root: &Path,
-) -> Result<()> {
-    let legacy_root = projects_root.join(project_slug);
-    if !legacy_root.exists() || project_root.exists() {
-        return Ok(());
-    }
-    let metadata = load_capsule_metadata(&legacy_root)?.ok_or_else(|| {
+fn validate_legacy_capsule_owner(legacy_root: &Path, identity: &ProjectIdentity) -> Result<()> {
+    let metadata = load_capsule_metadata(legacy_root)?.ok_or_else(|| {
         anyhow::anyhow!(
-            "Refusing to migrate an unbound legacy capsule without project identity metadata: {}",
+            "Refusing to use an unbound legacy capsule without project identity metadata: {}",
             legacy_root.display()
         )
     })?;
-    if metadata.project_id != project_id || metadata.project_slug != project_slug {
+    if metadata.project_id != identity.project_id || metadata.project_slug != identity.project_slug
+    {
         bail!(
-            "Refusing to migrate legacy capsule `{}` because it belongs to project `{}`",
+            "Refusing to use legacy capsule `{}` because it belongs to project `{}`",
             legacy_root.display(),
             metadata.project_id
         );
     }
     if !metadata.identity_binding.is_empty()
-        && !identity_binding.is_empty()
-        && metadata.identity_binding != identity_binding
+        && !identity.identity_binding.is_empty()
+        && metadata.identity_binding != identity.identity_binding
     {
         bail!(
-            "Refusing to migrate legacy capsule `{}` because its identity binding does not match",
+            "Refusing to use legacy capsule `{}` because its identity binding does not match",
             legacy_root.display()
         );
     }
-    ensure_directory_chain(projects_root)?;
-    fs::rename(&legacy_root, project_root).with_context(|| {
-        format!(
-            "Could not migrate legacy capsule {} to {}",
-            legacy_root.display(),
-            project_root.display()
-        )
-    })
+    Ok(())
 }
 
 fn write_capsule_metadata(context: &VaultContext) -> Result<()> {

@@ -5,7 +5,7 @@ use baron_core::certification::{
     latest_certification_status, run_certification, CertificationProfile,
 };
 use baron_core::config::{initialize_project, AdapterKind};
-use baron_core::vault::vault_context_without_create;
+use baron_core::vault::{ensure_vault, vault_context_without_create};
 use tempfile::tempdir;
 
 fn write(path: &Path, content: &str) {
@@ -47,6 +47,8 @@ fn certification_proves_scale_isolation_and_cache_recovery() {
 
     initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     initialize_project(&second_repo, AdapterKind::Codex, &vault).unwrap();
+    ensure_vault(&vault, &repo).unwrap();
+    ensure_vault(&vault, &second_repo).unwrap();
     let context = vault_context_without_create(&vault, &repo).unwrap();
     let other_context = vault_context_without_create(&vault, &second_repo).unwrap();
     write(

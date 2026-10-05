@@ -1,4 +1,4 @@
-//! Native schema snapshot checked 2026-10-01:
+//! Native schema snapshot checked 2026-10-05:
 //! https://learn.chatgpt.com/docs/hooks (unversioned Codex reference)
 //! https://code.claude.com/docs/en/hooks (prompt_id: Claude Code >=2.1.196).
 //! Common: session_id, transcript_path, cwd, hook_event_name.

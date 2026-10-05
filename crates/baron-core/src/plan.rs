@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::control_plane::gate_evidence_status_strict_for_operation;
 use crate::execution_receipt::ReceiptContext;
@@ -22,6 +23,7 @@ use crate::vault::{canonical_project_id, VaultContext};
 const MANAGED_PLAN_ROOT: &str = "docs/baron/plans";
 const ACTIVE_PLAN_INDEX_FILE: &str = "ACTIVE.md";
 const ACTIVE_PLAN_MARKER: &str = "<!-- BARON:ACTIVE-PLAN ";
+const PLAN_TRANSITION_JOURNAL: &str = ".baron/plan-transition.json";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanRecord {
@@ -41,13 +43,35 @@ pub struct CompletionEvidenceStatus {
 /// Identity captured when a plan is started from a concrete Baron operation.
 /// Legacy title-only plans remain readable, but medium/high-risk completion
 /// cannot authorize them without this complete binding.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlanOperationBinding {
     pub task_id: String,
     pub operation_id: String,
     pub adapter: String,
     pub session_id: String,
     pub request_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PlanTransitionJournal {
+    schema_version: u32,
+    plan_path: String,
+    source_hash: String,
+    vault_source_hash: Option<String>,
+    target_hash: String,
+    source_status: String,
+    status: String,
+    updated_at: String,
+    verification: Option<String>,
+    progress_note: String,
+    title: String,
+    current_title: String,
+    risk: RiskLane,
+    task_id: String,
+    binding: Option<PlanOperationBinding>,
+    next_action: String,
 }
 
 impl PlanOperationBinding {
@@ -551,33 +575,17 @@ fn start_or_resume_plan_internal(
                     bail!("Cannot resume plan `{title}` under a different operation identity");
                 }
             }
-            set_plan_state(&active.path, "in_progress", None)?;
-            append_progress(&active.path, "Plan resumed.")?;
-            mirror_plan(repo_root, vault, &active.path)?;
-            update_plan_indexes(
+            publish_plan_status_transition(
                 repo_root,
                 vault,
-                &active.title,
-                &active.path,
-                active.risk,
-                "in_progress",
-            )?;
-            if let Some(binding) = binding {
-                upsert_active_plan_index(repo_root, vault, binding, &active.path, "in_progress")?;
-            }
-            write_current(
-                repo_root,
-                vault,
-                CurrentPlanView {
-                    title,
-                    risk: active.risk,
+                PlanStatusTransition {
                     status: "in_progress",
-                    plan_path: &active.path,
+                    verification: None,
+                    progress_note: "Plan resumed.",
+                    current_title: title,
                     next_action: "continue from last known state",
-                    verification: "not_run",
-                    binding: active.binding.as_ref(),
-                    task_id: Some(&active.task_id),
                 },
+                &active,
             )?;
             return Ok(PlanRecord {
                 title: title.to_string(),
@@ -720,39 +728,292 @@ fn interrupt_plan_for_binding(
     interrupt_plan_state(repo_root, vault, state, &active)
 }
 
+struct PlanStatusTransition<'a> {
+    status: &'a str,
+    verification: Option<&'a str>,
+    progress_note: &'a str,
+    current_title: &'a str,
+    next_action: &'a str,
+}
+
+fn publish_plan_status_transition(
+    repo_root: &Path,
+    vault: &VaultContext,
+    transition: PlanStatusTransition<'_>,
+    active: &ActivePlan,
+) -> Result<()> {
+    let PlanStatusTransition {
+        status,
+        verification,
+        progress_note,
+        current_title,
+        next_action,
+    } = transition;
+    let allowed_transition = matches!(
+        (active.status.as_str(), status),
+        ("in_progress", "in_progress" | "interrupted" | "completed")
+            | ("interrupted", "in_progress" | "interrupted" | "completed")
+    );
+    if !allowed_transition {
+        bail!(
+            "Plan status transition `{}` -> `{status}` is not supported",
+            active.status
+        );
+    }
+    if status == "completed" && verification.is_none_or(|value| value.trim().is_empty()) {
+        bail!("Plan completion requires a non-empty verification summary.");
+    }
+
+    let source = read_text_required(&active.path)?;
+    let updated_at = now();
+    let verification = verification.map(single_line);
+    let target = plan_transition_content(
+        &source,
+        status,
+        &updated_at,
+        verification.as_deref(),
+        progress_note,
+    );
+    let plan_path = normalize(&active.path, repo_root);
+    let vault_path = vault_plan_path(repo_root, vault, &active.path)?;
+    let vault_source_hash = read_text(&vault_path)?.map(|content| plan_content_hash(&content));
+    let journal = PlanTransitionJournal {
+        schema_version: 1,
+        plan_path,
+        source_hash: plan_content_hash(&source),
+        vault_source_hash,
+        target_hash: plan_content_hash(&target),
+        source_status: active.status.clone(),
+        status: status.to_string(),
+        updated_at,
+        verification,
+        progress_note: progress_note.to_string(),
+        title: active.title.clone(),
+        current_title: current_title.to_string(),
+        risk: active.risk,
+        task_id: active.task_id.clone(),
+        binding: active.binding.clone(),
+        next_action: next_action.to_string(),
+    };
+    let journal_path = repo_root.join(PLAN_TRANSITION_JOURNAL);
+    if read_text(&journal_path)?.is_some() {
+        bail!("A pending plan status transition must be recovered before another transition");
+    }
+    let serialized = format!("{}\n", serde_json::to_string_pretty(&journal)?);
+    write(&journal_path, &serialized)?;
+    recover_pending_plan_transition(repo_root, vault)
+}
+
+/// Complete an interrupted status publication from its write-ahead intent.
+/// Callers hold checkout then Vault capsule locks before invoking this helper.
+fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Result<()> {
+    let journal_path = repo_root.join(PLAN_TRANSITION_JOURNAL);
+    let Some(serialized) = read_text(&journal_path)? else {
+        return Ok(());
+    };
+    let journal: PlanTransitionJournal = serde_json::from_str(&serialized)
+        .context("Pending plan status transition journal is malformed")?;
+    if journal.schema_version != 1
+        || !matches!(
+            journal.source_status.as_str(),
+            "in_progress" | "interrupted"
+        )
+        || !matches!(
+            journal.status.as_str(),
+            "in_progress" | "interrupted" | "completed"
+        )
+    {
+        bail!("Pending plan status transition journal has an unsupported schema or status");
+    }
+    if journal.status == "completed"
+        && journal
+            .verification
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        bail!("Pending plan completion journal has no verification summary");
+    }
+
+    let plan_path = resolve_managed_plan_path(repo_root, &journal.plan_path)?;
+    if normalize(&plan_path, repo_root) != journal.plan_path {
+        bail!("Pending plan transition path is not canonical");
+    }
+    let current = read_text_required(&plan_path)?;
+    let current_hash = plan_content_hash(&current);
+    let target = if current_hash == journal.source_hash {
+        let source_metadata = load_plan_file_metadata(&plan_path)?;
+        validate_transition_metadata(
+            repo_root,
+            &source_metadata,
+            &journal,
+            &journal.source_status,
+        )?;
+        let target = plan_transition_content(
+            &current,
+            &journal.status,
+            &journal.updated_at,
+            journal.verification.as_deref(),
+            &journal.progress_note,
+        );
+        if plan_content_hash(&target) != journal.target_hash {
+            bail!("Pending plan transition target hash does not match its journal");
+        }
+        write(&plan_path, &target)?;
+        target
+    } else if current_hash == journal.target_hash {
+        current
+    } else {
+        bail!(
+            "Managed plan changed during a pending status transition; preserving it for recovery: {}",
+            plan_path.display()
+        );
+    };
+
+    let metadata = load_plan_file_metadata(&plan_path)?;
+    validate_transition_metadata(repo_root, &metadata, &journal, &journal.status)?;
+    let binding = metadata.operation_binding()?;
+    if journal.status == "completed" {
+        let active = ActivePlan {
+            title: metadata.title.clone(),
+            path: plan_path.clone(),
+            status: metadata.status.clone(),
+            risk: metadata.risk,
+            task_id: metadata.task_id.clone(),
+            binding: binding.clone(),
+            linked_status: Some(metadata.status.clone()),
+            authority_issues: Vec::new(),
+        };
+        if let Some(issue) = completion_evidence_status(repo_root, &active)?
+            .issues
+            .into_iter()
+            .next()
+        {
+            bail!("Pending plan completion recovery is blocked: {issue}");
+        }
+    }
+
+    let vault_path = vault_plan_path(repo_root, vault, &plan_path)?;
+    let vault_content = read_text(&vault_path).with_context(|| {
+        format!(
+            "Pending plan transition cannot validate its Vault mirror: {}",
+            vault_path.display()
+        )
+    })?;
+    let vault_hash = vault_content.as_deref().map(plan_content_hash);
+    if vault_hash != journal.vault_source_hash
+        && vault_hash.as_deref() != Some(journal.target_hash.as_str())
+    {
+        bail!(
+            "Vault plan mirror changed during a pending status transition; preserving it for recovery: {}",
+            vault_path.display()
+        );
+    }
+    write(&vault_path, &target)?;
+    update_plan_indexes(
+        repo_root,
+        vault,
+        &journal.title,
+        &plan_path,
+        journal.risk,
+        &journal.status,
+    )?;
+    if let Some(binding) = binding.as_ref() {
+        upsert_active_plan_index(repo_root, vault, binding, &plan_path, &journal.status)?;
+    }
+    write_current(
+        repo_root,
+        vault,
+        CurrentPlanView {
+            title: &journal.current_title,
+            risk: journal.risk,
+            status: &journal.status,
+            plan_path: &plan_path,
+            next_action: &journal.next_action,
+            verification: journal.verification.as_deref().unwrap_or("not_run"),
+            binding: binding.as_ref(),
+            task_id: Some(&journal.task_id),
+        },
+    )?;
+
+    if read_text_required(&journal_path)? != serialized {
+        bail!("Pending plan transition journal changed during recovery");
+    }
+    fs::remove_file(&journal_path).with_context(|| {
+        format!(
+            "Could not clear recovered plan transition: {}",
+            journal_path.display()
+        )
+    })?;
+    Ok(())
+}
+
+fn validate_transition_metadata(
+    repo_root: &Path,
+    metadata: &PlanFileMetadata,
+    journal: &PlanTransitionJournal,
+    expected_status: &str,
+) -> Result<()> {
+    if metadata.status != expected_status
+        || metadata.title != journal.title
+        || metadata.risk != journal.risk
+        || metadata.task_id != journal.task_id
+        || metadata.operation_binding()? != journal.binding
+        || validate_linked_plan_authority(repo_root, metadata)? != journal.binding
+    {
+        bail!("Pending plan transition metadata does not match canonical plan authority");
+    }
+    Ok(())
+}
+
+fn plan_transition_content(
+    content: &str,
+    status: &str,
+    updated_at: &str,
+    verification: Option<&str>,
+    progress_note: &str,
+) -> String {
+    let updated = content
+        .lines()
+        .map(|line| {
+            if line.starts_with("status: ") {
+                format!("status: {status}")
+            } else if line.starts_with("updated: ") {
+                format!("updated: {updated_at}")
+            } else if line.starts_with("verification: ") {
+                verification
+                    .map(|value| format!("verification: {value}"))
+                    .unwrap_or_else(|| line.to_string())
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{updated}\n- {updated_at} - {progress_note}\n")
+}
+
+fn plan_content_hash(content: &str) -> String {
+    format!("{:x}", Sha256::digest(content.as_bytes()))
+}
+
 fn interrupt_plan_state(
     repo_root: &Path,
     vault: &VaultContext,
     state: &str,
     active: &ActivePlan,
 ) -> Result<()> {
-    set_plan_state(&active.path, "interrupted", None)?;
-    append_progress(&active.path, &format!("Interrupted: {}", state.trim()))?;
-    mirror_plan(repo_root, vault, &active.path)?;
-    update_plan_indexes(
+    let state = state.trim();
+    publish_plan_status_transition(
         repo_root,
         vault,
-        &active.title,
-        &active.path,
-        active.risk,
-        "interrupted",
-    )?;
-    if let Some(binding) = active.binding.as_ref() {
-        upsert_active_plan_index(repo_root, vault, binding, &active.path, "interrupted")?;
-    }
-    write_current(
-        repo_root,
-        vault,
-        CurrentPlanView {
-            title: &active.title,
-            risk: active.risk,
+        PlanStatusTransition {
             status: "interrupted",
-            plan_path: &active.path,
-            next_action: state.trim(),
-            verification: "not_run",
-            binding: active.binding.as_ref(),
-            task_id: Some(&active.task_id),
+            verification: None,
+            progress_note: &format!("Interrupted: {state}"),
+            current_title: &active.title,
+            next_action: state,
         },
+        active,
     )
 }
 
@@ -798,39 +1059,20 @@ fn complete_plan_state(
     if verification_summary.trim().is_empty() {
         bail!("Plan completion requires a non-empty verification summary.");
     }
-    set_plan_state(&active.path, "completed", Some(verification_summary.trim()))?;
-    append_progress(
-        &active.path,
-        &format!(
-            "Completed with verification: {}",
-            verification_summary.trim()
-        ),
-    )?;
-    mirror_plan(repo_root, vault, &active.path)?;
-    update_plan_indexes(
+    publish_plan_status_transition(
         repo_root,
         vault,
-        &active.title,
-        &active.path,
-        active.risk,
-        "completed",
-    )?;
-    if let Some(binding) = active.binding.as_ref() {
-        upsert_active_plan_index(repo_root, vault, binding, &active.path, "completed")?;
-    }
-    write_current(
-        repo_root,
-        vault,
-        CurrentPlanView {
-            title: &active.title,
-            risk: active.risk,
+        PlanStatusTransition {
             status: "completed",
-            plan_path: &active.path,
+            verification: Some(verification_summary.trim()),
+            progress_note: &format!(
+                "Completed with verification: {}",
+                verification_summary.trim()
+            ),
+            current_title: &active.title,
             next_action: "start the next explicit task",
-            verification: verification_summary.trim(),
-            binding: active.binding.as_ref(),
-            task_id: Some(&active.task_id),
         },
+        active,
     )
 }
 
@@ -1136,6 +1378,7 @@ fn read_active_plan_index_entries_at(path: &Path) -> Result<Vec<ActivePlanIndexE
 }
 
 fn ensure_active_plan_vault_index_consistent(repo_root: &Path, vault: &VaultContext) -> Result<()> {
+    recover_pending_plan_transition(repo_root, vault)?;
     let repo_entries = read_active_plan_index_entries(repo_root)?;
     let vault_entries = read_active_plan_vault_index_entries(vault)?;
     for local in &repo_entries {
@@ -2043,31 +2286,6 @@ fn field(content: &str, prefix: &str) -> Option<String> {
         .lines()
         .find_map(|line| line.strip_prefix(prefix))
         .map(str::to_string)
-}
-
-fn set_plan_state(path: &Path, status: &str, verification: Option<&str>) -> Result<()> {
-    let content = read_text_required(path)?;
-    let updated = now();
-    let verification = verification.map(single_line);
-    let updated = content
-        .lines()
-        .map(|line| {
-            if line.starts_with("status: ") {
-                format!("status: {status}")
-            } else if line.starts_with("updated: ") {
-                format!("updated: {updated}")
-            } else if line.starts_with("verification: ") {
-                verification
-                    .as_ref()
-                    .map(|value| format!("verification: {value}"))
-                    .unwrap_or_else(|| line.to_string())
-            } else {
-                line.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    write(path, &(updated + "\n"))
 }
 
 fn single_line(value: &str) -> String {

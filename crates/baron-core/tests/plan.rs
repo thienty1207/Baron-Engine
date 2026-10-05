@@ -267,8 +267,14 @@ fn shared_vault_active_plan_index_preserves_operations_from_other_checkouts() {
         repo_b.join(".baron/project.toml"),
     )
     .unwrap();
-    let mut context_b = vault_context_without_create(&vault, &repo_b).unwrap();
-    context_b.project_root = context_a.project_root.clone();
+    let context_b = ensure_vault(&vault, &repo_b).unwrap();
+    assert_eq!(context_a.project_id, context_b.project_id);
+    assert_eq!(
+        context_a.project_root, context_b.project_root,
+        "same persisted project identity must resolve to one Vault capsule across checkout names"
+    );
+    let read_only_context_b = vault_context_without_create(&vault, &repo_b).unwrap();
+    assert_eq!(context_a.project_root, read_only_context_b.project_root);
 
     let identity_a = LifecycleIdentity::resolve(
         &context_a.project_id,
@@ -310,6 +316,62 @@ fn shared_vault_active_plan_index_preserves_operations_from_other_checkouts() {
     assert!(!repo_a_active.contains(identity_b.operation_id()));
     assert!(repo_b_active.contains(identity_b.operation_id()));
     assert!(!repo_b_active.contains(identity_a.operation_id()));
+}
+
+#[test]
+fn interrupted_plan_status_transition_recovers_after_projection_write_failure() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let title = "fix README recover interrupted lifecycle";
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("recovery-session"),
+        Some("recovery-request"),
+    )
+    .unwrap();
+    let plan = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    fs::remove_file(&current_path).unwrap();
+    fs::create_dir(&current_path).unwrap();
+    let interrupted = interrupt_plan_for_identity(
+        &repo,
+        &context,
+        "recover after mirror publication failure",
+        &identity,
+    )
+    .unwrap_err();
+    assert!(
+        interrupted.to_string().contains("Could not write"),
+        "{interrupted:#}"
+    );
+    let interrupted_plan = fs::read(&plan.repo_path).unwrap();
+    assert!(String::from_utf8_lossy(&interrupted_plan).contains("status: interrupted"));
+    assert!(repo.join(".baron/plan-transition.json").exists());
+    assert!(fs::read_to_string(&plan.vault_path)
+        .unwrap()
+        .contains("status: interrupted"));
+
+    fs::remove_dir(&current_path).unwrap();
+    let completion =
+        complete_plan_for_identity(&repo, &context, "restart recovery verification", &identity)
+            .unwrap_err();
+
+    assert!(
+        completion.to_string().contains("Plan completion blocked"),
+        "transition recovery should restore canonical ACTIVE authority before completion checks: {completion:#}"
+    );
+    let active = fs::read_to_string(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let active_vault = fs::read_to_string(context.project_root.join("Plans/ACTIVE.md")).unwrap();
+    assert!(active.contains(identity.operation_id()));
+    assert!(active.contains("\"status\":\"interrupted\""));
+    assert_eq!(active, active_vault);
+    assert!(!repo.join(".baron/plan-transition.json").exists());
 }
 
 #[test]

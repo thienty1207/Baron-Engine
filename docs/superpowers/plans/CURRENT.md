@@ -2,13 +2,13 @@
 
 ## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-05)
 
-The three Important findings from reviews of `ecaf362..868f7c1` now have RED→GREEN regression coverage: shared Vault ACTIVE union, repo→Vault plan/trace locking with no-write timeout behavior, and safe rollback restart after finalizer marker removal. Fresh isolated workspace verification passed 911/0/4 across 112 suites; direct CLI all-targets passed 190/0/1 across 38 suites; adapters passed 124/0/3 across 14 suites. Core/workspace, fmt, Clippy, locked release build, binary version, release smoke, CLI help, JSON, and post-edit docs checks passed. Prior review verdicts remain FIX REQUIRED, so this is readiness only—not closure or push approval.
+Two prior exact-range reviews of `ecaf362..868f7c1` returned FIX REQUIRED. Fresh current-tree verification passes: workspace 916/0/4 across 112 suites; Core 602/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored; fmt, Clippy `-D warnings`, locked release build, CLI help, version `5.0.0`, ignored release smoke 1/1, public trust docs 12/12, status JSON, relative links, retired-adapter gate, and diff check. The caller scan is 258 matches. Status is READY FOR ADVERSARIAL REVIEW; two fresh exact-range independent reviews remain.
 
-- Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md); [final local verification evidence](2026-10-05-spec-05-final-verification.md).
-- Authority: current source caller scan remains 261 matching lines; the maintained audit classifies all production groups and has no `BUG` disposition. Four documented Minor topics remain for independent reviewer reassessment. Exact `LifecycleIdentity` → indexed ACTIVE → canonical managed frontmatter remains authority; CURRENT is presentation only for identified flows.
+- Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md); live verification ledger: `2026-10-05-spec-05-final-verification.md`.
+- Authority: exact LifecycleIdentity and persisted capsule binding → indexed ACTIVE → canonical managed frontmatter remain authority; CURRENT is presentation only for identified flows. Harness audit now evaluates operation-scoped completion evidence and reports ambiguity instead of borrowing global latest proof/trace.
 - Persisted-state boundary: only SPEC-05 source/tests and maintained status/plan/build evidence changed; no project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff scope.
-- Review gate: after final evidence commit, obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. Quota/time failures are inconclusive. Repair and re-verify any Critical/Important finding. Only after both accept mark CLOSED and push; public binary remains `baron 5.0.0`.
-- Safe next action: commit the verified scoped changes/evidence, then run the two-review gate. Only two fresh exact-range ACCEPTs permit CLOSED and push.
+- Review gate: after repairs, full verification, and final evidence commit, obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. Quota/time failures are inconclusive. Only after both accept mark CLOSED and push; public binary remains `baron 5.0.0`.
+- Safe next action: commit the scoped source and final evidence, then request two fresh independent read-only reviews of exact `ecaf362..<final HEAD>`.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

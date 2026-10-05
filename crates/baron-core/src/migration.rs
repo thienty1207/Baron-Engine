@@ -11,7 +11,10 @@ use crate::safe_io::{
     acquire_project_lock, create_new_file, ensure_directory_chain, project_lock_path, read_bytes,
     read_text, read_text_required, replace_file, ProjectMutationLock,
 };
-use crate::vault::{ensure_vault, project_slug, vault_context_without_create, VaultContext};
+use crate::vault::{
+    ensure_vault_with_scaffold_observer, project_slug, vault_context_without_create, VaultContext,
+    VaultScaffoldPhase,
+};
 
 const LEGACY_CONFIG: &str = "vault.config.json";
 const LEGACY_MANIFEST: &str = ".agent-bootstrap-manifest.json";
@@ -422,15 +425,27 @@ where
         write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
         let install_outputs = install_baron(&inventory.repo_root, &destination_vault)?;
         let _lock = acquire_project_lock(&inventory.repo_root)?;
-        let _capsule_lock = lock_manifest_capsule(&backup_manifest)?;
         let _vault_lock = acquire_project_lock(&destination_vault)?;
+        let _capsule_lock = lock_manifest_capsule(&backup_manifest)?;
         capture_installer_outputs(&mut backup_manifest, &install_outputs)?;
         register_valid_custom_assets(&inventory, &mut backup_manifest)?;
-        let agents_unchanged =
-            post_handoff_target_matches(&backup_manifest, BackupScope::Repo, "AGENTS.md")?;
-        remove_legacy_managed_block(&inventory.repo_root.join("AGENTS.md"))?;
-        if agents_unchanged {
+        let agents_path = inventory.repo_root.join("AGENTS.md");
+        if let Some(entry) = backup_manifest
+            .entries
+            .iter()
+            .find(|entry| entry.scope == BackupScope::Repo && entry.relative_path == "AGENTS.md")
+        {
+            let expected_hash = entry
+                .post_handoff_hash
+                .as_deref()
+                .context("Migration has no captured AGENTS.md publication hash")?;
+            remove_legacy_managed_block(&agents_path, expected_hash)?;
             record_post_handoff_target(&mut backup_manifest, BackupScope::Repo, "AGENTS.md")?;
+        } else if agents_path.exists() {
+            bail!(
+                "Migration AGENTS.md appeared after its backup inventory; preserving it for recovery: {}",
+                agents_path.display()
+            );
         }
         let removed_count = cleanup_legacy_runtime(&inventory, &mut backup_manifest)?;
         verify_imports(&import_records)?;
@@ -647,6 +662,9 @@ fn record_rollback_conflict(
     conflicts: usize,
     message: &str,
 ) -> Result<()> {
+    let _repo_lock = acquire_project_lock(&manifest.repo_root)?;
+    let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
+    let _capsule_lock = lock_manifest_capsule(manifest)?;
     write_state(
         &manifest.repo_root,
         MigrationState {
@@ -657,8 +675,6 @@ fn record_rollback_conflict(
             updated_at: now(),
         },
     )?;
-    let _capsule_lock = lock_manifest_capsule(manifest)?;
-    let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
     write_json(
         &backup_root.join("failure.json"),
         &serde_json::json!({
@@ -690,7 +706,11 @@ fn create_backup_manifest(
             None,
         )?;
     }
-    let destination = vault_context_without_create(destination_vault, &inventory.repo_root)?;
+    let destination = {
+        let _repo_lock = acquire_project_lock(&inventory.repo_root)?;
+        let _vault_lock = acquire_project_lock(destination_vault)?;
+        vault_context_without_create(destination_vault, &inventory.repo_root)?
+    };
     let destination_project = &destination.project_root;
     let mut repo_paths = BTreeSet::new();
     for path in [
@@ -734,7 +754,8 @@ fn create_backup_manifest(
     }
 
     let mut vault_paths = BTreeSet::new();
-    let destination_relative = destination_project
+    let destination_relative = destination
+        .project_root
         .strip_prefix(destination_vault)
         .map(normalize)
         .unwrap_or_else(|_| format!("Projects/{}", project_slug(&inventory.repo_root)));
@@ -768,9 +789,10 @@ fn create_backup_manifest(
         vault_paths.insert(relative.to_string());
     }
     for relative in vault_paths {
-        // Back up each shared capsule file under checkout -> capsule locks;
+        // Back up each shared capsule file under checkout -> Vault -> capsule locks;
         // source traversal and the complete backup scan stay outside them.
         let _lock = acquire_project_lock(&inventory.repo_root)?;
+        let _vault_lock = acquire_project_lock(destination_vault)?;
         let _capsule_lock = if destination_project.is_dir() {
             Some(acquire_project_lock(destination_project)?)
         } else {
@@ -853,9 +875,9 @@ fn backup_entry(
     backup_scope_root: &Path,
 ) -> Result<BackupEntry> {
     let source = root.join(relative);
-    let existed = source.exists();
+    let source_hash_before = hash_path(&source)?;
+    let existed = source_hash_before.is_some();
     let was_directory = source.is_dir();
-    let original_hash = hash_path(&source)?;
     if existed {
         copy_path(
             &source,
@@ -864,6 +886,23 @@ fn backup_entry(
             None,
             None,
         )?;
+    }
+    let original_hash = if existed {
+        hash_path(&backup_scope_root.join(relative))?
+    } else {
+        None
+    };
+    if existed && original_hash.is_none() {
+        bail!(
+            "Migration backup snapshot is missing for {}",
+            source.display()
+        );
+    }
+    if hash_path(&source)? != original_hash {
+        bail!(
+            "Migration source changed while its backup snapshot was captured: {}",
+            source.display()
+        );
     }
     Ok(BackupEntry {
         scope,
@@ -1257,9 +1296,6 @@ fn ensure_migration_vault(
     vault_root: &Path,
     manifest: &mut BackupManifest,
 ) -> Result<VaultContext> {
-    let _checkout = acquire_project_lock(&manifest.repo_root)?;
-    let _capsule = lock_manifest_capsule(manifest)?;
-    let _vault = acquire_project_lock(vault_root)?;
     let capsule_relative = manifest
         .capsule_relative
         .as_deref()
@@ -1294,18 +1330,40 @@ fn ensure_migration_vault(
             .then_some(index)
         })
         .collect::<Vec<_>>();
-    for &index in &entries {
-        let entry = &manifest.entries[index];
-        if hash_path(&vault_root.join(&entry.relative_path))? != entry.original_hash {
-            bail!("Migration setup baseline changed: {}", entry.relative_path);
+    let before_relative = capsule_relative.to_string();
+    ensure_vault_with_scaffold_observer(vault_root, &manifest.repo_root, |destination, phase| {
+        match phase {
+            VaultScaffoldPhase::Before => {
+                let actual_relative = normalize(
+                    destination
+                        .project_root
+                        .strip_prefix(&destination.vault_root)?,
+                );
+                if actual_relative != before_relative {
+                    bail!(
+                        "Migration capsule identity changed from `{before_relative}` to `{actual_relative}`"
+                    );
+                }
+                for &index in &entries {
+                    let entry = &manifest.entries[index];
+                    if hash_path(&destination.vault_root.join(&entry.relative_path))?
+                        != entry.original_hash
+                    {
+                        bail!("Migration setup baseline changed: {}", entry.relative_path);
+                    }
+                }
+                Ok(())
+            }
+            VaultScaffoldPhase::After => {
+                for &index in &entries {
+                    let entry = &mut manifest.entries[index];
+                    entry.post_handoff_hash =
+                        hash_path(&destination.vault_root.join(&entry.relative_path))?;
+                }
+                Ok(())
+            }
         }
-    }
-    let destination = ensure_vault(vault_root, &manifest.repo_root)?;
-    for index in entries {
-        let entry = &mut manifest.entries[index];
-        entry.post_handoff_hash = hash_path(&vault_root.join(&entry.relative_path))?;
-    }
-    Ok(destination)
+    })
 }
 
 fn prepare_publication(
@@ -1341,6 +1399,21 @@ fn prepare_publication(
         )?);
         manifest.entries.len() - 1
     };
+    let entry = &manifest.entries[index];
+    if entry.existed {
+        let backup = backup_root.join(backup_scope).join(&entry.relative_path);
+        if hash_path(&backup)? != entry.original_hash {
+            bail!(
+                "Migration backup snapshot changed before publication: {}",
+                backup.display()
+            );
+        }
+    } else if entry.original_hash.is_some() {
+        bail!(
+            "Migration backup snapshot has an unexpected hash for absent target: {}",
+            target.display()
+        );
+    }
     if hash_path(target)? != manifest.entries[index].post_handoff_hash {
         bail!(
             "Migration publication baseline changed: {}",
@@ -1352,6 +1425,7 @@ fn prepare_publication(
 
 fn capture_post_handoff_state(repo_root: &Path, manifest: &mut BackupManifest) -> Result<()> {
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
     let _capsule_lock = lock_manifest_capsule(manifest)?;
     // Expected hashes were initialized from the backup and advanced only at
     // our own publications. A reread here would adopt a writer in the gap.
@@ -1396,8 +1470,8 @@ fn restore_from_manifest_if_unchanged(
     backup_root: &Path,
 ) -> Result<ConditionalRollback> {
     let _lock = acquire_project_lock(&manifest.repo_root)?;
-    let _capsule_lock = lock_manifest_capsule(manifest)?;
     let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
+    let _capsule_lock = lock_manifest_capsule(manifest)?;
     let canonical_vault_root = manifest.vault_root.canonicalize().with_context(|| {
         format!(
             "Could not resolve migration Vault root: {}",
@@ -2490,10 +2564,19 @@ fn is_placeholder_markdown(content: &str) -> bool {
         })
 }
 
-fn remove_legacy_managed_block(path: &Path) -> Result<()> {
-    let Some(content) = read_text(path)? else {
+fn remove_legacy_managed_block(path: &Path, expected_hash: &str) -> Result<()> {
+    let Some(bytes) = read_bytes(path)? else {
         return Ok(());
     };
+    let observed_hash = format!("{:x}", Sha256::digest(&bytes));
+    if observed_hash != expected_hash {
+        bail!(
+            "Migration AGENTS.md changed after installer capture; preserving it for recovery: {}",
+            path.display()
+        );
+    }
+    let content = String::from_utf8(bytes)
+        .with_context(|| format!("Migration AGENTS.md is not valid UTF-8: {}", path.display()))?;
     let Some(start) = content.find(LEGACY_BLOCK_START) else {
         return Ok(());
     };
@@ -2751,6 +2834,43 @@ mod tests {
     use super::*;
     use crate::identity::{capsule_key, project_id_for_path};
     use tempfile::tempdir;
+
+    #[test]
+    fn migration_refuses_publication_when_backup_differs_from_captured_snapshot() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&vault).unwrap();
+        let repo = repo.canonicalize().unwrap();
+        let vault = vault.canonicalize().unwrap();
+        let target = repo.join("plan.md");
+        atomic_write(&target, b"original source bytes\n").unwrap();
+        let backup_root = vault.join("Artifacts/Baron/Migrations/snapshot-race");
+        let backup_repo = backup_root.join("repo");
+        ensure_directory_chain(&backup_repo).unwrap();
+        let mut entry = backup_entry(BackupScope::Repo, &repo, "plan.md", &backup_repo).unwrap();
+
+        // Model a torn copy from the race where the source changed during
+        // backup I/O and returned to its pre-copy bytes before publication.
+        atomic_write(&backup_repo.join("plan.md"), b"mixed backup snapshot\n").unwrap();
+        entry.post_handoff_hash = entry.original_hash.clone();
+        let mut manifest = BackupManifest {
+            migration_id: "snapshot-race".into(),
+            repo_root: repo.clone(),
+            vault_root: vault,
+            post_handoff_captured: false,
+            capsule_relative: None,
+            entries: vec![entry],
+        };
+
+        let error = prepare_publication(&mut manifest, &backup_root, &target).unwrap_err();
+        assert!(error.to_string().contains("backup snapshot"), "{error}");
+        assert_eq!(
+            read_bytes(&target).unwrap().unwrap(),
+            b"original source bytes\n"
+        );
+    }
 
     #[test]
     fn pre_handoff_repo_writer_is_not_adopted_as_rollback_baseline() {

@@ -131,6 +131,7 @@ fn record_intent_internal(
         .join(&date)
         .join(&filename);
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let operation_path = identity.map(|identity| operation_intent_path(repo_root, identity));
     let operation_vault_path = identity.map(|identity| {
         vault
