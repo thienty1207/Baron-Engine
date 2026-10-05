@@ -235,9 +235,10 @@ impl Drop for ActiveHookGuard {
 /// cannot create competing state when the host supplies the same session and
 /// request identity. Native Codex turn_id and Claude prompt_id are correlated
 /// durably to the original canonical task before response deduplication.
-/// Anonymous deliveries therefore
-/// receive fresh synthesized identity and intentionally have no retry-
-/// idempotency guarantee.
+/// Prompt submissions without those stable host IDs or an explicit Baron
+/// request_id fail closed before any durable operation or delivery state is
+/// created; session and prompt text alone cannot distinguish retries from a
+/// new turn.
 pub fn handle_hook(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::safe_io::{
-    acquire_project_lock, ensure_directory_chain, project_lock_path, read_bytes, read_text,
-    read_text_required, replace_file, ProjectMutationLock,
+    acquire_project_lock, create_new_file, ensure_directory_chain, project_lock_path, read_bytes,
+    read_text, read_text_required, replace_file, ProjectMutationLock,
 };
 use crate::vault::{ensure_vault, project_slug, vault_context_without_create, VaultContext};
 
@@ -1366,6 +1366,31 @@ struct ConditionalRollback {
     conflict_paths: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct RollbackEntryProgress {
+    schema_version: u32,
+    migration_id: String,
+    scope: BackupScope,
+    relative_path: String,
+    existed: bool,
+    was_directory: bool,
+    original_hash: Option<String>,
+    post_handoff_hash: Option<String>,
+    stage_name: String,
+    displaced_name: String,
+}
+
+struct PreparedRollbackEntry<'a> {
+    index: usize,
+    entry: &'a BackupEntry,
+    target: PathBuf,
+    backup: Option<PathBuf>,
+    progress: RollbackEntryProgress,
+    progress_path: PathBuf,
+    stage: PathBuf,
+    displaced: PathBuf,
+}
+
 fn restore_from_manifest_if_unchanged(
     manifest: &BackupManifest,
     backup_root: &Path,
@@ -1373,14 +1398,130 @@ fn restore_from_manifest_if_unchanged(
     let _lock = acquire_project_lock(&manifest.repo_root)?;
     let _capsule_lock = lock_manifest_capsule(manifest)?;
     let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
+    let canonical_vault_root = manifest.vault_root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve migration Vault root: {}",
+            manifest.vault_root.display()
+        )
+    })?;
+    let backup_metadata = fs::symlink_metadata(backup_root)?;
+    if backup_metadata.file_type().is_symlink()
+        || is_reparse_point(&backup_metadata)
+        || !backup_metadata.is_dir()
+    {
+        bail!(
+            "Migration backup root must be a regular directory: {}",
+            backup_root.display()
+        );
+    }
+    // Explicit rollback may receive a canonical Vault path while the manifest
+    // stores the original lexical path (notably Windows \?\ paths). Compare
+    // resolved roots, then reconstruct the validated in-Vault path.
+    let canonical_backup_root = backup_root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve migration backup root: {}",
+            backup_root.display()
+        )
+    })?;
+    let backup_relative = canonical_backup_root
+        .strip_prefix(&canonical_vault_root)
+        .context("Migration backup root escapes its Vault")?;
+    let backup_relative = normalize(backup_relative);
+    let backup_root = validate_restore_target(
+        &canonical_vault_root,
+        &backup_relative,
+        "rollback backup root",
+    )?;
+    if backup_root != canonical_backup_root {
+        bail!("Migration backup root resolves through an unsafe path");
+    }
+    let mut lock_paths = vec![
+        project_lock_path(&manifest.repo_root)?,
+        project_lock_path(&manifest.vault_root)?,
+    ];
+    if let Some(relative) = manifest_capsule_relative(manifest) {
+        let capsule = validate_restore_target(&manifest.vault_root, relative, "capsule lock")?;
+        lock_paths.push(project_lock_path(capsule)?);
+    }
+
     let mut conflict_paths = Vec::new();
-    for entry in &manifest.entries {
+    let mut plan = Vec::with_capacity(manifest.entries.len());
+    for (index, entry) in manifest.entries.iter().enumerate() {
         let root = match entry.scope {
             BackupScope::Repo => &manifest.repo_root,
             BackupScope::Vault => &manifest.vault_root,
         };
         let target = validate_restore_target(root, &entry.relative_path, "rollback target")?;
-        if hash_path(&target)? != entry.post_handoff_hash {
+        if is_mutation_lock_path(&target) || lock_paths.iter().any(|lock| lock.starts_with(&target))
+        {
+            bail!(
+                "Migration restore target contains a live mutation lock: {}",
+                target.display()
+            );
+        }
+
+        let backup = if entry.existed {
+            let scope_root = match entry.scope {
+                BackupScope::Repo => backup_root.join("repo"),
+                BackupScope::Vault => backup_root.join("vault"),
+            };
+            let backup = validate_restore_target(&scope_root, &entry.relative_path, "backup copy")?;
+            if hash_path(&backup)? != entry.original_hash {
+                bail!(
+                    "Migration recovery copy is missing or changed: {}",
+                    backup.display()
+                );
+            }
+            Some(backup)
+        } else {
+            None
+        };
+
+        let progress = rollback_entry_progress(manifest, index, entry);
+        let progress_relative = format!(
+            "{}/rollback-progress/entry-{index:04}.json",
+            backup_relative
+        );
+        let progress_path = validate_restore_target(
+            &canonical_vault_root,
+            &progress_relative,
+            "rollback progress",
+        )?;
+        let stage = target
+            .parent()
+            .context("Migration restore target has no parent")?
+            .join(&progress.stage_name);
+        let displaced = target
+            .parent()
+            .context("Migration restore target has no parent")?
+            .join(&progress.displaced_name);
+        let progress_record = read_rollback_progress(&progress_path)?;
+        if progress_record
+            .as_ref()
+            .is_some_and(|stored| stored != &progress)
+        {
+            bail!(
+                "Migration rollback progress does not match manifest entry: {}",
+                entry.relative_path
+            );
+        }
+        let flags = rollback_progress_flags(&backup_root, index, &progress)?;
+        if progress_record.is_none() && flags.any() {
+            bail!(
+                "Migration rollback progress marker has no entry record: {}",
+                entry.relative_path
+            );
+        }
+        let current_hash = hash_path(&target)?;
+        if !rollback_entry_state_is_safe(
+            entry,
+            &current_hash,
+            progress_record.is_some(),
+            &flags,
+            &stage,
+            &displaced,
+            &progress,
+        )? {
             conflict_paths.push(format!(
                 "{}:{}",
                 match entry.scope {
@@ -1390,100 +1531,506 @@ fn restore_from_manifest_if_unchanged(
                 entry.relative_path
             ));
         }
+        plan.push(PreparedRollbackEntry {
+            index,
+            entry,
+            target,
+            backup,
+            progress,
+            progress_path,
+            stage,
+            displaced,
+        });
     }
     if !conflict_paths.is_empty() {
         // Do not partially restore a multi-path migration when any path was
-        // changed after the external handoff. Leaving every path untouched is
-        // fail-closed and avoids replacing a concurrent writer's bytes with
-        // the pre-migration backup.
+        // changed after the external handoff or outside a journaled restart
+        // state. Leaving every path untouched avoids replacing a concurrent
+        // writer's bytes with the pre-migration backup.
         return Ok(ConditionalRollback {
             restored: 0,
             conflicts: conflict_paths.len(),
             conflict_paths,
         });
     }
+
+    let mut restored = 0;
+    for item in &plan {
+        if hash_path(&item.target)? != item.entry.original_hash {
+            restored += 1;
+        }
+    }
+    for item in plan.into_iter().rev() {
+        restore_one_entry(&backup_root, item)?;
+    }
     Ok(ConditionalRollback {
-        restored: restore_from_manifest(manifest, backup_root)?,
+        restored,
         conflicts: 0,
         conflict_paths: Vec::new(),
     })
 }
 
+#[cfg(test)]
 fn restore_from_manifest(manifest: &BackupManifest, backup_root: &Path) -> Result<usize> {
-    let _lock = acquire_project_lock(&manifest.repo_root)?;
-    let _capsule_lock = lock_manifest_capsule(manifest)?;
-    let _vault_lock = acquire_project_lock(&manifest.vault_root)?;
-    let mut lock_paths = vec![
-        project_lock_path(&manifest.repo_root)?,
-        project_lock_path(&manifest.vault_root)?,
-    ];
-    if let Some(relative) = manifest_capsule_relative(manifest) {
-        let capsule = validate_restore_target(&manifest.vault_root, relative, "capsule lock")?;
-        lock_paths.push(project_lock_path(capsule)?);
+    let outcome = restore_from_manifest_if_unchanged(manifest, backup_root)?;
+    if outcome.conflicts > 0 {
+        bail!(
+            "Migration restore found {} changed managed target(s): {}",
+            outcome.conflicts,
+            outcome.conflict_paths.join(", ")
+        );
     }
-    let mut plan = Vec::with_capacity(manifest.entries.len());
-    for entry in &manifest.entries {
-        let (root, backup_scope) = match entry.scope {
-            BackupScope::Repo => (&manifest.repo_root, backup_root.join("repo")),
-            BackupScope::Vault => (&manifest.vault_root, backup_root.join("vault")),
-        };
-        let target = validate_restore_target(root, &entry.relative_path, "restore target")?;
-        // Older manifests can contain an entire capsule directory. Never
-        // remove/replace the inode backing a held lock, even during explicit
-        // rollback; validate the complete restore set before touching data.
-        if is_mutation_lock_path(&target) || lock_paths.iter().any(|lock| lock.starts_with(&target))
-        {
-            bail!(
-                "Migration restore target contains a live mutation lock: {}",
-                target.display()
-            );
-        }
-        let backup = if entry.existed {
-            Some(validate_restore_target(
-                &backup_scope,
-                &entry.relative_path,
-                "backup copy",
-            )?)
-        } else {
-            None
-        };
-        if let Some(backup) = &backup {
-            if hash_path(backup)? != entry.original_hash {
+    Ok(outcome.restored)
+}
+
+fn rollback_entry_progress(
+    manifest: &BackupManifest,
+    index: usize,
+    entry: &BackupEntry,
+) -> RollbackEntryProgress {
+    let key = format!(
+        "{}\0{}\0{}\0{}",
+        manifest.migration_id,
+        index,
+        match entry.scope {
+            BackupScope::Repo => "repo",
+            BackupScope::Vault => "vault",
+        },
+        entry.relative_path
+    );
+    let token = format!("{:x}", Sha256::digest(key.as_bytes()));
+    RollbackEntryProgress {
+        schema_version: 1,
+        migration_id: manifest.migration_id.clone(),
+        scope: entry.scope,
+        relative_path: entry.relative_path.clone(),
+        existed: entry.existed,
+        was_directory: entry.was_directory,
+        original_hash: entry.original_hash.clone(),
+        post_handoff_hash: entry.post_handoff_hash.clone(),
+        stage_name: format!(".baron-rb-{token}.stage"),
+        displaced_name: format!(".baron-rb-{token}.old"),
+    }
+}
+
+#[derive(Default)]
+struct RollbackProgressFlags {
+    stage_ready: bool,
+    target_moved: bool,
+    displaced_cleanup_started: bool,
+}
+
+impl RollbackProgressFlags {
+    fn any(&self) -> bool {
+        self.stage_ready || self.target_moved || self.displaced_cleanup_started
+    }
+}
+
+fn rollback_flag_path(backup_root: &Path, index: usize, phase: &str) -> PathBuf {
+    backup_root
+        .join("rollback-progress")
+        .join(format!("entry-{index:04}.{phase}"))
+}
+
+fn rollback_progress_payload(progress: &RollbackEntryProgress, phase: &str) -> Result<Vec<u8>> {
+    let record = serde_json::to_vec(progress)?;
+    let fingerprint = format!("{:x}", Sha256::digest(record));
+    Ok(format!("{phase}:{fingerprint}\n").into_bytes())
+}
+
+fn read_rollback_progress(path: &Path) -> Result<Option<RollbackEntryProgress>> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink()
+                || is_reparse_point(&metadata)
+                || !metadata.is_file()
+            {
                 bail!(
-                    "Migration recovery copy is missing or changed: {}",
-                    backup.display()
+                    "Migration rollback progress is not a regular file: {}",
+                    path.display()
                 );
             }
+            let bytes = fs::read(path)?;
+            Ok(Some(serde_json::from_slice(&bytes).with_context(|| {
+                format!(
+                    "Could not parse migration rollback progress: {}",
+                    path.display()
+                )
+            })?))
         }
-        plan.push((entry, target, backup));
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn read_rollback_flag(path: &Path, progress: &RollbackEntryProgress, phase: &str) -> Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink()
+                || is_reparse_point(&metadata)
+                || !metadata.is_file()
+            {
+                bail!(
+                    "Migration rollback marker is not a regular file: {}",
+                    path.display()
+                );
+            }
+            let actual = fs::read(path)?;
+            if actual != rollback_progress_payload(progress, phase)? {
+                bail!("Migration rollback marker changed: {}", path.display());
+            }
+            Ok(true)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn rollback_progress_flags(
+    backup_root: &Path,
+    index: usize,
+    progress: &RollbackEntryProgress,
+) -> Result<RollbackProgressFlags> {
+    Ok(RollbackProgressFlags {
+        stage_ready: read_rollback_flag(
+            &rollback_flag_path(backup_root, index, "stage-ready"),
+            progress,
+            "stage-ready",
+        )?,
+        target_moved: read_rollback_flag(
+            &rollback_flag_path(backup_root, index, "target-moved"),
+            progress,
+            "target-moved",
+        )?,
+        displaced_cleanup_started: read_rollback_flag(
+            &rollback_flag_path(backup_root, index, "cleanup-started"),
+            progress,
+            "cleanup-started",
+        )?,
+    })
+}
+
+fn ensure_rollback_flag(
+    backup_root: &Path,
+    index: usize,
+    progress: &RollbackEntryProgress,
+    phase: &str,
+) -> Result<()> {
+    let path = rollback_flag_path(backup_root, index, phase);
+    let content = rollback_progress_payload(progress, phase)?;
+    ensure_directory_chain(path.parent().context("Rollback marker has no parent")?)?;
+    match create_new_file(&path, &content) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            if read_rollback_flag(&path, progress, phase)? {
+                Ok(())
+            } else {
+                Err(error)
+            }
+        }
+    }
+}
+
+fn rollback_entry_state_is_safe(
+    entry: &BackupEntry,
+    current_hash: &Option<String>,
+    has_progress: bool,
+    flags: &RollbackProgressFlags,
+    stage: &Path,
+    displaced: &Path,
+    progress: &RollbackEntryProgress,
+) -> Result<bool> {
+    if has_progress {
+        // Inspect all journal-owned paths during preflight, before any entry
+        // is changed, so links and unsupported filesystem objects fail closed.
+        let _ = hash_path(stage)?;
+        let _ = hash_path(displaced)?;
+    }
+    // Cleanup can only begin after the target-moved marker has been durably
+    // published. Any other marker ordering is corrupt or externally changed.
+    if flags.displaced_cleanup_started && !flags.target_moved {
+        return Ok(false);
+    }
+    if current_hash == &entry.original_hash {
+        if !has_progress {
+            return Ok(!path_exists(stage)? && !path_exists(displaced)?);
+        }
+        if !entry.existed {
+            if flags.stage_ready || path_exists(stage)? {
+                return Ok(false);
+            }
+            if flags.displaced_cleanup_started {
+                // The journal proves recursive cleanup began. A restart may
+                // finish deleting its remaining displaced directory entries.
+                return Ok(true);
+            }
+            if path_exists(displaced)? {
+                return Ok(entry.post_handoff_hash.is_some()
+                    && hash_path(displaced)? == entry.post_handoff_hash);
+            }
+            return Ok(!flags.target_moved);
+        }
+        if flags.target_moved && !flags.displaced_cleanup_started {
+            return Ok(false);
+        }
+        if flags.stage_ready {
+            match hash_path(stage)? {
+                Some(hash) if entry.original_hash.as_deref() == Some(hash.as_str()) => {}
+                None => {} // The stage was renamed into the target.
+                _ => return Ok(false),
+            }
+        }
+        if path_exists(displaced)? && !flags.displaced_cleanup_started {
+            return Ok(false);
+        }
+        return Ok(true);
     }
 
-    let mut restored = 0;
-    for (entry, target, backup) in plan.into_iter().rev() {
-        if entry.existed {
-            remove_path(&target)?;
+    if current_hash == &entry.post_handoff_hash {
+        if !has_progress {
+            return Ok(!path_exists(stage)? && !path_exists(displaced)?);
+        }
+        if flags.target_moved || flags.displaced_cleanup_started || path_exists(displaced)? {
+            return Ok(false);
+        }
+        if flags.stage_ready {
+            return Ok(hash_path(stage)? == entry.original_hash);
+        }
+        return Ok(true);
+    }
+
+    if current_hash.is_none() && has_progress && entry.existed && flags.stage_ready {
+        if hash_path(stage)? != entry.original_hash {
+            return Ok(false);
+        }
+        if flags.displaced_cleanup_started {
+            return Ok(true);
+        }
+        return Ok(hash_path(displaced)? == entry.post_handoff_hash
+            && progress.post_handoff_hash.is_some());
+    }
+
+    Ok(false)
+}
+
+fn path_exists(path: &Path) -> Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn ensure_rollback_progress(backup_root: &Path, item: &PreparedRollbackEntry<'_>) -> Result<()> {
+    if let Some(stored) = read_rollback_progress(&item.progress_path)? {
+        if stored != item.progress {
+            bail!(
+                "Migration rollback progress does not match manifest entry: {}",
+                item.entry.relative_path
+            );
+        }
+        return Ok(());
+    }
+    let flags = rollback_progress_flags(backup_root, item.index, &item.progress)?;
+    if flags.any() || path_exists(&item.stage)? || path_exists(&item.displaced)? {
+        bail!(
+            "Migration rollback sidecar exists without progress ownership: {}",
+            item.entry.relative_path
+        );
+    }
+    ensure_directory_chain(
+        item.progress_path
+            .parent()
+            .context("Rollback progress record has no parent")?,
+    )?;
+    let bytes = serde_json::to_vec(&item.progress)?;
+    match create_new_file(&item.progress_path, &bytes) {
+        Ok(()) => Ok(()),
+        Err(error) => match read_rollback_progress(&item.progress_path)? {
+            Some(stored) if stored == item.progress => Ok(()),
+            _ => Err(error),
+        },
+    }
+}
+
+fn restore_one_entry(backup_root: &Path, item: PreparedRollbackEntry<'_>) -> Result<()> {
+    let entry = item.entry;
+    let current_hash = hash_path(&item.target)?;
+    let has_progress = read_rollback_progress(&item.progress_path)?.is_some();
+    let flags = rollback_progress_flags(backup_root, item.index, &item.progress)?;
+    if current_hash == entry.original_hash {
+        if has_progress {
+            let displaced_is_pending =
+                !entry.existed && !flags.displaced_cleanup_started && path_exists(&item.displaced)?;
+            if !displaced_is_pending {
+                finalize_rollback_entry(backup_root, &item, &flags)?;
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        }
+    }
+    if current_hash != entry.post_handoff_hash
+        && !(current_hash.is_none()
+            && has_progress
+            && (entry.existed && flags.stage_ready
+                || !entry.existed
+                    && entry.post_handoff_hash.is_some()
+                    && hash_path(&item.displaced)? == entry.post_handoff_hash))
+    {
+        bail!(
+            "Migration rollback target changed after preflight: {}",
+            item.target.display()
+        );
+    }
+    ensure_rollback_progress(backup_root, &item)?;
+    let mut flags = rollback_progress_flags(backup_root, item.index, &item.progress)?;
+
+    if entry.existed {
+        let stage_hash = hash_path(&item.stage)?;
+        if flags.stage_ready {
+            if stage_hash != entry.original_hash {
+                bail!(
+                    "Staged migration recovery copy changed: {}",
+                    item.stage.display()
+                );
+            }
+        } else {
+            if path_exists(&item.stage)? {
+                remove_path(&item.stage)?;
+            }
             copy_path(
-                backup
+                item.backup
                     .as_ref()
                     .context("Migration backup path missing for an existing entry")?,
-                &target,
+                &item.stage,
                 false,
                 None,
                 None,
             )?;
-            restored += 1;
-        } else {
-            match fs::symlink_metadata(&target) {
-                Ok(_) => {
-                    remove_path(&target)?;
-                    restored += 1;
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error.into()),
+            if hash_path(&item.stage)? != entry.original_hash {
+                bail!(
+                    "Staged migration recovery copy failed validation: {}",
+                    item.stage.display()
+                );
             }
+            ensure_rollback_flag(backup_root, item.index, &item.progress, "stage-ready")?;
+            flags.stage_ready = true;
+        }
+    } else if path_exists(&item.stage)? {
+        bail!(
+            "Unexpected migration rollback stage: {}",
+            item.stage.display()
+        );
+    }
+
+    let current_hash = hash_path(&item.target)?;
+    if current_hash == entry.post_handoff_hash && current_hash.is_some() {
+        if path_exists(&item.displaced)? {
+            bail!(
+                "Unexpected migration rollback displaced path: {}",
+                item.displaced.display()
+            );
+        }
+        fs::rename(&item.target, &item.displaced).with_context(|| {
+            format!("Could not stage rollback target: {}", item.target.display())
+        })?;
+        ensure_rollback_flag(backup_root, item.index, &item.progress, "target-moved")?;
+        flags.target_moved = true;
+    } else if current_hash.is_none() && entry.post_handoff_hash.is_some() {
+        if !flags.displaced_cleanup_started {
+            if hash_path(&item.displaced)? != entry.post_handoff_hash {
+                bail!(
+                    "Migration rollback lost its displaced target: {}",
+                    item.target.display()
+                );
+            }
+            ensure_rollback_flag(backup_root, item.index, &item.progress, "target-moved")?;
+        }
+    } else if current_hash != entry.post_handoff_hash {
+        bail!(
+            "Migration rollback target changed after staging: {}",
+            item.target.display()
+        );
+    }
+
+    if path_exists(&item.displaced)? {
+        if !flags.displaced_cleanup_started {
+            if hash_path(&item.displaced)? != entry.post_handoff_hash {
+                bail!(
+                    "Displaced migration target changed: {}",
+                    item.displaced.display()
+                );
+            }
+            ensure_rollback_flag(backup_root, item.index, &item.progress, "cleanup-started")?;
+        }
+        remove_path(&item.displaced)?;
+    } else if entry.post_handoff_hash.is_some()
+        && current_hash.is_none()
+        && !flags.displaced_cleanup_started
+    {
+        bail!(
+            "Migration rollback displaced target is missing: {}",
+            item.target.display()
+        );
+    }
+
+    if entry.existed {
+        ensure_directory_chain(
+            item.target
+                .parent()
+                .context("Migration restore target has no parent")?,
+        )?;
+        fs::rename(&item.stage, &item.target).with_context(|| {
+            format!(
+                "Could not publish restored migration target: {}",
+                item.target.display()
+            )
+        })?;
+        if hash_path(&item.target)? != entry.original_hash {
+            bail!(
+                "Restored migration target failed validation: {}",
+                item.target.display()
+            );
+        }
+    } else if hash_path(&item.target)?.is_some() {
+        bail!(
+            "New migration target remains after rollback: {}",
+            item.target.display()
+        );
+    }
+
+    let flags = rollback_progress_flags(backup_root, item.index, &item.progress)?;
+    finalize_rollback_entry(backup_root, &item, &flags)
+}
+
+fn finalize_rollback_entry(
+    backup_root: &Path,
+    item: &PreparedRollbackEntry<'_>,
+    flags: &RollbackProgressFlags,
+) -> Result<()> {
+    if path_exists(&item.stage)? {
+        remove_path(&item.stage)?;
+    }
+    if path_exists(&item.displaced)? {
+        if !flags.displaced_cleanup_started {
+            bail!(
+                "Migration rollback has an unjournaled displaced path: {}",
+                item.displaced.display()
+            );
+        }
+        remove_path(&item.displaced)?;
+    }
+    for phase in ["stage-ready", "target-moved", "cleanup-started"] {
+        let path = rollback_flag_path(backup_root, item.index, phase);
+        if path_exists(&path)? {
+            fs::remove_file(&path)?;
         }
     }
-    Ok(restored)
+    if path_exists(&item.progress_path)? {
+        fs::remove_file(&item.progress_path)?;
+    }
+    Ok(())
 }
 
 fn validate_restore_target(root: &Path, relative: &str, label: &str) -> Result<PathBuf> {
@@ -2241,6 +2788,180 @@ mod tests {
             read_bytes(&target).unwrap().unwrap(),
             b"# Foreign plan must survive\n"
         );
+    }
+
+    #[test]
+    fn rollback_resume_accepts_entries_already_restored_before_restart() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&vault).unwrap();
+        let repo = repo.canonicalize().unwrap();
+        let vault = vault.canonicalize().unwrap();
+        let backup = vault.join("Artifacts/Baron/Migrations/restart-test");
+        ensure_directory_chain(&backup).unwrap();
+
+        let first = repo.join("first.txt");
+        let second = repo.join("second.txt");
+        atomic_write(&first, b"first original").unwrap();
+        atomic_write(&second, b"second original").unwrap();
+        let mut first_entry =
+            backup_entry(BackupScope::Repo, &repo, "first.txt", &backup.join("repo")).unwrap();
+        let mut second_entry =
+            backup_entry(BackupScope::Repo, &repo, "second.txt", &backup.join("repo")).unwrap();
+        atomic_write(&first, b"first after handoff").unwrap();
+        atomic_write(&second, b"second after handoff").unwrap();
+        first_entry.post_handoff_hash = hash_path(&first).unwrap();
+        second_entry.post_handoff_hash = hash_path(&second).unwrap();
+
+        // Model a process stop after the first path was atomically restored,
+        // but before the second path was reached.
+        atomic_write(&first, b"first original").unwrap();
+        let manifest = BackupManifest {
+            migration_id: "restart-test".into(),
+            repo_root: repo,
+            vault_root: vault,
+            post_handoff_captured: true,
+            capsule_relative: None,
+            entries: vec![first_entry, second_entry],
+        };
+
+        let outcome = restore_from_manifest_if_unchanged(&manifest, &backup).unwrap();
+
+        assert_eq!(outcome.conflicts, 0);
+        assert_eq!(read_bytes(first).unwrap().unwrap(), b"first original");
+        assert_eq!(read_bytes(second).unwrap().unwrap(), b"second original");
+    }
+
+    #[test]
+    fn rollback_resumes_directory_replacement_at_each_rename_cleanup_boundary() {
+        for cleanup_started in [false, true] {
+            let temp = tempdir().unwrap();
+            let repo = temp.path().join("repo");
+            let vault = temp.path().join("vault");
+            ensure_directory_chain(&repo).unwrap();
+            ensure_directory_chain(&vault).unwrap();
+            let repo = repo.canonicalize().unwrap();
+            let vault = vault.canonicalize().unwrap();
+            let backup = vault.join("Artifacts/Baron/Migrations/directory-restart");
+            ensure_directory_chain(&backup).unwrap();
+
+            let target = repo.join("assets/managed");
+            atomic_write(&target.join("original.md"), b"original directory content").unwrap();
+            let mut entry = backup_entry(
+                BackupScope::Repo,
+                &repo,
+                "assets/managed",
+                &backup.join("repo"),
+            )
+            .unwrap();
+            remove_path(&target).unwrap();
+            atomic_write(&target.join("post-handoff.md"), b"managed migration output").unwrap();
+            entry.post_handoff_hash = hash_path(&target).unwrap();
+            let manifest = BackupManifest {
+                migration_id: "directory-restart".into(),
+                repo_root: repo.clone(),
+                vault_root: vault.clone(),
+                post_handoff_captured: true,
+                capsule_relative: None,
+                entries: vec![entry.clone()],
+            };
+
+            let progress = rollback_entry_progress(&manifest, 0, &entry);
+            let progress_path = backup.join("rollback-progress/entry-0000.json");
+            ensure_directory_chain(progress_path.parent().unwrap()).unwrap();
+            create_new_file(&progress_path, &serde_json::to_vec(&progress).unwrap()).unwrap();
+            let stage = target.parent().unwrap().join(&progress.stage_name);
+            let displaced = target.parent().unwrap().join(&progress.displaced_name);
+            copy_path(
+                &backup.join("repo/assets/managed"),
+                &stage,
+                false,
+                None,
+                None,
+            )
+            .unwrap();
+            ensure_rollback_flag(&backup, 0, &progress, "stage-ready").unwrap();
+            fs::rename(&target, &displaced).unwrap();
+            if cleanup_started {
+                ensure_rollback_flag(&backup, 0, &progress, "target-moved").unwrap();
+                ensure_rollback_flag(&backup, 0, &progress, "cleanup-started").unwrap();
+                fs::remove_file(displaced.join("post-handoff.md")).unwrap();
+            }
+
+            let outcome = restore_from_manifest_if_unchanged(&manifest, &backup).unwrap();
+
+            assert_eq!(outcome.conflicts, 0);
+            assert_eq!(hash_path(&target).unwrap(), entry.original_hash);
+            assert_eq!(
+                read_bytes(target.join("original.md")).unwrap().unwrap(),
+                b"original directory content"
+            );
+            assert!(!stage.exists());
+            assert!(!displaced.exists());
+            assert!(!progress_path.exists());
+        }
+    }
+
+    #[test]
+    fn rollback_resumes_absent_directory_after_rename_before_target_moved_marker() {
+        for marker_phase in 0..3 {
+            let temp = tempdir().unwrap();
+            let repo = temp.path().join("repo");
+            let vault = temp.path().join("vault");
+            ensure_directory_chain(&repo).unwrap();
+            ensure_directory_chain(&vault).unwrap();
+            let repo = repo.canonicalize().unwrap();
+            let vault = vault.canonicalize().unwrap();
+            let migration_id = format!("absent-directory-restart-{marker_phase}");
+            let backup = vault.join("Artifacts/Baron/Migrations").join(&migration_id);
+            ensure_directory_chain(&backup).unwrap();
+
+            let target = repo.join("assets/generated");
+            let mut entry = backup_entry(
+                BackupScope::Repo,
+                &repo,
+                "assets/generated",
+                &backup.join("repo"),
+            )
+            .unwrap();
+            assert!(!entry.existed);
+            assert_eq!(entry.original_hash, None);
+            atomic_write(&target.join("managed.md"), b"migration output").unwrap();
+            entry.post_handoff_hash = hash_path(&target).unwrap();
+            let manifest = BackupManifest {
+                migration_id,
+                repo_root: repo.clone(),
+                vault_root: vault,
+                post_handoff_captured: true,
+                capsule_relative: None,
+                entries: vec![entry.clone()],
+            };
+
+            // Model process stops after target rename, after its durable marker,
+            // and after cleanup begins. Absence remains the original state.
+            let progress = rollback_entry_progress(&manifest, 0, &entry);
+            let progress_path = backup.join("rollback-progress/entry-0000.json");
+            ensure_directory_chain(progress_path.parent().unwrap()).unwrap();
+            create_new_file(&progress_path, &serde_json::to_vec(&progress).unwrap()).unwrap();
+            let displaced = target.parent().unwrap().join(&progress.displaced_name);
+            fs::rename(&target, &displaced).unwrap();
+            if marker_phase >= 1 {
+                ensure_rollback_flag(&backup, 0, &progress, "target-moved").unwrap();
+            }
+            if marker_phase >= 2 {
+                ensure_rollback_flag(&backup, 0, &progress, "cleanup-started").unwrap();
+                fs::remove_file(displaced.join("managed.md")).unwrap();
+            }
+
+            let outcome = restore_from_manifest_if_unchanged(&manifest, &backup).unwrap();
+
+            assert_eq!(outcome.conflicts, 0, "restart boundary {marker_phase}");
+            assert!(!target.exists(), "rollback restores the original absence");
+            assert!(!displaced.exists());
+            assert!(!progress_path.exists());
+        }
     }
 
     #[test]

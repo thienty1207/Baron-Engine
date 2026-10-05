@@ -1,5 +1,5 @@
 //! Durable native turn correlation, separate from response deduplication.
-//! Official schema snapshot (checked 2026-10-01):
+//! Official schema snapshot (checked 2026-10-05):
 //! https://learn.chatgpt.com/docs/hooks (unversioned Codex reference)
 //! https://code.claude.com/docs/en/hooks (Claude Code >=2.1.196).
 //! Host   SessionStart   UserPromptSubmit       PreCompact/PostToolUse  Stop
@@ -9,6 +9,8 @@
 //!
 //! Stop has last_assistant_message, never the original prompt. Transcripts
 //! can lag asynchronously and are deliberately not a correlation source.
+//! Prompt submissions without a stable host id or Baron request_id fail
+//! closed; session and prompt text cannot distinguish retry from a new turn.
 //!
 //! request_id is Baron compatibility transport; Claude turn_id is not an alias.
 
@@ -330,12 +332,16 @@ pub(super) fn resolve_locked(
     event: AutomationEvent,
     ingress: &Ingress,
 ) -> Result<(String, LifecycleIdentity, bool)> {
-    let mut state = load(repo, vault)?;
     let prompt = matches!(
         event,
         AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt
     );
     let stop = event == AutomationEvent::Stop;
+    if prompt && ingress.turn.is_none() {
+        bail!(
+            "hook prompt correlation requires a stable prompt identity (host turn_id/prompt_id or Baron request_id)"
+        );
+    }
     if prompt && ingress.native_turn && ingress.task.is_none() {
         bail!("native Prompt correlation requires original prompt text");
     }
@@ -356,6 +362,7 @@ pub(super) fn resolve_locked(
         )?;
         return Ok((task, identity, false));
     };
+    let mut state = load(repo, vault)?;
     let mut candidates = Vec::new();
     for entry in &state.entries {
         if entry.identity.adapter != adapter || entry.host_session_id != session {
@@ -364,8 +371,8 @@ pub(super) fn resolve_locked(
         let matches = if let Some(turn) = ingress.turn.as_deref() {
             entry.host_turn_id.as_deref() == Some(turn)
         } else if prompt {
-            // Session+task cannot distinguish a new identical prompt from a
-            // retry. Every id-less Prompt gets a fresh synthesized request.
+            // Prompt submissions without a stable identity were rejected
+            // above; this branch is defensive if a future ingress bypasses it.
             false
         } else {
             true
@@ -531,4 +538,107 @@ pub(super) fn blocked(
         response["reason"] = Value::String(failure(error));
     }
     Ok(serde_json::to_string(&response)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{initialize_project, AdapterKind};
+    use crate::safe_io::acquire_project_lock;
+    use crate::vault::ensure_vault;
+    use tempfile::tempdir;
+
+    #[test]
+    fn prompt_without_stable_retry_identity_is_rejected_before_mapping_write() {
+        for (hook_adapter, supported_adapter) in [
+            (HookAdapter::Codex, SupportedAdapter::Codex),
+            (HookAdapter::Claude, SupportedAdapter::Claude),
+        ] {
+            let temp = tempdir().unwrap();
+            let repo = temp.path().join("repo");
+            let vault_root = temp.path().join("vault");
+            std::fs::create_dir_all(&repo).unwrap();
+            initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
+            let vault = ensure_vault(&vault_root, &repo).unwrap();
+            let payload = serde_json::json!({
+                "session_id":"session-without-turn",
+                "prompt":"repeatable task text"
+            });
+            let ingress = Ingress::parse(&payload, hook_adapter).unwrap();
+            let _lock = acquire_project_lock(&repo).unwrap();
+
+            let result = resolve_locked(
+                &repo,
+                &vault,
+                supported_adapter,
+                AutomationEvent::UserPromptSubmit,
+                &ingress,
+            );
+
+            assert!(
+                result.is_err(),
+                "id-less {hook_adapter:?} prompt must not create a retry-unstable identity"
+            );
+            assert!(!repo.join(MAP_PATH).exists());
+        }
+    }
+
+    #[test]
+    fn native_and_baron_compatibility_prompt_ids_reuse_one_mapping_on_retry() {
+        for (hook_adapter, supported_adapter, payload) in [
+            (
+                HookAdapter::Codex,
+                SupportedAdapter::Codex,
+                serde_json::json!({
+                    "session_id":"codex-session",
+                    "turn_id":"codex-turn",
+                    "prompt":"repeatable task text"
+                }),
+            ),
+            (
+                HookAdapter::Claude,
+                SupportedAdapter::Claude,
+                serde_json::json!({
+                    "session_id":"claude-session",
+                    "prompt_id":"claude-prompt",
+                    "prompt":"repeatable task text"
+                }),
+            ),
+            (
+                HookAdapter::Claude,
+                SupportedAdapter::Claude,
+                serde_json::json!({
+                    "session_id":"compat-session",
+                    "request_id":"baron-request",
+                    "prompt":"repeatable task text"
+                }),
+            ),
+        ] {
+            let temp = tempdir().unwrap();
+            let repo = temp.path().join("repo");
+            let vault_root = temp.path().join("vault");
+            std::fs::create_dir_all(&repo).unwrap();
+            initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
+            let vault = ensure_vault(&vault_root, &repo).unwrap();
+            let ingress = Ingress::parse(&payload, hook_adapter).unwrap();
+
+            let resolve = || {
+                let _lock = acquire_project_lock(&repo).unwrap();
+                resolve_locked(
+                    &repo,
+                    &vault,
+                    supported_adapter,
+                    AutomationEvent::UserPromptSubmit,
+                    &ingress,
+                )
+                .unwrap()
+            };
+            let first = resolve();
+            let retry = resolve();
+
+            assert_eq!(first.1, retry.1);
+            assert_eq!(first.0, retry.0);
+            assert_eq!(load(&repo, &vault).unwrap().entries.len(), 1);
+        }
+    }
 }

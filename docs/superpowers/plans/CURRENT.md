@@ -1,13 +1,14 @@
 # Current Baron Build Plan
 
-## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-04)
+## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-05)
 
-- Task/status: two fresh independent reviews of `ecaf362..7d052dc` both returned FIX REQUIRED. Their migration rollback and proof publication findings have regression-backed repairs. A later self-review found migration could adopt a file edit in the installer-return window; its deterministic regression reproduced this and now passes with captured path/hash receipts. Current full verification passes.
-- Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md).
-- Checkpoint: explicit rollback refuses an incomplete or changed handoff baseline and preserves recovery data; proof reserves the shared Vault lock before any proof/runtime publication. Installer snapshots carry exact content hashes, rechecked under migration publication locks. Latest run `verification-954e702e19874bf5b7a108bea5027463`: Core 588/0, CLI 190/0 (1 ignored), adapters 124/0 (3 ignored), workspace 902/0 (4 ignored); fmt, Clippy, locked release, release smoke, docs/status/link, CLI and diff checks pass.
-- Trace/audit: recovery's actionable mixed composition was BUG and is now EXACT_OPERATION_SCOPED. The combined caller scan has 261 source lines (115 for the first pattern set), not the old 252. Four documented Minor limitations remain Minor in both latest reviews.
-- Persisted-state boundary: exact LifecycleIdentity -> indexed ACTIVE -> canonical managed frontmatter. CURRENT is presentation only. No project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff changes.
-- Safe next action: commit the verified source/tests/evidence and obtain two fresh independent read-only ACCEPT reviews on the exact full `ecaf362..<final HEAD>` range. Resolve any Critical/Important finding with regression and fresh verification/reviews; only then close and push. Public binary stays `baron 5.0.0`.
+All current local verification gates pass. The absent-target rollback restart boundary is covered RED→GREEN across rename, marker, and cleanup interruptions; Windows canonical-vs-lexical backup-root failures are fixed; installer return snapshots are path/hash checked under migration locks; and hook ingress fails closed when stable prompt retry identity is absent. The current committed repair/evidence range still needs two fresh independent exact-range ACCEPT reviews; no closure/push claim is made.
+
+- Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md); [final local verification evidence](2026-10-05-spec-05-final-verification.md).
+- Verification: Core, CLI, adapters and workspace all-targets pass (test threads bounded to two; bundled PowerShell 7 override for CLI/adapters/workspace); workspace hook identity `20/20`. Required focused suites, Clippy `-D warnings`, locked release build, ignored release smoke `1/1`, `baron 5.0.0`, JSON parse, maintained/evidence links (12 docs/14 local links/0 broken), and diff check pass. Exact commands and suite results are in the evidence note.
+- Authority: current source caller scan remains 261 matching lines; the maintained audit classifies all production groups and has no `BUG` disposition. Four documented Minor topics remain for independent reviewer reassessment. Exact `LifecycleIdentity` → indexed ACTIVE → canonical managed frontmatter remains authority; CURRENT is presentation only for identified flows.
+- Persisted-state boundary: only SPEC-05 source/tests and maintained status/plan/build evidence changed; no project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff scope.
+- Safe next action: commit the scoped verified range, then obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`, including all evidence/docs. Reviewer quota/time failure is inconclusive. Resolve/retest/re-review any Critical or Important finding; only after both accept mark CLOSED and push. Public binary remains `baron 5.0.0`.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

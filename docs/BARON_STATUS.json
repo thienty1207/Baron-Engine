@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-04",
+  "lastUpdated": "2026-10-05",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Commit the verified SPEC-05 repair and evidence, then obtain two fresh independent read-only ACCEPT reviews on the exact committed ecaf362..<final HEAD> range. Close and push only after both accept.",
+  "nextAction": "Commit the verified SPEC-05 source/tests and final evidence/docs, then obtain two fresh independent read-only ACCEPT reviews of exact ecaf362..<final HEAD>; close and push only after both accept.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
@@ -40,8 +40,9 @@
         "Windows lifecycle tests need the supported BARON_TEST_POWERSHELL override to use the bundled PowerShell 7 host in this environment"
       ]
     },
-    "verificationBlockers": [
-      "Two fresh independent read-only reviews must accept the exact committed ecaf362..<final HEAD> range, including every repair and final evidence/docs commit, before SPEC-05 can be closed or pushed"
+      "verificationBlockers": [
+      "Two fresh independent read-only reviews must accept the exact committed ecaf362..<final HEAD> range, including every repair and final evidence/docs commit; reviewer quota/time failure is inconclusive",
+      "After both exact-range reviews accept, push the scoped branch and verify local HEAD equals the remote branch SHA; report GitHub status/Actions only when evidence exists"
     ],
     "implementationCommits": [
       "b4e5f77",
@@ -64,34 +65,36 @@
       "af65881",
       "8ec3458",
       "c68e01d",
-      "d9663ac"
+      "d9663ac",
+      "c5f9b0"
     ],
-    "closureBasis": "The five Important findings from ecaf362..9283841, completed-identity reuse, stale-CURRENT veto, missing-ACTIVE mutation, and Stop retry bypass have regression-backed repairs. Two later independent reviews of ecaf362..7d052dc found separate Important issues in explicit migration rollback and proof publication after a shared-Vault lock timeout; both have regression-backed fixes. A final self-review found and reproduced a race in installer-output baseline capture; path/hash receipts fixed it with a synchronized RED-to-GREEN regression. The complete local verification passes on the final repair source. Two fresh independent full-range ACCEPT reviews remain mandatory before closure or push. No hosted CI result is claimed. Public version remains 5.0.0.",
+    "closureBasis": "The previously reviewed Important issues in exact operation authority, explicit migration rollback, shared-Vault proof publication ordering, and installer-output baseline capture have regression-backed repairs. Follow-up tests cover resumable absent-target rollback across rename/marker/cleanup interruptions, Windows canonical/lexical backup-root validation, and fail-closed hook ingress without a stable retry identity. All local prompt verification gates now pass on the current source: Core/CLI/adapter/workspace all-targets, warnings-denied Clippy, locked release build, release smoke, binary version, JSON, maintained links, and diff. Status is READY FOR ADVERSARIAL REVIEW only. Two fresh independent read-only ACCEPT reviews of exact final ecaf362..<final HEAD>, including all evidence/docs, remain mandatory before closure or push. No hosted CI result is claimed. Public version remains 5.0.0.",
     "verification": {
-      "focusedConcurrencyMatrix": "PASS on current source: concurrency 16/16, config 16/16, plan 54/54, proof_trace 29/29, hook_identity 20/20, automation 8/8, intent 7/7, continuity 6/6, migration 14/14, operation_identity 10/10, execution_receipt 5/5, and public_config_compat 1/1",
+      "focusedConcurrencyMatrix": "PASS on current source through package/workspace all-targets (test threads bounded to two): plan 54/54; plan_identity_cli 4/4; proof_trace 29/29; automation 8/8; phase12_hooks 11/11; phase12_hooks_cli 6/6; adapter hook projection 3/3; concurrency 17/17; config 16/16; capability 9/9; control_plane 9/9; continuity 6/6; intent 7/7; harness 5/5; harness_improvement 10/10; migration integration 17/17; operation_identity 10/10; execution receipt 5/5; retired-adapter gate 8/8. Core and workspace hook_identity each pass 20/20 (2544.97 sec and 2506.94 sec respectively).",
+      "currentFocusedRepairs": "PASS: absent-target rollback interruption regression covers rename-before-marker, marker-before-cleanup, and partial cleanup; Windows canonical-vs-lexical backup-root migration regressions pass; prompts without stable host/Baron retry identity fail before state writes.",
       "stopReplayFreshness": "PASS: current focused regression observed stale continue=true/reconciliation_passed=true before the fix, then verified current failing evidence blocks through both dedup-cache and journal-only replay",
-      "postStopReplayFixIntegratedGates": "PASS on current repair source: latest run verification-954e702e19874bf5b7a108bea5027463 completed every local gate successfully.",
+      "postStopReplayFixIntegratedGates": "HISTORICAL: verification-954e702e19874bf5b7a108bea5027463 completed local gates before the 2026-10-05 hook/rollback repairs; do not treat its counts as current acceptance.",
       "latestReviewRepairRegressions": "PASS RED-to-GREEN: explicit_rollback_preserves_modified_imports_and_records_recovery, explicit_rollback_without_handoff_baseline_requires_recovery, proof_vault_lock_timeout_does_not_publish_usable_operation_evidence, and installer_return_window_edit_is_not_adopted_as_migration_output. Core migration is 17/17; CLI migration is 3/3.",
-      "cliExecution": "PASS on current source: CLI 190 passed, 0 failed, 1 ignored across 38 suites; verification log verification-954e702e19874bf5b7a108bea5027463/cli.log.",
-      "coreAllTargets": "PASS on current source: Core 588 passed, 0 failed across 60 suites; verification log verification-954e702e19874bf5b7a108bea5027463/core.log.",
-      "adaptersAllTargets": "PASS on current source: adapters 124 passed, 0 failed, 3 ignored across 14 suites; verification log verification-954e702e19874bf5b7a108bea5027463/adapters.log.",
-      "workspaceAllTargets": "PASS on current source: workspace 902 passed, 0 failed, 4 ignored across 112 suites; verification log verification-954e702e19874bf5b7a108bea5027463/workspace.log.",
-      "format": "PASS on current source: cargo fmt --all -- --check.",
-      "clippyWarningsDenied": "PASS on current source: cargo clippy --workspace --all-targets -- -D warnings.",
-      "releaseBuild": "PASS on current source: cargo build --workspace --release --locked.",
-      "binaryVersion": "PASS on current release build: baron 5.0.0.",
-      "releaseSmoke": "PASS on current release build: explicit ignored release smoke 1/1.",
-      "diffCheck": "PASS on current working tree: git diff ecaf362 --check.",
-      "maintainedMarkdownRelativeLinks": "PASS on current working tree: 10 local Markdown targets across 11 maintained/current documents, 0 missing.",
+      "cliExecution": "PASS: current cargo test -p baron-cli --all-targets --no-fail-fast -j 1 -- --test-threads=2 exited 0 with bundled BARON_TEST_POWERSHELL override.",
+      "coreAllTargets": "PASS: current cargo test -p baron-core --all-targets --no-fail-fast -j 1 -- --test-threads=2 exited 0; hook_identity 20/20 in 2544.97 seconds.",
+      "adaptersAllTargets": "PASS: current cargo test -p baron-adapters --all-targets --no-fail-fast -j 1 -- --test-threads=2 exited 0 with bundled BARON_TEST_POWERSHELL override.",
+      "workspaceAllTargets": "PASS: current cargo test --workspace --all-targets --no-fail-fast -j 1 -- --test-threads=2 exited 0; bundled BARON_TEST_POWERSHELL override; hook_identity 20/20 in 2506.94 seconds.",
+      "format": "PASS: cargo fmt --all -- --check.",
+      "clippyWarningsDenied": "PASS: cargo clippy --workspace --all-targets -- -D warnings exited 0.",
+      "releaseBuild": "PASS: cargo build --workspace --release --locked exited 0.",
+      "binaryVersion": "PASS: target/release/baron.exe --version reports baron 5.0.0.",
+      "releaseSmoke": "PASS: ignored phase14 release smoke for Codex/Claude/Database, 1/1.",
+      "diffCheck": "PASS: git diff ecaf362 --check on current source/evidence; rerun exact committed range check after evidence commit.",
+      "maintainedMarkdownRelativeLinks": "PASS: 12 maintained/evidence Markdown files checked; 14 local links, 0 broken destinations. public_trust_docs maintained-link test also passes.",
       "mutationInventory": "Recorded classifications: LOCKED_TRANSACTION for shared read-modify-write and hook claim/publication; LOCKED_APPEND for journals/runtime JSONL; LOCKED_CREATE_NEW for unique artifacts; LOCKED_ATOMIC_REPLACE for upserts; DIAGNOSTIC_LAST_WRITER_WINS for capability cache; READ_ONLY for authority readers; SLOW_WORK_OUTSIDE_LOCK for probes/Git/external installer; OUT_OF_SCOPE for diagnostic/report-only writers. Current Core/CLI source-tree scan returns 261 matching lines including inline tests; all production authority caller groups are classified in the audit. Four documented Minor topics remain for independent reassessment.",
-      "reviewDisposition": "Two fresh independent reviewers completed ecaf362..7d052dc and both returned FIX REQUIRED, one Important finding each: explicit migration rollback could overwrite changed imported Vault data; proof publication could precede a shared-Vault lock timeout. Both findings have regression-backed fixes. A later self-review found an installer-output snapshot race; all three review/self-review issues have RED-to-GREEN regressions and current local verification passes. Two fresh independent exact-range ACCEPT reviews remain required.",
+      "reviewDisposition": "Earlier fresh reviewers returned FIX REQUIRED on ecaf362..7d052dc, finding one Important issue each in explicit rollback and shared-Vault proof lock ordering; both are fixed with regressions, as is the later installer snapshot race. Current local gates pass. Two fresh independent read-only ACCEPT reviews of the exact committed final range remain required.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: all known Critical/Important findings in the prior range and the subsequent installer-output race are repaired with regressions; current local gates pass. Two fresh independent read-only reviewers must inspect exact full ecaf362..<final HEAD>; any quota/time failure is inconclusive. Do not close or push before both accept.",
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: all current local prompt gates pass. After the source/tests/evidence commit, two fresh independent read-only reviewers must inspect exact full ecaf362..<final HEAD>, including every evidence/docs commit; any quota/time failure is inconclusive. Do not close or push before both accept.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-01-spec-05-zero-current-closure-repair.md",
-    "nextAction": "Commit the fully verified installer-output hash receipt repair and evidence, then obtain two fresh independent read-only ACCEPT reviews of the exact final ecaf362..<final HEAD> range, including final evidence/docs. Close and push only after both accept; no release, tag, or version bump."
+    "nextAction": "Commit the scoped implementation and final evidence/docs, rerun committed-range diff and status checks, then obtain two fresh independent read-only ACCEPT reviews of exact ecaf362..<final HEAD>. Close and push only after both accept; verify local/remote HEAD equality and do not claim unavailable GitHub CI evidence. No release, tag, or version bump."
   },
   "securityRemediation": {
     "status": "complete",

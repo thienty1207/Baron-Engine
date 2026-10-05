@@ -228,7 +228,7 @@ fn old_claude_session_only_is_durable_unambiguous_and_retry_stable() {
         &vault,
         HookAdapter::Claude,
         "old-session",
-        None,
+        Some("prompt-a"),
         "fix README alpha typo",
     );
     passing(&repo, &vault, &a);
@@ -257,7 +257,7 @@ fn old_claude_session_only_is_durable_unambiguous_and_retry_stable() {
         &vault,
         HookAdapter::Claude,
         "old-session",
-        None,
+        Some("prompt-b"),
         "fix README beta typo",
     );
     let ambiguous = deliver(
@@ -272,49 +272,33 @@ fn old_claude_session_only_is_durable_unambiguous_and_retry_stable() {
 }
 
 #[test]
-fn old_claude_same_text_prompts_are_distinct_and_completed_mapping_is_not_resurrected() {
-    for completed in [false, true] {
+fn prompts_without_stable_retry_identity_fail_closed_before_state_writes() {
+    for adapter in [HookAdapter::Codex, HookAdapter::Claude] {
         let (_temp, repo, vault) = project();
-        let a = establish(
-            &repo,
-            &vault,
-            HookAdapter::Claude,
+        let payload = host(
+            adapter,
+            "UserPromptSubmit",
             "same-session",
             None,
-            "fix README alpha typo",
+            Some("fix README alpha typo"),
         );
-        if completed {
-            passing(&repo, &vault, &a);
-            complete_plan_for_identity(&repo, &vault, "README verified", &a).unwrap();
+        let before = authority_side_effects(&repo, &vault);
+        for _ in 0..2 {
+            let error = handle_hook(
+                &repo,
+                &vault,
+                adapter,
+                AutomationEvent::UserPromptSubmit,
+                &payload.to_string(),
+            )
+            .expect_err("an id-less prompt must not create retry-unstable operation authority");
+            assert!(
+                error.to_string().contains("stable prompt identity"),
+                "{error:#}"
+            );
         }
-        let second = deliver(
-            &repo,
-            &vault,
-            HookAdapter::Claude,
-            AutomationEvent::UserPromptSubmit,
-            host(
-                HookAdapter::Claude,
-                "UserPromptSubmit",
-                "same-session",
-                None,
-                Some("fix README alpha typo"),
-            ),
-        );
-        assert_ne!(
-            second["baron"]["operation_id"],
-            a.operation_id(),
-            "session+task is not a stable turn key: {second}"
-        );
-        assert_ne!(second["baron"]["request_id"], a.request_id());
-        let stop = deliver(
-            &repo,
-            &vault,
-            HookAdapter::Claude,
-            AutomationEvent::Stop,
-            host(HookAdapter::Claude, "Stop", "same-session", None, None),
-        );
-        assert_eq!(stop["decision"], "block");
-        assert!(stop.to_string().contains("ambiguous"), "{stop}");
+        assert!(!repo.join(MAP).exists());
+        assert_eq!(before, authority_side_effects(&repo, &vault));
     }
 }
 
@@ -495,7 +479,7 @@ fn old_claude_completed_turn_cannot_be_replaced_by_new_session_only_authority() 
         &vault,
         HookAdapter::Claude,
         "old-session",
-        None,
+        Some("prompt-a"),
         "fix README alpha typo",
     );
     passing(&repo, &vault, &a);
@@ -505,7 +489,7 @@ fn old_claude_completed_turn_cannot_be_replaced_by_new_session_only_authority() 
         &vault,
         HookAdapter::Claude,
         "old-session",
-        None,
+        Some("prompt-b"),
         "fix README beta typo",
     );
     passing(&repo, &vault, &b);
@@ -531,7 +515,7 @@ fn old_claude_session_only_stop_cannot_hide_unmapped_active_operation() {
         &vault,
         HookAdapter::Claude,
         "shared-session",
-        None,
+        Some("prompt-completed"),
         "fix README alpha typo",
     );
     passing(&repo, &vault, &completed);
@@ -576,7 +560,7 @@ fn old_claude_session_only_stop_detects_legacy_active_plan_without_index_row() {
         &vault,
         HookAdapter::Claude,
         "shared-legacy-session",
-        None,
+        Some("prompt-completed"),
         "fix README alpha typo",
     );
     passing(&repo, &vault, &completed);
