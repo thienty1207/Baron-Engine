@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Commit the scoped source and final local evidence, then obtain two fresh independent read-only ACCEPT reviews of exact ecaf362..<final HEAD>; close and push only after both accept.",
+  "nextAction": "Obtain two fresh independent read-only ACCEPT reviews of exact ecaf362..<current HEAD>; close and push only after both accept.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
@@ -67,7 +67,8 @@
       "c68e01d",
       "d9663ac",
       "c5f9b0",
-      "f3eecd7"
+      "f3eecd7",
+      "4986ce9"
     ],
     "closureBasis": "Two fresh independent reviews of ecaf362..868f7c1 returned FIX REQUIRED, not acceptance. This continuation repairs their remaining owned findings with regression-backed plan-status recovery, shared Vault capsule resolution by persisted Project ID across checkout names, repo-to-Vault intent/gate locks, and operation-scoped harness completion audit. Workspace, per-crate, lint, release, public-doc, JSON, changed-Markdown link, retired-adapter, diff, and baseline checks are recorded in the final verification plan. SPEC-05 is READY FOR ADVERSARIAL REVIEW, not closed; no fresh acceptance, push, or hosted CI result is claimed.",
     "verification": {
@@ -92,14 +93,14 @@
       "statusJson": "PASS: docs/BARON_STATUS.json parses; cargo test -p baron-core --test public_trust_docs passes 12/12.",
       "cliHelp": "PASS: root help, proof record, trace record, trace score, and continuity recover help commands exited 0.",
       "mutationInventory": "Current Core/CLI authority-pattern scan returns 258 lines including tests/comments. Harness improvement audit uses operation-scoped completion evidence and reports multiple active plans as failure diagnostics. Prior plan-index lost-update minor is covered by repo-to-Vault mutation locking; journal full-read, live dedup-claim trimming, and trace-scan-under-lock remain reviewer-assessed minor topics.",
-      "reviewDisposition": "Fresh reviewers of ecaf362..868f7c1 returned FIX REQUIRED. Current local implementation and evidence gates pass; status is READY FOR ADVERSARIAL REVIEW. Two new independent read-only ACCEPT reviews of exact ecaf362..<final HEAD> remain mandatory.",
+      "reviewDisposition": "Fresh reviewers of ecaf362..868f7c1 returned FIX REQUIRED. Source/test repair is committed as 4986ce9; current local implementation and evidence gates pass. Status is READY FOR ADVERSARIAL REVIEW. Two fresh independent read-only ACCEPT reviews of ecaf362..<current HEAD> remain mandatory.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW. Prior reviews of ecaf362..868f7c1 are not acceptance. After committing all scoped repairs and final evidence/docs, two fresh independent read-only reviewers must inspect exact ecaf362..<final HEAD>. Any quota/time failure is inconclusive. Do not close or push before both accept.",
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW. Prior reviews of ecaf362..868f7c1 are not acceptance. Two fresh independent read-only reviewers must inspect the exact current branch range from ecaf362 through HEAD, including the final readiness/evidence commit. Any quota/time failure is inconclusive. Do not close or push before both accept.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-01-spec-05-zero-current-closure-repair.md",
-    "nextAction": "Commit the scoped source and final evidence, then obtain two fresh independent read-only ACCEPT reviews of exact ecaf362..<final HEAD>; close and push only after both accept."
+    "nextAction": "Obtain two fresh independent read-only ACCEPT reviews of exact ecaf362..<current HEAD>; close and push only after both accept."
   },
   "securityRemediation": {
     "status": "complete",

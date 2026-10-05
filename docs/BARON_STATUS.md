@@ -10,7 +10,7 @@ The previous exact-range reviews of `ecaf362..868f7c1` returned FIX REQUIRED; th
 - Local evidence: `public_trust_docs` 12/12; status JSON parses; changed-Markdown links 2/2 valid across 8 files; retired-adapter grep has no tracked matches; `git diff ecaf362 --check` is clean. The caller search returns 258 matches; the harness audit uses operation-scoped evidence and fails closed on ambiguity.
 - Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, or Hotel Staff change. Local results are not presented as GitHub CI.
 - Review/delivery: prior reviews remain `FIX REQUIRED`; two fresh independent read-only reviewers must ACCEPT exact `ecaf362..<final HEAD>`. Quota/time failures are inconclusive. Only then mark CLOSED and push, then verify remote SHA.
-- Safe next action: commit the scoped source and final evidence, then request the two required reviewers.
+- Safe next action: request two fresh independent read-only reviews on exact `ecaf362..<current HEAD>`; close and push only after both ACCEPT.
 
 ## Historical checkpoint: SPEC-05 implementation readiness (2026-09-29, superseded above)
 

@@ -8,7 +8,7 @@ Two prior exact-range reviews of `ecaf362..868f7c1` returned FIX REQUIRED. Fresh
 - Authority: exact LifecycleIdentity and persisted capsule binding → indexed ACTIVE → canonical managed frontmatter remain authority; CURRENT is presentation only for identified flows. Harness audit now evaluates operation-scoped completion evidence and reports ambiguity instead of borrowing global latest proof/trace.
 - Persisted-state boundary: only SPEC-05 source/tests and maintained status/plan/build evidence changed; no project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff scope.
 - Review gate: after repairs, full verification, and final evidence commit, obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. Quota/time failures are inconclusive. Only after both accept mark CLOSED and push; public binary remains `baron 5.0.0`.
-- Safe next action: commit the scoped source and final evidence, then request two fresh independent read-only reviews of exact `ecaf362..<final HEAD>`.
+- Safe next action: request two fresh independent read-only reviews of exact `ecaf362..<current HEAD>`.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

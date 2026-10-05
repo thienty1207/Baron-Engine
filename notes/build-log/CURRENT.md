@@ -8,7 +8,7 @@ Two prior exact-range reviews of `ecaf362..868f7c1` returned FIX REQUIRED. Curre
 - Failure honesty: test commands used unique nonexistent Codex/Claude session-root paths and bundled PowerShell 7 where required. Previous review verdicts are not acceptance; local runs are not claimed as GitHub CI.
 - Audit/status: current Core/CLI source search finds 258 authority-pattern matches. The harness audit uses operation-scoped completion evidence and reports multiple active plans as ambiguous.
 - Persisted-state boundary: exact identity -> indexed ACTIVE -> canonical frontmatter; CURRENT is latest presentation. Only SPEC-05 source/tests and maintained evidence/docs are intended changes. No release/tag/version bump, SPEC-06, or Hotel Staff work.
-- Review gate: after the final evidence commit and complete local verification, two fresh independent reviewers must ACCEPT exact `ecaf362..<final HEAD>`. Close and push only after both accept. Public version remains `5.0.0`.
+- Review gate: two fresh independent reviewers must ACCEPT exact `ecaf362..<current HEAD>`. Close and push only after both accept. Public version remains `5.0.0`.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
