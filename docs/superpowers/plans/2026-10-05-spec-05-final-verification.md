@@ -2,39 +2,38 @@
 
 Date: 2026-10-05. Status: `READY FOR ADVERSARIAL REVIEW`; not closed.
 
-Scope: branch `codex/spec-05-multi-agent-concurrency-durable-state`, SPEC-04 closure base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`. Before the evidence update, local HEAD was `c5f9b0be22765e023ebb908363620d23bbdf4dd4` and `origin/codex/spec-05-multi-agent-concurrency-durable-state` was `9bdb979a604e897adc9c5830f9912aa8e960809e`. The remote was not changed. All current source edits are within SPEC-05 Core/hooks/migration and their tests; current readiness/status evidence is maintained separately. No release, tag, version bump, SPEC-06, or Hotel Staff change.
+Scope: branch `codex/spec-05-multi-agent-concurrency-durable-state`, SPEC-04 closure base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`. The three final review repairs are in source commit `f3eecd7` (`fix(spec05): preserve shared vault authority under concurrency`). The branch is local and has not been pushed; before this repair commit it was 12 commits ahead of remote `9bdb979a604e897adc9c5830f9912aa8e960809e`. This repair commit changes SPEC-05 Core/migration code and regression tests; the review range contains the SPEC-05 Core/CLI/adapter implementation and maintained evidence. No unrelated scope, release, tag, version bump, SPEC-06, or Hotel Staff change.
+
+The source/test tree verified below is byte-for-byte the source committed as `f3eecd7`; only documentation/status files changed after those code checks. Workspace and CLI test runs used unique nonexistent Codex/Claude session-root paths and the supported bundled PowerShell 7 host. Rust test execution was limited to two test threads and Cargo jobs to `-j 1` for bounded Windows fixture memory.
 
 ## Current-source gates
 
-The package and workspace all-target runs below each exited 0. Rust test execution was bounded to two test threads to keep Windows integration-fixture memory bounded; Cargo build jobs remained `-j 1`. The CLI, adapters, and workspace runs used the supported PowerShell 7 host override:
-
-```powershell
-$env:BARON_TEST_POWERSHELL='C:\Users\Ty\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
-```
-
 | Gate | Result |
 | --- | --- |
-| `cargo fmt --all -- --check` | PASS |
-| `cargo test -p baron-core --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, exit 0; `hook_identity` 20/20 (2,544.97 sec) |
-| `cargo test -p baron-cli --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, exit 0 |
-| `cargo test -p baron-adapters --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, exit 0 |
-| `cargo test --workspace --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, exit 0; `hook_identity` 20/20 (2,506.94 sec) |
+| `cargo fmt --all -- --check` | PASS, exit 0 |
+| `cargo test -p baron-core --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, exit 0; the isolated workspace run also exercises all Core targets |
+| `cargo test -p baron-cli --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, 190 passed / 0 failed / 1 ignored across 38 suites |
+| `cargo test -p baron-adapters --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, 124 passed / 0 failed / 3 ignored across 14 suites |
+| `cargo test --workspace --all-targets --no-fail-fast -j 1 -- --test-threads=2` | PASS, 911 passed / 0 failed / 4 ignored across 112 suites |
 | `cargo clippy --workspace --all-targets -- -D warnings` | PASS, exit 0 |
 | `cargo build --workspace --release --locked` | PASS, exit 0 |
 | `target/release/baron.exe --version` | PASS: `baron 5.0.0` |
-| `cargo test -p baron-cli --test phase14_release release_binary_smokes_codex_claude_and_database_without_source_tree_assets -- --ignored --exact --test-threads=1` | PASS, 1/1 |
+| Ignored release smoke `release_binary_smokes_codex_claude_and_database_without_source_tree_assets` | PASS, 1/1 |
+| CLI `--help`, proof/trace record/score help, and continuity recovery help | PASS |
 
-The all-target suites include the required focused gates: plan `54/54`; plan identity CLI `4/4`; proof/trace `29/29`; automation `8/8`; phase12 hooks `11/11`; phase12 hooks CLI `6/6`; adapter hook projection `3/3`; concurrency `17/17`; config `16/16`; capability `9/9`; control plane `9/9`; continuity `6/6`; intent `7/7`; harness `5/5`; harness improvement `10/10`; migration integration `17/17`; operation identity `10/10`; execution receipt `5/5`; retired-adapter gate `8/8`. The current migration unit suite is `9/9`, and hook-correlation unit tests are `2/2`.
+The full workspace log is `.superpowers/sdd/2026-10-01-spec-05-zero-current-closure-repair/verification-final-432c3023716945d1a031755d2bd7fe69/workspace.log`; direct CLI log is in the same directory as `cli.log`. The adapter package log is `.superpowers/sdd/2026-10-01-spec-05-zero-current-closure-repair/verification-isolated-558b121b7fc548728de6be1b27fd1857/adapters.log`.
+
+Current focused suites include concurrency `19/19`, plan `55/55`, migration `17/17`, hook identity `20/20`, phase12 hooks `11/11`, operation-evidence CLI `11/11`, phase12 hooks CLI `6/6`, plan-identity CLI `4/4`, prepare CLI `6/6`, and public trust docs `12/12`. The four repair regressions are `shared_vault_active_plan_index_preserves_operations_from_other_checkouts`, `trace_record_and_score_fail_without_writes_when_shared_vault_lock_is_held`, `plan_mutation_fails_without_writes_when_shared_vault_lock_is_held`, and `rollback_resumes_after_target_moved_marker_is_removed_before_cleanup_marker`; each was observed RED before its fix and GREEN afterward.
 
 ## Contract and evidence checks
 
-- `docs/BARON_STATUS.json` parses as JSON.
-- Maintained/evidence Markdown check: 12 files, 14 local inline links, 0 broken targets; the Core maintained-doc contract test also passes in the workspace suite.
-- The current Core/CLI CURRENT/latest-authority pattern scan returns 261 matching lines. The maintained authority audit classifies every production caller group and contains no `BUG` disposition; four Minor topics remain for fresh reviewers to reassess.
-- `git diff ecaf362 --check` passes on the current working tree; Git emits only Windows LF/CRLF notices. The exact committed-range form is checked again after the evidence commit.
-- No changed Cargo manifest/lockfile or changelog indicates a version bump; no tag points at the current HEAD. Public release remains `5.0.0`.
-- No GitHub Actions/commit-status evidence is claimed. Local tests are not described as CI.
+- `docs/BARON_STATUS.json` parses as JSON; public trust-doc tests pass `12/12` after the status/docs update.
+- Maintained/evidence Markdown check: 12 files, 12 relative local inline links, 0 broken targets.
+- `git grep -in reasonix`: no tracked match. The maintained authority audit classifies current Core/CLI production caller groups and has no `BUG` disposition; four Minor topics remain disclosed for reviewers to reassess.
+- `git diff ecaf362 --check` passes on the source and current readiness docs; Windows LF/CRLF notices are informational. Repeat against the final committed range after the evidence commit.
+- No manifest, lockfile, changelog, release, or version metadata changed. Public release remains `5.0.0`; no tag is created by this work.
+- Local verification only. No GitHub Actions/commit-status result is claimed.
 
 ## Remaining acceptance gate
 
-Earlier independent reviews on `ecaf362..7d052dc` returned `FIX REQUIRED`; those issues and subsequent local findings now have regression-backed repairs, but those old verdicts are not acceptance of this tree. Commit the scoped code/tests and this final evidence/status update, then obtain two fresh independent, read-only ACCEPT reviews of the exact `ecaf362..<final HEAD>` range. They must inspect the authority/hook/locking/compatibility criteria in the binding prompt. A quota or time failure is inconclusive. Close and push only after both accept; then verify local HEAD equals the remote branch SHA and report hosted status only if available.
+The two fresh independent reviews of `ecaf362..868f7c1` returned `FIX REQUIRED`; their verdicts are not acceptance of the repaired tree. Commit the scoped readiness/status evidence, then obtain two fresh independent, read-only ACCEPT reviews of the exact full range `ecaf362..<final HEAD>`, including that evidence commit. Each reviewer must inspect proof/trace/score A while CURRENT=B, legacy multi-active ambiguity, Codex and Claude field normalization, Prompt→Stop identity continuity, restart persistence, Stop without task text, unknown-turn fail-closed behavior, ACTIVE/correlation/frontmatter agreement, CURRENT as presentation only, lock/no-write timeout behavior, and cross-operation evidence isolation. Reviewer quota/time failure is inconclusive. Mark CLOSED and push only after both ACCEPT; then verify local HEAD equals the remote branch SHA and report hosted status only if evidence exists.
