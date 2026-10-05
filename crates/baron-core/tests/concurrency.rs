@@ -12,7 +12,7 @@ use baron_core::capability::{
     load_registry, record_runtime_execution, register_provider, CapabilityExecutionEvidence,
     CapabilityProvider, ProviderKind, Requirement,
 };
-use baron_core::config::{load_project_config, AdapterKind};
+use baron_core::config::{initialize_project, load_project_config, AdapterKind};
 use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
 use baron_core::control_plane::record_gate_evidence;
 use baron_core::execution_receipt::ReceiptContext;
@@ -531,6 +531,113 @@ fn proof_vault_lock_timeout_does_not_publish_usable_operation_evidence() {
 }
 
 #[test]
+fn trace_record_and_score_fail_without_writes_when_shared_vault_lock_is_held() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("trace-vault-lock-repo");
+    let vault = temp.path().join("trace-vault-lock-vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let seeded = record_trace(
+        &repo,
+        &context,
+        "seed trace before lock test",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let repo_index = repo.join("docs/baron/traces/INDEX.md");
+    let vault_index = context.project_root.join("Traces/INDEX.md");
+    let repo_trace_before = fs::read(&seeded.repo_path).unwrap();
+    let vault_trace_before = fs::read(&seeded.vault_path).unwrap();
+    let repo_index_before = fs::read(&repo_index).unwrap();
+    let vault_index_before = fs::read(&vault_index).unwrap();
+
+    let vault_lock = acquire_project_lock(&context.project_root).unwrap();
+    for mode in ["trace-vault-timeout", "score-vault-timeout"] {
+        let ready = temp.path().join(format!("{mode}-ready"));
+        fs::create_dir_all(&ready).unwrap();
+        let mut worker = Command::new(env::current_exe().unwrap());
+        worker
+            .args(["--exact", "concurrency_worker", "--nocapture"])
+            .env("BARON_CONCURRENCY_WORKER", "1")
+            .env("BARON_CONCURRENCY_MODE", mode)
+            .env("BARON_CONCURRENCY_REPO", &repo)
+            .env("BARON_CONCURRENCY_VAULT", &vault)
+            .env("BARON_CONCURRENCY_INDEX", mode)
+            .env("BARON_CONCURRENCY_READY", &ready)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if mode == "score-vault-timeout" {
+            worker.env("BARON_CONCURRENCY_TRACE_ID", &seeded.id);
+        }
+        let child = worker.spawn().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ready.join("attempting").exists() {
+            assert!(Instant::now() < deadline, "{mode} worker did not start");
+            thread::sleep(Duration::from_millis(10));
+        }
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{mode} worker failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("TRACE_VAULT_TIMEOUT_OK"));
+        assert_eq!(fs::read(&seeded.repo_path).unwrap(), repo_trace_before);
+        assert_eq!(fs::read(&seeded.vault_path).unwrap(), vault_trace_before);
+        assert_eq!(fs::read(&repo_index).unwrap(), repo_index_before);
+        assert_eq!(fs::read(&vault_index).unwrap(), vault_index_before);
+    }
+    drop(vault_lock);
+}
+
+#[test]
+fn plan_mutation_fails_without_writes_when_shared_vault_lock_is_held() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("plan-vault-lock-repo");
+    let vault = temp.path().join("plan-vault-lock-vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    assert!(!repo.join("docs/baron/plans").exists());
+
+    let ready = temp.path().join("plan-vault-timeout-ready");
+    fs::create_dir_all(&ready).unwrap();
+    let vault_lock = acquire_project_lock(&context.project_root).unwrap();
+    let child = Command::new(env::current_exe().unwrap())
+        .args(["--exact", "concurrency_worker", "--nocapture"])
+        .env("BARON_CONCURRENCY_WORKER", "1")
+        .env("BARON_CONCURRENCY_MODE", "plan-vault-timeout")
+        .env("BARON_CONCURRENCY_REPO", &repo)
+        .env("BARON_CONCURRENCY_VAULT", &vault)
+        .env("BARON_CONCURRENCY_INDEX", "plan-vault-timeout")
+        .env("BARON_CONCURRENCY_READY", &ready)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !ready.join("attempting").exists() {
+        assert!(Instant::now() < deadline, "plan worker did not start");
+        thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().unwrap();
+    drop(vault_lock);
+
+    assert!(
+        output.status.success(),
+        "plan worker failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("PLAN_VAULT_TIMEOUT_OK"));
+    assert!(!repo.join("docs/baron/plans").exists());
+    assert!(!context.project_root.join("Plans/ACTIVE.md").exists());
+}
+
+#[test]
 fn plan_and_trace_lock_timeouts_fail_without_writing_state() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("timeout-repo");
@@ -833,7 +940,14 @@ fn concurrency_worker() {
     let index = env::var("BARON_CONCURRENCY_INDEX").unwrap();
     if !matches!(
         mode.as_str(),
-        "timeout" | "plan-timeout" | "trace-timeout" | "matrix-update" | "proof-vault-timeout"
+        "timeout"
+            | "plan-timeout"
+            | "trace-timeout"
+            | "matrix-update"
+            | "proof-vault-timeout"
+            | "trace-vault-timeout"
+            | "score-vault-timeout"
+            | "plan-vault-timeout"
     ) {
         let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
         let release = PathBuf::from(env::var_os("BARON_CONCURRENCY_RELEASE").unwrap());
@@ -1077,6 +1191,45 @@ fn concurrency_worker() {
                 .to_string()
                 .contains("Timed out waiting for Baron mutation lock"));
             println!("PROOF_TIMEOUT_OK");
+        }
+        "plan-vault-timeout" => {
+            let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
+            fs::write(ready.join("attempting"), b"attempting").unwrap();
+            let title = "plan must not publish through a held Vault lock";
+            let identity = LifecycleIdentity::resolve(
+                &context.project_id,
+                title,
+                SupportedAdapter::Codex,
+                Some("plan-vault-timeout-session"),
+                Some("plan-vault-timeout-request"),
+            )
+            .unwrap();
+            let error =
+                start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Timed out waiting for Baron mutation lock"));
+            println!("PLAN_VAULT_TIMEOUT_OK");
+        }
+        "trace-vault-timeout" | "score-vault-timeout" => {
+            let ready = PathBuf::from(env::var_os("BARON_CONCURRENCY_READY").unwrap());
+            fs::write(ready.join("attempting"), b"attempting").unwrap();
+            let error = if mode == "trace-vault-timeout" {
+                record_trace(
+                    &repo,
+                    &context,
+                    "trace must not publish through a held Vault lock",
+                    TraceOutcome::Completed,
+                )
+                .unwrap_err()
+            } else {
+                let trace_id = env::var("BARON_CONCURRENCY_TRACE_ID").unwrap();
+                score_trace(&repo, &context, Some(&trace_id)).unwrap_err()
+            };
+            assert!(error
+                .to_string()
+                .contains("Timed out waiting for Baron mutation lock"));
+            println!("TRACE_VAULT_TIMEOUT_OK");
         }
         "plan" => {
             let title = format!("concurrent plan instance {index}");

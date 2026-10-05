@@ -1746,10 +1746,14 @@ fn rollback_entry_state_is_safe(
         let _ = hash_path(stage)?;
         let _ = hash_path(displaced)?;
     }
-    // Cleanup can only begin after the target-moved marker has been durably
-    // published. Any other marker ordering is corrupt or externally changed.
+    // Cleanup starts after target movement, but finalization removes markers in
+    // order. A restart between deleting target-moved and cleanup-started is
+    // safe only after the original target is restored and both sidecars are
+    // gone; all other out-of-order states remain conflicts.
     if flags.displaced_cleanup_started && !flags.target_moved {
-        return Ok(false);
+        return Ok(current_hash == &entry.original_hash
+            && !path_exists(stage)?
+            && !path_exists(displaced)?);
     }
     if current_hash == &entry.original_hash {
         if !has_progress {
@@ -2832,6 +2836,54 @@ mod tests {
         assert_eq!(outcome.conflicts, 0);
         assert_eq!(read_bytes(first).unwrap().unwrap(), b"first original");
         assert_eq!(read_bytes(second).unwrap().unwrap(), b"second original");
+    }
+
+    #[test]
+    fn rollback_resumes_after_target_moved_marker_is_removed_before_cleanup_marker() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("vault");
+        ensure_directory_chain(&repo).unwrap();
+        ensure_directory_chain(&vault).unwrap();
+        let repo = repo.canonicalize().unwrap();
+        let vault = vault.canonicalize().unwrap();
+        let backup = vault.join("Artifacts/Baron/Migrations/finalizer-marker-boundary");
+        ensure_directory_chain(&backup).unwrap();
+
+        let target = repo.join("managed.txt");
+        atomic_write(&target, b"original bytes").unwrap();
+        let mut entry = backup_entry(
+            BackupScope::Repo,
+            &repo,
+            "managed.txt",
+            &backup.join("repo"),
+        )
+        .unwrap();
+        atomic_write(&target, b"migration output").unwrap();
+        entry.post_handoff_hash = hash_path(&target).unwrap();
+        let manifest = BackupManifest {
+            migration_id: "finalizer-marker-boundary".into(),
+            repo_root: repo.clone(),
+            vault_root: vault,
+            post_handoff_captured: true,
+            capsule_relative: None,
+            entries: vec![entry],
+        };
+
+        let progress = rollback_entry_progress(&manifest, 0, &manifest.entries[0]);
+        let progress_path = backup.join("rollback-progress/entry-0000.json");
+        ensure_directory_chain(progress_path.parent().unwrap()).unwrap();
+        create_new_file(&progress_path, &serde_json::to_vec(&progress).unwrap()).unwrap();
+        ensure_rollback_flag(&backup, 0, &progress, "cleanup-started").unwrap();
+        atomic_write(&target, b"original bytes").unwrap();
+
+        let outcome = restore_from_manifest_if_unchanged(&manifest, &backup).unwrap();
+
+        assert_eq!(outcome.conflicts, 0);
+        assert_eq!(read_bytes(&target).unwrap().unwrap(), b"original bytes");
+        assert!(!rollback_flag_path(&backup, 0, "target-moved").exists());
+        assert!(!rollback_flag_path(&backup, 0, "cleanup-started").exists());
+        assert!(!progress_path.exists());
     }
 
     #[test]

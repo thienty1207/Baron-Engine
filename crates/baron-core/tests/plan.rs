@@ -8,6 +8,7 @@ use std::time::Duration;
 use baron_core::automation::{
     handle_hook, reconcile, reconcile_for_operation, AutomationEvent, HookAdapter,
 };
+use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::control_plane::record_gate_evidence_with_receipt_bound;
 use baron_core::execution_receipt::{
     execute_command_for_identity, ExecutionRequest, ReceiptContext,
@@ -30,7 +31,7 @@ use baron_core::proof::{
 use baron_core::trace::{
     record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
 };
-use baron_core::vault::{ensure_vault, VaultContext};
+use baron_core::vault::{ensure_vault, vault_context_without_create, VaultContext};
 use tempfile::{tempdir, TempDir};
 
 fn setup_git(repo: &std::path::Path) {
@@ -248,6 +249,67 @@ fn distinct_active_operations_resume_their_exact_plan_paths_after_current_change
             .to_string_lossy()
             .replace('\\', "/")
     ));
+}
+
+#[test]
+fn shared_vault_active_plan_index_preserves_operations_from_other_checkouts() {
+    let temp = tempdir().unwrap();
+    let repo_a = temp.path().join("checkout-a");
+    let repo_b = temp.path().join("checkout-b");
+    let vault = temp.path().join("shared-vault");
+    fs::create_dir_all(&repo_a).unwrap();
+    initialize_project(&repo_a, AdapterKind::Codex, &vault).unwrap();
+    let context_a = ensure_vault(&vault, &repo_a).unwrap();
+
+    fs::create_dir_all(repo_b.join(".baron")).unwrap();
+    fs::copy(
+        repo_a.join(".baron/project.toml"),
+        repo_b.join(".baron/project.toml"),
+    )
+    .unwrap();
+    let mut context_b = vault_context_without_create(&vault, &repo_b).unwrap();
+    context_b.project_root = context_a.project_root.clone();
+
+    let identity_a = LifecycleIdentity::resolve(
+        &context_a.project_id,
+        "checkout A active plan",
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+    let identity_b = LifecycleIdentity::resolve(
+        &context_b.project_id,
+        "checkout B active plan",
+        SupportedAdapter::Claude,
+        Some("session-b"),
+        Some("request-b"),
+    )
+    .unwrap();
+
+    start_or_resume_plan_for_identity(&repo_a, &context_a, "checkout A active plan", &identity_a)
+        .unwrap();
+    start_or_resume_plan_for_identity(&repo_b, &context_b, "checkout B active plan", &identity_b)
+        .unwrap();
+
+    let vault_active_path = context_a.project_root.join("Plans/ACTIVE.md");
+    let vault_active = fs::read_to_string(&vault_active_path).unwrap();
+    assert!(vault_active.contains(identity_a.operation_id()));
+    assert!(vault_active.contains(identity_b.operation_id()));
+
+    update_plan_for_identity(&repo_b, &context_b, "B updated", &identity_b).unwrap();
+
+    let vault_active = fs::read_to_string(vault_active_path).unwrap();
+    assert!(vault_active.contains(identity_a.operation_id()));
+    assert!(vault_active.contains(identity_b.operation_id()));
+    assert!(vault_active.contains("\"status\":\"in_progress\""));
+
+    let repo_a_active = fs::read_to_string(repo_a.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let repo_b_active = fs::read_to_string(repo_b.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    assert!(repo_a_active.contains(identity_a.operation_id()));
+    assert!(!repo_a_active.contains(identity_b.operation_id()));
+    assert!(repo_b_active.contains(identity_b.operation_id()));
+    assert!(!repo_b_active.contains(identity_a.operation_id()));
 }
 
 #[test]

@@ -201,6 +201,10 @@ fn record_trace_internal(
     // collect it before entering the project mutation critical section.
     let files = changed_files(repo_root);
     let _lock = acquire_project_lock(repo_root)?;
+    // Repo-local and Vault trace publications share one index. Keep the
+    // established repo-before-Vault lock order so other checkouts cannot
+    // overwrite this publication or race its Vault index read/modify/write.
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     if let Some(binding) = binding {
         let current_proof = proof_by_id(repo_root, &binding.proof_id)?
             .context("operation-bound trace proof disappeared before publication")?;
@@ -349,6 +353,7 @@ pub fn score_trace(
 ) -> Result<TraceScore> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let auto_binding = if trace_id.is_none() {
         active_plan_authority(repo_root)?.and_then(|plan| plan.binding)
     } else {

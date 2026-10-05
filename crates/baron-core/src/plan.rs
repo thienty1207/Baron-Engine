@@ -507,6 +507,8 @@ fn start_or_resume_plan_internal(
 ) -> Result<PlanRecord> {
     let title = title.trim();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let matching_active = match binding {
         Some(requested) => active_plan_for_new_operation(repo_root, requested)?,
         None => resolve_legacy_active_plan(repo_root)?,
@@ -646,6 +648,8 @@ fn start_or_resume_plan_internal(
 pub fn update_plan(repo_root: impl AsRef<Path>, vault: &VaultContext, note: &str) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let active = require_legacy_active_plan(repo_root)?;
     update_plan_state(repo_root, vault, note, &active)
 }
@@ -657,6 +661,8 @@ fn update_plan_for_binding(
     binding: &PlanOperationBinding,
 ) -> Result<()> {
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let active = require_active_plan_for_binding(repo_root, binding)?;
     update_plan_state(repo_root, vault, note, &active)
 }
@@ -695,6 +701,8 @@ pub fn interrupt_plan(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let active = require_legacy_active_plan(repo_root)?;
     interrupt_plan_state(repo_root, vault, state, &active)
 }
@@ -706,6 +714,8 @@ fn interrupt_plan_for_binding(
     binding: &PlanOperationBinding,
 ) -> Result<()> {
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let active = require_active_plan_for_binding(repo_root, binding)?;
     interrupt_plan_state(repo_root, vault, state, &active)
 }
@@ -753,6 +763,8 @@ pub fn complete_plan(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let active = require_legacy_active_plan(repo_root)?;
     complete_plan_state(repo_root, vault, verification_summary, &active)
 }
@@ -764,6 +776,8 @@ fn complete_plan_for_binding(
     binding: &PlanOperationBinding,
 ) -> Result<()> {
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let active = require_active_plan_for_binding(repo_root, binding)?;
     complete_plan_state(repo_root, vault, verification_summary, &active)
 }
@@ -1070,7 +1084,15 @@ fn active_plan_vault_index_path(vault: &VaultContext) -> PathBuf {
 }
 
 fn read_active_plan_index_entries(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
-    let Some(content) = read_text(active_plan_index_path(repo_root))? else {
+    read_active_plan_index_entries_at(&active_plan_index_path(repo_root))
+}
+
+fn read_active_plan_vault_index_entries(vault: &VaultContext) -> Result<Vec<ActivePlanIndexEntry>> {
+    read_active_plan_index_entries_at(&active_plan_vault_index_path(vault))
+}
+
+fn read_active_plan_index_entries_at(path: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
+    let Some(content) = read_text(path)? else {
         return Ok(Vec::new());
     };
     let mut entries = Vec::new();
@@ -1111,6 +1133,31 @@ fn read_active_plan_index_entries(repo_root: &Path) -> Result<Vec<ActivePlanInde
         }
     }
     Ok(entries)
+}
+
+fn ensure_active_plan_vault_index_consistent(repo_root: &Path, vault: &VaultContext) -> Result<()> {
+    let repo_entries = read_active_plan_index_entries(repo_root)?;
+    let vault_entries = read_active_plan_vault_index_entries(vault)?;
+    for local in &repo_entries {
+        let local_binding = local.binding()?;
+        for shared in &vault_entries {
+            let shared_binding = shared.binding()?;
+            if shared_binding == local_binding {
+                if shared.plan_path != local.plan_path || shared.status != local.status {
+                    bail!(
+                        "shared Vault ACTIVE entry for operation `{}` conflicts with this checkout",
+                        local_binding.operation_id
+                    );
+                }
+            } else if shared.plan_path == local.plan_path {
+                bail!(
+                    "shared Vault ACTIVE path is already bound to another operation: {}",
+                    local.plan_path
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn load_active_plan_index(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
@@ -1154,8 +1201,55 @@ fn validate_active_plan_index_entry(repo_root: &Path, entry: &ActivePlanIndexEnt
 fn write_active_plan_index(
     repo_root: &Path,
     vault: &VaultContext,
-    mut entries: Vec<ActivePlanIndexEntry>,
+    entries: Vec<ActivePlanIndexEntry>,
+    updated_binding: &PlanOperationBinding,
 ) -> Result<()> {
+    let repo_content = serialize_active_plan_index_entries(entries.clone())?;
+    let mut vault_entries = read_active_plan_vault_index_entries(vault)?;
+    for entry in &entries {
+        let binding = entry.binding()?;
+        let mut matching_index = None;
+        for (index, shared) in vault_entries.iter().enumerate() {
+            if shared.binding()? == binding {
+                matching_index = Some(index);
+                break;
+            }
+        }
+        if let Some(index) = matching_index {
+            let shared = &vault_entries[index];
+            if shared.plan_path != entry.plan_path {
+                bail!(
+                    "shared Vault ACTIVE entry for operation `{}` has conflicting plan paths",
+                    binding.operation_id
+                );
+            }
+            if &binding == updated_binding {
+                vault_entries[index] = entry.clone();
+            } else if shared.status != entry.status {
+                bail!(
+                    "shared Vault ACTIVE entry for operation `{}` has a stale status",
+                    binding.operation_id
+                );
+            }
+        } else {
+            if vault_entries
+                .iter()
+                .any(|shared| shared.plan_path == entry.plan_path)
+            {
+                bail!(
+                    "shared Vault ACTIVE path is already bound to another operation: {}",
+                    entry.plan_path
+                );
+            }
+            vault_entries.push(entry.clone());
+        }
+    }
+    let vault_content = serialize_active_plan_index_entries(vault_entries)?;
+    write(&active_plan_index_path(repo_root), &repo_content)?;
+    write(&active_plan_vault_index_path(vault), &vault_content)
+}
+
+fn serialize_active_plan_index_entries(mut entries: Vec<ActivePlanIndexEntry>) -> Result<String> {
     entries.sort_by(|left, right| {
         left.operation_id
             .cmp(&right.operation_id)
@@ -1169,8 +1263,7 @@ fn write_active_plan_index(
         content.push_str(&serde_json::to_string(&entry)?);
         content.push_str(" -->\n");
     }
-    write(&active_plan_index_path(repo_root), &content)?;
-    write(&active_plan_vault_index_path(vault), &content)
+    Ok(content)
 }
 
 fn upsert_active_plan_index(
@@ -1195,7 +1288,7 @@ fn upsert_active_plan_index(
     entries.push(ActivePlanIndexEntry::from_plan(
         binding, repo_root, plan_path, status,
     ));
-    write_active_plan_index(repo_root, vault, entries)
+    write_active_plan_index(repo_root, vault, entries, binding)
 }
 
 fn active_plan_for_binding(
