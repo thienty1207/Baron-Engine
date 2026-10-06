@@ -1,7 +1,7 @@
 # SPEC-05 CURRENT / latest authority inventory
 
 Date: 2026-10-06. Audit baseline: `9bdb979`; latest reviewed WIP: `4a3efc0`; closure base: `ecaf362`.
-The earlier Core/CLI scan returned 258 matching lines before the latest repairs. Two fresh independent reviews of `ecaf362..4a3efc0` found three Important findings; all three now have observed RED regressions and focused GREEN changes. Focused evidence: harness scoping `13/13`, proof/trace `33/33` before the last scorer-tampering assertion (that test passes alone), shared-Vault hook journal publication `1/1`. The production caller audit and full verification have not yet been rerun over the current repair snapshot, so this document is an interim audit checkpoint, not readiness or acceptance. The repair snapshot is being uploaded as an interim WIP at the user's request; the prior reviews are not acceptance. Public version remains `baron 5.0.0`.
+The earlier Core/CLI scan returned 258 matching lines before the latest repairs. Two fresh independent reviews of `ecaf362..4a3efc0` found three Important findings; all three now have observed RED regressions and focused GREEN changes. Focused evidence: harness scoping `13/13`, proof/trace `33/33` before the last scorer-tampering assertion (that test passes alone), shared-Vault hook journal publication `1/1`. The production caller audit and full verification have not yet been rerun over the current repair snapshot, so this document is an interim audit checkpoint, not readiness or acceptance. Interim WIP source commit `6bdf96d` was uploaded at the user's request and matched the remote branch SHA; the prior reviews are not acceptance. Public version remains `baron 5.0.0`.
 
 ## Search coverage
 

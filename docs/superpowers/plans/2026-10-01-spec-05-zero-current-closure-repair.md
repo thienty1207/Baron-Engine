@@ -5,7 +5,7 @@ Binding requirement: user-supplied `SPEC-05-FINAL-CLOSURE-REPAIR-ZERO-CURRENT-HO
 
 ## Current repair checkpoint (2026-10-06, after latest fresh review)
 
-- Status: `SPEC-05: FIX REQUIRED`; not closed. The current repair snapshot is an interim WIP upload requested by the user, with remote SHA verification tracked separately; it is not acceptance or closure.
+- Status: `SPEC-05: FIX REQUIRED`; not closed. Interim WIP source commit `6bdf96d` was uploaded at the user's request and matched the remote branch SHA; it is not acceptance or closure.
 - Fresh review findings: two independent read-only reviews of `ecaf362..4a3efc0` found three Important issues: identified trace/proof story lookup still depended on harness `CURRENT.md`; unbound legacy trace could attach and score a proof bound to another operation; hook response journal mutation used only checkout-local locking although the journal is shared by worktrees.
 - RED→GREEN evidence: `harness_scoping` 13/13; `proof_trace` 33/33 before adding explicit tampered foreign-proof scoring assertion (that new assertion passes by itself); shared-Vault hook journal publication test 1/1. The original regressions failed respectively with A story missing, A proof attached to B trace, and B publication returning while Vault lock was held.
 - Verification boundary: no full Core/CLI/adapters/workspace, Clippy, or release results after these repairs. The earlier hook_identity stall was caused by running without isolated Codex/Claude session roots; with nonexistent overrides the isolated hook test completes in 5.74s. Earlier full-source counts below are pre-repair history only.

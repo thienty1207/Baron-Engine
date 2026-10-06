@@ -44,7 +44,7 @@
       "Two fresh independent reviews of ecaf362..4a3efc0 returned FIX REQUIRED with three Important findings: harness story selection used CURRENT, unbound trace could borrow another operation's bound proof, and hook response journaling lacked the shared Vault lock. Focused RED-to-GREEN repairs are in the working tree; new exact-range reviews are still required",
       "Current focused results: harness_scoping 13/13, proof_trace 33/33 before the final proof-reference tampering assertion (that assertion passed alone), shared-Vault hook journal regression 1/1. Full current-source Core/CLI/adapters/workspace, Clippy, release, and complete authority audit are not yet rerun",
       "Two fresh independent read-only reviews must accept the exact committed ecaf362..<final HEAD> range, including every repair and final evidence/docs commit; reviewer quota/time failure is inconclusive",
-      "The current repair snapshot is being uploaded as an interim WIP at the user's request; this does not constitute acceptance or closure. After full verification and two fresh exact-range ACCEPTs, deliver the final reviewed source/evidence and verify remote SHA; report GitHub status/Actions only with current evidence"
+      "Interim WIP source commit 6bdf96d was pushed at the user's request and matched the remote branch SHA; this does not constitute acceptance or closure. After full verification and two fresh exact-range ACCEPTs, deliver the final reviewed source/evidence and verify remote SHA; report GitHub status/Actions only with current evidence"
     ],
     "implementationCommits": [
       "b4e5f77",
@@ -71,9 +71,10 @@
       "c5f9b0",
       "f3eecd7",
       "4986ce9",
-      "4a3efc0"
+      "4a3efc0",
+      "6bdf96d"
     ],
-    "closureBasis": "Current status is FIX REQUIRED. Two fresh independent reviews of ecaf362..4a3efc0 found three Important gaps in harness story/CURRENT association, foreign bound proof use in legacy traces, and shared-Vault hook journal locking. Focused RED-to-GREEN repairs currently pass harness_scoping 13/13, proof_trace 33/33 before one new scorer assertion that passes in isolation, and shared-Vault journal publication 1/1. Full post-repair verification and the complete CURRENT caller audit remain pending. The user-requested interim WIP upload of the repair snapshot is not acceptance or closure. No acceptance or closure is claimed.",
+    "closureBasis": "Current status is FIX REQUIRED. Two fresh independent reviews of ecaf362..4a3efc0 found three Important gaps in harness story/CURRENT association, foreign bound proof use in legacy traces, and shared-Vault hook journal locking. Focused RED-to-GREEN repairs currently pass harness_scoping 13/13, proof_trace 33/33 before one new scorer assertion that passes in isolation, and shared-Vault journal publication 1/1. Full post-repair verification and the complete CURRENT caller audit remain pending. Interim WIP source commit 6bdf96d was pushed at the user's request and matched the remote SHA; this is not acceptance or closure. No acceptance or closure is claimed.",
     "verification": {
       "focusedConcurrencyMatrix": "HISTORICAL before latest three Important repairs: verification-9b7496b7b7864142a40c7206c5bb0732 ran Core 618/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 932/0/4 ignored across 112 suites. Current repair still requires the complete focused matrix.",
       "currentFocusedRepairs": "PASS current focused: harness_scoping 13/13; proof_trace 33/33 before final scorer-tampering assertion, which passed alone; shared-Vault hook response publication 1/1. Full source verification is pending.",
