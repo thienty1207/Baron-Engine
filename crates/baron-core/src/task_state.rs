@@ -17,7 +17,9 @@ use crate::operation::{
 };
 use crate::plan::{active_plan_authority, plan_status, plan_status_for_identity};
 use crate::proof::{latest_proof, proof_for_operation};
-use crate::trace::{latest_trace_score, latest_trace_score_for_operation, TraceOperationBinding};
+use crate::trace::{
+    latest_trace_score, latest_trace_score_for_operation_in_vault, TraceOperationBinding,
+};
 use crate::vault::VaultContext;
 use crate::work_shape::decide_work_shape;
 
@@ -248,7 +250,7 @@ fn compile_task_state_with_id(
                     &OperationContext::from_identity(identity),
                     &proof.id,
                 )?;
-                latest_trace_score_for_operation(repo_root, &binding)
+                latest_trace_score_for_operation_in_vault(repo_root, vault, &binding)
             })
             .transpose()?
             .flatten(),

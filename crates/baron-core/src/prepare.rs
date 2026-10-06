@@ -25,7 +25,7 @@ use crate::platform::{platform_name, render_platform_context};
 use crate::proof::proof_for_operation;
 use crate::risk::RiskLane;
 use crate::task_state::{canonical_plan_next, operation_scoped_source};
-use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding};
+use crate::trace::{latest_trace_score_for_operation_in_vault, TraceOperationBinding};
 use crate::vault::ensure_vault;
 use crate::work_shape::{decide_work_shape, DurabilityNeed, JudgmentNeed, LifecycleDepth};
 
@@ -413,7 +413,8 @@ pub fn prepare(
         .map(|proof| {
             let binding = TraceOperationBinding::from_operation(&operation, &proof.id)
                 .map_err(project_error)?;
-            latest_trace_score_for_operation(&repo_root, &binding).map_err(project_error)
+            latest_trace_score_for_operation_in_vault(&repo_root, &vault, &binding)
+                .map_err(project_error)
         })
         .transpose()?
         .flatten();

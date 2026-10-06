@@ -21,7 +21,9 @@ use crate::safe_io::{
 use crate::task_state::{
     canonical_plan_next, compile_task_state_for_operation, operation_scoped_source,
 };
-use crate::trace::{latest_trace_score, latest_trace_score_for_operation, TraceOperationBinding};
+use crate::trace::{
+    latest_trace_score, latest_trace_score_for_operation_in_vault, TraceOperationBinding,
+};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,7 +140,7 @@ fn record_recovery_internal(
     let resumed = existing.is_some();
     let content = match existing {
         Some(content) => content,
-        None => render_recovery(repo_root, &id, &input, identity)?,
+        None => render_recovery(repo_root, vault, &id, &input, identity)?,
     };
     if read_text(&repo_path)?.is_none() {
         create_new_text(&repo_path, &content)?;
@@ -568,7 +570,7 @@ fn render_operation_resume_packet(
                 &OperationContext::from_identity(identity),
                 &proof.id,
             )?;
-            latest_trace_score_for_operation(repo_root, &binding)
+            latest_trace_score_for_operation_in_vault(repo_root, vault, &binding)
         })
         .transpose()?
         .flatten();
@@ -610,6 +612,7 @@ fn render_operation_resume_packet(
 
 fn render_recovery(
     repo_root: &Path,
+    vault: &VaultContext,
     id: &str,
     input: &RecoveryInput,
     identity: Option<&LifecycleIdentity>,
@@ -637,7 +640,7 @@ fn render_recovery(
                     &OperationContext::from_identity(identity),
                     &proof.id,
                 )?;
-                latest_trace_score_for_operation(repo_root, &binding)
+                latest_trace_score_for_operation_in_vault(repo_root, vault, &binding)
             })
             .transpose()?
             .flatten(),

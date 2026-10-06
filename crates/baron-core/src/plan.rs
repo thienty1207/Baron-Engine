@@ -17,7 +17,10 @@ use crate::safe_io::{
     acquire_project_lock, artifact_instance_id, create_new_text, read_text, read_text_required,
     replace_text,
 };
-use crate::trace::{latest_trace_score_for_operation, TraceOperationBinding, TraceTier};
+use crate::trace::{
+    latest_trace_score_for_operation, latest_trace_score_for_operation_in_vault,
+    TraceOperationBinding, TraceTier,
+};
 use crate::vault::{canonical_project_id, VaultContext};
 
 const MANAGED_PLAN_ROOT: &str = "docs/baron/plans";
@@ -386,7 +389,7 @@ pub fn active_plan_completion_evidence_status(
     let _lock = acquire_project_lock(repo_root)?;
     match sole_active_managed_plan(repo_root) {
         Ok(Some(active)) if active.binding.is_some() => {
-            return Ok(Some(completion_evidence_status(repo_root, &active)?));
+            return Ok(Some(completion_evidence_status(repo_root, &active, None)?));
         }
         Err(error) => {
             return Ok(Some(CompletionEvidenceStatus {
@@ -397,7 +400,7 @@ pub fn active_plan_completion_evidence_status(
         Ok(_) => {}
     }
     match resolve_legacy_active_plan(repo_root) {
-        Ok(Some(active)) => Ok(Some(completion_evidence_status(repo_root, &active)?)),
+        Ok(Some(active)) => Ok(Some(completion_evidence_status(repo_root, &active, None)?)),
         Ok(None)
             if read_text(repo_root.join("docs/baron/plans/CURRENT.md"))?.is_some()
                 && active_plan(repo_root)?.is_none() =>
@@ -444,7 +447,11 @@ pub fn active_plan_completion_evidence_status_for_identity(
             }));
         }
     };
-    Ok(Some(completion_evidence_status(repo_root, &active)?))
+    Ok(Some(completion_evidence_status(
+        repo_root,
+        &active,
+        Some(vault),
+    )?))
 }
 
 pub fn start_or_resume_plan(
@@ -883,7 +890,7 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
             linked_status: Some(metadata.status.clone()),
             authority_issues: Vec::new(),
         };
-        if let Some(issue) = completion_evidence_status(repo_root, &active)?
+        if let Some(issue) = completion_evidence_status(repo_root, &active, Some(vault))?
             .issues
             .into_iter()
             .next()
@@ -1049,7 +1056,7 @@ fn complete_plan_state(
     verification_summary: &str,
     active: &ActivePlan,
 ) -> Result<()> {
-    if let Some(issue) = completion_evidence_status(repo_root, active)?
+    if let Some(issue) = completion_evidence_status(repo_root, active, Some(vault))?
         .issues
         .into_iter()
         .next()
@@ -1082,6 +1089,7 @@ fn complete_plan_state(
 fn completion_evidence_status(
     repo_root: &Path,
     active: &ActivePlan,
+    vault: Option<&VaultContext>,
 ) -> Result<CompletionEvidenceStatus> {
     if !active.authority_issues.is_empty() {
         return Ok(CompletionEvidenceStatus {
@@ -1089,14 +1097,18 @@ fn completion_evidence_status(
             issues: active.authority_issues.clone(),
         });
     }
-    let issues = completion_evidence_issues(repo_root, active)?;
+    let issues = completion_evidence_issues(repo_root, active, vault)?;
     Ok(CompletionEvidenceStatus {
         passed: issues.is_empty(),
         issues,
     })
 }
 
-fn completion_evidence_issues(repo_root: &Path, active: &ActivePlan) -> Result<Vec<String>> {
+fn completion_evidence_issues(
+    repo_root: &Path,
+    active: &ActivePlan,
+    vault: Option<&VaultContext>,
+) -> Result<Vec<String>> {
     let mut issues = Vec::new();
     let Some(expected_binding) = active.binding.as_ref() else {
         issues.push("proof is missing".to_string());
@@ -1158,7 +1170,13 @@ fn completion_evidence_issues(repo_root: &Path, active: &ActivePlan) -> Result<V
 
     if let Some(proof) = proof {
         let trace_binding = expected_binding.trace_binding(&proof.id);
-        match latest_trace_score_for_operation(repo_root, &trace_binding)? {
+        let trace = match vault {
+            Some(vault) => {
+                latest_trace_score_for_operation_in_vault(repo_root, vault, &trace_binding)?
+            }
+            None => latest_trace_score_for_operation(repo_root, &trace_binding)?,
+        };
+        match trace {
             Some(trace) if trace.passed && trace.achieved >= required_tier(active.risk) => {}
             _ => issues.push("passing trace is missing".to_string()),
         }
@@ -1256,7 +1274,7 @@ fn completion_integrity_issues(repo_root: &Path, current: &str) -> Result<Vec<St
             if plan_verification.trim().is_empty() || plan_verification.trim() == "not_run" {
                 issues.push("plan verification evidence is missing".to_string());
             }
-            issues.extend(completion_evidence_status(repo_root, &plan)?.issues);
+            issues.extend(completion_evidence_status(repo_root, &plan, None)?.issues);
         }
         _ => issues.push("linked plan file is missing".to_string()),
     }

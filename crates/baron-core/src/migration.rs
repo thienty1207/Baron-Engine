@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -21,6 +22,49 @@ const LEGACY_MANIFEST: &str = ".agent-bootstrap-manifest.json";
 const LEGACY_BLOCK_START: &str = "<!-- agent-bootstrap:start -->";
 const LEGACY_BLOCK_END: &str = "<!-- agent-bootstrap:end -->";
 const BARON_STATE: &str = ".baron/migration-state.json";
+
+thread_local! {
+    static ACTIVE_INSTALLER_CALLBACKS: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
+}
+
+struct InstallerCallbackFence {
+    backup_root: PathBuf,
+}
+
+impl InstallerCallbackFence {
+    fn enter(backup_root: &Path) -> Result<Self> {
+        let backup_root = backup_root.canonicalize().with_context(|| {
+            format!(
+                "Could not resolve active migration backup root: {}",
+                backup_root.display()
+            )
+        })?;
+        let inserted = ACTIVE_INSTALLER_CALLBACKS
+            .with(|active| active.borrow_mut().insert(backup_root.clone()));
+        if !inserted {
+            bail!("installer callback is already active for this migration");
+        }
+        Ok(Self { backup_root })
+    }
+
+    fn is_active(backup_root: &Path) -> Result<bool> {
+        let backup_root = backup_root.canonicalize().with_context(|| {
+            format!(
+                "Could not resolve migration backup root: {}",
+                backup_root.display()
+            )
+        })?;
+        Ok(ACTIVE_INSTALLER_CALLBACKS.with(|active| active.borrow().contains(&backup_root)))
+    }
+}
+
+impl Drop for InstallerCallbackFence {
+    fn drop(&mut self) {
+        ACTIVE_INSTALLER_CALLBACKS.with(|active| {
+            active.borrow_mut().remove(&self.backup_root);
+        });
+    }
+}
 
 const BUNDLED_SKILLS: &[&str] = &[
     "superpowers",
@@ -429,7 +473,10 @@ where
         // an imported path as migration-owned output. The installer is unlocked.
         capture_post_handoff_state(&inventory.repo_root, &mut backup_manifest)?;
         write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
-        let install_outputs = install_baron(&inventory.repo_root, &destination_vault)?;
+        let install_outputs = {
+            let _callback_fence = InstallerCallbackFence::enter(&backup_root)?;
+            install_baron(&inventory.repo_root, &destination_vault)?
+        };
         let _lock = acquire_project_lock(&inventory.repo_root)?;
         let _vault_lock = acquire_project_lock(&destination_vault)?;
         let _capsule_lock = lock_manifest_capsule(&backup_manifest)?;
@@ -594,6 +641,9 @@ pub fn rollback_migration(
         )
     })?;
     let backup_root = migration_backup_root(&vault_root, migration_id)?;
+    if InstallerCallbackFence::is_active(&backup_root)? {
+        bail!("Cannot roll back migration `{migration_id}` from its active installer callback");
+    }
     // Lock order is migration-run -> repo -> Vault -> capsule. The runner holds
     // this same run fence across its callback and publication, so rollback can
     // neither restore under a live installer nor race its final receipt/state.

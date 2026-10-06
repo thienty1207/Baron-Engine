@@ -408,7 +408,13 @@ fn latest_selection_orders_new_artifacts_after_legacy_timestamp_files() {
         .join("docs/baron/traces")
         .join(&date)
         .join(format!("{legacy_stamp}.md"));
+    let legacy_vault_trace = context
+        .project_root
+        .join("Traces")
+        .join(&date)
+        .join(format!("{legacy_stamp}.md"));
     fs::copy(&trace.repo_path, &legacy_trace).unwrap();
+    fs::copy(&trace.vault_path, &legacy_vault_trace).unwrap();
     let score = score_trace(&repo, &context, None).unwrap();
     assert_eq!(score.trace_id, trace.id);
     assert!(fs::read_to_string(&trace.repo_path)
@@ -425,6 +431,7 @@ fn operation_bound_selection_prefers_new_ids_over_older_legacy_aliases() {
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
     let identity = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
@@ -470,7 +477,13 @@ fn operation_bound_selection_prefers_new_ids_over_older_legacy_aliases() {
         .join("docs/baron/traces")
         .join(&date)
         .join(format!("{legacy_stamp}.md"));
+    let legacy_vault_trace = context
+        .project_root
+        .join("Traces")
+        .join(&date)
+        .join(format!("{legacy_stamp}.md"));
     fs::copy(&trace.repo_path, &legacy_trace).unwrap();
+    fs::copy(&trace.vault_path, &legacy_vault_trace).unwrap();
     let selected_trace = trace_for_operation(&repo, &binding).unwrap().unwrap();
     assert_eq!(selected_trace.repo_path, trace.repo_path);
 }
@@ -481,6 +494,7 @@ fn foreign_markdown_in_proof_and_trace_trees_is_ignored_by_selectors() {
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
     let identity = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
@@ -569,6 +583,7 @@ fn non_timestamp_legacy_proof_and_trace_files_remain_selectable() {
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
     let identity = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
@@ -1203,6 +1218,7 @@ fn operation_trace_score_recomputes_after_persisted_score_tampering() {
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
     let identity = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
@@ -1236,7 +1252,8 @@ fn operation_trace_score_recomputes_after_persisted_score_tampering() {
     let tampered = content
         .replace("## Task Summary\n\n", "## Task Summary Removed\n\n")
         .replace("- Achieved: `minimal`", "- Achieved: `detailed`");
-    fs::write(&trace.repo_path, tampered).unwrap();
+    fs::write(&trace.repo_path, &tampered).unwrap();
+    fs::write(&trace.vault_path, &tampered).unwrap();
 
     let fresh = latest_trace_score_for_operation(&repo, &binding)
         .unwrap()
@@ -1251,7 +1268,9 @@ fn operation_trace_score_recomputes_after_persisted_score_tampering() {
         .unwrap()
         .trim_end()
         .to_string();
-    fs::write(&trace.repo_path, format!("{without_score}\n")).unwrap();
+    let without_score = format!("{without_score}\n");
+    fs::write(&trace.repo_path, &without_score).unwrap();
+    fs::write(&trace.vault_path, &without_score).unwrap();
     let fresh_without_cache = latest_trace_score_for_operation(&repo, &binding)
         .unwrap()
         .expect("fresh evaluation must not require a cached score block");
@@ -1265,6 +1284,7 @@ fn operation_trace_fresh_evaluation_rejects_rewritten_header_with_stale_score() 
     let repo = temp.path().join("demo");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
     let first = AuthoritativeLifecycleIdentity::resolve(
         &context.project_id,
@@ -1345,7 +1365,8 @@ fn operation_trace_fresh_evaluation_rejects_rewritten_header_with_stale_score() 
             &format!("- Proof ID: `{}`", first_proof.id),
         )
         .replace("## Task Summary\n\n", "## Task Summary Removed\n\n");
-    fs::write(&second_trace.repo_path, rewritten).unwrap();
+    fs::write(&second_trace.repo_path, &rewritten).unwrap();
+    fs::write(&second_trace.vault_path, &rewritten).unwrap();
 
     let first_binding =
         TraceOperationBinding::from_operation(&first_operation, &first_proof.id).unwrap();
@@ -1354,4 +1375,99 @@ fn operation_trace_fresh_evaluation_rejects_rewritten_header_with_stale_score() 
         .expect("rewritten trace should be found by its forged header");
     assert_eq!(fresh.achieved, TraceTier::Incomplete);
     assert!(!fresh.passed);
+}
+
+fn operation_trace_fixture(
+    repo: &std::path::Path,
+    vault: &std::path::Path,
+    title: &str,
+) -> (baron_core::vault::VaultContext, TraceOperationBinding) {
+    fs::create_dir_all(repo).unwrap();
+    initialize_project(repo, AdapterKind::Codex, vault).unwrap();
+    let context = ensure_vault(vault, repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("trace-publication-session"),
+        Some("trace-publication-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(repo, &context, title, &operation).unwrap();
+    let proof =
+        record_proof_for_operation(repo, &context, &operation, "README verification passed")
+            .unwrap();
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    (context, binding)
+}
+
+#[test]
+fn operation_trace_requires_an_exact_vault_mirror_for_authority() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    let (context, binding) = operation_trace_fixture(&repo, &vault, "fix README typo");
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+
+    let repo_content = fs::read(&trace.repo_path).unwrap();
+    let mut mirror_content = fs::read(&trace.vault_path).unwrap();
+    mirror_content.extend_from_slice(b"\nVault copy differs.\n");
+    fs::write(&trace.vault_path, &mirror_content).unwrap();
+
+    assert!(trace_for_operation(&repo, &binding).unwrap().is_none());
+    assert!(latest_trace_score_for_operation(&repo, &binding)
+        .unwrap()
+        .is_none());
+    assert!(score_trace(&repo, &context, Some(&trace.id)).is_err());
+    assert_eq!(fs::read(&trace.repo_path).unwrap(), repo_content);
+    assert_eq!(fs::read(&trace.vault_path).unwrap(), mirror_content);
+}
+
+#[test]
+fn failed_vault_trace_publication_does_not_leave_operation_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    let (context, binding) = operation_trace_fixture(&repo, &vault, "fix README typo");
+
+    let traces_directory = context.project_root.join("Traces");
+    fs::remove_dir_all(&traces_directory).unwrap();
+    fs::write(&traces_directory, "block Vault trace publication").unwrap();
+
+    assert!(record_trace_for_operation(
+        &repo,
+        &context,
+        "README typo corrected",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .is_err());
+    let incomplete_repo_trace_exists = fs::read_dir(repo.join("docs/baron/traces"))
+        .unwrap()
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.path().is_dir())
+        .any(|date_directory| {
+            fs::read_dir(date_directory.path())
+                .unwrap()
+                .filter_map(std::result::Result::ok)
+                .any(|entry| entry.path().is_file())
+        });
+    assert!(!incomplete_repo_trace_exists);
+    assert!(trace_for_operation(&repo, &binding).unwrap().is_none());
+    assert!(latest_trace_score_for_operation(&repo, &binding)
+        .unwrap()
+        .is_none());
 }

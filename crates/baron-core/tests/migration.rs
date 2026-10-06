@@ -365,6 +365,33 @@ fn explicit_rollback_cannot_race_an_active_installer_callback() {
 }
 
 #[test]
+fn installer_callback_cannot_reenter_rollback_on_the_same_thread() {
+    let (_temp, repo, vault) = legacy_fixture();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+
+    let receipt =
+        execute_agent_bootstrap_migration_with_outputs(&repo, None, |repo_root, vault_root| {
+            let migrations_root = vault_root.join("Artifacts/Baron/Migrations");
+            let migration_id = fs::read_dir(&migrations_root)?
+                .filter_map(std::result::Result::ok)
+                .find(|entry| entry.path().is_dir())
+                .context("migration callback did not find its active backup root")?
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+
+            rollback_migration(repo_root, vault_root, &migration_id)
+                .expect_err("same-thread rollback must be rejected during installer callback");
+            Ok(MigrationInstallOutputs::default())
+        })
+        .unwrap();
+
+    assert_eq!(receipt.status, "completed");
+    assert!(migration_status(&repo).unwrap().contains("completed"));
+    assert!(capsule_root(&vault, &repo).join("Facts.md").is_file());
+}
+
+#[test]
 fn installer_return_window_edit_is_not_adopted_as_migration_output() {
     let (_temp, repo, vault) = legacy_fixture();
     initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();

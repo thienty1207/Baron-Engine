@@ -7,6 +7,7 @@ use anyhow::{bail, Context, Result};
 use chrono::{Local, NaiveDate, SecondsFormat, TimeZone};
 use serde::{Deserialize, Serialize};
 
+use crate::config::configured_vault_path_if_available;
 use crate::control_plane::gate_evidence_status_strict_for_operation;
 use crate::harness::{
     current_harness_risk, current_harness_title, current_harness_title_for_operation,
@@ -24,7 +25,7 @@ use crate::safe_io::{
     acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_text,
     replace_text,
 };
-use crate::vault::VaultContext;
+use crate::vault::{vault_context_without_create, VaultContext};
 
 const SCORE_START: &str = "<!-- BARON:TRACE-SCORE:START -->";
 const SCORE_END: &str = "<!-- BARON:TRACE-SCORE:END -->";
@@ -326,7 +327,23 @@ fn record_trace_internal(
         files: &files,
     });
     create_new_text(&repo_path, &content)?;
-    create_new_text(&vault_path, &content)?;
+    if let Err(error) = create_new_text(&vault_path, &content) {
+        let cleanup = match fs::read(&repo_path) {
+            Ok(bytes) if bytes == content.as_bytes() => fs::remove_file(&repo_path),
+            Err(read_error) if read_error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Ok(_) => Err(std::io::Error::other(
+                "new repo trace changed before incomplete-publication cleanup",
+            )),
+            Err(read_error) => Err(read_error),
+        };
+        if let Err(cleanup_error) = cleanup {
+            return Err(anyhow::anyhow!(
+                "Vault trace publication failed: {error:#}; incomplete repo trace cleanup also failed: {cleanup_error}"
+            ));
+        }
+        return Err(error)
+            .context("Could not publish the Vault trace mirror; incomplete repo trace removed");
+    }
     append(
         &repo_root.join("docs/baron/traces/INDEX.md"),
         "# Baron Trace Index\n\n",
@@ -365,7 +382,7 @@ pub fn score_trace(
         let expected =
             TraceOperationBinding::from_operation(&binding.to_operation_context()?, &proof.id)?;
         Some(
-            trace_for_operation(repo_root, &expected)?
+            trace_for_operation_locked(repo_root, vault, &expected)?
                 .context("operation-bound trace is missing for the selected operation")?
                 .id,
         )
@@ -374,13 +391,11 @@ pub fn score_trace(
     };
     let repo_path = find_trace(repo_root, trace_id.or(scoped_id.as_deref()))?;
     let content = fs::read_to_string(&repo_path)?;
+    let vault_path = verified_vault_trace_mirror(vault, repo_root, &repo_path, content.as_bytes())?
+        .context("Trace Vault mirror is missing or differs from the repo trace")?;
     let score = evaluate_trace_score(repo_root, &content)?;
     let updated = replace_score(&content, &score);
     write(&repo_path, &updated)?;
-    let relative = repo_path
-        .strip_prefix(repo_root.join("docs/baron/traces"))
-        .unwrap_or(&repo_path);
-    let vault_path = vault.project_root.join("Traces").join(relative);
     write(&vault_path, &updated)?;
     let outcome = trace_field(&content, "- Outcome: `").unwrap_or_else(|| "unknown".to_string());
     let summary = trace_summary(&content);
@@ -562,7 +577,34 @@ pub fn latest_trace_score_for_operation(
     repo_root: &Path,
     expected: &TraceOperationBinding,
 ) -> Result<Option<TraceScore>> {
-    let Some(trace) = trace_for_operation(repo_root, expected)? else {
+    let _repo_lock = acquire_project_lock(repo_root)?;
+    let Some(vault) = configured_trace_vault(repo_root)? else {
+        return Ok(None);
+    };
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    latest_trace_score_for_operation_locked(repo_root, &vault, expected)
+}
+
+/// Score the exact operation trace using the caller's already-resolved Vault
+/// context. This keeps Core APIs that receive a VaultContext independent of
+/// the optional machine-local route while retaining exact repo/Vault mirror
+/// verification.
+pub(crate) fn latest_trace_score_for_operation_in_vault(
+    repo_root: &Path,
+    vault: &VaultContext,
+    expected: &TraceOperationBinding,
+) -> Result<Option<TraceScore>> {
+    let _repo_lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    latest_trace_score_for_operation_locked(repo_root, vault, expected)
+}
+
+fn latest_trace_score_for_operation_locked(
+    repo_root: &Path,
+    vault: &VaultContext,
+    expected: &TraceOperationBinding,
+) -> Result<Option<TraceScore>> {
+    let Some(trace) = trace_for_operation_locked(repo_root, vault, expected)? else {
         return Ok(None);
     };
     let content = fs::read_to_string(trace.repo_path)?;
@@ -582,6 +624,19 @@ pub fn trace_for_operation(
     repo_root: &Path,
     expected: &TraceOperationBinding,
 ) -> Result<Option<TraceRecord>> {
+    let _repo_lock = acquire_project_lock(repo_root)?;
+    let Some(vault) = configured_trace_vault(repo_root)? else {
+        return Ok(None);
+    };
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    trace_for_operation_locked(repo_root, &vault, expected)
+}
+
+fn trace_for_operation_locked(
+    repo_root: &Path,
+    vault: &VaultContext,
+    expected: &TraceOperationBinding,
+) -> Result<Option<TraceRecord>> {
     expected.validate()?;
     let mut paths = trace_paths(repo_root)?;
     paths.sort_by_key(|path| artifact_sort_key(path));
@@ -591,6 +646,11 @@ pub fn trace_for_operation(
             continue;
         };
         if binding.matches_identity(expected) && binding.proof_id == expected.proof_id {
+            let Some(vault_path) =
+                verified_vault_trace_mirror(vault, repo_root, &path, content.as_bytes())?
+            else {
+                continue;
+            };
             let id = trace_field(&content, "- Trace ID: `").unwrap_or_else(|| {
                 path.file_stem()
                     .unwrap_or_default()
@@ -600,13 +660,44 @@ pub fn trace_for_operation(
             return Ok(Some(TraceRecord {
                 id,
                 repo_path: path,
-                vault_path: PathBuf::new(),
+                vault_path,
                 proof_id: Some(binding.proof_id.clone()),
                 binding: Some(binding),
             }));
         }
     }
     Ok(None)
+}
+
+fn configured_trace_vault(repo_root: &Path) -> Result<Option<VaultContext>> {
+    let Some(vault_root) = configured_vault_path_if_available(repo_root)? else {
+        return Ok(None);
+    };
+    vault_context_without_create(vault_root, repo_root).map(Some)
+}
+
+fn verified_vault_trace_mirror(
+    vault: &VaultContext,
+    repo_root: &Path,
+    repo_path: &Path,
+    repo_bytes: &[u8],
+) -> Result<Option<PathBuf>> {
+    let trace_root = repo_root.join("docs/baron/traces");
+    let Ok(relative) = repo_path.strip_prefix(&trace_root) else {
+        return Ok(None);
+    };
+    let vault_path = vault.project_root.join("Traces").join(relative);
+    match fs::read(&vault_path) {
+        Ok(vault_bytes) if vault_bytes == repo_bytes => Ok(Some(vault_path)),
+        Ok(_) => Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "Could not read Vault trace mirror: {}",
+                vault_path.display()
+            )
+        }),
+    }
 }
 
 fn render_trace(view: TraceView<'_>) -> String {
