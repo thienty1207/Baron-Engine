@@ -424,6 +424,52 @@ fn improvement_mutations_fail_without_writes_when_shared_vault_is_locked() {
 }
 
 #[test]
+fn interventions_fail_without_writes_when_shared_capsule_is_locked() {
+    let temp = tempdir().unwrap();
+    let (repo_a, repo_b, context_a, context_b) = shared_checkouts(temp.path());
+    let local_path = repo_b.join("docs/baron/harness/INTERVENTIONS.md");
+    let shared_path = context_a
+        .project_root
+        .join("ProductHarness/INTERVENTIONS.md");
+    let before_local = fs::read(&local_path).ok();
+    let before_shared = fs::read(&shared_path).ok();
+    let vault_lock = acquire_project_lock(&context_a.project_root).unwrap();
+
+    let result = thread::scope(|scope| {
+        scope
+            .spawn(|| record_intervention(&repo_b, &context_b, "must not be published"))
+            .join()
+            .unwrap()
+    });
+
+    let error = result.expect_err("intervention writer bypassed the shared capsule lock");
+    assert!(error.to_string().contains("Timed out waiting"), "{error:#}");
+    assert_eq!(fs::read(&local_path).ok(), before_local);
+    assert_eq!(fs::read(&shared_path).ok(), before_shared);
+    drop(vault_lock);
+
+    let barrier = std::sync::Barrier::new(3);
+    let (a, b) = thread::scope(|scope| {
+        let a = scope.spawn(|| {
+            barrier.wait();
+            record_intervention(&repo_a, &context_a, "from checkout A")
+        });
+        let b = scope.spawn(|| {
+            barrier.wait();
+            record_intervention(&repo_b, &context_b, "from checkout B")
+        });
+        barrier.wait();
+        (a.join().unwrap(), b.join().unwrap())
+    });
+    a.unwrap();
+    b.unwrap();
+    let shared = fs::read_to_string(&shared_path).unwrap();
+    assert_eq!(shared.matches("# Baron Harness Interventions").count(), 1);
+    assert_eq!(shared.matches("from checkout A").count(), 1);
+    assert_eq!(shared.matches("from checkout B").count(), 1);
+}
+
+#[test]
 fn unreadable_improvement_documents_fail_closed_before_any_publication() {
     for invalid_shared in [true, false] {
         for record_outcome in [true, false] {

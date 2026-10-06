@@ -388,11 +388,12 @@ where
     let backup_root = destination_vault
         .join("Artifacts/Baron/Migrations")
         .join(&migration_id);
+    let manifest_path = backup_root.join("manifest.json");
     reserve_backup_root(&inventory.repo_root, &backup_root)?;
 
     let mut backup_manifest =
         create_backup_manifest(&inventory, &destination_vault, &backup_root, &migration_id)?;
-    write_json(&backup_root.join("manifest.json"), &backup_manifest)?;
+    write_json(&manifest_path, &backup_manifest)?;
 
     let result: Result<MigrationReceipt> = (|| {
         let destination = ensure_migration_vault(&destination_vault, &mut backup_manifest)?;
@@ -428,7 +429,11 @@ where
         let _vault_lock = acquire_project_lock(&destination_vault)?;
         let _capsule_lock = lock_manifest_capsule(&backup_manifest)?;
         capture_installer_outputs(&mut backup_manifest, &install_outputs)?;
-        register_valid_custom_assets(&inventory, &mut backup_manifest)?;
+        // The failure path reloads the manifest from disk before rollback.
+        // Persist the verified installer hashes now, while publication is
+        // locked, so a later migration error can restore these exact outputs.
+        write_json(&manifest_path, &backup_manifest)?;
+        register_valid_custom_assets(&inventory, &mut backup_manifest, &manifest_path)?;
         let agents_path = inventory.repo_root.join("AGENTS.md");
         if let Some(entry) = backup_manifest
             .entries
@@ -441,13 +446,15 @@ where
                 .context("Migration has no captured AGENTS.md publication hash")?;
             remove_legacy_managed_block(&agents_path, expected_hash)?;
             record_post_handoff_target(&mut backup_manifest, BackupScope::Repo, "AGENTS.md")?;
+            write_json(&manifest_path, &backup_manifest)?;
         } else if agents_path.exists() {
             bail!(
                 "Migration AGENTS.md appeared after its backup inventory; preserving it for recovery: {}",
                 agents_path.display()
             );
         }
-        let removed_count = cleanup_legacy_runtime(&inventory, &mut backup_manifest)?;
+        let removed_count =
+            cleanup_legacy_runtime(&inventory, &mut backup_manifest, &manifest_path)?;
         verify_imports(&import_records)?;
         verify_native_state(&inventory.repo_root)?;
 
@@ -1118,6 +1125,7 @@ fn quarantine_invalid_assets(
 fn register_valid_custom_assets(
     inventory: &MigrationInventory,
     manifest: &mut BackupManifest,
+    manifest_path: &Path,
 ) -> Result<()> {
     let valid_skills = inventory
         .items
@@ -1152,6 +1160,7 @@ fn register_valid_custom_assets(
     )?;
     if !valid_skills.is_empty() {
         record_post_handoff_target(manifest, BackupScope::Repo, ".codex/skills/INDEX.md")?;
+        write_json(manifest_path, manifest)?;
     }
     if !valid_agents.is_empty() {
         ensure_post_handoff_target_unchanged(
@@ -1172,6 +1181,7 @@ fn register_valid_custom_assets(
     )?;
     if !valid_agents.is_empty() {
         record_post_handoff_target(manifest, BackupScope::Repo, ".codex/agents/INDEX.md")?;
+        write_json(manifest_path, manifest)?;
     }
     Ok(())
 }
@@ -1202,6 +1212,7 @@ fn append_custom_routes(
 fn cleanup_legacy_runtime(
     inventory: &MigrationInventory,
     manifest: &mut BackupManifest,
+    manifest_path: &Path,
 ) -> Result<usize> {
     let mut removed = 0;
     for item in &inventory.items {
@@ -1228,6 +1239,7 @@ fn cleanup_legacy_runtime(
         if safe {
             remove_path(&path)?;
             record_post_handoff_target(manifest, BackupScope::Repo, &item.relative_path)?;
+            write_json(manifest_path, manifest)?;
             removed += 1;
         }
     }

@@ -440,6 +440,48 @@ fn installer_return_window_edit_inside_agents_managed_block_is_preserved() {
 }
 
 #[test]
+fn failed_after_installer_output_capture_uses_persisted_hash_for_rollback() {
+    let (_temp, repo, _vault) = legacy_fixture();
+    let agents_path = repo.join("AGENTS.md");
+    let original_agents = fs::read(&agents_path).unwrap();
+
+    let error =
+        execute_agent_bootstrap_migration_with_outputs(&repo, None, |repo_root, vault_root| {
+            fs::write(repo_root.join("AGENTS.md"), [0xff, 0xfe, 0xfd])?;
+            MigrationInstallOutputs::capture(
+                repo_root,
+                vault_root,
+                vec!["AGENTS.md".to_string()],
+                Vec::new(),
+            )
+        })
+        .expect_err("invalid installer output should fail during legacy block cleanup");
+
+    assert!(
+        error.to_string().contains("not valid UTF-8"),
+        "got: {error}"
+    );
+    assert_eq!(
+        fs::read(&agents_path).unwrap(),
+        original_agents,
+        "rollback must restore acknowledged installer output after a later step fails"
+    );
+    let status = migration_status(&repo).unwrap();
+    let backup_line = status
+        .lines()
+        .find(|line| line.starts_with("- Backup: `"))
+        .unwrap();
+    let backup_root = backup_line
+        .trim_start_matches("- Backup: `")
+        .trim_end_matches('`');
+    let failure = fs::read_to_string(PathBuf::from(backup_root).join("failure.json")).unwrap();
+    assert!(
+        status.contains("- Status: `rolled_back`"),
+        "migration status: {status}; failure: {failure}"
+    );
+}
+
+#[test]
 fn modified_legacy_runtime_is_quarantined_instead_of_deleted() {
     let (_temp, repo, _vault) = legacy_fixture();
     write(

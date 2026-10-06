@@ -26,6 +26,7 @@ pub fn start_experiment(
 ) -> Result<ExperimentRecord> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     if !approved {
         bail!("Harness experiments require explicit human approval before intervention");
     }
@@ -69,6 +70,7 @@ pub fn record_fresh_rerun(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let id = safe_component(id, "harness experiment ID")?;
     let outcome = one_line(outcome);
     if outcome.is_empty() {
@@ -81,8 +83,14 @@ pub fn record_fresh_rerun(
         .project_root
         .join("ProductHarness/Experiments")
         .join(format!("{id}.md"));
-    let mut content = read_text_required(&repo_path)
+    let repo_content = read_text_required(&repo_path)
         .with_context(|| format!("Harness experiment not found: {id}"))?;
+    let mut content = read_text_required(&vault_path)
+        .with_context(|| format!("Shared Vault harness experiment not found: {id}"))?;
+    ensure_compatible_projection(&repo_content, &content)?;
+    if !content.contains("- Status: `awaiting_fresh_rerun`") {
+        bail!("A fresh rerun has already been recorded for experiment {id}");
+    }
     content = replace_line(
         &content,
         "- Status: `awaiting_fresh_rerun`",
@@ -114,8 +122,8 @@ pub fn record_fresh_rerun(
         &format!("- Outcome: `{outcome}`"),
     );
     content.push_str(&format!("\n- Rerun recorded: {}\n", now()));
-    write(&repo_path, &content)?;
-    write(&vault_path, &content)
+    write(&vault_path, &content)?;
+    write(&repo_path, &content)
 }
 
 pub fn finalize_experiment(
@@ -126,6 +134,7 @@ pub fn finalize_experiment(
 ) -> Result<()> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let id = safe_component(id, "harness experiment ID")?;
     let decision = one_line(decision).to_lowercase();
     if !["keep", "revise", "remove", "pending"].contains(&decision.as_str()) {
@@ -138,8 +147,11 @@ pub fn finalize_experiment(
         .project_root
         .join("ProductHarness/Experiments")
         .join(format!("{id}.md"));
-    let mut content = read_text_required(&repo_path)
+    let repo_content = read_text_required(&repo_path)
         .with_context(|| format!("Harness experiment not found: {id}"))?;
+    let mut content = read_text_required(&vault_path)
+        .with_context(|| format!("Shared Vault harness experiment not found: {id}"))?;
+    ensure_compatible_projection(&repo_content, &content)?;
     if !content.contains("- Status: `rerun_recorded`") && decision != "pending" {
         bail!("Experiment cannot be finalized before a fresh rerun is recorded");
     }
@@ -151,8 +163,36 @@ pub fn finalize_experiment(
         "- Status: `rerun_recorded`",
         &format!("- Status: `completed_{decision}`"),
     );
-    write(&repo_path, &content)?;
-    write(&vault_path, &content)
+    write(&vault_path, &content)?;
+    write(&repo_path, &content)
+}
+
+fn ensure_compatible_projection(repo_content: &str, vault_content: &str) -> Result<()> {
+    fn immutable_content(content: &str) -> String {
+        content
+            .lines()
+            .filter(|line| {
+                ![
+                    "- Status: `",
+                    "- Available: `",
+                    "- Retrieved: `",
+                    "- Invoked: `",
+                    "- Relevant: `",
+                    "- Outcome: `",
+                    "- Keep/revise/remove: `",
+                    "- Rerun recorded: ",
+                ]
+                .iter()
+                .any(|prefix| line.starts_with(prefix))
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    if immutable_content(repo_content) != immutable_content(vault_content) {
+        bail!("Harness experiment repo/Vault copies diverge outside lifecycle fields; preserving both");
+    }
+    Ok(())
 }
 
 fn replace_line(content: &str, old: &str, new: &str) -> String {

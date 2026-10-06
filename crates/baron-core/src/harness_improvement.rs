@@ -103,16 +103,17 @@ pub fn record_intervention(
 ) -> Result<InterventionRecord> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let repo_path = repo_root.join("docs/baron/harness/INTERVENTIONS.md");
     let vault_path = vault.project_root.join("ProductHarness/INTERVENTIONS.md");
     let item = format!("- {} - {}", now(), summary.trim());
     append(
-        &repo_path,
+        &vault_path,
         "# Baron Harness Interventions\n\nHuman, reviewer, CI, and agent corrections are recorded here for later improvement analysis.\n\n",
         &item,
     )?;
     append(
-        &vault_path,
+        &repo_path,
         "# Baron Harness Interventions\n\nHuman, reviewer, CI, and agent corrections are recorded here for later improvement analysis.\n\n",
         &item,
     )?;
