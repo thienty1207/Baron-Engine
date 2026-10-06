@@ -91,13 +91,16 @@ fn exact_story_ownership_ignores_another_tasks_plan_current() {
 }
 
 #[test]
-fn operation_a_does_not_get_operation_bs_current_story() {
+fn identified_operations_resolve_their_own_story_after_b_updates_current() {
     let fixture = Fixture::new();
     let other = operation(&fixture.vault.project_id, "fix README beta", "request-b");
     start_or_resume_plan_for_operation(&fixture.repo, &fixture.vault, "fix README beta", &other)
         .unwrap();
     start_or_resume_intake(&fixture.repo, &fixture.vault, "fix README beta").unwrap();
-    assert_eq!(fixture.title().unwrap(), None);
+    assert_eq!(
+        fixture.title().unwrap().as_deref(),
+        Some("fix README alpha")
+    );
     assert_eq!(
         current_harness_title_for_operation(&fixture.repo, &other)
             .unwrap()
@@ -115,7 +118,11 @@ fn a_matching_projection_cannot_claim_another_story_file() {
         "- Title: fix README beta",
         "- Title: fix README alpha",
     );
-    assert_eq!(fixture.title().unwrap(), None);
+    assert_eq!(
+        fixture.title().unwrap().as_deref(),
+        Some("fix README alpha"),
+        "the exact plan task and story file, not CURRENT, determine ownership"
+    );
 }
 
 #[test]
@@ -200,16 +207,15 @@ fn partial_identity_is_not_story_authority() {
 }
 
 #[test]
-fn duplicate_story_projection_fields_fail_closed() {
+fn duplicate_story_projection_fields_do_not_change_operation_story_authority() {
     let fixture = Fixture::new();
     let mut content = fs::read_to_string(fixture.current()).unwrap();
     content.push_str("- Title: fix README alpha\n");
     fs::write(fixture.current(), content).unwrap();
-    assert!(fixture
-        .title()
-        .unwrap_err()
-        .to_string()
-        .contains("duplicated"));
+    assert_eq!(
+        fixture.title().unwrap().as_deref(),
+        Some("fix README alpha")
+    );
 }
 
 #[test]
@@ -226,14 +232,16 @@ fn malformed_active_index_is_not_story_authority() {
 #[test]
 fn missing_actual_story_gives_no_authority() {
     let fixture = Fixture::new();
-    rewrite(
-        &fixture.current(),
-        "- Story: `docs/",
-        "- Story: `docs/missing/",
-    );
-    assert!(fixture.title().is_err());
-    // A valid managed path to an absent story is unknown, not guessed.
     let content = fs::read_to_string(fixture.current()).unwrap();
+    let story_path = content
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("- Story: `")
+                .and_then(|value| value.strip_suffix('`'))
+        })
+        .unwrap();
+    fs::remove_file(fixture.repo.join(story_path)).unwrap();
+    // A valid managed path to an absent story is unknown, not guessed.
     let content = content
         .lines()
         .map(|line| {

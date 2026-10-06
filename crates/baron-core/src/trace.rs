@@ -290,10 +290,10 @@ fn record_trace_internal(
         Some(proof) => Some(proof.clone()),
         None => {
             let proof = latest_proof(repo_root)?;
-            if story_operation.is_some() {
+            if binding.is_none() {
                 proof.filter(|proof| proof.binding.is_none())
             } else {
-                proof
+                None
             }
         }
     };
@@ -470,7 +470,23 @@ fn evaluate_trace_score(repo_root: &Path, content: &str) -> Result<TraceScore> {
     let has_proof = if binding.is_some() {
         bound_proof.is_some()
     } else {
-        !content.contains("- Proof: `missing`")
+        match proof_id
+            .as_deref()
+            .filter(|proof_id| *proof_id != "missing")
+        {
+            Some(proof_id) => match proof_by_id(repo_root, proof_id)? {
+                Some(proof) if proof.binding.is_none() => true,
+                Some(_) => {
+                    missing.push("unbound proof binding".to_string());
+                    false
+                }
+                None => {
+                    missing.push("proof".to_string());
+                    false
+                }
+            },
+            None => false,
+        }
     };
     let has_files = content
         .split("## Files Changed")

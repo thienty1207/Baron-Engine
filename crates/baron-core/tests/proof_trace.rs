@@ -13,7 +13,9 @@ use baron_core::execution_receipt::{
 use baron_core::harness::start_or_resume_intake;
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
-use baron_core::plan::{start_or_resume_plan, start_or_resume_plan_for_operation};
+use baron_core::plan::{
+    complete_plan_for_identity, start_or_resume_plan, start_or_resume_plan_for_operation,
+};
 use baron_core::proof::{
     latest_proof, proof_for_operation, proof_status, record_proof, record_proof_for_operation,
     record_proof_from_receipt_bound, record_proof_with_capabilities_for_operation,
@@ -208,6 +210,162 @@ fn scoped_proof_does_not_promote_a_story_shared_by_two_operations_of_the_same_ta
         harness_bytes(&repo, &context) == before,
         "ambiguous task story changed"
     );
+}
+
+#[test]
+fn operation_a_proof_and_trace_resolve_a_story_while_current_is_b() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let a = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README alpha",
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+    let b = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README beta",
+        SupportedAdapter::Claude,
+        Some("session-b"),
+        Some("request-b"),
+    )
+    .unwrap();
+    let operation_a = OperationContext::from_identity(&a);
+    start_or_resume_plan_for_operation(&repo, &context, "fix README alpha", &operation_a).unwrap();
+    start_or_resume_intake(&repo, &context, "fix README alpha").unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README beta",
+        &OperationContext::from_identity(&b),
+    )
+    .unwrap();
+    start_or_resume_intake(&repo, &context, "fix README beta").unwrap();
+
+    let proof =
+        record_proof_for_operation(&repo, &context, &operation_a, "README verification passed")
+            .unwrap();
+    let matrices = [
+        fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap(),
+        fs::read_to_string(context.project_root.join("ProductHarness/TEST_MATRIX.md")).unwrap(),
+    ];
+    assert!(matrices.iter().all(|matrix| matrix
+        .contains("| fix README alpha | low | verified | README verification passed |")));
+
+    let binding = TraceOperationBinding::from_operation(&operation_a, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README alpha completed",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    let trace_text = fs::read_to_string(trace.repo_path).unwrap();
+    assert!(trace_text.contains("- Current story: `fix README alpha`"));
+    assert!(!trace_text.contains("- Current story: `fix README beta`"));
+}
+
+#[test]
+fn legacy_trace_cannot_borrow_a_completed_operations_bound_proof() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    setup_git(&repo);
+    fs::write(repo.join("README.md"), "initial\n").unwrap();
+    assert!(Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(&repo)
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .args(["commit", "-m", "initial state"])
+        .current_dir(&repo)
+        .status()
+        .unwrap()
+        .success());
+
+    let operation_a = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README alpha",
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+    let operation_context_a = OperationContext::from_identity(&operation_a);
+    start_or_resume_plan_for_operation(&repo, &context, "fix README alpha", &operation_context_a)
+        .unwrap();
+    start_or_resume_intake(&repo, &context, "fix README alpha").unwrap();
+    let proof_a =
+        record_proof_for_operation(&repo, &context, &operation_context_a, "README tests passed")
+            .unwrap();
+    let binding_a =
+        TraceOperationBinding::from_operation(&operation_context_a, &proof_a.id).unwrap();
+    let trace_a = record_trace_for_operation(
+        &repo,
+        &context,
+        "README alpha completed",
+        TraceOutcome::Completed,
+        &binding_a,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace_a.id))
+            .unwrap()
+            .passed
+    );
+    complete_plan_for_identity(&repo, &context, "README alpha verified", &operation_a).unwrap();
+
+    confirm_intent(&repo, &context, "frontend dashboard flow");
+    start_or_resume_plan(&repo, &context, "frontend dashboard flow").unwrap();
+    start_or_resume_intake(&repo, &context, "frontend dashboard flow").unwrap();
+    fs::write(repo.join("README.md"), "changed by operation B\n").unwrap();
+
+    let trace_b = record_trace(
+        &repo,
+        &context,
+        "Dashboard behavior changed and tests passed",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let trace_text = fs::read_to_string(&trace_b.repo_path).unwrap();
+    assert!(!trace_text.contains(&format!("- Proof ID: `{}`", proof_a.id)));
+    assert!(trace_text.contains("- Proof: `missing`"));
+    let score_b = score_trace(&repo, &context, Some(&trace_b.id)).unwrap();
+    assert!(
+        !score_b.passed,
+        "B must not pass with A's bound proof: {score_b:?}"
+    );
+    assert!(score_b.missing_fields.contains(&"proof".to_string()));
+
+    let foreign_reference = fs::read_to_string(&trace_b.repo_path)
+        .unwrap()
+        .replace("- Proof: `missing`", "- Proof: `README tests passed`")
+        .replace(
+            "- Proof ID: `missing`",
+            &format!("- Proof ID: `{}`", proof_a.id),
+        );
+    fs::write(&trace_b.repo_path, &foreign_reference).unwrap();
+    fs::write(&trace_b.vault_path, &foreign_reference).unwrap();
+    let forged_score = score_trace(&repo, &context, Some(&trace_b.id)).unwrap();
+    assert!(
+        !forged_score.passed,
+        "an unbound legacy trace cannot credit an identified operation's proof"
+    );
+    assert!(forged_score
+        .missing_fields
+        .contains(&"unbound proof binding".to_string()));
 }
 
 #[test]

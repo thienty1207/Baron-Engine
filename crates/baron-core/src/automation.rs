@@ -468,7 +468,14 @@ pub fn handle_hook(
             if let Some(response) = dedup_response(&dedup, &event_key) {
                 return Ok(response);
             }
-            if let Some(response) = journal_response(&journal_path(vault), &event_key)? {
+            // The response journal is shared by all checkouts attached to
+            // this project capsule. Observe it only under checkout -> Vault
+            // lock order; publication repeats the lookup under the same lock.
+            let journal_response = {
+                let _vault_lock = acquire_project_lock(&vault.project_root)?;
+                journal_response(&journal_path(vault), &event_key)?
+            };
+            if let Some(response) = journal_response {
                 dedup_store_response(&mut dedup, &event_key, &response);
                 save_dedup_state(vault, &dedup)?;
                 return Ok(response);
@@ -996,6 +1003,7 @@ pub fn automation_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> R
 
 fn append_journal(vault: &VaultContext, entry: JournalEntry) -> Result<()> {
     let _lock = acquire_project_lock(&vault.repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     append_journal_locked(vault, &entry)
 }
 
@@ -1026,6 +1034,10 @@ fn publish_hook_response(
     refresh_stop_response: bool,
 ) -> Result<String> {
     let _lock = acquire_project_lock(repo_root)?;
+    // Different worktrees have different checkout locks but may share this
+    // durable capsule journal. Hold its lock across dedup read, append, and
+    // crash-recovery publication, preserving checkout -> Vault ordering.
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let mut dedup = load_dedup_state(vault)?;
     if !refresh_stop_response {
         if let Some(existing) = dedup_response(&dedup, event_key) {
@@ -1577,6 +1589,93 @@ mod tests {
 
         assert_eq!(recovered, response);
         assert_eq!(dedup_response(&state, event_key).as_deref(), Some(response));
+    }
+
+    #[test]
+    fn hook_response_publication_serializes_shared_vault_journal_across_checkouts() {
+        let temp = tempdir().unwrap();
+        let repo_a = temp.path().join("checkout-a");
+        let repo_b = temp.path().join("checkout-b");
+        let vault_root = temp.path().join("shared-vault");
+        std::fs::create_dir_all(&repo_a).unwrap();
+        initialize_project(&repo_a, AdapterKind::Codex, &vault_root).unwrap();
+        let vault_a = ensure_vault(&vault_root, &repo_a).unwrap();
+
+        std::fs::create_dir_all(repo_b.join(".baron")).unwrap();
+        std::fs::copy(
+            repo_a.join(".baron/project.toml"),
+            repo_b.join(".baron/project.toml"),
+        )
+        .unwrap();
+        let vault_b = crate::vault::vault_context_without_create(&vault_root, &repo_b).unwrap();
+        assert_eq!(vault_a.project_root, vault_b.project_root);
+
+        let event_key = "shared-checkout-hook-event";
+        let mut state_a = DedupState::default();
+        let claim_a = dedup_claim(&mut state_a, event_key).unwrap();
+        save_dedup_state(&vault_a, &state_a).unwrap();
+        let entry = JournalEntry {
+            timestamp: now(),
+            event: AutomationEvent::ContextCompiled,
+            adapter: HookAdapter::Codex.into(),
+            session_id: Some("shared-session".to_string()),
+            request_id: Some("shared-request".to_string()),
+            event_kind: "context_compiled".to_string(),
+            event_key: Some(event_key.to_string()),
+            task_id: Some("shared-task".to_string()),
+            child_id: None,
+            parent_task_id: None,
+            parent_session_id: None,
+            child: false,
+            evidence: None,
+            response: None,
+        };
+        let response_a = r#"{"source":"checkout-a"}"#;
+        assert_eq!(
+            publish_hook_response(
+                &repo_a, &vault_a, &entry, event_key, &claim_a, response_a, false,
+            )
+            .unwrap(),
+            response_a
+        );
+
+        let mut state_b = DedupState::default();
+        let claim_b = dedup_claim(&mut state_b, event_key).unwrap();
+        save_dedup_state(&vault_b, &state_b).unwrap();
+        let shared_vault_lock = acquire_project_lock(&vault_a.project_root).unwrap();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            publish_hook_response(
+                &repo_b,
+                &vault_b,
+                &entry,
+                event_key,
+                &claim_b,
+                r#"{"source":"checkout-b"}"#,
+                false,
+            )
+        });
+        started_rx.recv().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let completed_while_locked = worker.is_finished();
+        drop(shared_vault_lock);
+        let response_b = worker.join().unwrap().unwrap();
+
+        assert!(
+            !completed_while_locked,
+            "a checkout published or deduplicated a hook response without the shared Vault lock"
+        );
+        assert_eq!(response_b, response_a);
+        let journal = std::fs::read_to_string(journal_path(&vault_a)).unwrap();
+        assert_eq!(
+            journal
+                .lines()
+                .filter(|line| line.contains(event_key))
+                .count(),
+            1,
+            "the same lifecycle event must have one shared Vault journal row"
+        );
     }
 
     #[test]

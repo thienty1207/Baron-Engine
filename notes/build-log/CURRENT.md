@@ -1,15 +1,15 @@
 # Current Build Note
 
-## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
+## SPEC-05 zero-CURRENT closure repair (FIX REQUIRED, 2026-10-06)
 
-Two fresh independent reviewers completed exact range `ecaf362..cd12561` and both returned FIX REQUIRED; all identified source findings now have RED→GREEN repairs. Integrated run `verification-9b7496b7b7864142a40c7206c5bb0732` passed Core 618/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 932/0/4 ignored across 112 suites. Its first Clippy attempt found two behavior-neutral style lints; after fixing them, the directly affected Core suites passed migration 21/21, concurrency 20/20, plan 56/56, proof/trace 31/31, and the final Clippy, locked release build/smoke, and docs checks passed. No current owned Critical/Important finding is known. Await two fresh full-range reviews; no closure or push yet.
+Fresh independent reviews of `ecaf362..4a3efc0` found three Important issues: operation-bound harness story lookup still followed CURRENT; unbound traces could borrow a foreign operation's bound proof; and hook response journaling used only checkout-local locking. Each has an observed RED and focused GREEN regression: harness scoping 13/13, proof/trace 33/33 before the last scorer tampering assertion (that test passed alone), and shared-Vault publication 1/1. Full post-repair gates and the final authority caller audit remain pending. The current repair snapshot is being uploaded as an interim WIP at the user's request; the prior review is not acceptance and SPEC-05 is not closed.
 
 - Detailed evidence: [SPEC-05 final local verification](../../docs/superpowers/plans/2026-10-05-spec-05-final-verification.md).
-- Failure honesty: test commands used unique nonexistent Codex/Claude session-root paths and bundled PowerShell 7 where required. Previous review verdicts are not acceptance; local runs are not claimed as GitHub CI.
+- Failure honesty: current targeted hook tests used nonexistent Codex/Claude session roots; this isolated real host-session scanning that caused the earlier hook_identity diagnostic run to stall. Previous all-target / Clippy / release counts below predate the current fixes and are historical until rerun. Previous review verdicts are not acceptance; local runs are not claimed as GitHub CI.
 - Audit/status: current Core/CLI source search finds 258 authority-pattern matches. The harness audit uses operation-scoped completion evidence and reports multiple active plans as ambiguous.
 - Persisted-state boundary: exact identity -> indexed ACTIVE -> canonical frontmatter; CURRENT is latest presentation. Only SPEC-05 source/tests and maintained evidence/docs are intended changes. No release/tag/version bump, SPEC-06, or Hotel Staff work.
-- Review gate: the previous reviews are FIX REQUIRED, not acceptance. Commit the verified readiness snapshot and request two fresh independent ACCEPTs for exact `ecaf362..<final HEAD>`. Close and push only after both accept. Public version remains `5.0.0`; local results are not GitHub CI.
-- Safe next action: commit the verified evidence/source snapshot and start the two independent exact-range reviews; no close or push until both accept.
+- Review gate: the previous reviews are FIX REQUIRED, not acceptance. Complete the remaining verification and authority audit, then request two fresh independent ACCEPTs for `ecaf362..<final HEAD>`. Interim WIP upload does not close SPEC-05; close only after both final-range reviews accept. Public version remains `5.0.0`; local results are not GitHub CI.
+- Safe next action: finish the targeted scorer check, full local gates and source audit; keep status FIX REQUIRED until they are complete.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

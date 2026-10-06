@@ -1,14 +1,14 @@
 # Current Baron Build Plan
 
-## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
+## Active repair: SPEC-05 zero-CURRENT authority (FIX REQUIRED, 2026-10-06)
 
-Two fresh independent reviews of `ecaf362..cd12561` both returned FIX REQUIRED; all identified Important/mutation-boundary findings now have RED→GREEN repairs. Latest all-target runs passed Core 618/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, and workspace 932/0/4 ignored. After two behavior-neutral Clippy edits, migration 21/21, concurrency 20/20, plan 56/56, proof/trace 31/31 and all final Clippy/release/docs checks passed. SPEC-05 is ready for two new exact-range reviews only; nothing is pushed or closed.
+Two fresh independent reviews of `ecaf362..4a3efc0` returned FIX REQUIRED with three Important findings: identified story lookup still read harness CURRENT; an unbound trace could attach and credit a proof bound to another operation; and hook response publication did not lock the shared Vault journal. Focused RED→GREEN repairs are now implemented: harness scoping 13/13, proof/trace 33/33 (the final scorer-tampering assertion also passed alone), shared-Vault journal regression 1/1. Full post-repair verification and a complete current-authority audit are pending. The current repair snapshot is being uploaded as an interim WIP at the user's request; this does not satisfy the final review gate. SPEC-05 remains FIX REQUIRED, not closed.
 
 - Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md); live verification ledger: `2026-10-05-spec-05-final-verification.md`.
 - Authority: exact LifecycleIdentity and persisted capsule binding → indexed ACTIVE → canonical managed frontmatter remain authority; CURRENT is presentation only for identified flows. Harness audit now evaluates operation-scoped completion evidence and reports ambiguity instead of borrowing global latest proof/trace.
 - Persisted-state boundary: only SPEC-05 source/tests and maintained status/plan/build evidence changed; no project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff scope.
-- Review gate: all currently known Critical/Important findings are fixed and local gates have passed. Commit the final source/test/evidence snapshot and obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. Quota/time failures are inconclusive. Only after both accept mark CLOSED and push; public binary remains `baron 5.0.0`.
-- Safe next action: commit this readiness snapshot and dispatch the two exact-range read-only reviews; keep status READY until both accept, then close and push.
+- Review gate: the two previous reviews are FIX REQUIRED, not acceptance. Complete post-repair verification and CURRENT caller re-audit, then obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. An interim WIP push at the user's request does not close the spec; only after both final-range reviews accept may the final reviewed snapshot be marked CLOSED and delivered. Quota/time failures are inconclusive; public binary remains `baron 5.0.0`.
+- Safe next action: complete remaining focused and workspace verification, refresh the authority classifications, and keep status FIX REQUIRED until the audit and local evidence are complete.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

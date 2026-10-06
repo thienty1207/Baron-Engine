@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
@@ -201,10 +201,10 @@ pub fn current_harness_title(repo_root: impl AsRef<Path>) -> Option<String> {
         .map(str::to_string)
 }
 
-/// A legacy story has no operation binding. Associate it only with the one
-/// exact active operation for its canonical task, never with a latest plan or
-/// the plan CURRENT projection. Missing or ambiguous ownership gives no story
-/// authority; malformed managed state remains an error.
+/// Associate the one unique task story with the exact identified active plan.
+/// Harness CURRENT is a latest-view projection and never selects or vetoes an
+/// identified operation's story. Same-task concurrent plans and duplicate
+/// historical story files remain ambiguous and confer no story authority.
 pub fn current_harness_title_for_operation(
     repo_root: impl AsRef<Path>,
     operation: &OperationContext,
@@ -220,19 +220,13 @@ pub fn current_harness_title_for_operation(
     }
     let project_id = canonical_project_id(repo_root)?;
     let identity = operation.lifecycle_identity(&project_id)?;
-    let Some(current) = read_text(repo_root.join("docs/baron/harness/CURRENT.md"))? else {
-        return Ok(None);
-    };
-    let Some(title) = unique_field(&current, "- Title: ")? else {
-        return Ok(None);
-    };
-    if identity.validate_task(title).is_err() {
-        return Ok(None);
-    }
     let binding = PlanOperationBinding::from_identity(&identity);
     let Some(authority) = active_plan_authority_for_binding(repo_root, &binding)? else {
         return Ok(None);
     };
+    if identity.validate_task(&authority.title).is_err() {
+        return Ok(None);
+    }
     let Some(index) = read_text(repo_root.join("docs/baron/plans/ACTIVE.md"))? else {
         return Ok(None);
     };
@@ -262,41 +256,69 @@ pub fn current_harness_title_for_operation(
     {
         return Ok(None);
     }
-    let Some(story_path) =
-        unique_field(&current, "- Story: `")?.and_then(|value| value.strip_suffix('`'))
-    else {
-        return Ok(None);
-    };
-    let relative = Path::new(story_path);
-    if !relative.starts_with("docs/baron/harness/stories")
-        || !relative
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
-        || relative.extension().and_then(|value| value.to_str()) != Some("md")
-    {
-        bail!("current harness story path is outside the managed story root");
-    }
-    let Some(story) = read_text(repo_root.join(relative))? else {
-        return Ok(None);
-    };
-    let Some(story_title) = story
-        .lines()
-        .next()
-        .and_then(|line| line.strip_prefix("# Product Story - "))
-    else {
-        return Ok(None);
-    };
-    if story_title != title || identity.validate_task(story_title).is_err() {
+    find_unique_operation_story(repo_root, &authority.title, authority.risk)
+}
+
+fn find_unique_operation_story(
+    repo_root: &Path,
+    title: &str,
+    plan_risk: RiskLane,
+) -> Result<Option<String>> {
+    let root = repo_root.join("docs/baron/harness/stories");
+    let mut matches = Vec::new();
+    collect_operation_story_matches(&root, title, &mut matches)?;
+    if matches.is_empty() {
         return Ok(None);
     }
-    let risk = classify_risk(story_title);
+    if matches.len() != 1 {
+        bail!("operation harness story is ambiguous for canonical task `{title}`");
+    }
+    let story = read_text(&matches[0])?.context("managed operation story disappeared")?;
+    let risk = classify_risk(title);
     if unique_field(&story, "- Risk: `")?.and_then(|value| value.strip_suffix('`'))
         != Some(risk.as_str())
-        || authority.risk != risk
+        || plan_risk != risk
     {
-        bail!("current harness story risk does not match canonical task risk");
+        bail!("managed harness story risk does not match canonical task risk");
     }
-    Ok(Some(story_title.to_string()))
+    Ok(Some(title.to_string()))
+}
+
+fn collect_operation_story_matches(
+    root: &Path,
+    title: &str,
+    matches: &mut Vec<PathBuf>,
+) -> Result<()> {
+    let expected_header = format!("# Product Story - {title}");
+    let metadata = match fs::symlink_metadata(root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        bail!("managed harness story root contains a linked or non-directory path");
+    }
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            bail!("managed harness story tree contains a linked path");
+        }
+        if file_type.is_dir() {
+            collect_operation_story_matches(&path, title, matches)?;
+        } else if file_type.is_file()
+            && path.extension().and_then(|value| value.to_str()) == Some("md")
+        {
+            let Some(content) = read_text(&path)? else {
+                continue;
+            };
+            if content.lines().next() == Some(expected_header.as_str()) {
+                matches.push(path);
+            }
+        }
+    }
+    Ok(())
 }
 
 fn unique_field<'a>(content: &'a str, prefix: &str) -> Result<Option<&'a str>> {

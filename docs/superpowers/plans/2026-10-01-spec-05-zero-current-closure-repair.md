@@ -3,7 +3,15 @@
 Date: 2026-10-01. Base: ecaf362. Starting HEAD: 9bdb979.
 Binding requirement: user-supplied `SPEC-05-FINAL-CLOSURE-REPAIR-ZERO-CURRENT-HOOK-IDENTITY.md` in the primary checkout's `fix-bug/prompt/`.
 
-## Current repair checkpoint (2026-10-06)
+## Current repair checkpoint (2026-10-06, after latest fresh review)
+
+- Status: `SPEC-05: FIX REQUIRED`; not closed. The current repair snapshot is an interim WIP upload requested by the user, with remote SHA verification tracked separately; it is not acceptance or closure.
+- Fresh review findings: two independent read-only reviews of `ecaf362..4a3efc0` found three Important issues: identified trace/proof story lookup still depended on harness `CURRENT.md`; unbound legacy trace could attach and score a proof bound to another operation; hook response journal mutation used only checkout-local locking although the journal is shared by worktrees.
+- RED→GREEN evidence: `harness_scoping` 13/13; `proof_trace` 33/33 before adding explicit tampered foreign-proof scoring assertion (that new assertion passes by itself); shared-Vault hook journal publication test 1/1. The original regressions failed respectively with A story missing, A proof attached to B trace, and B publication returning while Vault lock was held.
+- Verification boundary: no full Core/CLI/adapters/workspace, Clippy, or release results after these repairs. The earlier hook_identity stall was caused by running without isolated Codex/Claude session roots; with nonexistent overrides the isolated hook test completes in 5.74s. Earlier full-source counts below are pre-repair history only.
+- Safe next action: finish focused hook/trace/concurrency tests, complete the live CURRENT caller classification, then run all required verification. Keep `FIX REQUIRED` until the entire audit and verification are complete; afterward obtain two fresh independent reviews of exact `ecaf362..<final HEAD>`.
+
+## Historical checkpoint before latest review (2026-10-06)
 
 - Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; not closed or pushed.
 - Review findings: the migration rollback/installer callback race has a lifecycle-fence repair and focused RED→GREEN test (migration 20/20). Identified routing validates full identity and reads exact operation-owned intent/checkpoint/recovery, not shared CURRENT; the A-versus-CURRENT-B regression passes (phase7 routing 20/20).
@@ -129,7 +137,7 @@ Commit source/tests and final evidence/docs before independent read-only review 
 - RED -> GREEN: `explicit_rollback_preserves_modified_imports_and_records_recovery` preserves a post-migration edit, rejects rollback, and records `needs_recovery`; `explicit_rollback_without_handoff_baseline_requires_recovery` rejects incomplete baseline state without restoring; `proof_vault_lock_timeout_does_not_publish_usable_operation_evidence` verifies a failed proof attempt leaves no operation proof, indexes, or matrix mutation.
 - Current full verification run: `.superpowers/sdd/2026-10-01-spec-05-zero-current-closure-repair/verification-f7ce9fa7120a44429f593c5d5ca2bb20/`. Core 587 passed/0 failed across 60 suites; CLI 190/0 across 38 suites (one release-only ignored); adapters 124/0 across 14 suites (three ignored); workspace 901/0 across 112 suites (four ignored). Formatter, workspace Clippy `-D warnings`, `cargo build --workspace --release --locked`, explicit release smoke 1/1, CLI help/version checks (`baron 5.0.0`), status JSON, 12 public trust documentation/link checks, retired-adapter gate, and `git diff ecaf362 --check` exited 0.
 - Verification boundary: these are local working-tree results; no GitHub CI/commit-status result is claimed. Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, or Hotel Staff change.
-- Review/delivery: commit the scoped repair/evidence, then obtain two fresh independent read-only ACCEPT reviews of the exact full `ecaf362..<final HEAD>` range. Any quota/time failure is inconclusive; any Critical/Important finding requires regression-backed repair, fresh verification and fresh exact-range reviews. Only after two ACCEPTs may status become CLOSED and the branch be pushed.
+- Review/delivery: interim WIP upload is permitted at the user's direct request but does not satisfy closure. Obtain two fresh independent read-only ACCEPT reviews of the exact full `ecaf362..<final HEAD>` range after all source, tests, and evidence are committed. Any quota/time failure is inconclusive; any Critical/Important finding requires regression-backed repair, fresh verification and fresh exact-range reviews. Only after two ACCEPTs may status become CLOSED and the final reviewed snapshot be delivered.
 
 ## Installer receipt self-review repair (2026-10-04)
 

@@ -1,6 +1,16 @@
 # Baron Build Status
 
-## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
+## SPEC-05 zero-CURRENT closure repair (FIX REQUIRED, 2026-10-06)
+
+Fresh independent reviews of `ecaf362..4a3efc0` found three Important gaps: operation-bound harness story lookup still depended on the global CURRENT projection; an unbound legacy trace could attach/credit a different operation's bound proof; and hook response journal publication used only a checkout-local lock for a shared Vault file. Each has an observed RED regression and a focused GREEN repair. Harness scoping passed 13/13, proof/trace passed 33/33 before the final scorer-tampering assertion (that new assertion passed in isolation), and shared-Vault journal publication passed 1/1. Full post-repair verification, complete authority re-audit, and fresh exact-range reviews remain outstanding.
+
+- Status: `SPEC-05: FIX REQUIRED`; not closed. The repair snapshot is an interim WIP upload requested by the user; it is not acceptance or closure. Full post-repair gates, complete authority re-audit, and two fresh exact-range reviews remain required before final closure.
+- Current boundary: identified story/proof/trace authority uses exact operation plan and only own proof; shared Vault journal reads/publications follow checkout → Vault lock order. `CURRENT.md` remains a presentation projection.
+- Full Core/CLI/adapters/workspace, Clippy, release, and final source audit have not been rerun after these repairs. Earlier counts below are historical for the pre-repair snapshot; local runs are not GitHub CI.
+- Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, or Hotel Staff changes.
+- Safe next action: finish targeted regressions, update the repository-wide CURRENT caller audit, then run required full verification. Commit the exact final source/evidence range and obtain two fresh independent reviews of `ecaf362..<final HEAD>`; only two explicit ACCEPTs permit CLOSED.
+
+## Historical pre-repair status (superseded 2026-10-06)
 
 Two fresh independent reviews of `ecaf362..cd12561` both returned FIX REQUIRED. Their Important trace-publication/selection and shared-Vault review-gate findings, plus migration callback rollback re-entry, now have RED→GREEN regressions. Current all-target runs passed Core 618/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, and workspace 932/0/4 ignored. The first Clippy attempt found two style lints, fixed without behavior change; afterward the affected Core suites passed migration 21/21, concurrency 20/20, plan 56/56, and proof/trace 31/31, followed by Clippy, locked release build, release smoke, and public docs 12/12. No owned Critical/Important finding is currently known; this status is readiness only, pending two fresh exact-range reviews.
 
