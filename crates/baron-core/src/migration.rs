@@ -390,6 +390,11 @@ where
         .join(&migration_id);
     let manifest_path = backup_root.join("manifest.json");
     reserve_backup_root(&inventory.repo_root, &backup_root)?;
+    // Fence the complete migration lifetime, including the installer callback.
+    // The OS lock is ephemeral and is released on process exit, so persisted
+    // manifests remain available for crash recovery without stale-lock cleanup.
+    let _run_lock = acquire_project_lock(&backup_root)
+        .context("Could not acquire the migration lifecycle fence")?;
 
     let mut backup_manifest =
         create_backup_manifest(&inventory, &destination_vault, &backup_root, &migration_id)?;
@@ -582,16 +587,26 @@ pub fn rollback_migration(
         bail!("unsafe migration id: {migration_id}");
     }
     let repo_root = canonical_directory(repo_path.as_ref())?;
-    let _lock = acquire_project_lock(&repo_root)?;
     let vault_root = vault_path.as_ref().canonicalize().with_context(|| {
         format!(
             "Could not resolve migration Vault: {}",
             vault_path.as_ref().display()
         )
     })?;
-    let backup_root = vault_root
-        .join("Artifacts/Baron/Migrations")
-        .join(migration_id);
+    let backup_root = migration_backup_root(&vault_root, migration_id)?;
+    // Lock order is migration-run -> repo -> Vault -> capsule. The runner holds
+    // this same run fence across its callback and publication, so rollback can
+    // neither restore under a live installer nor race its final receipt/state.
+    let _run_lock = acquire_project_lock(&backup_root).with_context(|| {
+        format!(
+            "Could not acquire migration lifecycle fence for `{migration_id}`; rollback did not run"
+        )
+    })?;
+    let locked_backup_root = migration_backup_root(&vault_root, migration_id)?;
+    if locked_backup_root != backup_root {
+        bail!("Migration backup root changed while acquiring its lifecycle fence");
+    }
+    let _lock = acquire_project_lock(&repo_root)?;
     let manifest: BackupManifest = read_json(&backup_root.join("manifest.json"))?;
     if manifest.migration_id != migration_id {
         bail!(
@@ -2157,6 +2172,33 @@ fn validate_restore_target(root: &Path, relative: &str, label: &str) -> Result<P
     }
     validate_existing_parent_chain(&root, target.parent())?;
     Ok(target)
+}
+
+fn migration_backup_root(vault_root: &Path, migration_id: &str) -> Result<PathBuf> {
+    let relative = format!("Artifacts/Baron/Migrations/{migration_id}");
+    let backup_root = validate_restore_target(vault_root, &relative, "backup root")?;
+    let metadata = fs::symlink_metadata(&backup_root).with_context(|| {
+        format!(
+            "Could not inspect migration backup root: {}",
+            backup_root.display()
+        )
+    })?;
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) || !metadata.is_dir() {
+        bail!(
+            "Migration backup root must be a regular directory: {}",
+            backup_root.display()
+        );
+    }
+    let canonical_backup_root = backup_root.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve migration backup root: {}",
+            backup_root.display()
+        )
+    })?;
+    if !canonical_backup_root.starts_with(vault_root) {
+        bail!("Migration backup root escapes its Vault");
+    }
+    Ok(canonical_backup_root)
 }
 
 fn validate_existing_parent_chain(root: &Path, parent: Option<&Path>) -> Result<()> {

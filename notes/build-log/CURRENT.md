@@ -2,13 +2,14 @@
 
 ## SPEC-05 zero-CURRENT closure repair (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
 
-Independent review of `ecaf362..6100e21` found two Important defects: installer hashes were not durable before later migration failures, and harness experiment/intervention writers could bypass the shared capsule lock. Both repairs have RED→GREEN coverage. Fresh full verification passes workspace 922/0/4 ignored across 112 suites, Core 608/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, fmt, Clippy, locked release build, `baron 5.0.0`, release smoke, and public docs 12/12. Post-edit JSON parsing, 2/2 relative Markdown links, and diff check pass; two fresh exact-range independent reviews remain. SPEC-05 is not closed or pushed.
+Earlier migration-durability and shared-Vault harness findings have RED→GREEN repairs. The migration-run fence blocks explicit rollback while an installer callback can still publish (migration 20/20). Identified routing validates full identity and reads only exact operation-owned intent/checkpoint/recovery; A-versus-CURRENT-B passes phase7 routing 20/20. Fresh integrated verification `verification-9fa05341cab446ba8f0d24fe2b0cecfe` passes Core 611/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 925/0/4 ignored across 112 suites, fmt, Clippy `-D warnings`, locked release, release smoke 1/1, docs 12/12, version 5.0.0 and local repository gates. SPEC-05 is READY FOR ADVERSARIAL REVIEW, not closed or pushed.
 
 - Detailed evidence: [SPEC-05 final local verification](../../docs/superpowers/plans/2026-10-05-spec-05-final-verification.md).
 - Failure honesty: test commands used unique nonexistent Codex/Claude session-root paths and bundled PowerShell 7 where required. Previous review verdicts are not acceptance; local runs are not claimed as GitHub CI.
 - Audit/status: current Core/CLI source search finds 258 authority-pattern matches. The harness audit uses operation-scoped completion evidence and reports multiple active plans as ambiguous.
 - Persisted-state boundary: exact identity -> indexed ACTIVE -> canonical frontmatter; CURRENT is latest presentation. Only SPEC-05 source/tests and maintained evidence/docs are intended changes. No release/tag/version bump, SPEC-06, or Hotel Staff work.
-- Review gate: two fresh independent reviewers must ACCEPT exact `ecaf362..<final HEAD>` and inspect the 14 prompt checks. Close and push only after both accept. Public version remains `5.0.0`; local results are not GitHub CI.
+- Review gate: prior FIX REQUIRED/incomplete reviews do not accept the current work. Commit the verified source/tests/evidence, then obtain two fresh independent ACCEPTs for exact `ecaf362..<final HEAD>`. Close and push only after both accept. Public version remains `5.0.0`; local results are not GitHub CI.
+- Safe next action: commit the scoped snapshot and start two fresh exact-range reviews.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

@@ -2,13 +2,13 @@
 
 ## Active repair: SPEC-05 zero-CURRENT authority (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
 
-Independent review of `ecaf362..6100e21` found two Important defects: migration rollback hashes were not persisted before later failures, and harness experiment/intervention writers could bypass the shared capsule lock. Both repairs have RED→GREEN regressions. Fresh local gates pass workspace 922/0/4 ignored across 112 suites, Core 608/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, fmt, Clippy `-D warnings`, locked release build, release smoke, docs 12/12, binary/help, JSON, relative-link, diff, and retired-adapter gates. Status is READY FOR ADVERSARIAL REVIEW, not closed; two fresh exact-range reviews and push remain.
+The migration-run fence regression passes in migration 20/20. Identified routing validates full lifecycle identity and uses only exact operation-owned intent/checkpoint/recovery; the A-versus-CURRENT-B regression passes in phase7 routing 20/20. Fresh integrated verification passes Core 611/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 925/0/4 ignored/112 suites, fmt, Clippy, locked release, release smoke 1/1, docs 12/12, version 5.0.0 and repository gates. SPEC-05 is READY FOR ADVERSARIAL REVIEW, not closed or pushed; two fresh independent reviews of exact `ecaf362..<final HEAD>` remain mandatory.
 
 - Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md); live verification ledger: `2026-10-05-spec-05-final-verification.md`.
 - Authority: exact LifecycleIdentity and persisted capsule binding → indexed ACTIVE → canonical managed frontmatter remain authority; CURRENT is presentation only for identified flows. Harness audit now evaluates operation-scoped completion evidence and reports ambiguity instead of borrowing global latest proof/trace.
 - Persisted-state boundary: only SPEC-05 source/tests and maintained status/plan/build evidence changed; no project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff scope.
-- Review gate: after repairs, full verification, and final evidence commit, obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. Quota/time failures are inconclusive. Only after both accept mark CLOSED and push; public binary remains `baron 5.0.0`.
-- Safe next action: complete post-edit JSON/link/diff checks, commit the tested repair/evidence, and request two fresh independent read-only reviews of exact `ecaf362..<final HEAD>`; close and push only after both ACCEPT.
+- Review gate: commit the verified source/tests/evidence, then obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. Quota/time failures are inconclusive. Only after both accept mark CLOSED and push; public binary remains `baron 5.0.0`.
+- Safe next action: commit the scoped verified snapshot and request two fresh exact-range reviews; close and push only after both accept.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

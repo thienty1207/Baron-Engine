@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::identity::{capsule_key, project_id_for_path};
 use baron_core::migration::{
@@ -303,6 +304,64 @@ fn explicit_rollback_without_handoff_baseline_requires_recovery() {
     assert!(!repo.join("vault.config.json").exists());
     assert!(migration_status(&repo).unwrap().contains("needs_recovery"));
     assert!(receipt.backup_root.join("failure.json").is_file());
+}
+
+#[test]
+fn explicit_rollback_cannot_race_an_active_installer_callback() {
+    let (_temp, repo, vault) = legacy_fixture();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let (callback_started_tx, callback_started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let migration_repo = repo.clone();
+    let migration = thread::spawn(move || {
+        execute_agent_bootstrap_migration_with_outputs(
+            &migration_repo,
+            None,
+            move |_repo_root, _vault_root| {
+                callback_started_tx.send(()).unwrap();
+                release_rx
+                    .recv_timeout(Duration::from_secs(10))
+                    .map_err(anyhow::Error::from)
+                    .context("test did not release the installer callback")?;
+                Ok(MigrationInstallOutputs::default())
+            },
+        )
+    });
+
+    callback_started_rx
+        .recv_timeout(Duration::from_secs(10))
+        .expect("installer callback did not start");
+    let migrations_root = vault.join("Artifacts/Baron/Migrations");
+    let migration_id = fs::read_dir(&migrations_root)
+        .unwrap()
+        .next()
+        .expect("migration did not reserve its backup root")
+        .unwrap()
+        .file_name()
+        .to_string_lossy()
+        .into_owned();
+    let imported_memory = capsule_root(&vault, &repo).join("Facts.md");
+    assert!(imported_memory.is_file());
+
+    let rollback = rollback_migration(&repo, &vault, &migration_id).expect_err(
+        "explicit rollback must not restore while the installer callback can still publish",
+    );
+    assert!(
+        rollback.to_string().contains("migration lifecycle fence"),
+        "active rollback should fail at the lifecycle fence, got: {rollback}"
+    );
+    assert!(
+        imported_memory.is_file(),
+        "active migration data was rolled back"
+    );
+
+    release_tx.send(()).unwrap();
+    let receipt = migration
+        .join()
+        .expect("migration thread panicked")
+        .expect("migration should complete after the callback is released");
+    assert_eq!(receipt.status, "completed");
+    assert!(migration_status(&repo).unwrap().contains("completed"));
 }
 
 #[test]

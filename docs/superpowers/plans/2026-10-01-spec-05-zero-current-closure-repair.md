@@ -3,6 +3,14 @@
 Date: 2026-10-01. Base: ecaf362. Starting HEAD: 9bdb979.
 Binding requirement: user-supplied `SPEC-05-FINAL-CLOSURE-REPAIR-ZERO-CURRENT-HOOK-IDENTITY.md` in the primary checkout's `fix-bug/prompt/`.
 
+## Current repair checkpoint (2026-10-06)
+
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; not closed or pushed.
+- Review findings: the migration rollback/installer callback race has a lifecycle-fence repair and focused RED→GREEN test (migration 20/20). Identified routing validates full identity and reads exact operation-owned intent/checkpoint/recovery, not shared CURRENT; the A-versus-CURRENT-B regression passes (phase7 routing 20/20).
+- Proof/trace status: full local matrix `verification-9fa05341cab446ba8f0d24fe2b0cecfe` passes: Core 611/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 925/0/4 ignored across 112 suites, fmt, Clippy, locked release, release smoke, docs, version, help, JSON and retired-adapter gates. Two fresh independent exact-range ACCEPT reviews remain.
+- Persisted-state boundary: only scoped SPEC-05 source/tests and maintained status/evidence; no project/Vault user data, release/version metadata, SPEC-06, or Hotel Staff files.
+- Safe next action: commit the verified scoped snapshot, then request two fresh independent read-only reviews of exact `ecaf362..<final HEAD>`; only their ACCEPT verdicts can permit closure or push.
+
 ## Constraints and interfaces
 
 Use the existing SPEC-05 worktree/branch. Preserve unrelated files and legacy single-active behavior when safe. No public version bump, release, tag, SPEC-06 framework, or Hotel Staff edits. Exact full identity and validated ACTIVE/frontmatter are correctness authority; CURRENT is presentation. Durable correlation uses the existing project lock with slow work outside it.

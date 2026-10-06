@@ -101,7 +101,7 @@ fn explicit_route_and_context_ignore_serialized_active_adapter() {
 }
 
 #[test]
-fn route_capability_state_matches_operation_identity_not_project_active_value() {
+fn adapter_only_route_capability_state_matches_explicit_adapter_not_project_active_value() {
     let (_temp, repo, _vault) = project();
     fs::create_dir_all(repo.join(".baron/cache")).unwrap();
     fs::write(
@@ -119,6 +119,21 @@ fn route_capability_state_matches_operation_identity_not_project_active_value() 
             .unwrap();
     assert!(codex_route.explanation.contains("capabilities=unknown"));
     assert!(claude_route.explanation.contains("capabilities=available"));
+}
+
+#[test]
+fn identified_route_rejects_partial_lifecycle_identity() {
+    let (_temp, repo, _vault) = project();
+    let partial = OperationContext::new(SupportedAdapter::Codex)
+        .with_session_id("partial-session")
+        .with_request_id("partial-request");
+
+    let error = route_task_for_operation(&repo, "inspect the shared task", RiskLane::Low, &partial)
+        .expect_err("routing must not infer an operation from partial host identifiers");
+
+    assert!(error
+        .to_string()
+        .contains("complete canonical operation identity"));
 }
 
 #[test]
@@ -149,7 +164,15 @@ fn explicit_operation_does_not_rewrite_legacy_active_adapter_or_schema() {
     let (_temp, repo, _vault) = project();
     set_active_adapter(&repo, AdapterKind::Codex).unwrap();
     let before = load_project_config(&repo).unwrap();
-    let operation = OperationContext::new(SupportedAdapter::Claude);
+    let identity = LifecycleIdentity::resolve(
+        &before.project_id,
+        "inspect the shared task",
+        SupportedAdapter::Claude,
+        Some("explicit-claude-session"),
+        Some("explicit-claude-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
     let _ = route_task_for_operation(&repo, "inspect the shared task", RiskLane::Low, &operation)
         .unwrap();
     let after = load_project_config(&repo).unwrap();
@@ -487,12 +510,25 @@ fn deterministic_parallel_operations_keep_their_own_identity() {
     let claude_repo = repo.clone();
     let codex_barrier = Arc::clone(&barrier);
     let claude_barrier = Arc::clone(&barrier);
-    let codex = OperationContext::new(SupportedAdapter::Codex)
-        .with_session_id("parallel-codex")
-        .with_request_id("parallel-request-codex");
-    let claude = OperationContext::new(SupportedAdapter::Claude)
-        .with_session_id("parallel-claude")
-        .with_request_id("parallel-request-claude");
+    let project_id = load_project_config(&repo).unwrap().project_id;
+    let codex_identity = LifecycleIdentity::resolve(
+        &project_id,
+        "inspect shared task state",
+        SupportedAdapter::Codex,
+        Some("parallel-codex"),
+        Some("parallel-request-codex"),
+    )
+    .unwrap();
+    let claude_identity = LifecycleIdentity::resolve(
+        &project_id,
+        "inspect shared task state",
+        SupportedAdapter::Claude,
+        Some("parallel-claude"),
+        Some("parallel-request-claude"),
+    )
+    .unwrap();
+    let codex = OperationContext::from_identity(&codex_identity);
+    let claude = OperationContext::from_identity(&claude_identity);
 
     let codex_thread = thread::spawn(move || {
         codex_barrier.wait();

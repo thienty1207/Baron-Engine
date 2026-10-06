@@ -8,15 +8,18 @@ use serde::Deserialize;
 
 use crate::capability::load_capability_state;
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
+use crate::continuity::{operation_checkpoint_path, operation_recovery_path};
 use crate::execution_receipt::{
     load_verified_receipt, load_verified_receipts_strict, receipt_matches_verified_context,
     ReceiptContext,
 };
-use crate::operation::OperationContext;
+use crate::intent::operation_intent_for_identity;
+use crate::operation::{LifecycleIdentity, OperationContext};
 use crate::platform::platform_name;
 use crate::risk::RiskLane;
 use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
 use crate::survey::survey_repository;
+use crate::task_state::operation_scoped_source;
 use crate::vault::VaultContext;
 use crate::work_shape::decide_work_shape;
 
@@ -157,30 +160,71 @@ pub fn validate_control_plane(repo_root: impl AsRef<Path>) -> Result<ControlPlan
 }
 
 pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Result<RouteReport> {
-    route_task_internal(repo_root, task, risk, None)
+    route_task_internal(repo_root, task, risk, None, None, true)
 }
 
 /// Route one explicitly identified operation without consulting the project's
-/// serialized `active_adapter` convenience field.
+/// serialized `active_adapter` convenience field. Supplying any lifecycle
+/// fields requires a complete canonical identity; an adapter-only compatibility
+/// call remains advisory and never reads shared CURRENT projections.
 pub fn route_task_for_operation(
     repo_root: impl AsRef<Path>,
     task: &str,
     risk: RiskLane,
     operation: &OperationContext,
 ) -> Result<RouteReport> {
-    route_task_internal(repo_root, task, risk, Some(operation.adapter_kind()))
+    let has_lifecycle_fields = operation.session_id.is_some()
+        || operation.request_id.is_some()
+        || operation.task_id.is_some()
+        || operation.operation_id.is_some();
+    if !has_lifecycle_fields {
+        return route_task_internal(
+            repo_root,
+            task,
+            risk,
+            None,
+            Some(operation.adapter_kind()),
+            false,
+        );
+    }
+
+    let repo_root = repo_root.as_ref();
+    let config = load_project_config(repo_root)?;
+    let identity = operation
+        .lifecycle_identity(&config.project_id)
+        .context("identified routing requires a complete canonical operation identity")?;
+    identity
+        .validate_task(task)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    route_task_internal(
+        repo_root,
+        task,
+        risk,
+        Some(&identity),
+        Some(operation.adapter_kind()),
+        false,
+    )
 }
 
 fn route_task_internal(
     repo_root: impl AsRef<Path>,
     task: &str,
     risk: RiskLane,
+    operation: Option<&LifecycleIdentity>,
     operation_adapter: Option<AdapterKind>,
+    use_current_projection: bool,
 ) -> Result<RouteReport> {
     let repo_root = repo_root.as_ref();
     let report = validate_control_plane(repo_root)?;
     let normalized_task = normalize_task(task);
-    let context = collect_route_context(repo_root, &normalized_task, risk, operation_adapter);
+    let context = collect_route_context(
+        repo_root,
+        &normalized_task,
+        risk,
+        operation,
+        operation_adapter,
+        use_current_projection,
+    )?;
     let contracts = load_skills(repo_root)?;
 
     let reverse_analysis = contains_any(
@@ -723,8 +767,10 @@ fn collect_route_context(
     repo_root: &Path,
     task: &str,
     risk: RiskLane,
+    operation: Option<&LifecycleIdentity>,
     operation_adapter: Option<AdapterKind>,
-) -> RouteContext {
+    use_current_projection: bool,
+) -> Result<RouteContext> {
     let config = load_project_config(repo_root).ok();
     let profile = config.as_ref().and_then(|value| value.platform);
     let mut profiles = Vec::new();
@@ -766,17 +812,51 @@ fn collect_route_context(
         }
     }
 
-    let mut state_signals = Vec::new();
-    for relative in [
-        "docs/baron/harness/CURRENT_INTENT.md",
-        "docs/baron/plans/CURRENT.md",
-        "docs/baron/continuity/CURRENT.md",
-        "docs/baron/continuity/CURRENT_RECOVERY.md",
-    ] {
-        if repo_root.join(relative).is_file() {
-            state_signals.push(relative.to_string());
+    let (state_signals, state_sources) = if let Some(identity) = operation {
+        // CURRENT files are presentation projections shared by every live
+        // operation. Identified routing must use only exact, validated
+        // operation-owned state; unavailable sources contribute no signal.
+        let mut signals = Vec::new();
+        let mut sources = Vec::new();
+        if let Some(intent) = operation_intent_for_identity(repo_root, identity, 3_600)? {
+            signals.push("operation intent".to_string());
+            sources.push(intent);
         }
-    }
+        for (label, path) in [
+            (
+                "operation continuity",
+                operation_checkpoint_path(repo_root, identity),
+            ),
+            (
+                "operation recovery",
+                operation_recovery_path(repo_root, identity),
+            ),
+        ] {
+            let source = operation_scoped_source(&path, identity, 12_000);
+            if !source.is_empty() {
+                signals.push(label.to_string());
+                sources.push(source);
+            }
+        }
+        (signals, sources)
+    } else if use_current_projection {
+        let mut signals = Vec::new();
+        let mut sources = Vec::new();
+        for relative in [
+            "docs/baron/harness/CURRENT_INTENT.md",
+            "docs/baron/plans/CURRENT.md",
+            "docs/baron/continuity/CURRENT.md",
+            "docs/baron/continuity/CURRENT_RECOVERY.md",
+        ] {
+            if repo_root.join(relative).is_file() {
+                signals.push(relative.to_string());
+                sources.push(read_bounded_text(&repo_root.join(relative), 12_000));
+            }
+        }
+        (signals, sources)
+    } else {
+        (Vec::new(), Vec::new())
+    };
     let capabilities_available = load_capability_state(repo_root)
         .ok()
         .flatten()
@@ -786,10 +866,10 @@ fn collect_route_context(
                 .unwrap_or(true)
         })
         .unwrap_or(false);
-    let affected_paths = state_signals
+    let affected_paths = state_sources
         .iter()
-        .flat_map(|relative| {
-            read_bounded_text(&repo_root.join(relative), 12_000)
+        .flat_map(|source| {
+            source
                 .lines()
                 .filter_map(|line| line.strip_prefix("- Changed files: "))
                 .flat_map(|line| line.split(',').map(|value| value.trim().to_lowercase()))
@@ -797,7 +877,7 @@ fn collect_route_context(
         })
         .take(16)
         .collect();
-    RouteContext {
+    Ok(RouteContext {
         profile,
         profiles,
         repository_signals,
@@ -807,7 +887,7 @@ fn collect_route_context(
         state_signals,
         capabilities_available,
         affected_paths,
-    }
+    })
 }
 
 fn profile_matches(metadata: &SkillMetadata, profiles: &[String]) -> bool {

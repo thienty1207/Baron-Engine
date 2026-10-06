@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Commit the fully verified SPEC-05 repair and evidence, obtain two fresh independent exact-range ACCEPT reviews, then close and push; verify the remote SHA.",
+  "nextAction": "Commit the verified SPEC-05 source, tests, and evidence; obtain two fresh independent ACCEPT reviews of exact ecaf362..<final HEAD> before closure or push.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
@@ -40,7 +40,7 @@
         "Windows lifecycle tests need the supported BARON_TEST_POWERSHELL override to use the bundled PowerShell 7 host in this environment"
       ]
     },
-      "verificationBlockers": [
+    "verificationBlockers": [
       "Two fresh independent read-only reviews must accept the exact committed ecaf362..<final HEAD> range, including every repair and final evidence/docs commit; reviewer quota/time failure is inconclusive",
       "After both exact-range reviews accept, push the scoped branch and verify local HEAD equals the remote branch SHA; report GitHub status/Actions only when evidence exists"
     ],
@@ -70,37 +70,37 @@
       "f3eecd7",
       "4986ce9"
     ],
-    "closureBasis": "Independent review of ecaf362..6100e21 found Important findings in migration rollback manifest persistence and shared-Vault locking for harness experiment/intervention writers. Both are repaired with RED-to-GREEN regressions. Fresh local verification on 2026-10-06 passed Core 608/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 922/0/4 ignored across 112 suites, fmt, Clippy, locked release build, release smoke, docs, CLI help/version, JSON, and repository gates. SPEC-05 is READY FOR ADVERSARIAL REVIEW, not closed; two fresh independent exact-range ACCEPT reviews and push remain pending. No hosted CI result is claimed.",
+    "closureBasis": "Earlier independent findings in migration durability and shared-Vault harness locking have RED-to-GREEN repairs. Follow-up rollback-during-installer and identified-routing CURRENT findings also have RED-to-GREEN fixes (migration 20/20, phase7 routing 20/20, phase10 adapter authority 15/15). Fresh local verification-9fa05341cab446ba8f0d24fe2b0cecfe passed Core 611/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 925/0/4 ignored across 112 suites, fmt, Clippy, locked release, release smoke, docs, and repository gates. Status is READY FOR ADVERSARIAL REVIEW, not CLOSED; two fresh exact-range ACCEPT reviews and push verification remain. No hosted CI result is claimed.",
     "verification": {
-      "focusedConcurrencyMatrix": "Fresh 2026-10-06 package/workspace gates: Core 608 passed/0 failed/0 ignored across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; workspace 922/0/4 ignored across 112. All exits 0 under isolated session roots and bundled PowerShell 7.",
-      "currentFocusedRepairs": "PASS: interrupted plan-status journal recovery, same-Project-ID shared-capsule resolution, repo-to-Vault intent/gate lock timeouts, and harness_audit_does_not_treat_current_b_evidence_as_unambiguous_for_a_and_b are covered by current regressions. The harness audit now evaluates operation-scoped completion evidence and reports ambiguity rather than reading global latest proof/trace.",
+      "focusedConcurrencyMatrix": "PASS on the current snapshot: Core 611/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 925/0/4 ignored across 112 suites.",
+      "currentFocusedRepairs": "PASS: prior regressions cover interrupted plan-status journal recovery, same-Project-ID shared-capsule resolution, repo-to-Vault intent/gate lock timeouts, and operation-scoped harness audit. Follow-up migration lifecycle fence passes migration 20/20; identified routing ignores shared CURRENT projections and uses exact operation intent/checkpoint/recovery, with A-versus-CURRENT-B passing phase7 routing 20/20; phase10 adapter authority passes 15/15 including partial-identity fail-closed.",
       "stopReplayFreshness": "PASS: current focused regression observed stale continue=true/reconciliation_passed=true before the fix, then verified current failing evidence blocks through both dedup-cache and journal-only replay",
       "postStopReplayFixIntegratedGates": "HISTORICAL: verification-954e702e19874bf5b7a108bea5027463 completed local gates before the 2026-10-05 hook/rollback repairs; do not treat its counts as current acceptance.",
-      "latestReviewRepairRegressions": "PASS RED-to-GREEN: failed_after_installer_output_capture_uses_persisted_hash_for_rollback; experiment_shared_writers_fail_without_writes_when_capsule_is_locked; experiment_finalize_fails_without_writes_when_capsule_is_locked; shared_checkouts_serialize_experiment_reruns_and_finalization; interventions_fail_without_writes_when_shared_capsule_is_locked. Focused results migration 19/19, experiment 5/5, harness_improvement 12/12. Fresh integrated gates also pass; evidence is in verification-430c4b36c0da42a298af9fdc6e1eee5b.",
-      "coreAllTargets": "PASS: 608 passed/0 failed/0 ignored across 60 suites; verification-430c4b36c0da42a298af9fdc6e1eee5b/core.log.",
-      "cliExecution": "PASS: 190 passed/0 failed/1 ignored across 38 suites; verification-430c4b36c0da42a298af9fdc6e1eee5b/cli.log; isolated session roots and bundled PowerShell 7.",
-      "adaptersAllTargets": "PASS: 124 passed/0 failed/3 ignored across 14 suites; verification-430c4b36c0da42a298af9fdc6e1eee5b/adapters.log.",
-      "workspaceAllTargets": "PASS: 922 passed/0 failed/4 ignored across 112 suites; verification-430c4b36c0da42a298af9fdc6e1eee5b/workspace.log; isolated session roots and bundled PowerShell 7.",
-      "format": "PASS: cargo fmt --all -- --check exited 0 on repaired source/tests; verification-430c4b36c0da42a298af9fdc6e1eee5b/fmt.log.",
-      "clippyWarningsDenied": "PASS: cargo clippy --workspace --all-targets -- -D warnings exited 0; verification-430c4b36c0da42a298af9fdc6e1eee5b/clippy.log.",
-      "releaseBuild": "PASS: cargo build --workspace --release --locked exited 0; verification-430c4b36c0da42a298af9fdc6e1eee5b/release.log.",
+      "latestReviewRepairRegressions": "PASS RED-to-GREEN: installer-output rollback durability; shared-capsule experiment/intervention locking; explicit rollback is rejected during a blocked installer callback; operation A uses its exact checkpoint while ignoring operation B's CURRENT changed paths. Focused migration 20/20, phase7_routing 20/20, phase10_adapter_authority 15/15; current full package/workspace gates pass.",
+      "coreAllTargets": "PASS: 611 passed/0 failed/0 ignored across 60 suites in verification-9fa05341cab446ba8f0d24fe2b0cecfe/core.log.",
+      "cliExecution": "PASS: 190 passed/0 failed/1 ignored across 38 suites; unique temporary host-session roots and bundled PowerShell 7; verification-9fa05341cab446ba8f0d24fe2b0cecfe/cli.log.",
+      "adaptersAllTargets": "PASS: 124 passed/0 failed/3 ignored across 14 suites in verification-9fa05341cab446ba8f0d24fe2b0cecfe/adapters.log.",
+      "workspaceAllTargets": "PASS: 925 passed/0 failed/4 ignored across 112 suites in verification-9fa05341cab446ba8f0d24fe2b0cecfe/workspace.log.",
+      "format": "PASS: cargo fmt --all -- --check exited 0 in verification-9fa05341cab446ba8f0d24fe2b0cecfe/fmt.log.",
+      "clippyWarningsDenied": "PASS: cargo clippy --workspace --all-targets -- -D warnings exited 0 in verification-9fa05341cab446ba8f0d24fe2b0cecfe/clippy.log.",
+      "releaseBuild": "PASS: cargo build --workspace --release --locked exited 0 in verification-9fa05341cab446ba8f0d24fe2b0cecfe/release.log.",
       "binaryVersion": "PASS: freshly built target/release/baron.exe --version reports baron 5.0.0.",
-      "releaseSmoke": "PASS: ignored Phase 14 release smoke ran explicitly and passed 1/1; verification-430c4b36c0da42a298af9fdc6e1eee5b/release-smoke.log.",
-      "diffCheck": "PASS: git diff ecaf362 --check exited 0 after final maintained status/plan/build evidence edits; repeat against the committed exact range.",
-      "maintainedMarkdownRelativeLinks": "PASS: changed maintained Markdown scan checked 5 files and 2 relative inline links with 0 broken; public_trust_docs passed 12/12 in verification-430c4b36c0da42a298af9fdc6e1eee5b/docs.log.",
+      "releaseSmoke": "PASS: Phase 14 release smoke explicitly executed 1/1 against the fresh release build in verification-9fa05341cab446ba8f0d24fe2b0cecfe/release-smoke.log.",
+      "diffCheck": "PASS: git diff ecaf362 --check was rerun after the final tracked status/docs refresh; repeat on the exact committed range before review.",
+      "maintainedMarkdownRelativeLinks": "PASS: final changed-Markdown scan checked 6 maintained files and 3 relative links with 0 broken.",
       "baselineFailureComparison": "PASS: default-host lifecycle_scripts was rechecked on 2026-10-06 at 4 passed/3 failed with the same Microsoft.PowerShell.Archive/Compress-Archive load cause documented at ecaf362; bundled PowerShell 7 current lifecycle_scripts is 7/7. prepare_cli is 5/5 baseline and 6/6 current; session_replay is 4/4 baseline and 5/5 current; the baseline synthetic UTF-8 truncation panic is fixed and its regression passes.",
       "retiredAdapterGate": "PASS: retired-adapter grep returned no tracked current-product matches.",
-      "statusJson": "PASS: docs/BARON_STATUS.json parsed after final status updates; public_trust_docs passed 12/12 in verification-430c4b36c0da42a298af9fdc6e1eee5b/docs.log.",
+      "statusJson": "PASS: docs/BARON_STATUS.json parsed after the final status/evidence refresh.",
       "cliHelp": "PASS: root help, proof record, trace record, trace score, and continuity recover help commands exited 0.",
-      "mutationInventory": "Current Core/CLI authority-pattern scan returns 258 lines including tests/comments. Harness improvement audit uses operation-scoped completion evidence and reports multiple active plans as failure diagnostics. Prior plan-index lost-update minor is covered by repo-to-Vault mutation locking; journal full-read, live dedup-claim trimming, and trace-scan-under-lock remain reviewer-assessed minor topics.",
-      "reviewDisposition": "Independent reviewers of ecaf362..6100e21 found Important findings for migration durability and shared Vault harness locking; both are repaired with regression evidence and all fresh local gates pass. Status is READY FOR ADVERSARIAL REVIEW, not closed. After committing exact source/evidence, two fresh independent read-only ACCEPT reviews of ecaf362..<actual HEAD> remain mandatory; quota/time failure is inconclusive.",
+      "mutationInventory": "Current Core/CLI authority-pattern scan returns 258 lines including tests/comments. Harness improvement audit uses operation-scoped completion evidence and reports multiple active plans as failure diagnostics. Identified route_task_for_operation validates complete lifecycle identity and consumes exact operation intent/checkpoint/recovery rather than shared CURRENT changed-file hints. Prior plan-index lost-update minor is covered by repo-to-Vault mutation locking; journal full-read, live dedup-claim trimming, and trace-scan-under-lock remain reviewer-assessed minor topics.",
+      "reviewDisposition": "READY FOR ADVERSARIAL REVIEW: the latest migration lifecycle and identified-routing findings have RED-to-GREEN fixes, and fresh local full gates pass. Earlier FIX REQUIRED and incomplete reviews are not acceptance. Two fresh independent exact-range ACCEPT reviews remain mandatory; quota/time failure is inconclusive.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW after all fresh local gates passed. Prior reviews of ecaf362..6100e21 found two Important issues and do not accept the repairs. After the exact source/evidence commit, two fresh independent read-only reviewers must inspect ecaf362..<actual HEAD>, including all final evidence and the prompt's 14 checks. Any quota/time failure is inconclusive. Do not close or push before both accept.",
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW after fresh full local verification. Earlier FIX REQUIRED/incomplete reviews are not acceptance. Commit the current scoped source/tests/evidence, then two fresh independent read-only reviewers must inspect exact ecaf362..<actual HEAD>, including final evidence and all 14 checks. Any quota/time failure is inconclusive. Do not close or push before both accept.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-01-spec-05-zero-current-closure-repair.md",
-    "nextAction": "Commit the scoped source/tests/evidence, obtain two fresh independent exact-range ACCEPT reviews, then close and push; verify remote SHA."
+    "nextAction": "Commit the verified scoped SPEC-05 snapshot and obtain two fresh independent exact-range ACCEPT reviews; only then close and push, verifying the remote SHA."
   },
   "securityRemediation": {
     "status": "complete",
