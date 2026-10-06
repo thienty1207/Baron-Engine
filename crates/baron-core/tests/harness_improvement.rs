@@ -60,6 +60,55 @@ fn audit_scores_context_reads_and_reports_harness_gaps() {
 }
 
 #[test]
+fn harness_audit_waits_for_the_shared_vault_journal_lock() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    record_lifecycle_event(
+        &context,
+        HookAdapter::Codex,
+        AutomationEvent::ContextCompiled,
+    )
+    .unwrap();
+
+    let shared_vault_lock = acquire_project_lock(&context.project_root).unwrap();
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (result_tx, result_rx) = std::sync::mpsc::channel();
+    let worker_repo = repo.clone();
+    let worker_context = context.clone();
+    let worker = std::thread::spawn(move || {
+        started_tx.send(()).unwrap();
+        result_tx
+            .send(audit_harness(&worker_repo, &worker_context))
+            .unwrap();
+    });
+    started_rx.recv().unwrap();
+    let early_result = match result_rx.recv_timeout(std::time::Duration::from_millis(200)) {
+        Ok(result) => Some(result),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+        Err(error) => panic!("audit worker disconnected unexpectedly: {error}"),
+    };
+    let completed_while_locked = early_result.is_some();
+    drop(shared_vault_lock);
+    let audit = match early_result {
+        Some(result) => result.unwrap(),
+        None => result_rx
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("audit should resume after the shared lock is released")
+            .unwrap(),
+    };
+    worker.join().unwrap();
+
+    assert!(
+        !completed_while_locked,
+        "harness audit read the shared journal without the capsule lock"
+    );
+    assert!(audit.context_read_score >= 50);
+}
+
+#[test]
 fn harness_audit_does_not_treat_current_b_evidence_as_unambiguous_for_a_and_b() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

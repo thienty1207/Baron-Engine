@@ -160,6 +160,92 @@ fn scoped_capability_proof_does_not_promote_another_operations_harness() {
 }
 
 #[test]
+fn unscoped_proof_fails_closed_with_multiple_identified_operations() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let first = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README alpha",
+        SupportedAdapter::Codex,
+        Some("unscoped-alpha-session"),
+        Some("unscoped-alpha-turn"),
+    )
+    .unwrap();
+    let second = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README beta",
+        SupportedAdapter::Claude,
+        Some("unscoped-beta-session"),
+        Some("unscoped-beta-turn"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README alpha",
+        &OperationContext::from_identity(&first),
+    )
+    .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README beta",
+        &OperationContext::from_identity(&second),
+    )
+    .unwrap();
+    start_or_resume_intake(&repo, &context, "fix README beta").unwrap();
+    let before = harness_bytes(&repo, &context);
+
+    let error =
+        record_proof(&repo, &context, "unselected proof must not select CURRENT").unwrap_err();
+
+    assert!(error.to_string().contains("ambiguous"));
+    assert!(!repo.join("docs/baron/proofs").exists());
+    assert!(!context.project_root.join("Proofs/INDEX.md").exists());
+    assert_eq!(harness_bytes(&repo, &context), before);
+}
+
+#[test]
+fn unscoped_proof_uses_the_sole_identified_operation() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README sole operation",
+        SupportedAdapter::Codex,
+        Some("unscoped-sole-session"),
+        Some("unscoped-sole-turn"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README sole operation",
+        &OperationContext::from_identity(&identity),
+    )
+    .unwrap();
+    start_or_resume_intake(&repo, &context, "fix README sole operation").unwrap();
+
+    let proof = record_proof(&repo, &context, "README checks passed").unwrap();
+
+    let binding = proof.binding.unwrap();
+    assert_eq!(binding.task_id, identity.task_id());
+    assert_eq!(binding.operation_id, identity.operation_id());
+    let matrix = fs::read_to_string(repo.join("docs/baron/harness/TEST_MATRIX.md")).unwrap();
+    assert!(
+        matrix.contains("| fix README sole operation | low | verified | README checks passed |")
+    );
+}
+
+#[test]
 fn scoped_proof_does_not_promote_a_story_shared_by_two_operations_of_the_same_task() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
@@ -270,6 +356,69 @@ fn operation_a_proof_and_trace_resolve_a_story_while_current_is_b() {
     let trace_text = fs::read_to_string(trace.repo_path).unwrap();
     assert!(trace_text.contains("- Current story: `fix README alpha`"));
     assert!(!trace_text.contains("- Current story: `fix README beta`"));
+}
+
+#[test]
+fn identified_trace_cannot_lower_its_canonical_risk_before_scoring() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "backend login security",
+        SupportedAdapter::Codex,
+        Some("trace-risk-session"),
+        Some("trace-risk-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_operation(&repo, &context, "backend login security", &operation)
+        .unwrap();
+    let (receipt, receipt_binding) = passing_proof_receipt(&repo, &identity);
+    let proof =
+        record_proof_from_receipt_bound(&repo, &context, &receipt.receipt_id, &receipt_binding)
+            .unwrap();
+    for path in [&proof.repo_path, &proof.vault_path] {
+        let content = fs::read_to_string(path).unwrap();
+        fs::write(
+            path,
+            content.replacen(
+                "## Evidence\n\n",
+                "## Evidence\n\nSecurity verification tests passed.\n\n",
+                1,
+            ),
+        )
+        .unwrap();
+    }
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "Authentication implementation completed",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    for path in [&trace.repo_path, &trace.vault_path] {
+        let content = fs::read_to_string(path).unwrap();
+        assert!(content.contains("- Risk: `high`"));
+        fs::write(path, content.replace("- Risk: `high`", "- Risk: `low`")).unwrap();
+    }
+
+    let score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
+
+    assert_eq!(score.required, TraceTier::Detailed);
+    assert!(
+        !score.passed,
+        "a trace header edit must not lower the operation's canonical plan risk"
+    );
+    assert!(score
+        .missing_fields
+        .iter()
+        .any(|field| field.contains("risk")));
 }
 
 #[test]

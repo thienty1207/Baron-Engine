@@ -1,14 +1,15 @@
 # Current Baron Build Plan
 
-## Active repair: SPEC-05 zero-CURRENT authority (FIX REQUIRED, 2026-10-06)
+## Active repair: SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
 
-Two fresh independent reviews of `ecaf362..4a3efc0` returned FIX REQUIRED with three Important findings: identified story lookup still read harness CURRENT; an unbound trace could attach and credit a proof bound to another operation; and hook response publication did not lock the shared Vault journal. Focused RED→GREEN repairs are now implemented: harness scoping 13/13, proof/trace 33/33 (the final scorer-tampering assertion also passed alone), shared-Vault journal regression 1/1. Interim WIP source commit `6bdf96d` is pushed and matched the remote SHA; this does not satisfy the final review gate. Full post-repair verification and a complete current-authority audit are pending. SPEC-05 remains FIX REQUIRED, not closed.
+The fresh production audit reports 45 single-category caller paths and `BUG=0`. Full local verification passed against review base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`: Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored; fmt, warnings-denied Clippy, locked release, release smoke, trust docs, CLI help, and `baron 5.0.0` checks passed. SPEC-05 is ready for fresh adversarial review, not closed.
 
-- Plan: [zero-CURRENT closure repair](2026-10-01-spec-05-zero-current-closure-repair.md); live verification ledger: `2026-10-05-spec-05-final-verification.md`.
-- Authority: exact LifecycleIdentity and persisted capsule binding → indexed ACTIVE → canonical managed frontmatter remain authority; CURRENT is presentation only for identified flows. Harness audit now evaluates operation-scoped completion evidence and reports ambiguity instead of borrowing global latest proof/trace.
-- Persisted-state boundary: only SPEC-05 source/tests and maintained status/plan/build evidence changed; no project/Vault user data, release metadata, version bump, SPEC-06, or Hotel Staff scope.
-- Review gate: the two previous reviews are FIX REQUIRED, not acceptance. Complete post-repair verification and CURRENT caller re-audit, then obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>`. An interim WIP push at the user's request does not close the spec; only after both final-range reviews accept may the final reviewed snapshot be marked CLOSED and delivered. Quota/time failures are inconclusive; public binary remains `baron 5.0.0`.
-- Safe next action: complete remaining focused and workspace verification, refresh the authority classifications, and keep status FIX REQUIRED until the audit and local evidence are complete.
+- Execution plan: [SPEC-05 final closure verification](2026-10-06-spec-05-final-closure-verification-plan.md); evidence ledger: [2026-10-06 final verification](2026-10-06-spec-05-final-verification.md); authority audit: [current caller inventory](2026-10-01-spec-05-authority-audit.md).
+- Authority boundary: exact lifecycle identity and persisted binding → indexed ACTIVE → canonical managed frontmatter. CURRENT stays a presentation projection for identified work; ambiguous legacy selectors fail closed. Shared Vault journal operations follow checkout → Vault locking.
+- Lifecycle baseline: the default host PowerShell is 4/7 due to its missing archive module; the repository-supported bundled PowerShell 7 target is 7/7. This environment-specific failure is disclosed, not counted as a product pass.
+- Scope: no release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile edits. Public version remains `5.0.0`; local results are not GitHub CI.
+- Review gate: historical `FIX REQUIRED` reviews on `ecaf362..4a3efc0` are not acceptance; their Important findings have regression-backed fixes. Push the readiness snapshot, verify local/remote SHA equality, query hosted statuses, then obtain two fresh independent read-only ACCEPTs of the same exact `ecaf362..<FINAL_REVIEW_HEAD>` range. Only both ACCEPTs permit closure.
+- Safe next action: complete final docs/scope validation, push readiness, record hosted status evidence, and dispatch the two reviewers. Keep status READY FOR ADVERSARIAL REVIEW until both reports are in; do not claim CLOSED early.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

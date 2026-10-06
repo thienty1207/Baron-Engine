@@ -40,12 +40,16 @@ pub struct ImprovementProposal {
 
 pub fn audit_harness(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Result<HarnessAudit> {
     let repo_root = repo_root.as_ref();
-    let journal = fs::read_to_string(
-        vault
-            .project_root
-            .join("Artifacts/automation-journal.jsonl"),
-    )
-    .unwrap_or_default();
+    let journal = {
+        let _repo_lock = acquire_project_lock(repo_root)?;
+        let _vault_lock = acquire_project_lock(&vault.project_root)?;
+        fs::read_to_string(
+            vault
+                .project_root
+                .join("Artifacts/automation-journal.jsonl"),
+        )
+        .unwrap_or_default()
+    };
     let context_observed = journal.contains("context_compiled");
     let plan_observed =
         journal.contains("plan_started") || repo_root.join("docs/baron/plans/CURRENT.md").exists();

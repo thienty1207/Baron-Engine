@@ -959,8 +959,16 @@ fn finalize_stop_response_locked(
 }
 
 pub fn automation_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Result<String> {
+    let repo_root = repo_root.as_ref();
     let journal_path = journal_path(vault);
-    let journal = fs::read_to_string(&journal_path).unwrap_or_default();
+    let journal = {
+        // The shared Vault journal is read under the same global lock order as
+        // hook publication so status cannot observe a partial or cross-checkout
+        // read/append race.
+        let _repo_lock = acquire_project_lock(repo_root)?;
+        let _vault_lock = acquire_project_lock(&vault.project_root)?;
+        fs::read_to_string(&journal_path).unwrap_or_default()
+    };
     let event_count = journal
         .lines()
         .filter(|line| !line.trim().is_empty())

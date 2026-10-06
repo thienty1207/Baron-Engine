@@ -1,15 +1,15 @@
 # Current Build Note
 
-## SPEC-05 zero-CURRENT closure repair (FIX REQUIRED, 2026-10-06)
+## SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
 
-Fresh independent reviews of `ecaf362..4a3efc0` found three Important issues: operation-bound harness story lookup still followed CURRENT; unbound traces could borrow a foreign operation's bound proof; and hook response journaling used only checkout-local locking. Each has an observed RED and focused GREEN regression: harness scoping 13/13, proof/trace 33/33 before the last scorer tampering assertion (that test passed alone), and shared-Vault publication 1/1. Interim WIP source commit `6bdf96d` is pushed and matched the remote SHA; the prior review is not acceptance. Full post-repair gates and the final authority caller audit remain pending; SPEC-05 is not closed.
+Final local run started from source HEAD `3cd03c6793807f2a149b3ed6f56dc43027640955` against SPEC-04 base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`; plan: [final closure verification](../../docs/superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md). The fresh authority inventory reports 45 caller paths and `BUG=0`. All-targets: Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored; format, Clippy, locked release, release smoke, and public trust docs all passed. Binary remains `baron 5.0.0`.
 
-- Detailed evidence: [SPEC-05 final local verification](../../docs/superpowers/plans/2026-10-05-spec-05-final-verification.md).
-- Failure honesty: current targeted hook tests used nonexistent Codex/Claude session roots; this isolated real host-session scanning that caused the earlier hook_identity diagnostic run to stall. Previous all-target / Clippy / release counts below predate the current fixes and are historical until rerun. Previous review verdicts are not acceptance; local runs are not claimed as GitHub CI.
-- Audit/status: current Core/CLI source search finds 258 authority-pattern matches. The harness audit uses operation-scoped completion evidence and reports multiple active plans as ambiguous.
-- Persisted-state boundary: exact identity -> indexed ACTIVE -> canonical frontmatter; CURRENT is latest presentation. Only SPEC-05 source/tests and maintained evidence/docs are intended changes. No release/tag/version bump, SPEC-06, or Hotel Staff work.
-- Review gate: the previous reviews are FIX REQUIRED, not acceptance. Complete the remaining verification and authority audit, then request two fresh independent ACCEPTs for `ecaf362..<final HEAD>`. Interim WIP upload does not close SPEC-05; close only after both final-range reviews accept. Public version remains `5.0.0`; local results are not GitHub CI.
-- Safe next action: finish the targeted scorer check, full local gates and source audit; keep status FIX REQUIRED until they are complete.
+Fresh reviews of historical range `ecaf362..4a3efc0` identified three Important issues: CURRENT-based harness story lookup, foreign proof borrowing by unbound trace, and checkout-only hook journal locking. Each has a RED→GREEN repair. Further regressions cover selector-free continuity, legacy title-only plan creation beside identified work, no-selector proof selection, trace-risk integrity, and shared journal readers. The WIP commit `6bdf96d` was previously pushed; it is not final acceptance. The current source is ready for a new exact-range review, not closed.
+
+- Current ledger: [2026-10-06 final verification](../../docs/superpowers/plans/2026-10-06-spec-05-final-verification.md); [authority audit](../../docs/superpowers/plans/2026-10-01-spec-05-authority-audit.md).
+- Lifecycle baseline: default Windows PowerShell 4/7 because `Microsoft.PowerShell.Archive` is unavailable; supported bundled PowerShell 7 7/7. Current tests use isolated, nonexistent Codex/Claude session roots.
+- Scope: no release/tag/version bump, SPEC-06, Hotel Staff, or manifest/lockfile change. Local verification does not imply hosted CI.
+- Next: finish final tracked-doc verification, push the readiness snapshot, verify the remote SHA and query hosted statuses, then ask two fresh independent reviewers to inspect exactly `ecaf362..<FINAL_REVIEW_HEAD>`. CLOSED requires two ACCEPT verdicts for that same range.
 
 ## SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

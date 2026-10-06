@@ -986,6 +986,47 @@ fn identified_plan_persists_exact_identity_and_rejects_hijack() {
 }
 
 #[test]
+fn title_only_start_cannot_add_an_unbound_plan_while_identified_work_is_active() {
+    let (_temp, repo, context, _identity, identified_path) = identified_plan_fixture(
+        "fix README active alpha",
+        SupportedAdapter::Codex,
+        "active-alpha-session",
+        "active-alpha-turn",
+    );
+    let active_path = repo.join("docs/baron/plans/ACTIVE.md");
+    let current_path = repo.join("docs/baron/plans/CURRENT.md");
+    let active_before = fs::read(&active_path).unwrap();
+    let current_before = fs::read(&current_path).unwrap();
+    let plan_count_before = fs::read_dir(identified_path.parent().unwrap())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "md")
+        })
+        .count();
+
+    let error = start_or_resume_plan(&repo, &context, "fix docs unrelated beta").unwrap_err();
+
+    assert!(error.to_string().contains("active"));
+    assert_eq!(fs::read(&active_path).unwrap(), active_before);
+    assert_eq!(fs::read(&current_path).unwrap(), current_before);
+    let plan_count_after = fs::read_dir(identified_path.parent().unwrap())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "md")
+        })
+        .count();
+    assert_eq!(plan_count_after, plan_count_before);
+}
+
+#[test]
 fn incomplete_operation_cannot_write_a_plan() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

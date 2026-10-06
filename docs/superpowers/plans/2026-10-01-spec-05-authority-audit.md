@@ -100,6 +100,70 @@ Test fixtures, imports, declarations, comments and historical documentation are 
 - Shared hook response journal: RED `hook_response_publication_serializes_shared_vault_journal_across_checkouts` let checkout B publish/deduplicate while checkout A held the shared capsule lock. GREEN journal lookup, append helper and hook response publication acquire checkout then shared Vault lock across the journal read/dedup/append decision; the test confirms one shared event row and returns A's existing response after lock release.
 - Focused green results: harness scoping `13/13`; proof/trace `33/33` before the final tampering assertion, which passed alone afterward; shared-Vault hook journal publication `1/1`. Full Core/CLI/adapters/workspace, Clippy, release, and complete CURRENT caller scan are not yet verified on this repair.
 
+## Final single-class production caller inventory (2026-10-06)
+
+This current-source inventory supersedes the mixed/alternative labels in the historical table above. It groups production caller *paths* (conditional branches are separate groups where their authority behavior differs); every row has exactly one prompt-defined classification. The search was rerun in `crates/baron-core/src/**`, `crates/baron-cli/src/**`, and `crates/baron-adapters/src/**` using every required pattern. The working source scan found 155 production-source search-hit lines after excluding test modules, imports, comments, and function declarations. Search hits include path/literal references as well as call expressions; the inventory groups their reviewed runtime behavior below. A caller may contribute several matching lines but belongs to one behavior group. Definitions without a callsite and projection-name literals are recorded with their owning family, not double-counted.
+
+| ID | Production caller path / evidence | Classification |
+| --- | --- | --- |
+| E01 | CLI proof/trace ingress with explicit task, adapter, session, request, or receipt identity; `main.rs` → bound Core APIs; `operation_evidence_cli`, `plan_identity_cli` | `EXACT_OPERATION_SCOPED` |
+| E02 | Identified plan start/resume/update/interrupt/complete and identity-based binding lookup; `plan.rs`; `operation_scoped_plan_mutations_keep_a_and_b_isolated_end_to_end` | `EXACT_OPERATION_SCOPED` |
+| E03 | Indexed ACTIVE discovery and canonical plan/frontmatter validation; `plan.rs::load_identified_active_plan` and `find_identified_active_plan`; identity-tamper cases in `plan` | `EXACT_OPERATION_SCOPED` |
+| E04 | Completion evidence reads exact proof, operation gate receipts, and trace for the validated binding; `plan.rs::completion_evidence_issues`; cross-operation completion regressions | `EXACT_OPERATION_SCOPED` |
+| E05 | Receipt-bound proof and operation-bound capability proof publication; `proof.rs::record_proof_from_receipt_bound`, `record_proof_with_capabilities_for_operation` | `EXACT_OPERATION_SCOPED` |
+| E06 | Exact proof lookup and identified TEST_MATRIX promotion/story validation; `proof.rs::proof_for_operation`, `validate_harness_for_operation`; proof-story A/B regressions | `EXACT_OPERATION_SCOPED` |
+| E07 | Operation-bound trace creation, retrieval, fresh scoring, and canonical-risk evaluation; `trace.rs::record_trace_for_operation`, `trace_for_operation`, `score_trace`; `proof_trace` | `EXACT_OPERATION_SCOPED` |
+| E08 | Identified trace/proof story association via validated ACTIVE plan and unique canonical managed story; `harness.rs` resolver; `identified_operations_resolve_their_own_story_after_b_updates_current` | `EXACT_OPERATION_SCOPED` |
+| E09 | Explicit operation/event continuity checkpoint publication and exact evidence composition; `continuity.rs`; `operation_context` A/B and event-retry regressions | `EXACT_OPERATION_SCOPED` |
+| E10 | Identity-selected recovery ingress and operation-local recovery packet composition; `continuity.rs` recovery APIs; `operation_context` recovery isolation cases | `EXACT_OPERATION_SCOPED` |
+| E11 | Task State compilation with complete LifecycleIdentity, exact plan, proof, trace, gate, intent, and recovery; `task_state.rs::compile_task_state_for_operation` | `EXACT_OPERATION_SCOPED` |
+| E12 | Prepare verification of exact plan/proof/trace/gates and operation context; `prepare.rs`; `phase10_adapter_authority` and `operation_context` | `EXACT_OPERATION_SCOPED` |
+| E13 | Identified context compilation and operation-aware routing; `context.rs`, `control_plane.rs::route_task_for_operation`; CURRENT-path A/B routing regression | `EXACT_OPERATION_SCOPED` |
+| E14 | Strict operation-scoped gate receipts and required capability execution evidence; `control_plane.rs`, `capability.rs`, `trace.rs`; receipt-binding tests | `EXACT_OPERATION_SCOPED` |
+| E15 | Durable native hook normalization/correlation for Codex `turn_id`, Claude `prompt_id`, and exact mapped Stop lifecycle; `automation.rs`; `hook_identity`, `phase12_hooks`, `phase12_hooks_cli` | `EXACT_OPERATION_SCOPED` |
+| E16 | Shared Vault hook journal lookup/dedup/append under checkout-then-Vault locking; `automation.rs`; cross-checkout journal regression | `EXACT_OPERATION_SCOPED` |
+| E17 | Identified knowledge resume brief from operation-scoped Task State; `knowledge.rs` identified runtime path | `EXACT_OPERATION_SCOPED` |
+| P01 | Plan, harness, and continuity CURRENT/status renderers and latest projection writers; these display a shared latest view only | `PRESENTATION_ONLY` |
+| P02 | Global latest proof, trace, and cached score/status readers; identified consumers use exact lookup instead | `PRESENTATION_ONLY` |
+| P03 | CLI reconciliation/refresh/status reporting; `main.rs::reconcile` caller does not mutate completion authority | `PRESENTATION_ONLY` |
+| P04 | Unbound continuity packet/status rendering; CURRENT plan/harness and global latest readers are filtered to unbound proof/trace and are diagnostic only | `PRESENTATION_ONLY` |
+| P05 | Generic gate, capability, and runtime status/report APIs without operation evidence promotion; CLI compatibility views | `PRESENTATION_ONLY` |
+| P06 | Generic lifecycle journal/report readers not used as durable hook identity or completion proof | `PRESENTATION_ONLY` |
+| P07 | Context “why loaded,” resource-presence checks, and shared-document excerpts; identified context path is separately E13 | `PRESENTATION_ONLY` |
+| P08 | Autopilot status/provenance snapshot from shared CURRENT artifacts; cannot promote policy, memory, or operation completion | `PRESENTATION_ONLY` |
+| P09 | Adapter-only capability/runtime summaries and certification diagnostics; cannot satisfy operation execution evidence | `PRESENTATION_ONLY` |
+| P10 | Raw runtime JSONL diagnostic attachments; trusted completion checks use verified receipts | `PRESENTATION_ONLY` |
+| P11 | Generic harness CURRENT story/risk display helpers and status presentation | `PRESENTATION_ONLY` |
+| L01 | Title-only or selector-free legacy plan start/update/interrupt/complete when the canonical managed state is one safe legacy/single active plan; same-title resume compatibility remains | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| L02 | Core unscoped `record_proof` discovers the sole identified operation, or preserves unbound legacy behavior when none exists | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| L03 | Core unscoped `record_trace` binds to the sole identified operation and its exact proof; unbound diagnostic trace is available only with no identified operation | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| L04 | CLI automatic trace-score selection resolves one safe active binding; it does not choose a global newest identified operation | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| L05 | Unscoped continuity checkpoint chooses the sole identified binding or stays in the genuinely unbound legacy path; bound proof/trace are excluded from unbound rendering | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| L06 | Selector-free `resolve_evidence_plan_binding` / plan-status compatibility resolves the sole identified plan from ACTIVE/frontmatter; unbound legacy authority still requires a compatible CURRENT link | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| L07 | Unscoped Task State/Prepare intake remains legacy-only when no identified active operation claims authority; identified active work is not imported from CURRENT | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| L08 | Legacy proof/trace risk/story projection helpers are used only by unbound legacy evidence and cannot satisfy identified completion | `LEGACY_SINGLE_ACTIVE_SAFE` |
+| A01 | Selector-free legacy plan mutation with multiple managed active plans, or title-only start attempting to add unbound work beside an identified active plan | `AMBIGUOUS_FAIL_CLOSED` |
+| A02 | Core no-selector proof/trace/score path with multiple active identified plans; rejects before publication or scoring authority | `AMBIGUOUS_FAIL_CLOSED` |
+| A03 | Deprecated receipt/capability proof entry points without required complete operation binding | `AMBIGUOUS_FAIL_CLOSED` |
+| A04 | Unscoped checkpoint, recovery, Task State, or Prepare when identity is partial or multiple identified operations make selection ambiguous | `AMBIGUOUS_FAIL_CLOSED` |
+| A05 | Native Stop with unknown, malformed, stale, wrong-host, conflicting, or incomplete correlation while an unmapped active operation exists | `AMBIGUOUS_FAIL_CLOSED` |
+| A06 | Project-wide harness completion audit with multiple active operations; reports explicit ambiguity/failure rather than selecting CURRENT/latest passing evidence | `AMBIGUOUS_FAIL_CLOSED` |
+| O01 | Generic route hints that read shared CURRENT paths for advisory skill/profile suggestions; never completion or proof authority | `OUT_OF_SPEC` |
+| O02 | Intelligence benchmark and general runtime diagnostics not consumed by operation completion | `OUT_OF_SPEC` |
+| O03 | Adapter update rollback/reconciliation filesystem paths; not plan/evidence lifecycle authority | `OUT_OF_SPEC` |
+
+| Final category total | Caller-path groups |
+| --- | ---: |
+| `PRESENTATION_ONLY` | 11 |
+| `LEGACY_SINGLE_ACTIVE_SAFE` | 8 |
+| `EXACT_OPERATION_SCOPED` | 17 |
+| `AMBIGUOUS_FAIL_CLOSED` | 6 |
+| `OUT_OF_SPEC` | 3 |
+| `BUG` | **0** |
+| **Total production caller-path groups** | **45** |
+
+The final caller-path count is `11 + 8 + 17 + 6 + 3 = 45`; `BUG=0`. No known SPEC-05-owned Critical or Important issue remains from the completed source audit at this checkpoint. The focused matrix, package/workspace all-targets, warnings-denied Clippy, locked release, smoke, trust docs, version, and CLI help gates passed; final staged-doc checks are recorded in the verification ledger. This inventory is not closure: the readiness snapshot must be pushed and two fresh independent reviewers must ACCEPT the same exact range.
+
 ## Rulings and regressions
 
 - CURRENT is a human-facing latest projection, not a correctness authority for identified operations. Identified authority and completion-status readers derive from validated ACTIVE/frontmatter; no-selector legacy APIs count managed active plans first, use the sole identified plan, and fail ambiguous on multiplicity. Unbound legacy paths continue to require a compatible CURRENT link.

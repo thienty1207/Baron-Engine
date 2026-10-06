@@ -6,7 +6,13 @@ use baron_core::continuity::{
     continuity_status, record_continuity_checkpoint, record_recovery, RecoveryInput,
     RecoveryOutcome,
 };
+use baron_core::operation::{AuthoritativeLifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::start_or_resume_plan;
+use baron_core::plan::{complete_plan_for_identity, start_or_resume_plan_for_identity};
+use baron_core::proof::record_proof_for_operation;
+use baron_core::trace::{
+    record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
+};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
@@ -36,6 +42,57 @@ fn continuity_checkpoint_writes_repo_and_vault_resume_packet() {
         assert!(content.contains("Trace status"));
         assert!(content.contains("Next action"));
     }
+}
+
+#[test]
+fn legacy_checkpoint_does_not_import_completed_operation_proof_or_trace() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let identity = AuthoritativeLifecycleIdentity::resolve(
+        &context.project_id,
+        "fix README completed alpha",
+        SupportedAdapter::Codex,
+        Some("continuity-alpha-session"),
+        Some("continuity-alpha-turn"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
+    start_or_resume_plan_for_identity(&repo, &context, "fix README completed alpha", &identity)
+        .unwrap();
+    let proof =
+        record_proof_for_operation(&repo, &context, &operation, "README verification passed")
+            .unwrap();
+    let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &context,
+        "README operation completed",
+        TraceOutcome::Completed,
+        &binding,
+    )
+    .unwrap();
+    assert!(
+        score_trace(&repo, &context, Some(&trace.id))
+            .unwrap()
+            .passed
+    );
+    complete_plan_for_identity(&repo, &context, "README verification passed", &identity).unwrap();
+
+    start_or_resume_plan(&repo, &context, "backend auth legacy beta").unwrap();
+    let packet =
+        record_continuity_checkpoint(&repo, &context, "continue the legacy auth task", "codex")
+            .unwrap();
+    let content = fs::read_to_string(packet.repo_path).unwrap();
+
+    assert!(content.contains("Current task: `backend auth legacy beta`"));
+    assert!(content.contains("Proof status: missing"));
+    assert!(content.contains("Trace status: missing"));
+    assert!(!content.contains(&proof.id));
+    assert!(!content.contains(&trace.id));
 }
 
 #[test]

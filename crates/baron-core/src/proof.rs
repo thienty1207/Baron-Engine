@@ -18,7 +18,9 @@ use crate::harness::{
     update_current_validation_evidence_for_operation,
 };
 use crate::operation::{OperationContext, SupportedAdapter};
-use crate::plan::{active_plan_authority_for_binding, PlanOperationBinding};
+use crate::plan::{
+    active_plan_authority_for_binding, active_plan_operation_binding, PlanOperationBinding,
+};
 use crate::risk::RiskLane;
 use crate::safe_io::{
     acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_bytes,
@@ -45,7 +47,25 @@ pub fn record_proof(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<ProofRecord> {
-    record_proof_internal(repo_root, vault, None, summary, &[], None, None)
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let operation = active_plan_operation_binding(repo_root)?
+        .map(|binding| binding.to_operation_context())
+        .transpose()?;
+    let binding = operation
+        .as_ref()
+        .map(|operation| complete_operation_binding(vault, operation))
+        .transpose()?
+        .flatten();
+    record_proof_internal(
+        repo_root,
+        vault,
+        operation.as_ref(),
+        summary,
+        &[],
+        None,
+        binding.as_ref(),
+    )
 }
 
 pub fn record_proof_from_receipt(

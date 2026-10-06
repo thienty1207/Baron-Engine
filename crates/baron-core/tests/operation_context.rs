@@ -7,8 +7,9 @@ use baron_core::context::{
     compile_context_for_task, ContextTarget,
 };
 use baron_core::continuity::{
-    record_continuity_checkpoint_for_event, record_continuity_checkpoint_for_operation,
-    record_recovery, record_recovery_for_operation, RecoveryInput, RecoveryOutcome,
+    record_continuity_checkpoint, record_continuity_checkpoint_for_event,
+    record_continuity_checkpoint_for_operation, record_recovery, record_recovery_for_operation,
+    RecoveryInput, RecoveryOutcome,
 };
 use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::start_or_resume_plan_for_identity;
@@ -130,6 +131,83 @@ fn evidence(f: &Fixture, identity: &LifecycleIdentity, summary: &str) -> String 
     .unwrap();
     score_trace(&f.repo, &f.vault, Some(&trace.id)).unwrap();
     proof.id
+}
+
+#[test]
+fn unscoped_checkpoint_fails_closed_without_writes_when_two_operations_are_active() {
+    let f = fixture(B_TASK);
+    plans(&f, B_TASK);
+    let repo_current = f.repo.join("docs/baron/continuity/CURRENT.md");
+    let vault_current = f.vault.project_root.join("Continuity/CURRENT.md");
+    let repo_index = f.repo.join("docs/baron/continuity/INDEX.md");
+    let vault_index = f.vault.project_root.join("Continuity/INDEX.md");
+    assert!(!repo_current.exists());
+    assert!(!vault_current.exists());
+    assert!(!repo_index.exists());
+    assert!(!vault_index.exists());
+
+    let result = record_continuity_checkpoint(
+        &f.repo,
+        &f.vault,
+        "unselected continuity checkpoint",
+        "codex",
+    );
+
+    assert!(
+        result.is_err(),
+        "an unselected checkpoint was published while A and B were active: {result:?}"
+    );
+    assert!(result.unwrap_err().to_string().contains("ambiguous"));
+    assert!(!repo_current.exists());
+    assert!(!vault_current.exists());
+    assert!(!repo_index.exists());
+    assert!(!vault_index.exists());
+}
+
+#[test]
+fn unscoped_checkpoint_uses_sole_identified_operation_not_stale_current() {
+    let f = fixture(B_TASK);
+    start_or_resume_plan_for_identity(&f.repo, &f.vault, A_TASK, &f.a).unwrap();
+    write(
+        &f.repo.join("docs/baron/plans/CURRENT.md"),
+        &format!("# Baron Plan\n\n- Title: {B_TASK}\n- Status: `active`\n"),
+    );
+    write(
+        &f.repo.join("docs/baron/harness/CURRENT.md"),
+        "# Product Harness\n\n- Title: B-only story\n- Risk: `high`\n",
+    );
+
+    let packet = record_continuity_checkpoint(
+        &f.repo,
+        &f.vault,
+        "checkpoint for the sole active operation",
+        "codex",
+    )
+    .unwrap();
+    let content = fs::read_to_string(&packet.repo_path).unwrap();
+
+    assert!(
+        content.contains(&format!("- Current task: `{A_TASK}`")),
+        "{content}"
+    );
+    assert!(
+        content.contains(&format!("- Task ID: `{}`", f.a.task_id())),
+        "{content}"
+    );
+    assert!(
+        content.contains(&format!("- Operation ID: `{}`", f.a.operation_id())),
+        "{content}"
+    );
+    assert!(!content.contains(B_TASK), "{content}");
+    assert!(!content.contains("B-only"), "{content}");
+    assert!(packet
+        .repo_path
+        .to_string_lossy()
+        .contains(f.a.operation_id()));
+    assert!(packet
+        .vault_path
+        .to_string_lossy()
+        .contains(f.a.operation_id()));
 }
 
 #[test]

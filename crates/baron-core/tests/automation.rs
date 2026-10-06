@@ -10,6 +10,7 @@ use baron_core::plan::{
     complete_plan_for_identity, start_or_resume_plan, start_or_resume_plan_for_identity,
 };
 use baron_core::proof::record_proof_for_operation;
+use baron_core::safe_io::acquire_project_lock;
 use baron_core::trace::{
     record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
 };
@@ -43,6 +44,58 @@ fn session_start_injects_context_and_records_an_observable_event() {
         .project_root
         .join("Artifacts/automation-journal.jsonl")
         .exists());
+}
+
+#[test]
+fn automation_status_waits_for_the_shared_vault_journal_lock() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    handle_hook(
+        &repo,
+        &context,
+        HookAdapter::Codex,
+        AutomationEvent::SessionStart,
+        r#"{"session_id":"journal-read-session","cwd":"demo"}"#,
+    )
+    .unwrap();
+
+    let shared_vault_lock = acquire_project_lock(&context.project_root).unwrap();
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (result_tx, result_rx) = std::sync::mpsc::channel();
+    let worker_repo = repo.clone();
+    let worker_context = context.clone();
+    let worker = std::thread::spawn(move || {
+        started_tx.send(()).unwrap();
+        result_tx
+            .send(automation_status(&worker_repo, &worker_context))
+            .unwrap();
+    });
+    started_rx.recv().unwrap();
+    let early_result = match result_rx.recv_timeout(std::time::Duration::from_millis(200)) {
+        Ok(result) => Some(result),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+        Err(error) => panic!("status worker disconnected unexpectedly: {error}"),
+    };
+    drop(shared_vault_lock);
+    let completed_while_locked = early_result.is_some();
+    let status = match early_result {
+        Some(result) => result.unwrap(),
+        None => result_rx
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("status read should resume after the shared lock is released")
+            .unwrap(),
+    };
+    worker.join().unwrap();
+
+    assert!(
+        !completed_while_locked,
+        "automation status read the shared Vault journal without the capsule lock"
+    );
+    assert!(status.contains("Events recorded: 1"));
 }
 
 #[test]

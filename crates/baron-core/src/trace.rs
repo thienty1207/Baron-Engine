@@ -393,7 +393,7 @@ pub fn score_trace(
     let content = fs::read_to_string(&repo_path)?;
     let vault_path = verified_vault_trace_mirror(vault, repo_root, &repo_path, content.as_bytes())?
         .context("Trace Vault mirror is missing or differs from the repo trace")?;
-    let score = evaluate_trace_score(repo_root, &content)?;
+    let score = evaluate_trace_score(repo_root, &content, None)?;
     let updated = replace_score(&content, &score);
     write(&repo_path, &updated)?;
     write(&vault_path, &updated)?;
@@ -419,12 +419,34 @@ pub fn score_trace(
 /// Recompute trace authority from the current trace, proof, receipt, gate, and
 /// capability state. The persisted score block is intentionally not read here;
 /// it is a display/history cache written by [`score_trace`].
-fn evaluate_trace_score(repo_root: &Path, content: &str) -> Result<TraceScore> {
-    let risk = parse_risk(content);
+fn evaluate_trace_score(
+    repo_root: &Path,
+    content: &str,
+    expected_risk: Option<RiskLane>,
+) -> Result<TraceScore> {
     let trace_id = trace_field(content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string());
     let binding = parse_trace_binding(content)?;
     let proof_id = trace_field(content, "- Proof ID: `");
     let mut missing = Vec::new();
+    let stored_risk = parse_risk(content);
+    let risk = if let Some(expected_risk) = expected_risk {
+        if stored_risk != expected_risk {
+            missing.push("trace risk does not match active plan".to_string());
+        }
+        expected_risk
+    } else if let Some(binding) = binding.as_ref() {
+        match active_plan_authority_for_trace_binding_locked(repo_root, binding)? {
+            Some(authority) => {
+                if stored_risk != authority.risk {
+                    missing.push("trace risk does not match active plan".to_string());
+                }
+                authority.risk
+            }
+            None => stored_risk,
+        }
+    } else {
+        stored_risk
+    };
     if !content.contains("## Task Summary\n\n") || content.contains("## Task Summary\n\n\n") {
         missing.push("task summary".to_string());
     }
@@ -598,7 +620,7 @@ pub fn latest_trace_score_for_operation(
         return Ok(None);
     };
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
-    latest_trace_score_for_operation_locked(repo_root, &vault, expected)
+    latest_trace_score_for_operation_locked(repo_root, &vault, expected, None)
 }
 
 /// Score the exact operation trace using the caller's already-resolved Vault
@@ -612,19 +634,34 @@ pub(crate) fn latest_trace_score_for_operation_in_vault(
 ) -> Result<Option<TraceScore>> {
     let _repo_lock = acquire_project_lock(repo_root)?;
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
-    latest_trace_score_for_operation_locked(repo_root, vault, expected)
+    latest_trace_score_for_operation_locked(repo_root, vault, expected, None)
+}
+
+/// Evaluate an operation trace against risk from its already-validated active
+/// plan. Plan completion uses this variant while its status transition is
+/// pending, when the on-disk ACTIVE/frontmatter pair is temporarily in flight.
+pub(crate) fn latest_trace_score_for_operation_in_vault_with_risk(
+    repo_root: &Path,
+    vault: &VaultContext,
+    expected: &TraceOperationBinding,
+    expected_risk: RiskLane,
+) -> Result<Option<TraceScore>> {
+    let _repo_lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    latest_trace_score_for_operation_locked(repo_root, vault, expected, Some(expected_risk))
 }
 
 fn latest_trace_score_for_operation_locked(
     repo_root: &Path,
     vault: &VaultContext,
     expected: &TraceOperationBinding,
+    expected_risk: Option<RiskLane>,
 ) -> Result<Option<TraceScore>> {
     let Some(trace) = trace_for_operation_locked(repo_root, vault, expected)? else {
         return Ok(None);
     };
     let content = fs::read_to_string(trace.repo_path)?;
-    let score = evaluate_trace_score(repo_root, &content)?;
+    let score = evaluate_trace_score(repo_root, &content, expected_risk)?;
     if score.binding.as_ref() == Some(expected)
         && score.proof_id.as_deref() == Some(expected.proof_id.as_str())
     {

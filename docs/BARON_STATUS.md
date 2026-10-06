@@ -1,14 +1,17 @@
 # Baron Build Status
 
-## SPEC-05 zero-CURRENT closure repair (FIX REQUIRED, 2026-10-06)
+## SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
 
-Fresh independent reviews of `ecaf362..4a3efc0` found three Important gaps: operation-bound harness story lookup still depended on the global CURRENT projection; an unbound legacy trace could attach/credit a different operation's bound proof; and hook response journal publication used only a checkout-local lock for a shared Vault file. Each has an observed RED regression and a focused GREEN repair. Harness scoping passed 13/13, proof/trace passed 33/33 before the final scorer-tampering assertion (that new assertion passed in isolation), and shared-Vault journal publication passed 1/1. Full post-repair verification, complete authority re-audit, and fresh exact-range reviews remain outstanding.
+Current production authority audit classifies 45 caller-path groups exactly once (`PRESENTATION_ONLY=11`, `LEGACY_SINGLE_ACTIVE_SAFE=8`, `EXACT_OPERATION_SCOPED=17`, `AMBIGUOUS_FAIL_CLOSED=6`, `OUT_OF_SPEC=3`, `BUG=0`). The complete local matrix is green on branch `codex/spec-05-multi-agent-concurrency-durable-state`, against review base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`; public version remains `5.0.0`.
 
-- Status: `SPEC-05: FIX REQUIRED`; not closed. Interim WIP source commit `6bdf96d` was pushed to the requested branch and matched the remote SHA; this is not acceptance or closure. Full post-repair gates, complete authority re-audit, and two fresh exact-range reviews remain required before final closure.
-- Current boundary: identified story/proof/trace authority uses exact operation plan and only own proof; shared Vault journal reads/publications follow checkout → Vault lock order. `CURRENT.md` remains a presentation projection.
-- Full Core/CLI/adapters/workspace, Clippy, release, and final source audit have not been rerun after these repairs. Earlier counts below are historical for the pre-repair snapshot; local runs are not GitHub CI.
-- Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, or Hotel Staff changes.
-- Safe next action: finish targeted regressions, update the repository-wide CURRENT caller audit, then run required full verification. Commit the exact final source/evidence range and obtain two fresh independent reviews of `ecaf362..<final HEAD>`; only two explicit ACCEPTs permit CLOSED.
+- Full gates: format passed; Core all-targets 631/0/0 across 60 suites; CLI 190/0/1 ignored across 38 suites; adapters 124/0/3 ignored across 14 suites; workspace 945/0/4 ignored across 112 suites; warnings-denied Clippy and locked release build passed. Release smoke passed 1/1, public trust docs 12/12, the binary reports `baron 5.0.0`, and required CLI help commands exited 0.
+- Regression matrix: focused Core 317 passed plus the separately repeated `harness_improvement` 13/13; CLI selector/evidence/hook suites 38/38; `session_replay` 5/5. The default host PowerShell lifecycle attempt remains 4/7 because `Microsoft.PowerShell.Archive` could not load; the repository-supported bundled PowerShell 7 run passed 7/7.
+- Scope and evidence: no release/tag/version change, SPEC-06, Hotel Staff, or manifest/lockfile edits. Local verification is not GitHub CI. After staging exposed a tracked-source wording collision, the evidence wording was corrected; the regression and trust-doc targets passed on the staged wording. The detailed ledger records this RED→GREEN and all exact results.
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; not closed. Historical reviews of `ecaf362..4a3efc0` found three Important issues; each now has a regression-backed repair, and those old verdicts do not count as acceptance. No known owned Critical/Important issue remains from the current source audit.
+- Review/delivery: the readiness snapshot is being prepared for the requested branch. After push, verify the exact remote SHA and query GitHub Actions/commit statuses. Then obtain two fresh independent read-only ACCEPT reviews of the same exact `ecaf362..<FINAL_REVIEW_HEAD>` range. Only both ACCEPT verdicts permit CLOSED and a separate closure-evidence push.
+- Safe next action: finish final docs/scope checks, commit and push the readiness snapshot, verify local and remote SHA equality, then run the two exact-range reviews. Keep SPEC-05 open unless both reviewers ACCEPT.
+
+Execution records: [SPEC-05 final closure verification plan](superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md); [final verification ledger](superpowers/plans/2026-10-06-spec-05-final-verification.md); [current authority audit](superpowers/plans/2026-10-01-spec-05-authority-audit.md).
 
 ## Historical pre-repair status (superseded 2026-10-06)
 

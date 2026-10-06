@@ -10,8 +10,8 @@ use sha2::{Digest, Sha256};
 use crate::execution_receipt::ReceiptContext;
 use crate::operation::{LifecycleIdentity, OperationContext};
 use crate::plan::{
-    indexed_active_plan_authority_for_binding, managed_active_plan_operation_binding,
-    plan_status_for_identity, PlanOperationBinding,
+    active_plan_authority, indexed_active_plan_authority_for_binding,
+    managed_active_plan_operation_binding, plan_status_for_identity, PlanOperationBinding,
 };
 use crate::proof::{latest_proof, proof_for_operation};
 use crate::safe_io::{
@@ -297,13 +297,31 @@ fn record_continuity_checkpoint_internal(
     // it before entering the shared continuity mutation critical section.
     let changed_files = changed_files(repo_root);
     let _lock = acquire_project_lock(repo_root)?;
-    if let Some(identity) = metadata.identity {
+    // Preserve the identity-less compatibility path only when there is no
+    // identified active plan. A sole identified plan is sufficient authority
+    // to scope this legacy ingress; multiple active plans fail closed in
+    // active_plan_authority before any shared checkpoint can be published.
+    let inferred_identity = if metadata.identity.is_none() {
+        active_plan_authority(repo_root)?
+            .and_then(|authority| authority.binding)
+            .map(|binding| {
+                binding
+                    .to_operation_context()?
+                    .lifecycle_identity(&vault.project_id)
+                    .map_err(anyhow::Error::from)
+            })
+            .transpose()?
+    } else {
+        None
+    };
+    let identity = metadata.identity.or(inferred_identity.as_ref());
+    if let Some(identity) = identity {
         // Validate even retries: an event-key match cannot hide corrupted
         // ACTIVE/frontmatter authority or authorize a stale checkpoint.
         plan_status_for_identity(repo_root, identity)?;
     }
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
-    if let Some(identity) = metadata.identity {
+    if let Some(identity) = identity {
         let id = match metadata.event_key {
             Some(key) => format!("event-{:x}", Sha256::digest(key.as_bytes())),
             None => artifact_instance_id(&Local::now().format("%Y%m%d").to_string())?,
@@ -351,6 +369,7 @@ fn record_continuity_checkpoint_internal(
             note,
             ResumePacketMetadata {
                 changed_files: &changed_files,
+                identity: Some(identity),
                 ..metadata
             },
         )?;
@@ -466,8 +485,8 @@ fn render_resume_packet(
     }
     let plan = read_optional(&repo_root.join("docs/baron/plans/CURRENT.md"));
     let harness = read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"));
-    let proof = latest_proof(repo_root)?;
-    let trace = latest_trace_score(repo_root)?;
+    let proof = latest_proof(repo_root)?.filter(|proof| proof.binding.is_none());
+    let trace = latest_trace_score(repo_root)?.filter(|trace| trace.binding.is_none());
     let latest_event = latest_automation_event(vault);
     let recovery = read_optional(&repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"));
 

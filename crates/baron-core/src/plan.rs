@@ -18,7 +18,7 @@ use crate::safe_io::{
     replace_text,
 };
 use crate::trace::{
-    latest_trace_score_for_operation, latest_trace_score_for_operation_in_vault,
+    latest_trace_score_for_operation, latest_trace_score_for_operation_in_vault_with_risk,
     TraceOperationBinding, TraceTier,
 };
 use crate::vault::{canonical_project_id, VaultContext};
@@ -602,6 +602,12 @@ fn start_or_resume_plan_internal(
                 resumed: true,
             });
         }
+        if binding.is_none() && active.status != "completed" {
+            bail!(
+                "Cannot start unbound plan `{title}` while active plan `{}` exists; provide an explicit operation identity",
+                active.title
+            );
+        }
     }
     let risk = classify_risk(title);
     let date = today();
@@ -1171,9 +1177,12 @@ fn completion_evidence_issues(
     if let Some(proof) = proof {
         let trace_binding = expected_binding.trace_binding(&proof.id);
         let trace = match vault {
-            Some(vault) => {
-                latest_trace_score_for_operation_in_vault(repo_root, vault, &trace_binding)?
-            }
+            Some(vault) => latest_trace_score_for_operation_in_vault_with_risk(
+                repo_root,
+                vault,
+                &trace_binding,
+                active.risk,
+            )?,
             None => latest_trace_score_for_operation(repo_root, &trace_binding)?,
         };
         match trace {
