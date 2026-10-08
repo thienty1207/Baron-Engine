@@ -85,7 +85,7 @@
 - [x] Verify `session_replay` UTF-8 regression on current code: 5/5.
 - [x] Re-run binary version (`baron 5.0.0`), release smoke 1/1, trust docs 12/12, status JSON parse, 12 changed-Markdown links, tracked-source gate, five CLI help commands, and `git diff ecaf362 --check` after the evidence update.
 - [x] Confirm no release/tag/version bump/SPEC-06/Hotel Staff or out-of-scope manifest/lockfile changes.
-- [ ] Query GitHub Actions and commit statuses for the eventual readiness commit; if absent, record exactly the prompt's no-hosted-evidence sentence.
+- [x] Query GitHub Actions for repaired code commit `5c2bb5bda74363be3532a9f5516d26848379bada`: run `37718795708` completed with Format/Clippy job `113121400969`, Windows native job `113121401034`, and Linux native job `113121401053` all successful; both native jobs passed the full suite, release build, and CLI version smoke.
 - [x] All local gates for the repaired source pass. The default-host lifecycle limitation and supported bundled PowerShell 7 result remain separately disclosed. Local checks do not imply hosted CI.
 - [x] Hosted Baron CI `37461605214` at `c2b91db` was checked: Format/Clippy and Windows native passed; Linux native failed. Its artifact identified Windows-specific test fixtures. This failure invalidates the earlier readiness snapshot.
 
@@ -98,7 +98,7 @@
 **Interfaces:** consumes Tasks 2–4; produces one committed/pushed exact readiness SHA for both independent reviews.
 
 - [x] Reconcile the current status as `FIX REQUIRED` after the hosted Linux failure; prior readiness claims remain historical only.
-- [ ] Set `READY FOR ADVERSARIAL REVIEW` only after the repaired tree passes all local gates and hosted CI, with authority `BUG=0`.
+- [x] Set `READY FOR ADVERSARIAL REVIEW` after the repaired tree passed all local gates, hosted CI, and the authority audit with `BUG=0`.
 - [ ] Commit scoped changes, push the branch, verify local HEAD equals remote HEAD, and verify the hosted workflow for the new SHA before recording a new `FINAL_REVIEW_HEAD`.
 
 ### Task 6: Obtain two independent exact-range adversarial reviews

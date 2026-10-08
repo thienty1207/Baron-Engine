@@ -1,7 +1,7 @@
 # SPEC-05 CURRENT / latest authority inventory
 
 Date: 2026-10-06. Audit baseline: `9bdb979`; latest reviewed WIP: `4a3efc0`; closure base: `ecaf362`.
-The earlier Core/CLI scan returned 258 matching lines before the latest repairs. Two fresh independent reviews of `ecaf362..4a3efc0` found three Important findings; all three now have observed RED regressions and focused GREEN changes. Focused evidence: harness scoping `13/13`, proof/trace `33/33` before the last scorer-tampering assertion (that test passes alone), shared-Vault hook journal publication `1/1`. The production caller audit and full verification have not yet been rerun over the current repair snapshot, so this document is an interim audit checkpoint, not readiness or acceptance. Interim WIP source commit `6bdf96d` was uploaded at the user's request and matched the remote branch SHA; the prior reviews are not acceptance. Public version remains `baron 5.0.0`.
+Historical checkpoint: the earlier Core/CLI scan returned 258 matching lines before the latest repairs. Two fresh independent reviews of `ecaf362..4a3efc0` found three Important findings; all three now have observed RED regressions and focused GREEN changes. This checkpoint was superseded by the completed final caller inventory below. Interim WIP source commit `6bdf96d` was uploaded at the user's request and is not acceptance. Public version remains `baron 5.0.0`.
 
 ## Search coverage
 
@@ -166,7 +166,7 @@ The final caller-path count is `11 + 8 + 17 + 6 + 3 = 45`; `BUG=0`. No known SPE
 
 ## 2026-10-08 verification update
 
-Hosted Baron CI run `37461605214` on readiness commit `c2b91dbfc4cedd593912013751c85f209755c9e1` failed the Linux native test job. The artifact isolated the failure to platform assumptions in test fixtures: CLI tests launched Windows `cmd.exe`, and a Core test asserted Windows absolute-path containment on Unix. The working-tree repair changes only those test fixtures; `receipt_authority.rs` changes are confined to its `#[cfg(test)]` module. A diff check confirms no production caller path or authority behavior changed, so the inventory remains 45 groups and `BUG=0`. Fresh repaired-tree Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored and workspace 945/0/4 ignored across 112 suites all pass on Windows. Focused matrices and all formatter, Clippy, release, and documentation gates also pass. The prior readiness status remains revoked until the repair is pushed and its hosted Linux CI passes.
+Hosted Baron CI run `37461605214` on readiness commit `c2b91dbfc4cedd593912013751c85f209755c9e1` failed the Linux native test job. The artifact isolated the failure to platform assumptions in test fixtures: CLI tests launched Windows `cmd.exe`, and a Core test asserted Windows absolute-path containment on Unix. The committed repair at `5c2bb5bda74363be3532a9f5516d26848379bada` changes only those test fixtures; `receipt_authority.rs` changes are confined to its `#[cfg(test)]` module. Hosted Baron CI run `37718795708` passed Format/Clippy, Windows native, and Linux native jobs. A diff check confirms no production caller path or authority behavior changed, so the inventory remains 45 groups and `BUG=0`. SPEC-05 is ready for two fresh independent reviews but not closed; this exact audit informs the pending readiness evidence snapshot and review-head CI.
 
 ## Rulings and regressions
 
