@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-06",
+  "lastUpdated": "2026-10-08",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -16,13 +16,13 @@
   ],
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
-  "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Finalize tracked evidence checks, commit and push the readiness snapshot, verify local and remote SHA equality, query GitHub Actions and commit statuses, then obtain two fresh independent ACCEPT reviews of the same exact range.",
+  "currentPhaseStatus": "fix_required",
+  "nextAction": "Commit and push the locally verified Linux-portable test fixtures, confirm local and remote SHA equality and the hosted Baron CI result, then prepare a new readiness snapshot before dispatching fresh exact-range reviewers.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
     "name": "Multi-Agent Concurrency and Durable State",
-    "status": "ready_for_adversarial_review",
+    "status": "fix_required",
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "publicVersionBump": false,
@@ -41,6 +41,7 @@
       ]
     },
     "verificationBlockers": [
+      "The previous readiness commit c2b91dbfc4cedd593912013751c85f209755c9e1 failed hosted Baron CI run 37461605214: Linux native tests failed while Format/Clippy and Windows native tests succeeded. The Linux artifact identifies Windows-only cmd.exe fixtures in six CLI tests and a Windows-path-only Core assertion. Test-only cross-platform fixtures now pass fresh Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored across 112 suites, focused Core 313/0 plus repeated harness improvement 13/13, and focused CLI 38/0. Format, warnings-denied Clippy, release build/smoke, trust docs, version, CLI help, JSON/docs/link/scope checks pass; the repair is not pushed or hosted-verified yet",
       "Historical independent reviews of ecaf362..4a3efc0 returned FIX REQUIRED with three Important findings: CURRENT-based harness story selection, foreign proof borrowing by an unbound trace, and checkout-only hook journal locking. Each has a regression-backed repair in the current source; historical verdicts do not count as final acceptance",
       "Current production audit covers 45 one-class caller paths across Core/CLI/adapters with BUG=0. Fresh focused Core, CLI, adapter, and workspace matrices pass; warnings-denied Clippy, locked release build, release smoke, trust docs, version, CLI help, status JSON, and tracked-source gate pass. The default-host lifecycle limitation is separately recorded; the supported bundled PowerShell 7 run passes",
       "Two fresh independent read-only reviewers must accept the same exact committed ecaf362..<FINAL_REVIEW_HEAD> range, including all source repairs and current evidence. Reviewer quota/time failure is inconclusive; CLOSED requires both explicit ACCEPT verdicts and zero unresolved Critical/Important findings",
@@ -74,9 +75,9 @@
       "4a3efc0",
       "6bdf96d"
     ],
-    "closureBasis": "Ready for adversarial review, not closed. Final closure verification started from source HEAD 3cd03c6793807f2a149b3ed6f56dc43027640955 against review base ecaf362c275431edfc5e590fd6a87d926b9bde9d. The fresh caller-path audit is BUG=0 and current local verification passed: Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored, plus format, warnings-denied Clippy, locked release, release smoke, trust docs, CLI help, and baron 5.0.0. Two fresh exact-range independent ACCEPT reviews and closure-evidence push remain required.",
+    "closureBasis": "FIX REQUIRED, not ready or closed. Prior readiness commit c2b91dbfc4cedd593912013751c85f209755c9e1 failed hosted Baron CI run 37461605214 on Linux native tests. A test-only cross-platform fixture repair now passes fresh local package/focused gates, workspace 945/0/4 ignored across 112 suites, formatter, warnings-denied Clippy, release build/smoke, trust docs, binary version, CLI help, status JSON, Markdown links, tracked-source gate, and diff check. The repair is not pushed; hosted CI must validate the new SHA before review readiness. The current authority inventory remains BUG=0; prior quota-limited review dispatches are inconclusive.",
     "verification": {
-      "focusedConcurrencyMatrix": "PASS current source: Core named focused matrix 317 passed/0 failed plus the prompt-required second harness_improvement run 13/13; CLI selector/evidence/hook matrix 38/38; session_replay UTF-8 regression 5/5. Default-host lifecycle is 4/7 due to unavailable Microsoft.PowerShell.Archive; supported bundled PowerShell 7 passes 7/7.",
+      "focusedConcurrencyMatrix": "PASS repaired source: Core named focused matrix 313 passed/0 failed across 22 targets, repeated harness_improvement 13/13, CLI selector/evidence/hook matrix 38/38 across five targets; session_replay UTF-8 regression 5/5. Default-host lifecycle is 4/7 due to unavailable Microsoft.PowerShell.Archive; supported bundled PowerShell 7 passes 7/7.",
       "currentFocusedRepairs": "PASS: continuity checkpoint/resume, title-only legacy plan creation beside identified work, no-selector Core proof selection, trace-risk provenance, and shared journal readers have regression coverage. The tracked-source retirement wording was tested RED when the new evidence docs were staged, removed without weakening the gate, then both tracked-reference/filename tests passed 2/2; public trust docs passed 12/12 after that correction.",
       "stopReplayFreshness": "PASS: current focused regression observed stale continue=true/reconciliation_passed=true before the fix, then verified current failing evidence blocks through both dedup-cache and journal-only replay",
       "postStopReplayFixIntegratedGates": "HISTORICAL: verification-954e702e19874bf5b7a108bea5027463 completed local gates before the 2026-10-05 hook/rollback repairs; do not treat its counts as current acceptance.",
@@ -91,20 +92,20 @@
       "binaryVersion": "PASS: target/release/baron.exe --version reported exactly baron 5.0.0.",
       "releaseSmoke": "PASS: required ignored Phase 14 release smoke executed after the locked release build and passed 1/1.",
       "diffCheck": "PASS: git diff ecaf362 --check exited 0; only Git LF-to-CRLF working-copy warnings were emitted.",
-      "maintainedMarkdownRelativeLinks": "PASS: 11 relative links across changed Markdown files checked; 0 broken.",
+      "maintainedMarkdownRelativeLinks": "PASS: 12 relative links across changed Markdown files checked on 2026-10-08; 0 broken.",
       "baselineFailureComparison": "CURRENT lifecycle_scripts default host PowerShell: 4 passed/3 failed because Microsoft.PowerShell.Archive could not load Compress-Archive; supported bundled PowerShell 7 rerun passed 7/7. Current session_replay UTF-8 suite passed 5/5.",
       "retiredAdapterGate": "PASS: case-insensitive tracked-source search returned no hits (exit 1, no output); new tracked evidence wording was corrected after the regression exposed the literal.",
       "statusJson": "PASS: docs/BARON_STATUS.json parsed after final status synchronization.",
       "cliHelp": "PASS: release binary root help, proof record, trace record, trace score, and continuity recover help commands all exited 0.",
-      "mutationInventory": "CURRENT audit: all required authority patterns scanned in crates/baron-core/src, crates/baron-cli/src, and crates/baron-adapters/src. 155 production-source search-hit lines grouped into 45 caller paths: PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=6, OUT_OF_SPEC=3, BUG=0. Full local gates pass; fresh exact-range reviews remain.",
-      "reviewDisposition": "READY FOR ADVERSARIAL REVIEW, not closed: historical reviews of ecaf362..4a3efc0 found three Important findings, now addressed with regressions. Two fresh independent read-only reviews of the exact pushed ecaf362..<FINAL_REVIEW_HEAD> range remain mandatory.",
+      "mutationInventory": "CURRENT audit: all required authority patterns scanned in crates/baron-core/src, crates/baron-cli/src, and crates/baron-adapters/src. 155 production-source search-hit lines grouped into 45 caller paths: PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=6, OUT_OF_SPEC=3, BUG=0. The 2026-10-08 code diff touches only CLI test fixtures and a Core cfg(test) module, leaving production caller paths unchanged.",
+      "reviewDisposition": "FIX REQUIRED: hosted Linux native tests failed at readiness commit c2b91db. Test portability repair has passed fresh local package gates but is unpushed and unhosted; do not dispatch reviewers until the new candidate has green hosted CI.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW: previous ecaf362..4a3efc0 reports are historical FIX REQUIRED, not acceptance. After readiness push and SHA verification, dispatch two independent read-only reviewers against one identical exact ecaf362..<FINAL_REVIEW_HEAD> range; quota/time failure is inconclusive. Do not mark CLOSED without two ACCEPTs and zero unresolved Critical/Important findings.",
+      "adversarialReview": "FIX REQUIRED: prior readiness candidate c2b91db failed hosted Linux tests. The two attempted reviewer dispatches exhausted quota and are INCONCLUSIVE. After test repair is pushed and hosted CI passes, establish a new readiness SHA and dispatch two independent read-only reviewers for one identical ecaf362..<FINAL_REVIEW_HEAD> range. Do not mark CLOSED without two ACCEPTs and zero unresolved Critical/Important findings.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md",
-    "nextAction": "Run final tracked-doc checks, commit and push the readiness snapshot, verify the remote SHA and query hosted statuses, then obtain two independent exact-range ACCEPT reviews."
+    "nextAction": "Commit and push the locally verified Linux-portable test fixtures, verify remote SHA equality and hosted CI for that SHA, then establish a new readiness snapshot for two independent exact-range reviews."
   },
   "securityRemediation": {
     "status": "complete",

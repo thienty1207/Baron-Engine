@@ -611,8 +611,9 @@ mod tests {
     use super::{boundary_path, is_baron_staging_name, is_within_boundary};
     use std::path::Path;
 
+    #[cfg(windows)]
     #[test]
-    fn repository_descendant_is_inside_the_authority_boundary() {
+    fn windows_repository_descendant_is_inside_the_authority_boundary() {
         let repo = boundary_path(Path::new(r"C:\workspace\repo")).unwrap();
         let seed = boundary_path(Path::new(
             r"C:\workspace\repo\.baron\machine-home\authority\execution-receipt-ed25519.seed",
@@ -622,6 +623,17 @@ mod tests {
 
         let extended_repo = boundary_path(Path::new(r"\\?\C:\workspace\repo")).unwrap();
         assert!(is_within_boundary(&seed, &extended_repo));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn repository_descendant_is_inside_the_authority_boundary() {
+        let repo = boundary_path(Path::new("/workspace/repo")).unwrap();
+        let seed = boundary_path(Path::new(
+            "/workspace/repo/.baron/machine-home/authority/execution-receipt-ed25519.seed",
+        ))
+        .unwrap();
+        assert!(is_within_boundary(&seed, &repo));
     }
 
     #[test]

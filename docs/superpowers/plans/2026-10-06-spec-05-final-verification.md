@@ -1,6 +1,6 @@
 # SPEC-05 Final Closure Verification Ledger
 
-Date: 2026-10-06. Status: `READY FOR ADVERSARIAL REVIEW`; not closed. Full local gates passed. The readiness snapshot still needs its final tracked-doc checks, push/SHA verification, hosted-status query, and two fresh exact-range reviews.
+Date: 2026-10-06. Historical status at that checkpoint: `READY FOR ADVERSARIAL REVIEW`; that readiness was later invalidated by the hosted Linux failure recorded below. The document remains the detailed record for the 2026-10-06 runs.
 
 ## Source and scope
 
@@ -84,4 +84,26 @@ The tracked retired-adapter gate (case-insensitive tracked-source search) exited
 
 The first workspace attempt before removing tracked status wording exited 101 with 944 passed, 1 failed, and 4 ignored across 112 suites. The failing retired-reference test found the literal in the status JSON; the wording was corrected without changing the gate. Staging the two new evidence docs exposed the same condition: the existing test went RED because the untracked docs had included the literal in their examples. After correcting both docs, the targeted tracked-reference/filename tests passed 2/2 and public trust docs passed 12/12. The exact complete verification script then passed all package/workspace suites, Clippy, locked release, release smoke, docs, version, and CLI help. No Rust source changed after that complete run.
 
-Prior reviews of `ecaf362..4a3efc0` are historical `FIX REQUIRED` reviews, not acceptance. Current status is `SPEC-05: READY FOR ADVERSARIAL REVIEW`, not CLOSED. Closure requires two fresh independent `ACCEPT` verdicts for one identical pushed range and zero unresolved Critical/Important findings.
+Prior reviews of `ecaf362..4a3efc0` are historical `FIX REQUIRED` reviews, not acceptance. This 2026-10-06 snapshot's readiness label is superseded by the newer hosted CI failure below. Closure requires two fresh independent `ACCEPT` verdicts for one identical pushed range and zero unresolved Critical/Important findings.
+
+## Latest checkpoint — 2026-10-08
+
+Current status: `SPEC-05: FIX REQUIRED`; not ready and not closed. The previously pushed readiness commit `c2b91dbfc4cedd593912013751c85f209755c9e1` was checked against hosted Baron CI run [37461605214](https://github.com/thienty1207/Baron-Engine/actions/runs/37461605214): Format and Clippy passed, Windows native tests passed, Linux native tests failed. The commit status API reports `pending` with zero status contexts, which is not a passing hosted check.
+
+The Linux job artifact traced the failures to test portability: four `execution_cli` fixtures and two `operation_evidence_cli` fixtures invoked `cmd /C exit 0`; one `receipt_authority` unit test treated a Windows drive path and extended Windows path as a Unix descendant. Current uncommitted test-only repairs select `cmd /C exit 0` on Windows and `sh -c 'exit 0'` elsewhere, and split the Windows and native-path assertions by target OS. No product runtime behavior changed.
+
+Fresh repaired-tree package gates on Windows, with isolated nonexistent Codex/Claude session roots and the bundled PowerShell 7 test host:
+
+| Package | Passed / failed / ignored | Suites | Command result |
+| --- | ---: | ---: | --- |
+| Core | 631 / 0 / 0 | 60 | PASS, exit 0 |
+| CLI | 190 / 0 / 1 | 38 | PASS, exit 0 |
+| adapters | 124 / 0 / 3 | 14 | PASS, exit 0 |
+
+Focused repaired-tree matrix: Core 313 passed/0 failed across 22 named targets; the prompt-required second `harness_improvement` run passed 13/13; CLI plan identity, operation evidence, hook, intent, and execution targets passed 38/38 across five targets. Full workspace all-targets passed 945/0/4 ignored across 112 suites. `cargo fmt --all -- --check`, warnings-denied Clippy, and locked release build exited 0. The ignored release binary smoke passed 1/1; the binary reports exactly `baron 5.0.0`; public trust docs passed 12/12; five CLI help checks exited 0; updated JSON parsed with `FIX REQUIRED`; 12 changed Markdown relative links resolved; tracked-source retirement gate found no hit; `git diff ecaf362 --check` passed.
+
+Fresh lifecycle baseline: default Windows PowerShell exited 101 with 4 passed/3 failed because `Microsoft.PowerShell.Archive` could not load for `Compress-Archive`; the CLI package all-target run with the supported bundled PowerShell 7 passed this target 7/7. Current `session_replay` passed 5/5 within the Core package and workspace runs. These host facts are reported separately from product results.
+
+The production authority inventory remains 45 groups (`PRESENTATION_ONLY=11`, `LEGACY_SINGLE_ACTIVE_SAFE=8`, `EXACT_OPERATION_SCOPED=17`, `AMBIGUOUS_FAIL_CLOSED=6`, `OUT_OF_SPEC=3`, `BUG=0`). The working-tree Rust diff is confined to CLI test fixtures and the Core `#[cfg(test)]` module; it does not alter production authority paths. Scope review confirms no release/tag/version bump, SPEC-06, Hotel Staff, or manifest/lockfile change. Only hosted verification of the pushed repair, a new readiness snapshot, and two fresh independent reviews remain.
+
+Previous independent-review dispatches ended at the usage limit, so their result is `INCONCLUSIVE`; neither can count as ACCEPT. The prior readiness SHA is invalid. Next: finish all fresh local gates, commit and push the test portability repair, verify the new remote SHA and hosted CI, then create a new readiness boundary for two fresh independent exact-range reviews. No review or closure claim is valid before that.

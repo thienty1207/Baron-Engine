@@ -164,6 +164,10 @@ This current-source inventory supersedes the mixed/alternative labels in the his
 
 The final caller-path count is `11 + 8 + 17 + 6 + 3 = 45`; `BUG=0`. No known SPEC-05-owned Critical or Important issue remains from the completed source audit at this checkpoint. The focused matrix, package/workspace all-targets, warnings-denied Clippy, locked release, smoke, trust docs, version, and CLI help gates passed; final staged-doc checks are recorded in the verification ledger. This inventory is not closure: the readiness snapshot must be pushed and two fresh independent reviewers must ACCEPT the same exact range.
 
+## 2026-10-08 verification update
+
+Hosted Baron CI run `37461605214` on readiness commit `c2b91dbfc4cedd593912013751c85f209755c9e1` failed the Linux native test job. The artifact isolated the failure to platform assumptions in test fixtures: CLI tests launched Windows `cmd.exe`, and a Core test asserted Windows absolute-path containment on Unix. The working-tree repair changes only those test fixtures; `receipt_authority.rs` changes are confined to its `#[cfg(test)]` module. A diff check confirms no production caller path or authority behavior changed, so the inventory remains 45 groups and `BUG=0`. Fresh repaired-tree Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored and workspace 945/0/4 ignored across 112 suites all pass on Windows. Focused matrices and all formatter, Clippy, release, and documentation gates also pass. The prior readiness status remains revoked until the repair is pushed and its hosted Linux CI passes.
+
 ## Rulings and regressions
 
 - CURRENT is a human-facing latest projection, not a correctness authority for identified operations. Identified authority and completion-status readers derive from validated ACTIVE/frontmatter; no-selector legacy APIs count managed active plans first, use the sole identified plan, and fail ambiguous on multiplicity. Unbound legacy paths continue to require a compatible CURRENT link.

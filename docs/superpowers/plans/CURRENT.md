@@ -1,15 +1,15 @@
 # Current Baron Build Plan
 
-## Active repair: SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW, 2026-10-06)
+## Active repair: SPEC-05 final closure verification (FIX REQUIRED — hosted Linux CI remediation, 2026-10-08)
 
-The fresh production audit reports 45 single-category caller paths and `BUG=0`. Full local verification passed against review base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`: Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored; fmt, warnings-denied Clippy, locked release, release smoke, trust docs, CLI help, and `baron 5.0.0` checks passed. SPEC-05 is ready for fresh adversarial review, not closed.
+The authority audit records 45 production caller paths with `BUG=0`. Hosted Baron CI run `37461605214` for readiness commit `c2b91dbfc4cedd593912013751c85f209755c9e1` failed Linux native tests; Format/Clippy and Windows native tests passed. The Linux log traced the failures to Windows-only child-command fixtures and a Windows-only path assertion. The test-only portability repair now passes fresh Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, and workspace 945/0/4 ignored; focused Core is 313/0 plus the required repeated `harness_improvement` 13/13, and focused CLI identity/evidence/hooks 38/0. Format, Clippy, locked release, release smoke, public trust docs, version, CLI help, JSON, 12 Markdown links, tracked-source and diff gates also pass. The repaired source is not pushed or hosted-verified; SPEC-05 remains `FIX REQUIRED`.
 
 - Execution plan: [SPEC-05 final closure verification](2026-10-06-spec-05-final-closure-verification-plan.md); evidence ledger: [2026-10-06 final verification](2026-10-06-spec-05-final-verification.md); authority audit: [current caller inventory](2026-10-01-spec-05-authority-audit.md).
 - Authority boundary: exact lifecycle identity and persisted binding → indexed ACTIVE → canonical managed frontmatter. CURRENT stays a presentation projection for identified work; ambiguous legacy selectors fail closed. Shared Vault journal operations follow checkout → Vault locking.
-- Lifecycle baseline: the default host PowerShell is 4/7 due to its missing archive module; the repository-supported bundled PowerShell 7 target is 7/7. This environment-specific failure is disclosed, not counted as a product pass.
+- Lifecycle baseline: fresh default host PowerShell is 4/7 because its archive module cannot load; the repository-supported bundled PowerShell 7 target is 7/7. This environment-specific failure is disclosed, not counted as a product pass.
 - Scope: no release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile edits. Public version remains `5.0.0`; local results are not GitHub CI.
-- Review gate: historical `FIX REQUIRED` reviews on `ecaf362..4a3efc0` are not acceptance; their Important findings have regression-backed fixes. Push the readiness snapshot, verify local/remote SHA equality, query hosted statuses, then obtain two fresh independent read-only ACCEPTs of the same exact `ecaf362..<FINAL_REVIEW_HEAD>` range. Only both ACCEPTs permit closure.
-- Safe next action: complete final docs/scope validation, push readiness, record hosted status evidence, and dispatch the two reviewers. Keep status READY FOR ADVERSARIAL REVIEW until both reports are in; do not claim CLOSED early.
+- Review gate: previous reviewer dispatches exhausted quota and are `INCONCLUSIVE`. Do not dispatch replacements until the portability fix is pushed, hosted CI is green, and a new readiness snapshot is set. Then obtain two fresh independent read-only ACCEPTs of the same exact `ecaf362..<FINAL_REVIEW_HEAD>` range.
+- Safe next action: commit and push the verified test-only repair, verify local/remote SHA equality and the new hosted run, and only then establish review readiness. Keep SPEC-05 open unless both new reviewers ACCEPT.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

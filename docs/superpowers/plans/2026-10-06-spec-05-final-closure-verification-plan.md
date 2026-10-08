@@ -80,13 +80,14 @@
 
 **Interfaces:** consumes the focused-green tree; produces all-target, lint, release, binary, docs, environment, baseline, and scope evidence needed to qualify READY.
 
-- [x] Fresh full gate script: `cargo fmt --all -- --check` exit 0; Core 631/0/0 across 60 suites; CLI 190/0/1 ignored across 38 suites; adapters 124/0/3 ignored across 14 suites; workspace 945/0/4 ignored across 112 suites; Clippy `-D warnings` and locked release build exit 0.
-- [x] Verify supported PowerShell 7 `lifecycle_scripts` result: 7/7; default host failed 3 tests with the module-load error recorded in the ledger.
+- [x] Re-run fmt, Core/CLI/adapters/workspace all-targets, Clippy, and locked release on the repaired tree: Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored across 112 suites; fmt, Clippy `-D warnings`, and release build exit 0.
+- [x] Verify the default-host lifecycle result: 4/7 because the archive module cannot load; supported bundled PowerShell 7 lifecycle target passes 7/7.
 - [x] Verify `session_replay` UTF-8 regression on current code: 5/5.
-- [x] Verify binary version (`baron 5.0.0`), release smoke 1/1, trust docs 12/12, status JSON parse, 11 Markdown links/0 broken, tracked-source retirement gate, all CLI help checks, and `git diff ecaf362 --check` exit 0. The staged wording was checked RED→GREEN and public trust docs rerun afterward.
+- [x] Re-run binary version (`baron 5.0.0`), release smoke 1/1, trust docs 12/12, status JSON parse, 12 changed-Markdown links, tracked-source gate, five CLI help commands, and `git diff ecaf362 --check` after the evidence update.
 - [x] Confirm no release/tag/version bump/SPEC-06/Hotel Staff or out-of-scope manifest/lockfile changes.
 - [ ] Query GitHub Actions and commit statuses for the eventual readiness commit; if absent, record exactly the prompt's no-hosted-evidence sentence.
-- [x] All required local gates pass. The default host lifecycle limitation (4/7 due to missing archive module) is disclosed; the supported bundled PowerShell 7 target passes 7/7. Local checks do not imply hosted CI.
+- [x] All local gates for the repaired source pass. The default-host lifecycle limitation and supported bundled PowerShell 7 result remain separately disclosed. Local checks do not imply hosted CI.
+- [x] Hosted Baron CI `37461605214` at `c2b91db` was checked: Format/Clippy and Windows native passed; Linux native failed. Its artifact identified Windows-specific test fixtures. This failure invalidates the earlier readiness snapshot.
 
 ### Task 5: Publish an evidence-complete readiness snapshot
 
@@ -96,9 +97,9 @@
 
 **Interfaces:** consumes Tasks 2–4; produces one committed/pushed exact readiness SHA for both independent reviews.
 
-- [x] Reconcile current counts and findings across maintained status artifacts; preserve historical runs and prior FIX REQUIRED verdicts as historical.
-- [x] Set `READY FOR ADVERSARIAL REVIEW` only after all local gates pass and authority `BUG=0`.
-- [ ] Commit scoped changes, push the branch, and verify local HEAD equals remote HEAD; record `FINAL_REVIEW_HEAD`.
+- [x] Reconcile the current status as `FIX REQUIRED` after the hosted Linux failure; prior readiness claims remain historical only.
+- [ ] Set `READY FOR ADVERSARIAL REVIEW` only after the repaired tree passes all local gates and hosted CI, with authority `BUG=0`.
+- [ ] Commit scoped changes, push the branch, verify local HEAD equals remote HEAD, and verify the hosted workflow for the new SHA before recording a new `FINAL_REVIEW_HEAD`.
 
 ### Task 6: Obtain two independent exact-range adversarial reviews
 

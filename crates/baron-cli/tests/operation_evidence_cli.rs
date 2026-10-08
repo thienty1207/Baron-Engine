@@ -13,6 +13,17 @@ use tempfile::{tempdir, TempDir};
 const TASK_A: &str = "fix README alpha typo";
 const TASK_B: &str = "backend login security beta";
 
+fn successful_command() -> (&'static str, &'static [&'static str]) {
+    #[cfg(windows)]
+    {
+        ("cmd", &["/C", "exit 0"])
+    }
+    #[cfg(not(windows))]
+    {
+        ("sh", &["-c", "exit 0"])
+    }
+}
+
 struct Fixture {
     _temp: TempDir,
     repo: PathBuf,
@@ -260,6 +271,7 @@ fn proof_record_explicit_a_never_uses_current_b() {
 #[test]
 fn receipt_for_a_records_while_current_is_claude_b() {
     let f = Fixture::new(true);
+    let (command, command_arguments) = successful_command();
     let output = f
         .command()
         .args([
@@ -271,7 +283,8 @@ fn receipt_for_a_records_while_current_is_claude_b() {
             "trusted-runner",
         ])
         .args(f.selector())
-        .args(["cmd", "--", "/C", "exit 0"])
+        .args([command, "--"])
+        .args(command_arguments)
         .assert()
         .success()
         .get_output()
@@ -312,6 +325,7 @@ fn receipt_for_a_records_while_current_is_claude_b() {
 #[test]
 fn valid_receipt_cannot_publish_proof_without_exact_active_operation() {
     let f = Fixture::new(true);
+    let (command, command_arguments) = successful_command();
     let output = f
         .command()
         .args([
@@ -323,7 +337,8 @@ fn valid_receipt_cannot_publish_proof_without_exact_active_operation() {
             "trusted-runner",
         ])
         .args(f.selector())
-        .args(["cmd", "--", "/C", "exit 0"])
+        .args([command, "--"])
+        .args(command_arguments)
         .assert()
         .success()
         .get_output()

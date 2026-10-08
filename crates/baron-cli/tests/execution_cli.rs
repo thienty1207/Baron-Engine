@@ -5,6 +5,17 @@ use predicates::prelude::*;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
+fn successful_command() -> (&'static str, &'static [&'static str]) {
+    #[cfg(windows)]
+    {
+        ("cmd", &["/C", "exit 0"])
+    }
+    #[cfg(not(windows))]
+    {
+        ("sh", &["-c", "exit 0"])
+    }
+}
+
 fn init_project() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
@@ -448,6 +459,7 @@ fn proof_cli_keeps_summary_only_capability_evidence_diagnostic() {
 #[test]
 fn proof_execute_requires_and_persists_complete_lifecycle_identity() {
     let (_temp, repo, _vault) = init_project();
+    let (command, command_arguments) = successful_command();
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
@@ -466,11 +478,10 @@ fn proof_execute_requires_and_persists_complete_lifecycle_identity() {
             "proof-execute-session",
             "--request-id",
             "proof-execute-request",
-            "cmd",
+            command,
             "--",
-            "/C",
-            "exit 0",
         ])
+        .args(command_arguments)
         .assert()
         .success()
         .stdout(predicate::str::contains("Task ID:"))
@@ -591,6 +602,7 @@ fn proof_execute_rejects_repository_local_authority_before_child_side_effect() {
 fn proof_execute_and_record_cross_process_with_exact_binding() {
     let (temp, repo, vault) = init_project();
     let machine_home = temp.path().join("machine-home");
+    let (command, command_arguments) = successful_command();
     Command::cargo_bin("baron")
         .unwrap()
         .current_dir(&repo)
@@ -627,11 +639,10 @@ fn proof_execute_and_record_cross_process_with_exact_binding() {
             "cross-process-session",
             "--request-id",
             "cross-process-request",
-            "cmd",
+            command,
             "--",
-            "/C",
-            "exit 0",
         ])
+        .args(command_arguments)
         .output()
         .unwrap();
     assert!(
@@ -842,6 +853,7 @@ fn execute_proof_for_test(
     session: &str,
     request: &str,
 ) -> (String, String, String) {
+    let (command, command_arguments) = successful_command();
     let output = Command::cargo_bin("baron")
         .unwrap()
         .current_dir(repo)
@@ -861,11 +873,10 @@ fn execute_proof_for_test(
             session,
             "--request-id",
             request,
-            "cmd",
+            command,
             "--",
-            "/C",
-            "exit 0",
         ])
+        .args(command_arguments)
         .output()
         .unwrap();
     assert!(
