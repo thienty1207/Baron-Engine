@@ -98,10 +98,10 @@
 **Interfaces:** consumes Tasks 2–4; produces one committed/pushed exact readiness SHA for both independent reviews.
 
 - [x] Reconcile the current status as `FIX REQUIRED` after the hosted Linux failure; prior readiness claims remain historical only.
-- [x] Set `READY FOR ADVERSARIAL REVIEW` after the repaired tree passed all local gates, hosted CI, and the authority audit with `BUG=0`.
+- [ ] Set `READY FOR ADVERSARIAL REVIEW` for the new repaired snapshot only after its own pushed exact SHA passes hosted CI and the fresh 47-path audit remains `BUG=0`. The earlier readiness snapshot is historical and invalidated by the two new review findings.
 - [ ] Commit scoped changes, push the branch, verify local HEAD equals remote HEAD, and verify the hosted workflow for the new SHA before recording a new `FINAL_REVIEW_HEAD`.
 
-### Task 6: Obtain two independent exact-range adversarial reviews
+### Task 6: First exact-range adversarial reviews (completed — FIX REQUIRED)
 
 **Files:**
 - Read-only review range: `ecaf362c275431edfc5e590fd6a87d926b9bde9d..FINAL_REVIEW_HEAD`.
@@ -109,10 +109,11 @@
 
 **Interfaces:** both reviewers consume identical committed source/evidence and the mandatory 23-point checklist in the prompt; their outputs must be independent.
 
-- [ ] Dispatch two separate fresh read-only reviewers; neither may edit worktree/index/HEAD.
-- [ ] Require explicit `Critical findings`, `Important findings`, and `Verdict: ACCEPT | FIX REQUIRED` plus every checklist item.
-- [ ] Quota/tool/time failure is `INCONCLUSIVE`; prior review ranges do not count.
-- [ ] If either finds Critical/Important, keep FIX REQUIRED, create a failing regression, repair RED→GREEN, rerun full gates/audit, push a new range, and obtain two new reviews.
+- [x] Dispatch two separate fresh read-only reviewers; neither edited worktree/index/HEAD.
+- [x] Both reviewed exact range `ecaf362c275431edfc5e590fd6a87d926b9bde9d..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f` and returned the required format.
+- [x] Boyle: zero Critical; one Important (identity-less Harness intake can borrow another operation's confirmed intent); `FIX REQUIRED`.
+- [x] Parfit: zero Critical; one Important (installer output capture can absorb a concurrent project-config update and later rollback over it); `FIX REQUIRED`.
+- [x] Treat both verdicts as a failed closure gate; neither is acceptance for the repair range.
 
 ### Task 7: Close and deliver only after both ACCEPT
 
@@ -124,3 +125,17 @@
 - [ ] Record exact accepted source range, both reviewer identities/verdicts, closure evidence commit, and no release/tag/version changes.
 - [ ] Push closure documentation, verify local HEAD equals remote HEAD, and confirm source semantics did not change after acceptance.
 - [ ] Otherwise retain `FIX REQUIRED` or `READY FOR ADVERSARIAL REVIEW` and report the exact remaining gate.
+
+### Task 8: Repair both fresh-review findings
+
+**Files:** `crates/baron-core/src/intent.rs`, `crates/baron-core/tests/intent.rs`, `crates/baron-core/src/migration.rs`, `crates/baron-core/tests/migration.rs`, the migration CLI output declaration, and maintained status/evidence.
+
+- [x] Add the identity-less intent-ingress regression; observe the old code incorrectly creates a high-risk story using another operation's confirmation.
+- [x] Reject operation-scoped `CURRENT_INTENT` as authority for identity-less intake; preserve legacy unbound-intent behavior; focused intent tests pass 8/8.
+- [x] Add a migration rollback regression that observed the concurrent project-config file disappear on the old code after a later installer failure.
+- [x] Prevent callback-time output capture from adopting user-owned configuration; project/local config is excluded from CLI installer outputs and rejected as rollback authority by Core. Core migration passes 23/23 and CLI migration passes 3/3.
+- [x] Run focused migration/intent targets (intent 8/8, migration 23/23, CLI migration 3/3), the full prompt matrix (329 Core executions, including the required repeated target; CLI selector/evidence/hook 38/38), the fresh authority audit (47 groups, `BUG=0`), and all local gates on the repaired tree.
+- [x] Full all-targets: Core 634/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; workspace 948/0/4 ignored across 112. `fmt --check`, warnings-denied Clippy, locked release build, release smoke 1/1, trust docs 12/12, version/help/JSON checks pass. Default PowerShell lifecycle is 4/7 due to the host's unavailable `Microsoft.PowerShell.Archive`; supported bundled PowerShell 7 passes 7/7.
+- [x] Post-edit gates pass: 13 changed-Markdown relative links, status JSON parse, tracked-source/filename retirement checks, diff check from `ecaf362`, and scoped file inventory (no manifests/lockfiles or out-of-scope paths).
+- [ ] Commit and push, confirm remote SHA and exact-SHA hosted CI, then mark the new snapshot `READY FOR ADVERSARIAL REVIEW` and dispatch two fresh reviewers.
+- [ ] Commit and push the repair/evidence, verify remote SHA and exact-SHA hosted CI, then obtain two fresh independent reviews of the new identical range.

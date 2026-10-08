@@ -100,7 +100,7 @@ Test fixtures, imports, declarations, comments and historical documentation are 
 - Shared hook response journal: RED `hook_response_publication_serializes_shared_vault_journal_across_checkouts` let checkout B publish/deduplicate while checkout A held the shared capsule lock. GREEN journal lookup, append helper and hook response publication acquire checkout then shared Vault lock across the journal read/dedup/append decision; the test confirms one shared event row and returns A's existing response after lock release.
 - Focused green results: harness scoping `13/13`; proof/trace `33/33` before the final tampering assertion, which passed alone afterward; shared-Vault hook journal publication `1/1`. Full Core/CLI/adapters/workspace, Clippy, release, and complete CURRENT caller scan are not yet verified on this repair.
 
-## Final single-class production caller inventory (2026-10-06)
+## Historical single-class production caller inventory (2026-10-06; superseded)
 
 This current-source inventory supersedes the mixed/alternative labels in the historical table above. It groups production caller *paths* (conditional branches are separate groups where their authority behavior differs); every row has exactly one prompt-defined classification. The search was rerun in `crates/baron-core/src/**`, `crates/baron-cli/src/**`, and `crates/baron-adapters/src/**` using every required pattern. The working source scan found 155 production-source search-hit lines after excluding test modules, imports, comments, and function declarations. Search hits include path/literal references as well as call expressions; the inventory groups their reviewed runtime behavior below. A caller may contribute several matching lines but belongs to one behavior group. Definitions without a callsite and projection-name literals are recorded with their owning family, not double-counted.
 
@@ -162,11 +162,34 @@ This current-source inventory supersedes the mixed/alternative labels in the his
 | `BUG` | **0** |
 | **Total production caller-path groups** | **45** |
 
-The final caller-path count is `11 + 8 + 17 + 6 + 3 = 45`; `BUG=0`. No known SPEC-05-owned Critical or Important issue remains from the completed source audit at this checkpoint. The focused matrix, package/workspace all-targets, warnings-denied Clippy, locked release, smoke, trust docs, version, and CLI help gates passed; final staged-doc checks are recorded in the verification ledger. This inventory is not closure: the readiness snapshot must be pushed and two fresh independent reviewers must ACCEPT the same exact range.
+At this historical checkpoint the inventory counted `11 + 8 + 17 + 6 + 3 = 45` groups. Later fresh reviewers found two omitted fail-closed caller paths, so its `BUG=0` conclusion is superseded by the 2026-10-08 audit below; these historical counts do not establish current readiness or closure.
 
 ## 2026-10-08 verification update
 
 Hosted Baron CI run `37461605214` on readiness commit `c2b91dbfc4cedd593912013751c85f209755c9e1` failed the Linux native test job. The artifact isolated the failure to platform assumptions in test fixtures: CLI tests launched Windows `cmd.exe`, and a Core test asserted Windows absolute-path containment on Unix. The committed repair at `5c2bb5bda74363be3532a9f5516d26848379bada` changes only those test fixtures; `receipt_authority.rs` changes are confined to its `#[cfg(test)]` module. Hosted Baron CI run `37718795708` passed Format/Clippy, Windows native, and Linux native jobs. A diff check confirms no production caller path or authority behavior changed, so the inventory remains 45 groups and `BUG=0`. SPEC-05 is ready for two fresh independent reviews but not closed; this exact audit informs the pending readiness evidence snapshot and review-head CI.
+
+## 2026-10-08 fresh production authority audit after review findings
+
+Scope is current production Rust under `crates/baron-core/src/**`, `crates/baron-cli/src/**`, and `crates/baron-adapters/src/**`; test modules, imports, comments, and declarations are excluded from caller-path classification. The required search was rerun against all three source trees with the exact authority pattern set: `CURRENT.md`, `active_plan(`, `active_plan_authority(`, `active_plan_operation_binding(`, `current_plan_title`, `current_plan_risk`, `current_harness_title(`, `current_harness_risk(`, `latest_proof(`, `latest_trace`, `reconcile(`, `record_proof`, `record_trace`, `score_trace`, `proof_for_operation`, `trace_for_operation`, `active_plan_completion_evidence_status`, `compile_task_state`, `record_continuity`, `gate_evidence_status`, and `record_lifecycle_event_for_operation`. Raw source hit counts were respectively `52, 25, 6, 5, 0, 0, 3, 4, 6, 21, 8, 20, 13, 8, 20, 14, 7, 10, 17, 23, 6`; hits are not caller counts, and each runtime behavior path is grouped once.
+
+The previous E/P/L/O groups were rechecked against the current source and retain their classifications. The reviewer findings revealed that the former A01–A06 inventory omitted two distinct current-source paths; both now have explicit regression coverage and fail closed:
+
+| ID | Production caller path / evidence | Classification |
+| --- | --- | --- |
+| A07 | Identity-less high-risk Harness intake (`harness.rs::start_or_resume_intake` → `intent.rs::require_confirmed_intent`) refuses any operation-scoped `CURRENT_INTENT`; a confirmed operation B cannot authorize operation A. `another_operations_confirmed_current_intent_cannot_authorize_unscoped_intake` proves rejection before story publication; unbound legacy intent remains supported. | `AMBIGUOUS_FAIL_CLOSED` |
+| A08 | Migration callback output capture (`migration.rs::capture_installer_outputs`) rejects `.baron/project.toml` and `.baron/local.toml` as installer rollback authority; CLI no longer declares them installer outputs. A callback-time concurrent config edit therefore cannot be adopted as the rollback baseline, and rollback preserves changed user bytes while reporting a conflict. Covered by Core migration and CLI migration regressions. | `AMBIGUOUS_FAIL_CLOSED` |
+
+| Classification | Caller-path groups |
+| --- | ---: |
+| `PRESENTATION_ONLY` | 11 |
+| `LEGACY_SINGLE_ACTIVE_SAFE` | 8 |
+| `EXACT_OPERATION_SCOPED` | 17 |
+| `AMBIGUOUS_FAIL_CLOSED` | 8 |
+| `OUT_OF_SPEC` | 3 |
+| `BUG` | **0** |
+| **Total production caller-path groups** | **47** |
+
+The fresh result is `11 + 8 + 17 + 8 + 3 = 47`; `BUG=0` after applying both reviewer-driven repairs. The new repairs are verified by the focused `intent` 8/8, `migration` 23/23, and `migration_cli` 3/3 suites, and by current Core, CLI, adapters, and workspace all-target runs. This remains a readiness input only: push this exact evidence/source snapshot, require its hosted CI to pass, then obtain two fresh independent read-only `ACCEPT` reviews of the same exact `ecaf362..<FINAL_REVIEW_HEAD>` range. Any Critical/Important finding resets the audit and review gate.
 
 ## Rulings and regressions
 

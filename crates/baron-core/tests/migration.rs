@@ -184,7 +184,7 @@ fn migration_imports_data_quarantines_invalid_assets_and_retires_runtime() {
         MigrationInstallOutputs::capture(
             repo,
             vault,
-            vec![".baron/project.toml".to_string(), "AGENTS.md".to_string()],
+            vec!["AGENTS.md".to_string()],
             Vec::new(),
         )
     })
@@ -395,7 +395,7 @@ fn installer_callback_cannot_reenter_rollback_on_the_same_thread() {
 fn installer_return_window_edit_is_not_adopted_as_migration_output() {
     let (_temp, repo, vault) = legacy_fixture();
     initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
-    let project_config = repo.join(".baron/project.toml");
+    let agents_path = repo.join("AGENTS.md");
     let (locked_tx, locked_rx) = mpsc::channel();
     let (release_tx, release_rx) = mpsc::channel();
     let (callback_ready_tx, callback_ready_rx) = mpsc::channel();
@@ -404,14 +404,15 @@ fn installer_return_window_edit_is_not_adopted_as_migration_output() {
         execute_agent_bootstrap_migration_with_outputs(
             &migration_repo,
             None,
-            move |repo_root, _vault_root| {
-                let mut installer_bytes = fs::read(repo_root.join(".baron/project.toml"))?;
+            move |repo_root, vault_root| {
+                let installer_path = repo_root.join("AGENTS.md");
+                let mut installer_bytes = fs::read(&installer_path)?;
                 installer_bytes.extend_from_slice(b"\n# successful installer output\n");
-                fs::write(repo_root.join(".baron/project.toml"), installer_bytes)?;
+                fs::write(&installer_path, installer_bytes)?;
                 let outputs = MigrationInstallOutputs::capture(
                     repo_root,
-                    _vault_root,
-                    vec![".baron/project.toml".to_string()],
+                    vault_root,
+                    vec!["AGENTS.md".to_string()],
                     Vec::new(),
                 )?;
 
@@ -434,9 +435,9 @@ fn installer_return_window_edit_is_not_adopted_as_migration_output() {
     callback_ready_rx
         .recv_timeout(Duration::from_secs(10))
         .expect("installer callback did not reach the return window");
-    let mut user_edit = fs::read(&project_config).unwrap();
+    let mut user_edit = fs::read(&agents_path).unwrap();
     user_edit.extend_from_slice(b"\n# user edit after installer success\n");
-    fs::write(&project_config, &user_edit).unwrap();
+    fs::write(&agents_path, &user_edit).unwrap();
     release_tx.send(()).unwrap();
 
     let migration_result = migration.join().unwrap();
@@ -450,9 +451,9 @@ fn installer_return_window_edit_is_not_adopted_as_migration_output() {
         "a user edit in the installer-return window must block rollback"
     );
     assert_eq!(
-        fs::read(&project_config).unwrap(),
+        fs::read(&agents_path).unwrap(),
         user_edit,
-        "installer output capture must not adopt and later erase the concurrent user edit"
+        "installer output capture must not adopt and later erase the concurrent instructions edit"
     );
 }
 
@@ -470,13 +471,14 @@ fn installer_return_window_edit_inside_agents_managed_block_is_preserved() {
             &migration_repo,
             None,
             move |repo_root, vault_root| {
-                let mut installer_bytes = fs::read(repo_root.join(".baron/project.toml"))?;
+                let installer_path = repo_root.join("AGENTS.md");
+                let mut installer_bytes = fs::read(&installer_path)?;
                 installer_bytes.extend_from_slice(b"\n# successful installer output\n");
-                fs::write(repo_root.join(".baron/project.toml"), installer_bytes)?;
+                fs::write(&installer_path, installer_bytes)?;
                 let outputs = MigrationInstallOutputs::capture(
                     repo_root,
                     vault_root,
-                    vec![".baron/project.toml".to_string()],
+                    vec!["AGENTS.md".to_string()],
                     Vec::new(),
                 )?;
 
@@ -565,6 +567,75 @@ fn failed_after_installer_output_capture_uses_persisted_hash_for_rollback() {
         status.contains("- Status: `rolled_back`"),
         "migration status: {status}; failure: {failure}"
     );
+}
+
+#[test]
+fn user_config_edit_during_installer_callback_is_not_adopted_for_rollback() {
+    let (_temp, repo, _vault) = legacy_fixture();
+    let project_config = repo.join(".baron/project.toml");
+    let mut user_config = Vec::new();
+
+    let error =
+        execute_agent_bootstrap_migration_with_outputs(&repo, None, |repo_root, vault_root| {
+            write(
+                &project_config,
+                "schema_version = 1\nproject_slug = \"demo\"\nadapters = [\"codex\"]\n",
+            );
+            user_config = fs::read(&project_config)?;
+            user_config.extend_from_slice(b"\n# concurrent user routing change\n");
+            fs::write(&project_config, &user_config)?;
+
+            MigrationInstallOutputs::capture(
+                repo_root,
+                vault_root,
+                vec![".baron/project.toml".to_string()],
+                Vec::new(),
+            )
+        })
+        .expect_err("migration must not adopt callback-time project config as installer output");
+
+    assert!(
+        error.to_string().contains("user-owned configuration"),
+        "the injected post-callback failure did not occur as expected: {error}"
+    );
+    assert_eq!(
+        fs::read(&project_config).unwrap(),
+        user_config,
+        "rollback must not erase user config bytes captured during the installer callback"
+    );
+    assert!(migration_status(&repo)
+        .unwrap()
+        .contains("rolled_back_with_conflicts"));
+}
+
+#[test]
+fn migration_cannot_claim_project_or_local_config_as_installer_output() {
+    for relative_path in [".baron/project.toml", ".baron/local.toml"] {
+        let (_temp, repo, _vault) = legacy_fixture();
+        initialize_project(&repo, AdapterKind::Codex, &_vault).unwrap();
+        let target = repo.join(relative_path);
+        if relative_path == ".baron/local.toml" {
+            fs::write(&target, b"user-owned local config\n").unwrap();
+        }
+        let original = fs::read(&target).unwrap();
+
+        let error =
+            execute_agent_bootstrap_migration_with_outputs(&repo, None, |repo_root, vault_root| {
+                MigrationInstallOutputs::capture(
+                    repo_root,
+                    vault_root,
+                    vec![relative_path.to_string()],
+                    Vec::new(),
+                )
+            })
+            .expect_err("user-owned project/local config must not become rollback authority");
+
+        assert!(
+            error.to_string().contains("user-owned configuration"),
+            "unexpected migration rejection for {relative_path}: {error}"
+        );
+        assert_eq!(fs::read(&target).unwrap(), original);
+    }
 }
 
 #[test]

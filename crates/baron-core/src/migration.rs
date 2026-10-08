@@ -160,7 +160,9 @@ pub struct MigrationInstallOutput {
 /// Exact managed targets published by a successful installer callback. These
 /// captured hashes become rollback authority only after the callback reports
 /// success and migration verifies the bytes have not changed; failed or raced
-/// installer output stays outside the expected baseline for recovery.
+/// installer output stays outside the expected baseline for recovery. User-
+/// owned repo configuration (`.baron/project.toml` and `.baron/local.toml`) is
+/// not eligible because callback-time hashes cannot identify concurrent edits.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MigrationInstallOutputs {
     pub repo_paths: Vec<MigrationInstallOutput>,
@@ -1059,6 +1061,21 @@ fn capture_installer_outputs(
             let normalized = &output.relative_path;
             if !is_safe_relative_path(normalized) {
                 bail!("Migration installer returned an unsafe output path: {normalized}");
+            }
+            // The installer callback is deliberately outside the repo lock so
+            // it can call normal Core writers. A callback-time hash cannot
+            // distinguish installer bytes from a concurrent user config
+            // update, so these owner-controlled files never become rollback
+            // authority; changes from the handoff snapshot fail closed.
+            if scope == BackupScope::Repo
+                && matches!(
+                    normalized.as_str(),
+                    ".baron/project.toml" | ".baron/local.toml"
+                )
+            {
+                bail!(
+                    "Migration installer cannot claim user-owned configuration output: {normalized}"
+                );
             }
             let entry_index = manifest
                 .entries

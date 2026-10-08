@@ -3341,11 +3341,10 @@ fn run() -> Result<()> {
                                         ".codex/agents/security-auditor.toml",
                                         ".codex/agents/test-engineer.toml",
                                     ];
-                                    let mut repo_paths = vec![
-                                        ".baron/project.toml".to_string(),
-                                        ".baron/local.toml".to_string(),
-                                        ".baron/.gitignore".to_string(),
-                                    ];
+                                    // Project/local config remains user-owned;
+                                    // callback-time snapshots cannot safely
+                                    // attribute concurrent edits to the installer.
+                                    let mut repo_paths = vec![".baron/.gitignore".to_string()];
                                     repo_paths.extend(install.managed_files.into_iter().filter(
                                         |path| tracked_repo_outputs.contains(&path.as_str()),
                                     ));

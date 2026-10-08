@@ -218,6 +218,9 @@ pub fn require_confirmed_intent(repo_root: impl AsRef<Path>, title: &str) -> Res
             path.display()
         )
     })?;
+    if has_lifecycle_identity(&content) {
+        bail!("The current intent is operation-scoped and cannot authorize identity-less intake.");
+    }
     let recorded_title = field(&content, "- Title: ").unwrap_or_default();
     if normalize_match(recorded_title) != normalize_match(title) {
         bail!(
@@ -233,6 +236,20 @@ pub fn require_confirmed_intent(repo_root: impl AsRef<Path>, title: &str) -> Res
         );
     }
     Ok(())
+}
+
+fn has_lifecycle_identity(content: &str) -> bool {
+    let header = content.split("\n## ").next().unwrap_or_default();
+    [
+        "- Project ID:",
+        "- Task ID:",
+        "- Operation ID:",
+        "- Adapter:",
+        "- Session ID:",
+        "- Request ID:",
+    ]
+    .into_iter()
+    .any(|prefix| header.lines().any(|line| line.starts_with(prefix)))
 }
 
 pub fn intent_status(repo_root: impl AsRef<Path>) -> Result<String> {

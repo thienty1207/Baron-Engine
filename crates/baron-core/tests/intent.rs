@@ -187,6 +187,52 @@ fn operation_intents_are_durable_and_isolated_from_current_projection() {
 }
 
 #[test]
+fn another_operations_confirmed_current_intent_cannot_authorize_unscoped_intake() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let task = "implement authorization policy after deciding access rules";
+    let first = LifecycleIdentity::resolve(
+        &context.project_id,
+        task,
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("request-a"),
+    )
+    .unwrap();
+    let second = LifecycleIdentity::resolve(
+        &context.project_id,
+        task,
+        SupportedAdapter::Claude,
+        Some("session-b"),
+        Some("request-b"),
+    )
+    .unwrap();
+
+    record_intent_for_operation(&repo, &context, task, &first, input(task, false)).unwrap();
+    record_intent_for_operation(&repo, &context, task, &second, input(task, true)).unwrap();
+    let current_path = repo.join("docs/baron/harness/CURRENT_INTENT.md");
+    let current_before = fs::read_to_string(&current_path).unwrap();
+    assert!(current_before.contains(&format!("- Operation ID: `{}`", second.operation_id())));
+    assert!(current_before.contains("- Confirmation: `confirmed`"));
+
+    let error = start_or_resume_intake(&repo, &context, task)
+        .expect_err("identity-less intake must not borrow another operation's confirmation");
+
+    assert!(
+        error.to_string().contains("operation-scoped"),
+        "unexpected intake error: {error}"
+    );
+    assert_eq!(fs::read_to_string(current_path).unwrap(), current_before);
+    let harness_current = repo.join("docs/baron/harness/CURRENT.md");
+    assert!(!fs::read_to_string(harness_current)
+        .unwrap_or_default()
+        .contains(task));
+}
+
+#[test]
 fn corrupt_operation_intent_fails_closed_instead_of_falling_back_to_current() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

@@ -107,3 +107,40 @@ Fresh lifecycle baseline: default Windows PowerShell exited 101 with 4 passed/3 
 The production authority inventory remains 45 groups (`PRESENTATION_ONLY=11`, `LEGACY_SINGLE_ACTIVE_SAFE=8`, `EXACT_OPERATION_SCOPED=17`, `AMBIGUOUS_FAIL_CLOSED=6`, `OUT_OF_SPEC=3`, `BUG=0`). The source diff is confined to CLI test fixtures and the Core `#[cfg(test)]` module; it does not alter production authority paths. Scope review confirms no release/tag/version bump, SPEC-06, Hotel Staff, or manifest/lockfile change. Hosted Baron CI run [37718795708](https://github.com/thienty1207/Baron-Engine/actions/runs/37718795708) on `5c2bb5b` completed successfully: Format/Clippy job `113121400969`, Windows native job `113121401034`, and Linux native job `113121401053` all passed. Both native jobs completed full tests, release build, and CLI version smoke.
 
 Previous independent-review dispatches ended at the usage limit, so their result is `INCONCLUSIVE`; neither can count as ACCEPT. The previous readiness SHA is invalidated by its failed Linux job. Fresh local gates and hosted CI are green on code SHA `5c2bb5b`. The pushed readiness candidate must pass its own exact-SHA hosted workflow; if every job succeeds, freeze that SHA as `FINAL_REVIEW_HEAD` and obtain two fresh independent read-only reviews of `ecaf362..<FINAL_REVIEW_HEAD>`. Do not close without both ACCEPTs and zero unresolved Critical/Important findings.
+
+## 2026-10-08 current rerun after the two fresh review findings
+
+This section supersedes the prior readiness checkpoint above. Two fresh reviewers rejected the pushed `c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f` snapshot with one Important each. Both findings have now been repaired with tests-first regressions:
+
+- Intent regression: before the fix, identity-less high-risk intake accepted the shared confirmed intent written by operation B while operation A's own intent was unconfirmed. The current implementation rejects operation-scoped `CURRENT_INTENT` on identity-less intake while preserving unbound legacy intent; Core intent passes 8/8.
+- Migration regression: before the fix, a user edit to `.baron/project.toml` during the unlocked installer callback could be adopted into rollback authority and removed by a later failure. Core rejects project/local config as declared installer outputs, the CLI excludes them, and rollback preserves conflicting user bytes. Core migration passes 23/23; CLI migration passes 3/3, including explicit rollback failing closed with `needs_recovery` while preserving configuration.
+
+The fresh production scan covered all required authority patterns under `crates/baron-core/src/**`, `crates/baron-cli/src/**`, and `crates/baron-adapters/src/**`. It found two omitted paths in the old inventory; after the repairs they are recorded as A07/A08 `AMBIGUOUS_FAIL_CLOSED`. Current inventory is 47 groups: PRESENTATION_ONLY 11, LEGACY_SINGLE_ACTIVE_SAFE 8, EXACT_OPERATION_SCOPED 17, AMBIGUOUS_FAIL_CLOSED 8, OUT_OF_SPEC 3, BUG 0. The source hit count vector and new rows are recorded in [the authority audit](2026-10-01-spec-05-authority-audit.md).
+
+Current fresh test evidence, all against the repaired tree and isolated nonexistent Codex/Claude session roots:
+
+| Gate | Result |
+| --- | --- |
+| Prompt Core focused matrix | 329 passed executions (316 unique across named targets plus the required repeated harness-improvement target), 0 failed |
+| Prompt CLI selector/evidence/hook matrix | 38 passed, 0 failed across five targets |
+| Core all-targets | PASS, exit 0; 634 passed, 0 failed, 0 ignored across 60 suites |
+| CLI all-targets | PASS, exit 0; 190 passed, 0 failed, 1 ignored across 38 suites |
+| Adapters all-targets | PASS, exit 0; 124 passed, 0 failed, 3 ignored across 14 suites |
+| Workspace all-targets | PASS, exit 0; 948 passed, 0 failed, 4 ignored across 112 suites |
+| `cargo fmt --all -- --check` | PASS, exit 0 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | PASS, exit 0 |
+| `cargo build --workspace --release --locked` | PASS, exit 0 |
+| Required ignored release smoke | PASS, 1/1 |
+| Public trust docs | PASS, 12/12 |
+| Release version and help | PASS; `baron 5.0.0`; five required help selectors exit 0 |
+| Default-host PowerShell lifecycle | 4/7; three failures are the host's `Compress-Archive` module load failure (`Microsoft.PowerShell.Archive`), not product assertions |
+| Supported bundled PowerShell 7 lifecycle | PASS, 7/7 in the CLI all-targets run |
+| Current SHA hosted CI | PENDING until this source/evidence snapshot is pushed |
+| `BARON_STATUS.json` parse | PASS after current status synchronization |
+| Changed Markdown relative links | PASS; 13 checked across six changed Markdown files, 0 broken |
+| Tracked retirement source and filename gates | PASS; no tracked matches |
+| `git diff ecaf362 --check` | PASS, exit 0; only Git LF-to-CRLF working-copy warnings |
+| Scope inventory | PASS; 13 changed tracked files, no manifest/lockfile, release, Hotel Staff, or SPEC-06 files |
+| Two fresh reviews of the new exact pushed range | PENDING; old verdicts are rejected and cannot count |
+
+`cargo test --workspace --all-targets --no-fail-fast -j 1` exited 0 after running the full workspace. Post-edit scope gates pass; this snapshot remains `FIX REQUIRED` until commit/push, remote SHA equality, and exact-SHA hosted CI succeed. After that, publish `READY FOR ADVERSARIAL REVIEW` and obtain two fresh independent read-only ACCEPTs for the identical `ecaf362..<FINAL_REVIEW_HEAD>` range. Any Critical/Important resets readiness and requires a new full cycle. No release/tag/version bump, SPEC-06, Hotel Staff, or manifest/lockfile change is in scope.
