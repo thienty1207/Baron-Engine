@@ -166,5 +166,6 @@
 - [x] Finish serial workspace all-targets run: Core 634/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 948/0/4 ignored across 112 suites. The earlier parallel attempt hit Windows `os error 1450`; the five stale fixtures were corrected and the final serial run passed.
 - [x] Run warnings-denied Clippy and locked release build; release binary is exactly `baron 5.0.0`, release smoke 1/1, public trust docs 12/12, and CLI help selectors pass.
 - [x] Finish post-sync status JSON, changed-Markdown links, tracked retirement, diff, and scope gates: JSON parses; 16 relative links across 10 changed Markdown files, 0 broken; retirement gate 8/8; `git diff ecaf362 --check` exits 0; 70-file range inventory has no manifests/lockfiles, release workflow, Hotel Staff, or SPEC-06 changes.
-- [ ] Commit and push the synchronized repair; verify local/remote SHA equality and exact-SHA hosted CI.
+- [x] Commit and push the synchronized repair at `752ea138d7092acda56edc832472e3bae78ec820`; verify local/remote branch SHA equality and exact-SHA Baron CI run `37889435584` (Format/Clippy, Linux and Windows native tests, release builds, and version smoke all succeeded).
+- [ ] Synchronize run `37889435584` into maintained status/evidence, push the documentation snapshot, verify its local/remote SHA equality and exact-SHA CI, then freeze `FINAL_REVIEW_HEAD`.
 - [ ] Obtain two fresh independent read-only reviews of the identical complete `ecaf362..<FINAL_REVIEW_HEAD>` range; both must explicitly ACCEPT with zero Critical/Important findings.
