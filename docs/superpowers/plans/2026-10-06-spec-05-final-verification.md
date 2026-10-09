@@ -150,3 +150,42 @@ Current fresh test evidence, all against the repaired tree and isolated nonexist
 This update supersedes the pending hosted-CI statement above for the repaired executable-source snapshot. Branch `codex/spec-05-multi-agent-concurrency-durable-state` is at `1d02d3272b196c96ae84354a3478117af97459b9`, and `git ls-remote` returned the same remote SHA. Exact-SHA Baron CI run [37732260773](https://github.com/thienty1207/Baron-Engine/actions/runs/37732260773) concluded `success` for Format/Clippy, `x86_64-unknown-linux-gnu`, and `x86_64-pc-windows-msvc` jobs. The current repaired source is the one covered by the recorded fresh local matrix and 47-group production authority audit (`BUG=0`).
 
 The maintained status is now `READY FOR ADVERSARIAL REVIEW`, not closed. The prior exact-range reviewers of `ecaf362..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f` returned `FIX REQUIRED` and their findings have been repaired; those verdicts do not count. Push this synchronized readiness-doc snapshot and require its exact-SHA CI to pass before freezing `FINAL_REVIEW_HEAD`. Then obtain two fresh independent read-only `ACCEPT` verdicts for the same `ecaf362..<FINAL_REVIEW_HEAD>` range. If either reports Critical/Important, repeat the repair and full review cycle. No release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile change is authorized.
+
+## Fresh review finding and repair checkpoint — 2026-10-09
+
+The frozen review candidate was `a46ac3ea663d2d59d4a6d4cc0d28ca806d9d51cd` (`ecaf362..a46ac3e`). Gibbs returned `ACCEPT` with 23/23 checks passing and no Critical/Important findings. Bernoulli returned `FIX REQUIRED` with Important I-1, so neither earlier verdict is closure evidence after a repair.
+
+I-1: identified frontmatter fallback could authorize proof, trace, or receipt-bound gate publication when the corresponding indexed ACTIVE row was missing. Resuming the same identity could restore ACTIVE while leaving that evidence reusable. The regression-first repair now validates the exact ACTIVE/frontmatter pair under the project mutation lock for all three evidence writers. A persisted `authority_generation` is written to plan metadata/index and evidence; recovery after lost index authority rotates that generation so older proof/trace/gate evidence cannot satisfy completion. Public Rust `ActivePlanAuthority`, `ProofRecord`, and `TraceOperationBinding` shapes remain unchanged. Completion audit uses the linked plan's exact risk/generation and requires the mirrored Vault trace even after plan status is completed.
+
+Focused current-source evidence:
+
+| Target | Result |
+| --- | ---: |
+| `authority_ingress` | 6/6 |
+| `control_plane` | 9/9 |
+| `plan` | 57/57 |
+| `proof_trace` | 36/36 |
+| `execution_cli` | 15/15 |
+| `operation_evidence_cli` | 11/11 |
+| `plan_identity_cli` | 4/4 |
+| `receipt_authority` | 28/28 |
+| `trusted_proof` | 1/1 |
+| `cargo fmt --all -- --check` | PASS |
+
+The first full workspace attempt used parallel compilation and failed before tests completed with Windows `os error 1450` (insufficient system resources). A serial `-j 1` attempt then completed but exposed four receipt-authority tests and one trusted-proof test whose fixtures published receipt-bound evidence without first creating the now-required active plan. Those fixtures were updated to seed the exact operation plan; the two focused targets then passed 29/29. A second serial workspace run is currently in progress with isolated Codex/Claude session roots and the supported bundled PowerShell 7 host. Do not treat the historical workspace counts or this in-progress run as current full-gate evidence.
+
+Current disposition: `READY FOR ADVERSARIAL REVIEW`, not CLOSED. The post-edit local gates and fresh 47-group authority audit pass; the only remaining closure sequence is readiness commit/push, exact-SHA hosted CI, and two fresh independent ACCEPT reviews of one identical `ecaf362..<FINAL_REVIEW_HEAD>` range. Any Critical/Important finding restarts the full repair and review cycle. No release/tag/version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+
+## Fresh repaired-source verification checkpoint — 2026-10-09
+
+The in-progress language above is superseded by the completed serial run. On the repaired working tree, fresh all-target results are Core `634 passed / 0 failed / 0 ignored`, CLI `190 / 0 / 1 ignored`, adapters `124 / 0 / 3 ignored`, and workspace `948 / 0 / 4 ignored` across 112 suites. The prompt's focused matrix passes 329 Core executions (316 unique target executions plus the required repeated `harness_improvement`) and 38 CLI executions; the retired-adapter target passes 8/8. Repair-specific current results: `authority_ingress` 6/6, `control_plane` 9/9, `plan` 57/57, `proof_trace` 36/36, `receipt_authority` 28/28, `trusted_proof` 1/1, and `session_replay` 5/5.
+
+Fresh additional local gates pass: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo build --workspace --release --locked`; release binary reports exactly `baron 5.0.0`; the required ignored release smoke passes 1/1; public trust docs pass 12/12; five release CLI help selectors exit 0. Default-host PowerShell lifecycle remains 4/7 because `Microsoft.PowerShell.Archive` cannot load `Compress-Archive`; the repository-supported bundled PowerShell 7 lifecycle passes 7/7. This is an environment limitation, not counted as a product pass.
+
+The fresh production source re-audit is recorded in [the authority audit ledger](2026-10-01-spec-05-authority-audit.md): 47 caller-path groups, category counts `11/8/17/8/3`, `BUG=0`; generation-aware readers refine existing exact-operation paths. The source/evidence snapshot remains uncommitted and has not been checked by exact-SHA hosted CI or the new final reviewers. All fresh local and post-edit documentation/scope gates now pass, so the snapshot is READY FOR ADVERSARIAL REVIEW, not closed. Next: publish the readiness snapshot, confirm local/remote SHA equality and exact-SHA hosted CI, then obtain two fresh independent read-only ACCEPT verdicts on the same `ecaf362..<FINAL_REVIEW_HEAD>` range. Until both accept with zero Critical/Important, SPEC-05 remains open. No release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+
+## Post-edit readiness gates — 2026-10-09
+
+The final evidence synchronization passed: `docs/BARON_STATUS.json` parses; 16 relative links across 10 changed Markdown files resolve; `phase1_target_red` passes 8/8 with no tracked retired-adapter reference/filename hits; `git diff ecaf362 --check` exits 0 (only Git LF→CRLF working-copy warnings); the complete `ecaf362..working-tree` inventory contains 70 files, all within the SPEC-05 source/test/docs scope, with no Cargo manifest/lockfile, release workflow, Hotel Staff, or SPEC-06 changes. The current docs/status/build checkpoint now says `READY FOR ADVERSARIAL REVIEW`, because every required fresh local gate and the 47-group `BUG=0` authority audit pass.
+
+The source/evidence snapshot is not yet committed or pushed, so no final review SHA or hosted CI claim exists. Next: commit and push this readiness snapshot without rewriting history, confirm `git ls-remote` equals local HEAD, query exact-SHA GitHub Actions/commit status, and freeze that SHA as `FINAL_REVIEW_HEAD`. Then dispatch two new independent read-only reviews of exactly `ecaf362..<FINAL_REVIEW_HEAD>` with the full 23-point prompt checklist. Do not close unless both return `ACCEPT` with zero unresolved Critical/Important findings. No release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile change is in scope.

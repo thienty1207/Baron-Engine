@@ -15,6 +15,7 @@ use crate::execution_receipt::{
 };
 use crate::intent::operation_intent_for_identity;
 use crate::operation::{LifecycleIdentity, OperationContext};
+use crate::plan::{indexed_active_plan_authority_for_binding_locked, PlanOperationBinding};
 use crate::platform::platform_name;
 use crate::risk::RiskLane;
 use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
@@ -1511,6 +1512,16 @@ pub fn record_gate_evidence_with_receipt_bound(
             receipt.receipt_id
         );
     }
+    let plan_binding = PlanOperationBinding {
+        task_id: binding.task_id.clone(),
+        operation_id: binding.operation_id.clone(),
+        adapter: binding.adapter.clone(),
+        session_id: binding.session_id.clone(),
+        request_id: binding.request_id.clone(),
+    };
+    let plan_authority =
+        indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+            .context("receipt-bound gate publication requires validated ACTIVE plan authority")?;
     let existing = read_text(&repo_path)?.unwrap_or_default();
     if existing.lines().any(|line| {
         line.contains(&format!("`{}`", agent.trim()))
@@ -1522,7 +1533,7 @@ pub fn record_gate_evidence_with_receipt_bound(
             agent.trim()
         );
     }
-    let item = format!(
+    let mut item = format!(
         "- {} - `{}` - {} - trusted_receipt=`{}` gate_kind=`{}` task_id=`{}` operation_id=`{}` adapter=`{}` session_id=`{}` request_id=`{}`",
         now(),
         agent.trim(),
@@ -1535,6 +1546,9 @@ pub fn record_gate_evidence_with_receipt_bound(
         binding.session_id.trim(),
         binding.request_id.trim(),
     );
+    if let Some(generation) = plan_authority.authority_generation.as_deref() {
+        item.push_str(&format!(" authority_generation=`{generation}`"));
+    }
     append(&repo_path, "# Baron Quality Gate Evidence\n\n", &item)?;
     append(&vault_path, "# Baron Quality Gate Evidence\n\n", &item)?;
     Ok(GateEvidence {
@@ -1580,6 +1594,7 @@ pub fn gate_evidence_status_strict_for_scope(
         Some((task_id.trim(), adapter.trim())),
         None,
         None,
+        None,
     )
 }
 
@@ -1612,6 +1627,7 @@ pub fn gate_evidence_status_strict_for_request(
             request_id.trim(),
         )),
         None,
+        None,
     )
 }
 
@@ -1640,6 +1656,23 @@ pub fn gate_evidence_status_strict_for_operation(
             missing_agents: required_agents.to_vec(),
         });
     }
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let plan_binding = PlanOperationBinding {
+        task_id: task_id.trim().to_string(),
+        operation_id: operation_id.trim().to_string(),
+        adapter: adapter.trim().to_string(),
+        session_id: session_id.trim().to_string(),
+        request_id: request_id.trim().to_string(),
+    };
+    let Some(authority) =
+        indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+    else {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    };
     gate_evidence_status_strict_for_context_and_scope(
         repo_root,
         required_agents,
@@ -1653,6 +1686,7 @@ pub fn gate_evidence_status_strict_for_operation(
             request_id.trim(),
             operation_id.trim(),
         )),
+        Some(authority.authority_generation.as_deref()),
     )
 }
 
@@ -1668,6 +1702,47 @@ pub fn gate_evidence_status_strict_for_context(
         None,
         None,
         None,
+        None,
+    )
+}
+
+pub(crate) fn gate_evidence_status_strict_for_operation_in_generation(
+    repo_root: impl AsRef<Path>,
+    required_agents: &[String],
+    operation: &OperationContext,
+    authority_generation: Option<&str>,
+) -> Result<GateEvidenceStatus> {
+    let (Some(task_id), Some(operation_id), Some(session_id), Some(request_id)) = (
+        operation.task_id.as_deref(),
+        operation.operation_id.as_deref(),
+        operation.session_id.as_deref(),
+        operation.request_id.as_deref(),
+    ) else {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    };
+    if operation_id.trim().is_empty() {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    }
+    gate_evidence_status_strict_for_context_and_scope(
+        repo_root,
+        required_agents,
+        None,
+        None,
+        None,
+        Some((
+            task_id.trim(),
+            operation.adapter.as_str(),
+            session_id.trim(),
+            request_id.trim(),
+            operation_id.trim(),
+        )),
+        Some(authority_generation),
     )
 }
 
@@ -1678,6 +1753,7 @@ fn gate_evidence_status_strict_for_context_and_scope(
     expected_scope: Option<(&str, &str)>,
     expected_request: Option<(&str, &str, &str, &str)>,
     expected_operation: Option<(&str, &str, &str, &str, &str)>,
+    expected_authority_generation: Option<Option<&str>>,
 ) -> Result<GateEvidenceStatus> {
     let repo_root = repo_root.as_ref();
     let content =
@@ -1688,6 +1764,11 @@ fn gate_evidence_status_strict_for_context_and_scope(
         let needle = format!("`{}`", agent.trim());
         let satisfied = content.lines().any(|line| {
             if !line.contains(&needle) {
+                return false;
+            }
+            if expected_authority_generation.is_some_and(|expected| {
+                parse_gate_authority_generation(line).as_deref() != expected
+            }) {
                 return false;
             }
             let Some((_, value)) = line.split_once("trusted_receipt=`") else {
@@ -1784,6 +1865,14 @@ fn parse_gate_binding(line: &str) -> Option<GateReceiptBinding> {
         session_id: value("session_id")?,
         request_id: value("request_id")?,
     })
+}
+
+fn parse_gate_authority_generation(line: &str) -> Option<String> {
+    let marker = "authority_generation=`";
+    let start = line.find(marker)? + marker.len();
+    let rest = &line[start..];
+    let end = rest.find('`')?;
+    Some(rest[..end].to_string())
 }
 
 fn gate_kind_for_agent(agent: &str) -> String {

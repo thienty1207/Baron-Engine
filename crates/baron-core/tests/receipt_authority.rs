@@ -27,8 +27,9 @@ use baron_core::operation::{
     operation_id_for_parts, AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext,
     SupportedAdapter,
 };
+use baron_core::plan::start_or_resume_plan_for_identity;
 use baron_core::proof::{record_proof_from_receipt, record_proof_from_receipt_bound};
-use baron_core::vault::ensure_vault;
+use baron_core::vault::{ensure_vault, VaultContext};
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
@@ -47,6 +48,17 @@ fn identity(
         Some(request),
     )
     .unwrap()
+}
+
+fn start_active_plan_for_binding(
+    repo: &Path,
+    vault: &VaultContext,
+    task: &str,
+    session: &str,
+    request: &str,
+) {
+    let identity = identity(repo, task, session, request);
+    start_or_resume_plan_for_identity(repo, vault, task, identity.as_lifecycle_identity()).unwrap();
 }
 
 fn sentinel_command(repo: &Path, sentinel: &Path) -> ExecutionRequest {
@@ -456,6 +468,7 @@ fn typed_receipt_is_bound_to_gate_task_and_operation() {
     let vault = temp.path().join("vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    start_active_plan_for_binding(&repo, &context, "task-a", "session-a", "request-a");
     let binding = GateReceiptBinding::new(
         "task-a",
         "operation-a",
@@ -528,12 +541,19 @@ fn typed_receipt_is_bound_to_gate_task_and_operation() {
     .is_err());
 
     let format_binding = GateReceiptBinding::new(
-        "task-a",
+        "task-format",
         "operation-format",
         "codex",
         "session-format",
         "request-format",
         "quality:code-reviewer",
+    );
+    start_active_plan_for_binding(
+        &repo,
+        &context,
+        "task-format",
+        "session-format",
+        "request-format",
     );
     let (format_receipt, format_binding) =
         execute_authoritative(&repo, command(&repo), format_binding);
@@ -758,6 +778,7 @@ fn prepare_gate_status_cannot_reuse_another_task_or_request_receipt() {
     let vault = temp.path().join("vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    start_active_plan_for_binding(&repo, &context, "task-a", "session-a", "request-a");
     let binding = GateReceiptBinding::new(
         "task-a",
         "operation-a",
@@ -841,6 +862,7 @@ fn gate_status_cannot_reuse_a_receipt_from_another_operation() {
     let vault = temp.path().join("vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    start_active_plan_for_binding(&repo, &context, "task-a", "session-a", "request-a");
     let binding = GateReceiptBinding::new(
         "task-a",
         "operation-a",
@@ -960,6 +982,7 @@ fn proof_receipt_cannot_cross_task_or_use_the_unbound_legacy_api() {
     let vault = temp.path().join("vault");
     fs::create_dir_all(&repo).unwrap();
     let context = ensure_vault(&vault, &repo).unwrap();
+    start_active_plan_for_binding(&repo, &context, "task-a", "session-proof", "request-proof");
     let task_a = ReceiptContext::new(
         "task-a",
         "operation-proof",

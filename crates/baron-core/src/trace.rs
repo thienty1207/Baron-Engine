@@ -8,17 +8,19 @@ use chrono::{Local, NaiveDate, SecondsFormat, TimeZone};
 use serde::{Deserialize, Serialize};
 
 use crate::config::configured_vault_path_if_available;
-use crate::control_plane::gate_evidence_status_strict_for_operation;
+use crate::control_plane::gate_evidence_status_strict_for_operation_in_generation;
 use crate::harness::{
     current_harness_risk, current_harness_title, current_harness_title_for_operation,
 };
 use crate::operation::OperationContext;
 use crate::plan::{
-    active_plan_authority, active_plan_authority_for_trace_binding_locked, ActivePlanAuthority,
+    active_plan_authority, indexed_active_plan_authority_for_binding_locked,
+    indexed_active_plan_authority_for_trace_binding_locked, IndexedPlanAuthority,
 };
 use crate::proof::{
-    latest_proof, proof_by_id, proof_for_operation, proof_has_current_receipt,
-    proof_operation_binding, proof_satisfies_risk, ProofRecord,
+    latest_proof, proof_authority_generation, proof_by_id, proof_for_operation,
+    proof_for_operation_in_generation, proof_has_current_receipt, proof_operation_binding,
+    proof_satisfies_risk, ProofRecord,
 };
 use crate::risk::RiskLane;
 use crate::safe_io::{
@@ -168,8 +170,12 @@ pub fn record_trace_for_operation(
     {
         bail!("operation-bound trace proof binding does not match the trace operation");
     }
-    let plan_authority = active_plan_authority_for_trace_binding_locked(repo_root, binding)?
-        .context("operation-bound trace requires a validated active plan for this operation")?;
+    let plan_authority =
+        indexed_active_plan_authority_for_trace_binding_locked(repo_root, binding)?
+            .context("operation-bound trace requires a validated active plan for this operation")?;
+    if proof_authority_generation(&proof)? != plan_authority.authority_generation {
+        bail!("operation-bound trace proof belongs to a stale plan authority generation");
+    }
     let risk = plan_authority.risk;
     if risk != RiskLane::Low && !proof_has_current_receipt(repo_root, &proof)? {
         bail!("operation-bound trace requires a current trusted receipt for medium/high risk");
@@ -196,7 +202,7 @@ fn record_trace_internal(
     outcome: TraceOutcome,
     binding: Option<&TraceOperationBinding>,
     bound_proof: Option<&ProofRecord>,
-    plan_authority: Option<&ActivePlanAuthority>,
+    plan_authority: Option<&IndexedPlanAuthority>,
 ) -> Result<TraceRecord> {
     // Git status is diagnostic trace context and may spawn a child process;
     // collect it before entering the project mutation critical section.
@@ -214,7 +220,8 @@ fn record_trace_internal(
                 "operation-bound trace proof changed during validation; refusing stale trace publication"
             );
         }
-        let current_plan = active_plan_authority_for_trace_binding_locked(repo_root, binding)?;
+        let current_plan =
+            indexed_active_plan_authority_for_trace_binding_locked(repo_root, binding)?;
         if current_plan.as_ref() != plan_authority {
             bail!(
                 "operation-bound trace plan authority changed during validation; refusing stale trace publication"
@@ -316,6 +323,8 @@ fn record_trace_internal(
         proof: proof.as_ref().map(|value| value.summary.as_str()),
         proof_id: proof.as_ref().map(|value| value.id.as_str()),
         binding,
+        authority_generation: plan_authority
+            .and_then(|authority| authority.authority_generation.as_deref()),
         capability_gate_passed: proof
             .as_ref()
             .map(|value| value.capability_gate_passed)
@@ -376,15 +385,30 @@ pub fn score_trace(
     } else {
         None
     };
+    let mut expected_risk = None;
+    let mut expected_authority_generation: Option<Option<String>> = None;
     let scoped_id = if let Some(binding) = auto_binding.as_ref() {
-        let proof = proof_for_operation(repo_root, &binding.proof_binding())?
-            .context("operation-bound trace scoring requires proof for the selected operation")?;
+        let authority = indexed_active_plan_authority_for_binding_locked(repo_root, binding)?
+            .context("operation-bound trace scoring requires validated ACTIVE plan authority")?;
+        let proof = proof_for_operation_in_generation(
+            repo_root,
+            &binding.proof_binding(),
+            authority.authority_generation.as_deref(),
+        )?
+        .context("operation-bound trace scoring requires proof for the selected operation")?;
         let expected =
             TraceOperationBinding::from_operation(&binding.to_operation_context()?, &proof.id)?;
+        expected_risk = Some(authority.risk);
+        expected_authority_generation = Some(authority.authority_generation.clone());
         Some(
-            trace_for_operation_locked(repo_root, vault, &expected)?
-                .context("operation-bound trace is missing for the selected operation")?
-                .id,
+            trace_for_operation_locked_with_generation(
+                repo_root,
+                vault,
+                &expected,
+                Some(authority.authority_generation.as_deref()),
+            )?
+            .context("operation-bound trace is missing for the selected operation")?
+            .id,
         )
     } else {
         None
@@ -393,7 +417,14 @@ pub fn score_trace(
     let content = fs::read_to_string(&repo_path)?;
     let vault_path = verified_vault_trace_mirror(vault, repo_root, &repo_path, content.as_bytes())?
         .context("Trace Vault mirror is missing or differs from the repo trace")?;
-    let score = evaluate_trace_score(repo_root, &content, None)?;
+    let score = evaluate_trace_score(
+        repo_root,
+        &content,
+        expected_risk,
+        expected_authority_generation
+            .as_ref()
+            .map(|generation| generation.as_deref()),
+    )?;
     let updated = replace_score(&content, &score);
     write(&repo_path, &updated)?;
     write(&vault_path, &updated)?;
@@ -423,30 +454,56 @@ fn evaluate_trace_score(
     repo_root: &Path,
     content: &str,
     expected_risk: Option<RiskLane>,
+    expected_authority_generation: Option<Option<&str>>,
 ) -> Result<TraceScore> {
     let trace_id = trace_field(content, "- Trace ID: `").unwrap_or_else(|| "unknown".to_string());
     let binding = parse_trace_binding(content)?;
     let proof_id = trace_field(content, "- Proof ID: `");
+    let trace_generation = trace_authority_generation(content);
+    let mut active_authority = None;
     let mut missing = Vec::new();
     let stored_risk = parse_risk(content);
-    let risk = if let Some(expected_risk) = expected_risk {
+    let risk = if let Some(binding) = binding.as_ref() {
+        if expected_risk.is_none() {
+            active_authority =
+                indexed_active_plan_authority_for_trace_binding_locked(repo_root, binding)?;
+            if active_authority.is_none() {
+                missing.push("validated active plan authority is missing".to_string());
+            }
+        }
+        let expected_generation = expected_authority_generation.unwrap_or_else(|| {
+            active_authority
+                .as_ref()
+                .and_then(|authority| authority.authority_generation.as_deref())
+        });
+        if trace_generation.as_deref() != expected_generation {
+            missing.push("trace authority generation does not match active plan".to_string());
+        }
+        if let Some(authority) = active_authority.as_ref() {
+            if stored_risk != authority.risk {
+                missing.push("trace risk does not match active plan".to_string());
+            }
+        }
+        let risk = expected_risk
+            .or_else(|| active_authority.as_ref().map(|authority| authority.risk))
+            .unwrap_or(RiskLane::High);
+        if stored_risk != risk {
+            missing.push("trace risk does not match active plan".to_string());
+        }
+        risk
+    } else if let Some(expected_risk) = expected_risk {
         if stored_risk != expected_risk {
             missing.push("trace risk does not match active plan".to_string());
         }
         expected_risk
-    } else if let Some(binding) = binding.as_ref() {
-        match active_plan_authority_for_trace_binding_locked(repo_root, binding)? {
-            Some(authority) => {
-                if stored_risk != authority.risk {
-                    missing.push("trace risk does not match active plan".to_string());
-                }
-                authority.risk
-            }
-            None => stored_risk,
-        }
     } else {
         stored_risk
     };
+    let authority_generation = expected_authority_generation.unwrap_or_else(|| {
+        active_authority
+            .as_ref()
+            .and_then(|authority| authority.authority_generation.as_deref())
+    });
     if !content.contains("## Task Summary\n\n") || content.contains("## Task Summary\n\n\n") {
         missing.push("task summary".to_string());
     }
@@ -459,6 +516,7 @@ fn evaluate_trace_score(
         match proof_id.as_deref() {
             Some(proof_id) => match proof_by_id(repo_root, proof_id)? {
                 Some(proof) => {
+                    let proof_generation = proof_authority_generation(&proof)?;
                     let matches = proof_operation_binding(&proof)
                         .map(|proof_binding| {
                             proof_binding.gate_kind.trim() == "proof"
@@ -467,6 +525,7 @@ fn evaluate_trace_score(
                                 && proof_binding.adapter == binding.adapter
                                 && proof_binding.session_id == binding.session_id
                                 && proof_binding.request_id == binding.request_id
+                                && proof_generation.as_deref() == authority_generation
                         })
                         .unwrap_or(false);
                     if !matches || proof.id != binding.proof_id {
@@ -564,14 +623,16 @@ fn evaluate_trace_score(
                 "security-auditor".to_string(),
                 "test-engineer".to_string(),
             ];
-            let gate_status = gate_evidence_status_strict_for_operation(
+            let operation = OperationContext::new(binding.adapter.parse()?)
+                .with_task_id(binding.task_id.clone())
+                .with_operation_id(binding.operation_id.clone())
+                .with_session_id(binding.session_id.clone())
+                .with_request_id(binding.request_id.clone());
+            let gate_status = gate_evidence_status_strict_for_operation_in_generation(
                 repo_root,
                 &required_agents,
-                &binding.task_id,
-                &binding.operation_id,
-                &binding.adapter,
-                Some(&binding.session_id),
-                Some(&binding.request_id),
+                &operation,
+                authority_generation,
             )?;
             if !gate_status.passed {
                 missing.push("trusted quality-gate receipts".to_string());
@@ -620,7 +681,31 @@ pub fn latest_trace_score_for_operation(
         return Ok(None);
     };
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
-    latest_trace_score_for_operation_locked(repo_root, &vault, expected, None)
+    latest_trace_score_for_operation_locked(repo_root, &vault, expected, None, None)
+}
+
+/// Re-evaluate the exact operation trace against the persisted risk and
+/// authority generation of its linked plan. Unlike the active-plan variant,
+/// this also supports integrity checks for a completed plan, whose authority
+/// is no longer an ACTIVE entry.
+pub(crate) fn latest_trace_score_for_operation_with_risk_and_generation(
+    repo_root: &Path,
+    expected: &TraceOperationBinding,
+    expected_risk: RiskLane,
+    authority_generation: Option<&str>,
+) -> Result<Option<TraceScore>> {
+    let _repo_lock = acquire_project_lock(repo_root)?;
+    let Some(vault) = configured_trace_vault(repo_root)? else {
+        return Ok(None);
+    };
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    latest_trace_score_for_operation_locked(
+        repo_root,
+        &vault,
+        expected,
+        Some(expected_risk),
+        Some(authority_generation),
+    )
 }
 
 /// Score the exact operation trace using the caller's already-resolved Vault
@@ -634,21 +719,25 @@ pub(crate) fn latest_trace_score_for_operation_in_vault(
 ) -> Result<Option<TraceScore>> {
     let _repo_lock = acquire_project_lock(repo_root)?;
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
-    latest_trace_score_for_operation_locked(repo_root, vault, expected, None)
+    latest_trace_score_for_operation_locked(repo_root, vault, expected, None, None)
 }
 
-/// Evaluate an operation trace against risk from its already-validated active
-/// plan. Plan completion uses this variant while its status transition is
-/// pending, when the on-disk ACTIVE/frontmatter pair is temporarily in flight.
-pub(crate) fn latest_trace_score_for_operation_in_vault_with_risk(
+pub(crate) fn latest_trace_score_for_operation_in_vault_with_risk_and_generation(
     repo_root: &Path,
     vault: &VaultContext,
     expected: &TraceOperationBinding,
     expected_risk: RiskLane,
+    authority_generation: Option<&str>,
 ) -> Result<Option<TraceScore>> {
     let _repo_lock = acquire_project_lock(repo_root)?;
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
-    latest_trace_score_for_operation_locked(repo_root, vault, expected, Some(expected_risk))
+    latest_trace_score_for_operation_locked(
+        repo_root,
+        vault,
+        expected,
+        Some(expected_risk),
+        Some(authority_generation),
+    )
 }
 
 fn latest_trace_score_for_operation_locked(
@@ -656,13 +745,34 @@ fn latest_trace_score_for_operation_locked(
     vault: &VaultContext,
     expected: &TraceOperationBinding,
     expected_risk: Option<RiskLane>,
+    expected_authority_generation: Option<Option<&str>>,
 ) -> Result<Option<TraceScore>> {
-    let Some(trace) = trace_for_operation_locked(repo_root, vault, expected)? else {
+    let current_authority = if expected_risk.is_none() && expected_authority_generation.is_none() {
+        let Some(authority) =
+            indexed_active_plan_authority_for_trace_binding_locked(repo_root, expected)?
+        else {
+            return Ok(None);
+        };
+        Some(authority)
+    } else {
+        None
+    };
+    let generation_filter = expected_authority_generation.or_else(|| {
+        current_authority
+            .as_ref()
+            .map(|authority| authority.authority_generation.as_deref())
+    });
+    let Some(trace) =
+        trace_for_operation_locked_with_generation(repo_root, vault, expected, generation_filter)?
+    else {
         return Ok(None);
     };
     let content = fs::read_to_string(trace.repo_path)?;
-    let score = evaluate_trace_score(repo_root, &content, expected_risk)?;
-    if score.binding.as_ref() == Some(expected)
+    let score = evaluate_trace_score(repo_root, &content, expected_risk, generation_filter)?;
+    if score
+        .binding
+        .as_ref()
+        .is_some_and(|actual| actual.matches_identity(expected))
         && score.proof_id.as_deref() == Some(expected.proof_id.as_str())
     {
         Ok(Some(score))
@@ -690,6 +800,15 @@ fn trace_for_operation_locked(
     vault: &VaultContext,
     expected: &TraceOperationBinding,
 ) -> Result<Option<TraceRecord>> {
+    trace_for_operation_locked_with_generation(repo_root, vault, expected, None)
+}
+
+fn trace_for_operation_locked_with_generation(
+    repo_root: &Path,
+    vault: &VaultContext,
+    expected: &TraceOperationBinding,
+    expected_authority_generation: Option<Option<&str>>,
+) -> Result<Option<TraceRecord>> {
     expected.validate()?;
     let mut paths = trace_paths(repo_root)?;
     paths.sort_by_key(|path| artifact_sort_key(path));
@@ -698,7 +817,11 @@ fn trace_for_operation_locked(
         let Some(binding) = parse_trace_binding(&content)? else {
             continue;
         };
-        if binding.matches_identity(expected) && binding.proof_id == expected.proof_id {
+        if binding.matches_identity(expected)
+            && binding.proof_id == expected.proof_id
+            && expected_authority_generation
+                .is_none_or(|expected| trace_authority_generation(&content).as_deref() == expected)
+        {
             let Some(vault_path) =
                 verified_vault_trace_mirror(vault, repo_root, &path, content.as_bytes())?
             else {
@@ -791,6 +914,9 @@ fn render_trace(view: TraceView<'_>) -> String {
         },
         view.summary.trim()
     );
+    if let Some(generation) = view.authority_generation {
+        content.push_str(&format!("\n- Authority Generation: `{generation}`\n"));
+    }
     if view.files.is_empty() {
         content.push_str("- none detected\n");
     } else {
@@ -811,6 +937,7 @@ struct TraceView<'a> {
     proof: Option<&'a str>,
     proof_id: Option<&'a str>,
     binding: Option<&'a TraceOperationBinding>,
+    authority_generation: Option<&'a str>,
     capability_gate_passed: bool,
     capability_warnings: &'a [String],
     files: &'a [String],
@@ -1062,6 +1189,10 @@ fn trace_field(content: &str, prefix: &str) -> Option<String> {
         .find_map(|line| line.strip_prefix(prefix))
         .and_then(|value| value.strip_suffix('`'))
         .map(str::to_string)
+}
+
+fn trace_authority_generation(content: &str) -> Option<String> {
+    trace_field(content, "- Authority Generation: `")
 }
 
 fn trace_summary(content: &str) -> String {

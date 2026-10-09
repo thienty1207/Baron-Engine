@@ -2223,21 +2223,12 @@ fn identified_and_legacy_plan_metadata_states_cannot_cross_authorize() {
         )
         .unwrap();
         let operation = OperationContext::from_identity(&identity);
-        let proof =
+        let error =
             record_proof_for_operation(&repo, &context, &operation, "README verification passed")
-                .unwrap();
-        let binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
-        let error = record_trace_for_operation(
-            &repo,
-            &context,
-            "README typo corrected",
-            TraceOutcome::Completed,
-            &binding,
-        )
-        .unwrap_err();
+                .unwrap_err();
         assert!(error
             .to_string()
-            .contains("validated active plan for this operation"));
+            .contains("validated ACTIVE plan authority"));
         let current_path = repo.join("docs/baron/plans/CURRENT.md");
         let current = fs::read_to_string(&current_path).unwrap();
         let identified = current.replace(

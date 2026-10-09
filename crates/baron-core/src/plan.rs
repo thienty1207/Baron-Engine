@@ -6,11 +6,12 @@ use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::control_plane::gate_evidence_status_strict_for_operation;
+use crate::control_plane::gate_evidence_status_strict_for_operation_in_generation;
 use crate::execution_receipt::ReceiptContext;
 use crate::operation::{task_id_for_task, LifecycleIdentity, OperationContext, SupportedAdapter};
 use crate::proof::{
-    proof_for_operation, proof_has_current_receipt, proof_operation_binding, proof_satisfies_risk,
+    proof_for_operation_in_generation, proof_has_current_receipt, proof_operation_binding,
+    proof_satisfies_risk,
 };
 use crate::risk::{classify_risk, RiskLane};
 use crate::safe_io::{
@@ -18,8 +19,8 @@ use crate::safe_io::{
     replace_text,
 };
 use crate::trace::{
-    latest_trace_score_for_operation, latest_trace_score_for_operation_in_vault_with_risk,
-    TraceOperationBinding, TraceTier,
+    latest_trace_score_for_operation_in_vault_with_risk_and_generation,
+    latest_trace_score_for_operation_with_risk_and_generation, TraceOperationBinding, TraceTier,
 };
 use crate::vault::{canonical_project_id, VaultContext};
 
@@ -74,6 +75,8 @@ struct PlanTransitionJournal {
     risk: RiskLane,
     task_id: String,
     binding: Option<PlanOperationBinding>,
+    #[serde(default)]
+    authority_generation: Option<String>,
     next_action: String,
 }
 
@@ -155,6 +158,8 @@ struct ActivePlanIndexEntry {
     request_id: String,
     plan_path: String,
     status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    authority_generation: Option<String>,
 }
 
 impl ActivePlanIndexEntry {
@@ -163,6 +168,7 @@ impl ActivePlanIndexEntry {
         repo_root: &Path,
         plan_path: &Path,
         status: &str,
+        authority_generation: Option<String>,
     ) -> Self {
         Self {
             task_id: binding.task_id.clone(),
@@ -172,6 +178,7 @@ impl ActivePlanIndexEntry {
             request_id: binding.request_id.clone(),
             plan_path: normalize(plan_path, repo_root),
             status: status.to_string(),
+            authority_generation,
         }
     }
 
@@ -197,6 +204,24 @@ pub struct ActivePlanAuthority {
     pub binding: Option<PlanOperationBinding>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IndexedPlanAuthority {
+    pub title: String,
+    pub risk: RiskLane,
+    pub binding: Option<PlanOperationBinding>,
+    pub authority_generation: Option<String>,
+}
+
+impl From<IndexedPlanAuthority> for ActivePlanAuthority {
+    fn from(authority: IndexedPlanAuthority) -> Self {
+        Self {
+            title: authority.title,
+            risk: authority.risk,
+            binding: authority.binding,
+        }
+    }
+}
+
 /// Resolve correctness-sensitive plan authority from one exact lifecycle
 /// binding. `CURRENT.md` is never consulted: ACTIVE and the managed plan's
 /// canonical frontmatter provide authority independently of the presentation.
@@ -219,6 +244,13 @@ pub fn indexed_active_plan_authority_for_binding(
 ) -> Result<Option<ActivePlanAuthority>> {
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
+    Ok(indexed_active_plan_authority_for_binding_locked(repo_root, binding)?.map(Into::into))
+}
+
+pub(crate) fn indexed_active_plan_authority_for_binding_locked(
+    repo_root: &Path,
+    binding: &PlanOperationBinding,
+) -> Result<Option<IndexedPlanAuthority>> {
     let entries = load_active_plan_index(repo_root)?;
     let mut matches = entries
         .iter()
@@ -239,18 +271,20 @@ pub fn indexed_active_plan_authority_for_binding(
         return Ok(None);
     };
     let path = resolve_managed_plan_path(repo_root, &entry.plan_path)?;
-    let active = load_identified_active_plan(repo_root, &path, binding)?;
-    if active.status != entry.status {
+    let mut active = load_identified_active_plan(repo_root, &path, binding)?;
+    if active.status != entry.status || active.authority_generation != entry.authority_generation {
         bail!(
-            "Baron active plan index status does not match {}",
+            "Baron active plan index status or authority generation does not match {}",
             entry.plan_path
         );
     }
+    active.authority_indexed = true;
     active.ensure_authority()?;
-    Ok(Some(ActivePlanAuthority {
+    Ok(Some(IndexedPlanAuthority {
         title: active.title,
         risk: active.risk,
         binding: active.binding,
+        authority_generation: active.authority_generation,
     }))
 }
 
@@ -297,6 +331,20 @@ pub(crate) fn active_plan_authority_for_trace_binding_locked(
         request_id: binding.request_id.clone(),
     };
     active_plan_authority_for_binding_locked(repo_root, &plan_binding)
+}
+
+pub(crate) fn indexed_active_plan_authority_for_trace_binding_locked(
+    repo_root: &Path,
+    binding: &TraceOperationBinding,
+) -> Result<Option<IndexedPlanAuthority>> {
+    let plan_binding = PlanOperationBinding {
+        task_id: binding.task_id.clone(),
+        operation_id: binding.operation_id.clone(),
+        adapter: binding.adapter.clone(),
+        session_id: binding.session_id.clone(),
+        request_id: binding.request_id.clone(),
+    };
+    indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)
 }
 
 fn active_plan_authority_for_binding_locked(
@@ -353,7 +401,12 @@ pub fn active_plan_operation_binding(
     if let Some(active) = sole_active_managed_plan(repo_root)? {
         if active.binding.is_some() {
             active.ensure_authority()?;
-            return Ok(active.binding);
+            let binding = active
+                .binding
+                .context("identified active plan has no binding")?;
+            indexed_active_plan_authority_for_binding_locked(repo_root, &binding)?
+                .context("identified active plan is not present in the validated ACTIVE index")?;
+            return Ok(Some(binding));
         }
     }
 
@@ -591,6 +644,11 @@ fn start_or_resume_plan_internal(
                     progress_note: "Plan resumed.",
                     current_title: title,
                     next_action: "continue from last known state",
+                    authority_generation: if binding.is_some() && !active.authority_indexed {
+                        Some(artifact_instance_id(&today())?)
+                    } else {
+                        None
+                    },
                 },
                 &active,
             )?;
@@ -612,12 +670,19 @@ fn start_or_resume_plan_internal(
     let risk = classify_risk(title);
     let date = today();
     let instance_id = artifact_instance_id(&date)?;
+    let authority_generation = binding.map(|_| instance_id.as_str());
     let repo_path = repo_root
         .join("docs/baron/plans")
         .join(&date)
         .join(format!("{date}-{}-{instance_id}.md", slugify(title)));
     let vault_path = vault_plan_path(repo_root, vault, &repo_path)?;
-    let content = plan_content(&vault.project_id, title, risk, binding)?;
+    let content = plan_content(
+        &vault.project_id,
+        title,
+        risk,
+        binding,
+        authority_generation,
+    )?;
     create_new_text(&repo_path, &content)?;
     create_new_text(&vault_path, &content)?;
     append_unique(
@@ -747,6 +812,7 @@ struct PlanStatusTransition<'a> {
     progress_note: &'a str,
     current_title: &'a str,
     next_action: &'a str,
+    authority_generation: Option<String>,
 }
 
 fn publish_plan_status_transition(
@@ -761,6 +827,7 @@ fn publish_plan_status_transition(
         progress_note,
         current_title,
         next_action,
+        authority_generation,
     } = transition;
     let allowed_transition = matches!(
         (active.status.as_str(), status),
@@ -786,6 +853,7 @@ fn publish_plan_status_transition(
         &updated_at,
         verification.as_deref(),
         progress_note,
+        authority_generation.as_deref(),
     );
     let plan_path = normalize(&active.path, repo_root);
     let vault_path = vault_plan_path(repo_root, vault, &active.path)?;
@@ -806,6 +874,7 @@ fn publish_plan_status_transition(
         risk: active.risk,
         task_id: active.task_id.clone(),
         binding: active.binding.clone(),
+        authority_generation,
         next_action: next_action.to_string(),
     };
     let journal_path = repo_root.join(PLAN_TRANSITION_JOURNAL);
@@ -867,6 +936,7 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
             &journal.updated_at,
             journal.verification.as_deref(),
             &journal.progress_note,
+            journal.authority_generation.as_deref(),
         );
         if plan_content_hash(&target) != journal.target_hash {
             bail!("Pending plan transition target hash does not match its journal");
@@ -895,6 +965,8 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
             binding: binding.clone(),
             linked_status: Some(metadata.status.clone()),
             authority_issues: Vec::new(),
+            authority_generation: metadata.authority_generation.clone(),
+            authority_indexed: false,
         };
         if let Some(issue) = completion_evidence_status(repo_root, &active, Some(vault))?
             .issues
@@ -984,14 +1056,21 @@ fn plan_transition_content(
     updated_at: &str,
     verification: Option<&str>,
     progress_note: &str,
+    authority_generation: Option<&str>,
 ) -> String {
-    let updated = content
+    let mut found_authority_generation = false;
+    let mut updated = content
         .lines()
         .map(|line| {
             if line.starts_with("status: ") {
                 format!("status: {status}")
             } else if line.starts_with("updated: ") {
                 format!("updated: {updated_at}")
+            } else if line.starts_with("authority_generation: ") {
+                found_authority_generation = true;
+                authority_generation
+                    .map(|generation| format!("authority_generation: {generation}"))
+                    .unwrap_or_else(|| line.to_string())
             } else if line.starts_with("verification: ") {
                 verification
                     .map(|value| format!("verification: {value}"))
@@ -1000,8 +1079,16 @@ fn plan_transition_content(
                 line.to_string()
             }
         })
-        .collect::<Vec<_>>()
-        .join("\n");
+        .collect::<Vec<_>>();
+    if let Some(generation) = authority_generation.filter(|_| !found_authority_generation) {
+        if let Some(index) = updated
+            .iter()
+            .position(|line| line.starts_with("created: "))
+        {
+            updated.insert(index, format!("authority_generation: {generation}"));
+        }
+    }
+    let updated = updated.join("\n");
     format!("{updated}\n- {updated_at} - {progress_note}\n")
 }
 
@@ -1025,6 +1112,7 @@ fn interrupt_plan_state(
             progress_note: &format!("Interrupted: {state}"),
             current_title: &active.title,
             next_action: state,
+            authority_generation: None,
         },
         active,
     )
@@ -1084,6 +1172,7 @@ fn complete_plan_state(
             ),
             current_title: &active.title,
             next_action: "start the next explicit task",
+            authority_generation: None,
         },
         active,
     )
@@ -1124,7 +1213,11 @@ fn completion_evidence_issues(
     };
 
     let proof_binding = expected_binding.proof_binding();
-    let proof = proof_for_operation(repo_root, &proof_binding)?;
+    let proof = proof_for_operation_in_generation(
+        repo_root,
+        &proof_binding,
+        active.authority_generation.as_deref(),
+    )?;
     if let Some(proof) = proof.as_ref() {
         if !proof_satisfies_risk(&proof.summary, active.risk) {
             issues.push(format!(
@@ -1157,14 +1250,12 @@ fn completion_evidence_issues(
             "security-auditor".to_string(),
             "test-engineer".to_string(),
         ];
-        let gate_status = gate_evidence_status_strict_for_operation(
+        let gate_operation = expected_binding.to_operation_context()?;
+        let gate_status = gate_evidence_status_strict_for_operation_in_generation(
             repo_root,
             &required_agents,
-            &expected_binding.task_id,
-            &expected_binding.operation_id,
-            &expected_binding.adapter,
-            Some(&expected_binding.session_id),
-            Some(&expected_binding.request_id),
+            &gate_operation,
+            active.authority_generation.as_deref(),
         )?;
         if !gate_status.passed {
             issues.push(format!(
@@ -1177,13 +1268,19 @@ fn completion_evidence_issues(
     if let Some(proof) = proof {
         let trace_binding = expected_binding.trace_binding(&proof.id);
         let trace = match vault {
-            Some(vault) => latest_trace_score_for_operation_in_vault_with_risk(
+            Some(vault) => latest_trace_score_for_operation_in_vault_with_risk_and_generation(
                 repo_root,
                 vault,
                 &trace_binding,
                 active.risk,
+                active.authority_generation.as_deref(),
             )?,
-            None => latest_trace_score_for_operation(repo_root, &trace_binding)?,
+            None => latest_trace_score_for_operation_with_risk_and_generation(
+                repo_root,
+                &trace_binding,
+                active.risk,
+                active.authority_generation.as_deref(),
+            )?,
         };
         match trace {
             Some(trace) if trace.passed && trace.achieved >= required_tier(active.risk) => {}
@@ -1413,7 +1510,10 @@ fn ensure_active_plan_vault_index_consistent(repo_root: &Path, vault: &VaultCont
         for shared in &vault_entries {
             let shared_binding = shared.binding()?;
             if shared_binding == local_binding {
-                if shared.plan_path != local.plan_path || shared.status != local.status {
+                if shared.plan_path != local.plan_path
+                    || shared.status != local.status
+                    || shared.authority_generation != local.authority_generation
+                {
                     bail!(
                         "shared Vault ACTIVE entry for operation `{}` conflicts with this checkout",
                         local_binding.operation_id
@@ -1459,6 +1559,12 @@ fn validate_active_plan_index_entry(repo_root: &Path, entry: &ActivePlanIndexEnt
             entry.plan_path
         );
     }
+    if metadata.authority_generation != entry.authority_generation {
+        bail!(
+            "Baron active plan index authority generation does not match {}",
+            entry.plan_path
+        );
+    }
     if validate_linked_plan_authority(repo_root, &metadata)?.as_ref() != Some(&binding) {
         bail!(
             "Baron active plan index canonical authority does not match {}",
@@ -1495,7 +1601,9 @@ fn write_active_plan_index(
             }
             if &binding == updated_binding {
                 vault_entries[index] = entry.clone();
-            } else if shared.status != entry.status {
+            } else if shared.status != entry.status
+                || shared.authority_generation != entry.authority_generation
+            {
                 bail!(
                     "shared Vault ACTIVE entry for operation `{}` has a stale status",
                     binding.operation_id
@@ -1543,6 +1651,7 @@ fn upsert_active_plan_index(
     plan_path: &Path,
     status: &str,
 ) -> Result<()> {
+    let authority_generation = load_plan_file_metadata(plan_path)?.authority_generation;
     let mut entries = Vec::new();
     for entry in read_active_plan_index_entries(repo_root)? {
         let existing = entry.binding()?;
@@ -1556,7 +1665,11 @@ fn upsert_active_plan_index(
         entries.push(entry);
     }
     entries.push(ActivePlanIndexEntry::from_plan(
-        binding, repo_root, plan_path, status,
+        binding,
+        repo_root,
+        plan_path,
+        status,
+        authority_generation,
     ));
     write_active_plan_index(repo_root, vault, entries, binding)
 }
@@ -1598,13 +1711,16 @@ fn active_plan_for_binding_with_completion_policy(
             continue;
         }
         let path = resolve_managed_plan_path(repo_root, &entry.plan_path)?;
-        let active = load_identified_active_plan(repo_root, &path, binding)?;
-        if active.status != entry.status {
+        let mut active = load_identified_active_plan(repo_root, &path, binding)?;
+        if active.status != entry.status
+            || active.authority_generation != entry.authority_generation
+        {
             bail!(
-                "Baron active plan index status does not match {}",
+                "Baron active plan index status or authority generation does not match {}",
                 entry.plan_path
             );
         }
+        active.authority_indexed = true;
         matches.push(active);
     }
     if matches.len() > 1 {
@@ -1648,6 +1764,8 @@ fn load_identified_active_plan(
         binding: Some(actual),
         linked_status: Some(metadata.status),
         authority_issues: Vec::new(),
+        authority_generation: metadata.authority_generation,
+        authority_indexed: false,
     })
 }
 
@@ -1809,8 +1927,10 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
         let mut linked_task_id = task_id.clone();
         let mut binding = current_binding;
         let mut linked_status = None;
+        let mut authority_generation = None;
         match load_plan_file_metadata(&path) {
             Ok(metadata) => {
+                authority_generation = metadata.authority_generation.clone();
                 linked_status = Some(metadata.status.clone());
                 let linked_binding = match metadata.operation_binding() {
                     Ok(linked_binding) => linked_binding,
@@ -1853,6 +1973,8 @@ fn active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
             binding,
             linked_status,
             authority_issues,
+            authority_generation,
+            authority_indexed: false,
         }
     }))
 }
@@ -1956,6 +2078,8 @@ fn discover_active_managed_plans(repo_root: &Path) -> Result<Vec<ActivePlan>> {
                 binding: None,
                 linked_status: Some(metadata.status),
                 authority_issues: Vec::new(),
+                authority_generation: metadata.authority_generation,
+                authority_indexed: false,
             }
         };
         if matches.iter().any(|existing: &ActivePlan| {
@@ -2036,6 +2160,7 @@ struct PlanFileMetadata {
     adapter: Option<String>,
     session_id: Option<String>,
     request_id: Option<String>,
+    authority_generation: Option<String>,
 }
 
 impl PlanFileMetadata {
@@ -2083,6 +2208,13 @@ fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
     if task_id.is_empty() {
         bail!("linked plan task_id is empty");
     }
+    let authority_generation = optional_frontmatter_field(&fields, "authority_generation")?;
+    if authority_generation
+        .as_deref()
+        .is_some_and(|generation| generation.trim().is_empty())
+    {
+        bail!("linked plan authority generation is empty");
+    }
     Ok(PlanFileMetadata {
         title,
         status,
@@ -2092,6 +2224,7 @@ fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
         adapter: optional_frontmatter_field(&fields, "adapter")?,
         session_id: optional_frontmatter_field(&fields, "session_id")?,
         request_id: optional_frontmatter_field(&fields, "request_id")?,
+        authority_generation,
     })
 }
 
@@ -2352,6 +2485,7 @@ fn plan_content(
     title: &str,
     risk: RiskLane,
     binding: Option<&PlanOperationBinding>,
+    authority_generation: Option<&str>,
 ) -> Result<String> {
     let task_id = binding.map(|binding| binding.task_id.clone()).map_or_else(
         || task_id_for_task(project_id, title).map_err(|error| anyhow::anyhow!(error.to_string())),
@@ -2365,6 +2499,9 @@ fn plan_content(
             )
         })
         .unwrap_or_default();
+    let authority_identity = authority_generation
+        .map(|generation| format!("authority_generation: {generation}\n"))
+        .unwrap_or_default();
     Ok(format!(
         "---\n\
 type: baron-plan\n\
@@ -2373,6 +2510,7 @@ status: in_progress\n\
 risk: {}\n\
 task_id: {task_id}\n\
 {operation_identity}\
+{authority_identity}\
 created: {}\n\
 updated: {}\n\
 verification: not_run\n\
@@ -2568,6 +2706,8 @@ struct ActivePlan {
     binding: Option<PlanOperationBinding>,
     linked_status: Option<String>,
     authority_issues: Vec<String>,
+    authority_generation: Option<String>,
+    authority_indexed: bool,
 }
 
 impl ActivePlan {

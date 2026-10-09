@@ -19,7 +19,8 @@ use crate::harness::{
 };
 use crate::operation::{OperationContext, SupportedAdapter};
 use crate::plan::{
-    active_plan_authority_for_binding, active_plan_operation_binding, PlanOperationBinding,
+    active_plan_operation_binding, indexed_active_plan_authority_for_binding_locked,
+    PlanOperationBinding,
 };
 use crate::risk::RiskLane;
 use crate::safe_io::{
@@ -235,6 +236,31 @@ fn record_proof_internal(
     let binding = binding
         .or_else(|| trusted_receipt.map(|(_, binding)| binding))
         .cloned();
+    let plan_authority = if let Some(binding) = binding.as_ref() {
+        let plan_binding = PlanOperationBinding {
+            task_id: binding.task_id.clone(),
+            operation_id: binding.operation_id.clone(),
+            adapter: binding.adapter.clone(),
+            session_id: binding.session_id.clone(),
+            request_id: binding.request_id.clone(),
+        };
+        Some(
+            indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+                .context("operation-bound proof requires validated ACTIVE plan authority")?,
+        )
+    } else {
+        None
+    };
+    let validation_risk = plan_authority
+        .as_ref()
+        .map(|authority| authority.risk)
+        .unwrap_or_else(|| {
+            if binding.is_some() {
+                RiskLane::High
+            } else {
+                current_harness_risk(repo_root)
+            }
+        });
     let content = render_proof(ProofView {
         id: &id,
         summary,
@@ -245,25 +271,10 @@ fn record_proof_internal(
         operation,
         binding: binding.as_ref(),
         trusted_receipt: trusted_receipt.map(|(receipt, _)| receipt),
+        authority_generation: plan_authority
+            .as_ref()
+            .and_then(|authority| authority.authority_generation.as_deref()),
     });
-    let validation_risk = if let Some(binding) = binding.as_ref() {
-        active_plan_authority_for_binding(
-            repo_root,
-            &PlanOperationBinding {
-                task_id: binding.task_id.clone(),
-                operation_id: binding.operation_id.clone(),
-                adapter: binding.adapter.clone(),
-                session_id: binding.session_id.clone(),
-                request_id: binding.request_id.clone(),
-            },
-        )?
-        .map(|authority| authority.risk)
-        // Without exact plan authority, do not certify a proof from the risk
-        // of whichever unrelated story happens to be in CURRENT.
-        .unwrap_or(RiskLane::High)
-    } else {
-        current_harness_risk(repo_root)
-    };
     let verified = proof_satisfies_risk(summary, validation_risk) && capability_gate.passed;
     // Reserve shared Vault mutation authority before publishing any proof or
     // runtime evidence. Otherwise a later TEST_MATRIX lock timeout could
@@ -354,6 +365,31 @@ pub fn proof_for_operation(
     expected: &ReceiptContext,
 ) -> Result<Option<ProofRecord>> {
     expected.validate()?;
+    let _lock = acquire_project_lock(repo_root)?;
+    let plan_binding = PlanOperationBinding {
+        task_id: expected.task_id.clone(),
+        operation_id: expected.operation_id.clone(),
+        adapter: expected.adapter.clone(),
+        session_id: expected.session_id.clone(),
+        request_id: expected.request_id.clone(),
+    };
+    if let Some(authority) =
+        indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+    {
+        return proof_for_operation_in_generation(
+            repo_root,
+            expected,
+            authority.authority_generation.as_deref(),
+        );
+    }
+    proof_for_operation_unfiltered(repo_root, expected)
+}
+
+fn proof_for_operation_unfiltered(
+    repo_root: &Path,
+    expected: &ReceiptContext,
+) -> Result<Option<ProofRecord>> {
+    expected.validate()?;
     let mut paths = proof_paths(repo_root)?;
     paths.sort_by_key(|path| artifact_sort_key(path));
     for path in paths.into_iter().rev() {
@@ -366,6 +402,34 @@ pub fn proof_for_operation(
         }
     }
     Ok(None)
+}
+
+pub(crate) fn proof_for_operation_in_generation(
+    repo_root: &Path,
+    expected: &ReceiptContext,
+    authority_generation: Option<&str>,
+) -> Result<Option<ProofRecord>> {
+    expected.validate()?;
+    let mut paths = proof_paths(repo_root)?;
+    paths.sort_by_key(|path| artifact_sort_key(path));
+    for path in paths.into_iter().rev() {
+        let proof = parse_proof(&path)?;
+        let Some(binding) = proof.binding.as_ref() else {
+            continue;
+        };
+        if operation_binding_matches(binding, expected)
+            && binding.gate_kind.trim() == "proof"
+            && proof_authority_generation(&proof)?.as_deref() == authority_generation
+        {
+            return Ok(Some(proof));
+        }
+    }
+    Ok(None)
+}
+
+pub(crate) fn proof_authority_generation(proof: &ProofRecord) -> Result<Option<String>> {
+    let content = fs::read_to_string(&proof.repo_path)?;
+    Ok(optional_field_value(&content, "- Authority Generation: `"))
 }
 
 /// Return the complete operation binding persisted in a proof. A legacy
@@ -384,6 +448,7 @@ struct ProofView<'a> {
     operation: Option<&'a OperationContext>,
     binding: Option<&'a ReceiptContext>,
     trusted_receipt: Option<&'a VerifiedExecutionReceipt>,
+    authority_generation: Option<&'a str>,
 }
 
 fn render_proof(view: ProofView<'_>) -> String {
@@ -423,6 +488,9 @@ fn render_proof(view: ProofView<'_>) -> String {
         operation_identity,
         view.summary.trim()
     );
+    if let Some(generation) = view.authority_generation {
+        content.push_str(&format!("\n- Authority Generation: `{generation}`\n"));
+    }
     if view.capability_evidence.is_empty() {
         content.push_str("- none recorded\n");
     } else {

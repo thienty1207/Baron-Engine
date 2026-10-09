@@ -151,3 +151,20 @@
 - [ ] Each reviewer explicitly assesses all 23 prompt checklist items and returns `Critical findings`, `Important findings`, and `Verdict: ACCEPT | FIX REQUIRED | INCONCLUSIVE`.
 - [ ] Require both verdicts to be `ACCEPT` for the same exact range; quota/tool failure is `INCONCLUSIVE`, never acceptance.
 - [ ] If either reviewer finds Critical/Important, keep SPEC-05 open and repeat the prompt's regression-backed repair, full verification, push, and fresh-review cycle.
+
+### Task 10: Repair final reviewer finding I-1
+
+**Files:** `crates/baron-core/src/plan.rs`, `proof.rs`, `trace.rs`, `control_plane.rs`; related Core/CLI tests; synchronized status and verification evidence.
+
+**Interfaces:** consumes the fresh Important review of `ecaf362..a46ac3e`; produces strict indexed-ACTIVE publication authority, non-revivable evidence generations, and a new review candidate only after every local gate passes.
+
+- [x] Reproduce the missing-ACTIVE frontmatter fallback: stale identified plan metadata could authorize evidence publication without a validated ACTIVE row.
+- [x] Add the no-write regression across proof, trace, and receipt-bound gate ingress; recovery of the same identity must rotate generation and leave prior proof/trace unusable for completion.
+- [x] Enforce strict indexed ACTIVE/frontmatter validation under the mutation lock for evidence writers; persist authority generation in the plan index/frontmatter and evidence; preserve existing public Rust struct shapes.
+- [x] Make completed-plan integrity audit resolve exact risk/generation and mirrored Vault trace without requiring the completed plan to remain ACTIVE.
+- [x] Focused Core tests pass: authority_ingress 6/6, control_plane 9/9, plan 57/57, proof_trace 36/36. Focused CLI tests pass: execution 15/15, operation_evidence 11/11, plan_identity 4/4. Receipt authority fixtures and trusted proof pass 29/29 after seeding exact active plans.
+- [x] Finish serial workspace all-targets run: Core 634/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 948/0/4 ignored across 112 suites. The earlier parallel attempt hit Windows `os error 1450`; the five stale fixtures were corrected and the final serial run passed.
+- [x] Run warnings-denied Clippy and locked release build; release binary is exactly `baron 5.0.0`, release smoke 1/1, public trust docs 12/12, and CLI help selectors pass.
+- [x] Finish post-sync status JSON, changed-Markdown links, tracked retirement, diff, and scope gates: JSON parses; 16 relative links across 10 changed Markdown files, 0 broken; retirement gate 8/8; `git diff ecaf362 --check` exits 0; 70-file range inventory has no manifests/lockfiles, release workflow, Hotel Staff, or SPEC-06 changes.
+- [ ] Commit and push the synchronized repair; verify local/remote SHA equality and exact-SHA hosted CI.
+- [ ] Obtain two fresh independent read-only reviews of the identical complete `ecaf362..<FINAL_REVIEW_HEAD>` range; both must explicitly ACCEPT with zero Critical/Important findings.

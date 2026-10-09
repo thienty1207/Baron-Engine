@@ -1,14 +1,24 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use baron_core::config::{initialize_project, AdapterKind};
-use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
-use baron_core::plan::{
-    active_plan_authority_for_binding, indexed_active_plan_authority_for_binding,
-    start_or_resume_plan, start_or_resume_plan_for_identity, PlanOperationBinding,
+use baron_core::control_plane::{
+    gate_evidence_status_strict_for_operation, record_gate_evidence_with_receipt_bound,
 };
-use baron_core::proof::{record_proof, record_proof_for_operation};
+use baron_core::execution_receipt::{
+    execute_command_for_identity, ExecutionRequest, ReceiptContext,
+};
+use baron_core::operation::{
+    AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
+};
+use baron_core::plan::{
+    active_plan_authority_for_binding, active_plan_completion_evidence_status_for_identity,
+    indexed_active_plan_authority_for_binding, start_or_resume_plan,
+    start_or_resume_plan_for_identity, PlanOperationBinding,
+};
+use baron_core::proof::{proof_for_operation, record_proof, record_proof_for_operation};
 use baron_core::trace::{
     record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
 };
@@ -126,7 +136,7 @@ fn evidence_ingress_can_require_indexed_authority_without_removing_legacy_plan_r
     fs::create_dir_all(&repo).unwrap();
     initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
     let vault = ensure_vault(&vault_root, &repo).unwrap();
-    let identity = LifecycleIdentity::resolve(
+    let authoritative_identity = AuthoritativeLifecycleIdentity::resolve(
         &vault.project_id,
         "fix README alpha typo",
         SupportedAdapter::Codex,
@@ -134,11 +144,65 @@ fn evidence_ingress_can_require_indexed_authority_without_removing_legacy_plan_r
         Some("request-a"),
     )
     .unwrap();
-    start_or_resume_plan_for_identity(&repo, &vault, "fix README alpha typo", &identity).unwrap();
-    let binding = PlanOperationBinding::from_identity(&identity);
+    let identity = authoritative_identity.as_lifecycle_identity();
+    let plan = start_or_resume_plan_for_identity(&repo, &vault, "fix README alpha typo", identity)
+        .unwrap();
+    let binding = PlanOperationBinding::from_identity(identity);
     assert!(indexed_active_plan_authority_for_binding(&repo, &binding)
         .unwrap()
         .is_some());
+
+    let operation = OperationContext::from_identity(identity);
+    let proof = record_proof_for_operation(
+        &repo,
+        &vault,
+        &operation,
+        "README verification passed before index loss",
+    )
+    .unwrap();
+    let read_generation = |content: &str| {
+        content
+            .lines()
+            .find_map(|line| line.strip_prefix("authority_generation: "))
+            .map(str::to_string)
+    };
+    let original_generation = read_generation(&fs::read_to_string(&plan.repo_path).unwrap());
+    let trace_binding = TraceOperationBinding::from_operation(&operation, &proof.id).unwrap();
+    let gate_binding = ReceiptContext::for_identity(identity, "quality:code-reviewer").unwrap();
+    #[cfg(windows)]
+    let (executable, arguments) = ("cmd", vec!["/C".to_string(), "exit 0".to_string()]);
+    #[cfg(not(windows))]
+    let (executable, arguments) = ("sh", vec!["-c".to_string(), "exit 0".to_string()]);
+    let gate_receipt = execute_command_for_identity(
+        ExecutionRequest {
+            capability: "review-authority-check".to_string(),
+            provider: "test-runner".to_string(),
+            executable: executable.to_string(),
+            arguments,
+            working_directory: repo.clone(),
+            timeout: Duration::from_secs(5),
+        },
+        &authoritative_identity,
+        &gate_binding.gate_kind,
+    )
+    .unwrap();
+    let trace = record_trace_for_operation(
+        &repo,
+        &vault,
+        "README verification before index loss",
+        TraceOutcome::Completed,
+        &trace_binding,
+    )
+    .unwrap();
+    record_gate_evidence_with_receipt_bound(
+        &repo,
+        &vault,
+        "code-reviewer",
+        "review passed before index loss",
+        &gate_receipt.receipt_id,
+        &gate_binding,
+    )
+    .unwrap();
 
     fs::write(
         repo.join("docs/baron/plans/ACTIVE.md"),
@@ -151,6 +215,121 @@ fn evidence_ingress_can_require_indexed_authority_without_removing_legacy_plan_r
     assert!(indexed_active_plan_authority_for_binding(&repo, &binding)
         .unwrap()
         .is_none());
+    fs::remove_file(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let before = snapshot(temp.path());
+
+    let unselected_proof = record_proof(&repo, &vault, "must not publish without ACTIVE");
+    assert!(
+        unselected_proof.is_err(),
+        "frontmatter discovery must not authorize no-selector proof publication"
+    );
+    assert_eq!(
+        snapshot(temp.path()),
+        before,
+        "failed proof ingress wrote data"
+    );
+
+    let selected_proof =
+        record_proof_for_operation(&repo, &vault, &operation, "must not publish without ACTIVE");
+    assert!(
+        selected_proof.is_err(),
+        "operation identity alone must not authorize proof publication"
+    );
+    assert_eq!(
+        snapshot(temp.path()),
+        before,
+        "failed bound proof ingress wrote data"
+    );
+
+    let trace_attempt = record_trace_for_operation(
+        &repo,
+        &vault,
+        "must not publish without ACTIVE",
+        TraceOutcome::Completed,
+        &trace_binding,
+    );
+    assert!(
+        trace_attempt.is_err(),
+        "frontmatter discovery must not authorize operation-bound trace publication"
+    );
+    assert_eq!(
+        snapshot(temp.path()),
+        before,
+        "failed trace ingress wrote data"
+    );
+
+    let gate = record_gate_evidence_with_receipt_bound(
+        &repo,
+        &vault,
+        "code-reviewer",
+        "review must not publish without ACTIVE",
+        &gate_receipt.receipt_id,
+        &gate_binding,
+    );
+    assert!(
+        gate.is_err(),
+        "a valid receipt must not authorize gate publication without indexed ACTIVE"
+    );
+    assert_eq!(
+        snapshot(temp.path()),
+        before,
+        "failed gate ingress wrote data"
+    );
+
+    start_or_resume_plan_for_identity(&repo, &vault, "fix README alpha typo", identity).unwrap();
+    indexed_active_plan_authority_for_binding(&repo, &binding)
+        .unwrap()
+        .unwrap();
+    let restored_generation = read_generation(&fs::read_to_string(&plan.repo_path).unwrap());
+    assert_ne!(
+        restored_generation, original_generation,
+        "same-identity recovery must rotate the evidence authority generation"
+    );
+    assert!(
+        proof_for_operation(
+            &repo,
+            &ReceiptContext::for_identity(identity, "proof").unwrap()
+        )
+        .unwrap()
+        .is_none(),
+        "old-generation proof must not be presented as current after ACTIVE recovery"
+    );
+    let restored_gate_status = gate_evidence_status_strict_for_operation(
+        &repo,
+        &["code-reviewer".to_string()],
+        identity.task_id(),
+        identity.operation_id(),
+        identity.adapter().as_str(),
+        Some(identity.session_id()),
+        Some(identity.request_id()),
+    )
+    .unwrap();
+    assert!(
+        !restored_gate_status.passed,
+        "old-generation gate receipt must not be presented as current after ACTIVE recovery"
+    );
+    let restored_trace_score = score_trace(&repo, &vault, Some(&trace.id)).unwrap();
+    assert!(
+        !restored_trace_score.passed,
+        "old-generation trace must not pass scoring after ACTIVE recovery"
+    );
+    let completion = active_plan_completion_evidence_status_for_identity(&repo, &vault, identity)
+        .unwrap()
+        .unwrap();
+    assert!(
+        completion
+            .issues
+            .iter()
+            .any(|issue| issue == "proof is missing"),
+        "pre-recovery proof must not become current after ACTIVE is restored"
+    );
+    assert!(
+        completion
+            .issues
+            .iter()
+            .any(|issue| issue == "passing trace is missing"),
+        "pre-recovery trace must not become current after ACTIVE is restored"
+    );
 }
 
 #[test]

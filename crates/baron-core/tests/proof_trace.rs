@@ -269,10 +269,19 @@ fn scoped_proof_does_not_promote_a_story_shared_by_two_operations_of_the_same_ta
     // Model valid persisted concurrent ownership directly: the intake API has
     // no binding, and a same-title plan start may refuse a second identity.
     let second_path = repo.join("docs/baron/plans/shared-second.md");
-    let second_content = fs::read_to_string(&plan.repo_path)
-        .unwrap()
+    let original_content = fs::read_to_string(&plan.repo_path).unwrap();
+    let original_generation = original_content
+        .lines()
+        .find_map(|line| line.strip_prefix("authority_generation: "))
+        .expect("new identified plan has an authority generation");
+    let second_generation = "fixture-generation-b";
+    let second_content = original_content
         .replace(identities[0].operation_id(), identities[1].operation_id())
-        .replace(identities[0].request_id(), identities[1].request_id());
+        .replace(identities[0].request_id(), identities[1].request_id())
+        .replace(
+            &format!("authority_generation: {original_generation}"),
+            &format!("authority_generation: {second_generation}"),
+        );
     fs::write(&second_path, second_content).unwrap();
     let index_path = repo.join("docs/baron/plans/ACTIVE.md");
     let mut index = fs::read_to_string(&index_path).unwrap();
@@ -286,6 +295,7 @@ fn scoped_proof_does_not_promote_a_story_shared_by_two_operations_of_the_same_ta
             "request_id": "request-b",
             "plan_path": "docs/baron/plans/shared-second.md",
             "status": "in_progress",
+            "authority_generation": second_generation,
         })
     ));
     fs::write(index_path, index).unwrap();
@@ -535,13 +545,16 @@ fn scoped_proof_without_exact_active_ownership_does_not_promote_a_matching_story
     .unwrap();
     start_or_resume_intake(&repo, &context, "fix README unowned").unwrap();
     let before = harness_bytes(&repo, &context);
-    record_proof_for_operation(
+    let error = record_proof_for_operation(
         &repo,
         &context,
         &OperationContext::from_identity(&identity),
         "README verification passed",
     )
-    .unwrap();
+    .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("validated ACTIVE plan authority"));
     assert!(
         harness_bytes(&repo, &context) == before,
         "unowned story changed"
@@ -1379,6 +1392,13 @@ fn receipt_bound_proof_is_complete_on_first_publication() {
         Some("proof-request"),
     )
     .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "receipt-bound proof publication",
+        &OperationContext::from_identity(&identity),
+    )
+    .unwrap();
     let (receipt, binding) = passing_proof_receipt(&repo, &identity);
 
     let proof =
@@ -1420,6 +1440,13 @@ fn receipt_bound_proof_rejects_source_changes_before_publication() {
         Some("stale-proof-request"),
     )
     .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "receipt-bound README note",
+        &OperationContext::from_identity(&identity),
+    )
+    .unwrap();
     let (receipt, binding) = passing_proof_receipt(&repo, &identity);
     fs::write(repo.join("README.md"), "changed after receipt\n").unwrap();
 
@@ -1449,6 +1476,13 @@ fn bound_proof_write_failure_does_not_promote_repo_or_validation_evidence() {
         SupportedAdapter::Codex,
         Some("failure-session"),
         Some("failure-request"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_operation(
+        &repo,
+        &context,
+        "fix README typo",
+        &OperationContext::from_identity(&identity),
     )
     .unwrap();
     let (receipt, binding) = passing_proof_receipt(&repo, &identity);
@@ -1498,6 +1532,10 @@ fn operation_bound_trace_rejects_a_cross_operation_proof_reference() {
     .unwrap();
     let first_operation = OperationContext::from_identity(&first);
     let second_operation = OperationContext::from_identity(&second);
+    start_or_resume_plan_for_operation(&repo, &context, "trace operation one", &first_operation)
+        .unwrap();
+    start_or_resume_plan_for_operation(&repo, &context, "trace operation two", &second_operation)
+        .unwrap();
     let first_proof = record_proof_for_operation(
         &repo,
         &context,
@@ -1677,11 +1715,12 @@ fn operation_trace_fresh_evaluation_rejects_rewritten_header_with_stale_score() 
 
     let first_binding =
         TraceOperationBinding::from_operation(&first_operation, &first_proof.id).unwrap();
-    let fresh = latest_trace_score_for_operation(&repo, &first_binding)
-        .unwrap()
-        .expect("rewritten trace should be found by its forged header");
-    assert_eq!(fresh.achieved, TraceTier::Incomplete);
-    assert!(!fresh.passed);
+    assert!(
+        latest_trace_score_for_operation(&repo, &first_binding)
+            .unwrap()
+            .is_none(),
+        "a trace with another operation's authority generation must not enter the exact selector"
+    );
 }
 
 fn operation_trace_fixture(

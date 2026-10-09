@@ -8,6 +8,8 @@ use baron_core::execution_receipt::{
 #[cfg(windows)]
 use baron_core::operation::{AuthoritativeLifecycleIdentity, SupportedAdapter};
 #[cfg(windows)]
+use baron_core::plan::start_or_resume_plan_for_identity;
+#[cfg(windows)]
 use baron_core::proof::record_proof_from_receipt_bound;
 #[cfg(windows)]
 use baron_core::vault::ensure_vault;
@@ -26,6 +28,13 @@ fn proof_can_reference_only_a_current_trusted_receipt() {
         SupportedAdapter::Codex,
         Some("session-trusted-proof"),
         Some("request-trusted-proof"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(
+        &repo,
+        &context,
+        "trusted proof",
+        identity.as_lifecycle_identity(),
     )
     .unwrap();
     let binding = ReceiptContext::for_identity(&identity, "proof").unwrap();
