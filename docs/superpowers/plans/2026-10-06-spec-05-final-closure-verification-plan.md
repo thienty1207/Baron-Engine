@@ -98,8 +98,8 @@
 **Interfaces:** consumes Tasks 2–4; produces one committed/pushed exact readiness SHA for both independent reviews.
 
 - [x] Reconcile the current status as `FIX REQUIRED` after the hosted Linux failure; prior readiness claims remain historical only.
-- [ ] Set `READY FOR ADVERSARIAL REVIEW` for the new repaired snapshot only after its own pushed exact SHA passes hosted CI and the fresh 47-path audit remains `BUG=0`. The earlier readiness snapshot is historical and invalidated by the two new review findings.
-- [ ] Commit scoped changes, push the branch, verify local HEAD equals remote HEAD, and verify the hosted workflow for the new SHA before recording a new `FINAL_REVIEW_HEAD`.
+- [x] Set `READY FOR ADVERSARIAL REVIEW` for repaired-source commit `1d02d3272b196c96ae84354a3478117af97459b9` after exact-SHA Baron CI run `37732260773` passed all three jobs and the fresh 47-path audit remained `BUG=0`. The earlier readiness snapshot is historical and invalidated by the two review findings.
+- [ ] Commit/push this synchronized readiness snapshot, verify local HEAD equals remote HEAD, and verify its exact-SHA hosted workflow before freezing a new `FINAL_REVIEW_HEAD`.
 
 ### Task 6: First exact-range adversarial reviews (completed — FIX REQUIRED)
 
@@ -137,5 +137,17 @@
 - [x] Run focused migration/intent targets (intent 8/8, migration 23/23, CLI migration 3/3), the full prompt matrix (329 Core executions, including the required repeated target; CLI selector/evidence/hook 38/38), the fresh authority audit (47 groups, `BUG=0`), and all local gates on the repaired tree.
 - [x] Full all-targets: Core 634/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; workspace 948/0/4 ignored across 112. `fmt --check`, warnings-denied Clippy, locked release build, release smoke 1/1, trust docs 12/12, version/help/JSON checks pass. Default PowerShell lifecycle is 4/7 due to the host's unavailable `Microsoft.PowerShell.Archive`; supported bundled PowerShell 7 passes 7/7.
 - [x] Post-edit gates pass: 13 changed-Markdown relative links, status JSON parse, tracked-source/filename retirement checks, diff check from `ecaf362`, and scoped file inventory (no manifests/lockfiles or out-of-scope paths).
-- [ ] Commit and push, confirm remote SHA and exact-SHA hosted CI, then mark the new snapshot `READY FOR ADVERSARIAL REVIEW` and dispatch two fresh reviewers.
-- [ ] Commit and push the repair/evidence, verify remote SHA and exact-SHA hosted CI, then obtain two fresh independent reviews of the new identical range.
+- [x] Commit/push the two regression-backed repairs and evidence at `1d02d3272b196c96ae84354a3478117af97459b9`; verify local/remote equality and exact-SHA hosted CI run `37732260773` (Format/Clippy, Linux, Windows all success).
+- [ ] Publish the synchronized readiness-doc snapshot, verify its exact-SHA workflow, freeze `FINAL_REVIEW_HEAD`, and obtain two fresh independent reviews of that identical range.
+
+### Task 9: Fresh post-repair exact-range reviews
+
+**Files:** read-only review package for the final pushed range; final verification and closure evidence only after both reports return.
+
+**Interfaces:** consumes the pushed readiness snapshot and its exact-SHA hosted CI; produces two independent complete reports for the identical `ecaf362..<FINAL_REVIEW_HEAD>` range. This is the required post-repair continuation of Task 6; the earlier `FIX REQUIRED` verdicts do not count.
+
+- [ ] Generate and verify the complete review package from `ecaf362c275431edfc5e590fd6a87d926b9bde9d` through the frozen final review SHA.
+- [ ] Dispatch two separate read-only reviewers; neither may mutate the worktree, index, HEAD, or branch.
+- [ ] Each reviewer explicitly assesses all 23 prompt checklist items and returns `Critical findings`, `Important findings`, and `Verdict: ACCEPT | FIX REQUIRED | INCONCLUSIVE`.
+- [ ] Require both verdicts to be `ACCEPT` for the same exact range; quota/tool failure is `INCONCLUSIVE`, never acceptance.
+- [ ] If either reviewer finds Critical/Important, keep SPEC-05 open and repeat the prompt's regression-backed repair, full verification, push, and fresh-review cycle.

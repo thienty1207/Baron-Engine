@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-08",
+  "lastUpdated": "2026-10-09",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -16,13 +16,13 @@
   ],
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
-  "currentPhaseStatus": "fix_required",
-  "nextAction": "Commit and push the evidence-complete snapshot; verify remote SHA and exact-SHA hosted CI; then obtain two fresh independent ACCEPT reviews of the same ecaf362..<FINAL_REVIEW_HEAD> range.",
+  "currentPhaseStatus": "ready_for_adversarial_review",
+  "nextAction": "Push the synchronized readiness evidence, verify its exact-SHA hosted CI and local/remote SHA, then obtain two fresh independent ACCEPT reviews of the same ecaf362..<FINAL_REVIEW_HEAD> range.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
     "name": "Multi-Agent Concurrency and Durable State",
-    "status": "fix_required",
+    "status": "ready_for_adversarial_review",
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "publicVersionBump": false,
@@ -41,9 +41,9 @@
       ]
     },
     "verificationBlockers": [
-      "Historical readiness commit c2b91dbfc4cedd593912013751c85f209755c9e1 failed hosted Baron CI run 37461605214 on Linux because CLI fixtures used cmd.exe and a Core test asserted Windows paths on Unix. Test-only portability repair is pushed at 5c2bb5bda74363be3532a9f5516d26848379bada and hosted Baron CI run 37718795708 passed Format/Clippy job 113121400969, Windows native job 113121401034, and Linux native job 113121401053. Fresh Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored across 112 suites, focused Core 313/0 plus repeated harness improvement 13/13, focused CLI 38/0, formatter, warnings-denied Clippy, release build/smoke, trust docs, version, CLI help, JSON/docs/link/scope checks all pass. The pushed readiness candidate must pass its own exact-SHA hosted CI before its SHA is frozen as FINAL_REVIEW_HEAD",
+      "Historical readiness commit c2b91dbfc4cedd593912013751c85f209755c9e1 failed hosted Baron CI run 37461605214 on Linux because CLI fixtures used cmd.exe and a Core test asserted Windows paths on Unix. Test-only portability repair is pushed at 5c2bb5bda74363be3532a9f5516d26848379bada and hosted Baron CI run 37718795708 passed Format/Clippy job 113121400969, Windows native job 113121401034, and Linux native job 113121401053. Fresh Core 631/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 945/0/4 ignored across 112 suites, focused Core 313/0 plus repeated harness improvement 13/13, focused CLI 38/0, formatter, warnings-denied Clippy, release build/smoke, trust docs, version, CLI help, JSON/docs/link/scope checks all pass. The later repaired-source commit 1d02d3272b196c96ae84354a3478117af97459b9 passed its exact-SHA hosted workflow 37732260773 on Format/Clippy, Linux native tests, and Windows native tests; the synchronized readiness-doc snapshot still requires its own exact-SHA workflow before FINAL_REVIEW_HEAD is frozen",
       "Historical independent reviews of ecaf362..4a3efc0 returned FIX REQUIRED with three Important findings: CURRENT-based harness story selection, foreign proof borrowing by an unbound trace, and checkout-only hook journal locking. Each has a regression-backed repair in the current source; historical verdicts do not count as final acceptance",
-      "Prior 45-path BUG=0 audit and green verification are superseded for closure: Boyle found identity-less Harness intake can borrow another operation's confirmed intent, and Parfit found migration installer-output capture can absorb a concurrent project-config update. Both fixes are implemented; the fresh 47-group audit, complete local matrix, and all local gates pass. Exact-SHA hosted CI and two new independent reviews remain pending",
+      "Prior 45-path BUG=0 audit and green verification are superseded for closure: Boyle found identity-less Harness intake can borrow another operation's confirmed intent, and Parfit found migration installer-output capture can absorb a concurrent project-config update. Both fixes are implemented; the fresh 47-group audit, complete local matrix, and all local gates pass. Exact-SHA hosted CI run 37732260773 passed on repaired-source commit 1d02d3272b196c96ae84354a3478117af97459b9; two fresh independent reviews of the synchronized readiness snapshot remain pending",
       "Two fresh independent read-only reviewers must accept the same exact committed ecaf362..<FINAL_REVIEW_HEAD> range, including all source repairs and current evidence. Reviewer quota/time failure is inconclusive; CLOSED requires both explicit ACCEPT verdicts and zero unresolved Critical/Important findings",
       "Earlier reviewer dispatches that hit the usage limit are INCONCLUSIVE and do not count. Two fresh independent read-only reviewers must accept the same exact committed ecaf362..<FINAL_REVIEW_HEAD> range. No release, tag, public version change, SPEC-06, or Hotel Staff work is authorized"
     ],
@@ -75,7 +75,7 @@
       "4a3efc0",
       "6bdf96d"
     ],
-    "closureBasis": "FIX REQUIRED pending delivery and fresh review, not closed. Two independent reviews of ecaf362..c50b3b9 returned zero Critical and one Important each. Both are repaired tests-first: operation-scoped CURRENT_INTENT cannot authorize identity-less intake; project/local config cannot become migration rollback authority. Fresh audit: 47 caller groups (PRESENTATION_ONLY 11, LEGACY_SINGLE_ACTIVE_SAFE 8, EXACT_OPERATION_SCOPED 17, AMBIGUOUS_FAIL_CLOSED 8, OUT_OF_SPEC 3, BUG 0). Focused intent 8/8, migration 23/23, CLI migration 3/3; full Core 634/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 948/0/4 ignored across 112 suites. fmt, Clippy, locked release, smoke, docs, version and CLI help pass. Exact-SHA hosted CI and two new fresh ACCEPT reviews remain pending; previous reviews cannot count.",
+    "closureBasis": "READY FOR ADVERSARIAL REVIEW, not closed. Two independent reviews of ecaf362..c50b3b9 returned zero Critical and one Important each. Both are repaired tests-first: operation-scoped CURRENT_INTENT cannot authorize identity-less intake; project/local config cannot become migration rollback authority. Fresh audit: 47 caller groups (PRESENTATION_ONLY 11, LEGACY_SINGLE_ACTIVE_SAFE 8, EXACT_OPERATION_SCOPED 17, AMBIGUOUS_FAIL_CLOSED 8, OUT_OF_SPEC 3, BUG 0). Focused intent 8/8, migration 23/23, CLI migration 3/3; full Core 634/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 948/0/4 ignored across 112 suites. fmt, Clippy, locked release, smoke, docs, version and CLI help pass. Repaired-source commit 1d02d3272b196c96ae84354a3478117af97459b9 passed exact-SHA hosted CI run 37732260773 on all three jobs. Push and verify the synchronized readiness-doc snapshot, then obtain two fresh independent ACCEPT reviews; previous review verdicts do not count.",
     "verification": {
       "focusedConcurrencyMatrix": "PASS repaired source: Core focused matrix 329 test executions passed/0 failed (316 unique target executions plus the required repeated harness_improvement target); CLI selector/evidence/hook matrix 38/38 across five targets; session_replay 5/5. Default-host lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; supported bundled PowerShell 7 passes 7/7.",
       "currentFocusedRepairs": "PASS: continuity checkpoint/resume, title-only legacy plan creation beside identified work, no-selector Core proof selection, trace-risk provenance, and shared journal readers have regression coverage. The tracked-source retirement wording was tested RED when the new evidence docs were staged, removed without weakening the gate, then both tracked-reference/filename tests passed 2/2; public trust docs passed 12/12 after that correction.",
@@ -98,17 +98,17 @@
       "retiredAdapterGate": "PASS: case-insensitive tracked-source search and tracked-filename gate found no hits after current docs edits.",
       "statusJson": "PASS: docs/BARON_STATUS.json parsed after current status synchronization.",
       "hostedCi": "PASS: Baron CI run 37718795708 on 5c2bb5b completed successfully. Format/Clippy job 113121400969, Windows native/release/smoke job 113121401034, and Linux native/release/smoke job 113121401053 all succeeded.",
-      "currentHostedCi": "PENDING: local repair/evidence checks pass; commit and push this snapshot, then verify CI on its exact SHA.",
+      "currentHostedCi": "PASS for repaired-source commit 1d02d3272b196c96ae84354a3478117af97459b9: Baron CI run 37732260773 completed success; Format/Clippy, Linux native tests, and Windows native tests all succeeded. The synchronized readiness-doc snapshot must pass its own exact-SHA workflow before it is frozen as FINAL_REVIEW_HEAD.",
       "cliHelp": "PASS: release binary root help, proof record, trace record, trace score, and continuity recover help commands all exited 0.",
       "mutationInventory": "PASS fresh 2026-10-08 audit: required authority patterns rescanned in all three production source trees; 47 caller groups (PRESENTATION_ONLY 11, LEGACY_SINGLE_ACTIVE_SAFE 8, EXACT_OPERATION_SCOPED 17, AMBIGUOUS_FAIL_CLOSED 8, OUT_OF_SPEC 3), BUG=0 after A07/A08 RED-to-GREEN repairs. See the authority audit ledger.",
-      "reviewDisposition": "FIX REQUIRED: two independent reviewers rejected exact range ecaf362..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f with zero Critical and one Important each. The previous audit/gates do not establish readiness for the repaired source.",
+      "reviewDisposition": "READY FOR ADVERSARIAL REVIEW: two independent reviewers rejected exact range ecaf362..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f with zero Critical and one Important each; both findings have RED-to-GREEN repairs. Fresh audit and local gates pass, and repaired-source SHA 1d02d3272b196c96ae84354a3478117af97459b9 passed exact-SHA hosted CI. Two new independent ACCEPT reviews of the synchronized readiness snapshot are still required.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "FIX REQUIRED, not CLOSED: previous reviews of ecaf362..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f returned one Important each and are rejected for acceptance. Both are repaired; local focused/full gates and 47-path audit pass. Finish post-edit scope gates, push and verify exact-SHA CI, then obtain two fresh independent read-only ACCEPT reviews of one identical ecaf362..<FINAL_REVIEW_HEAD> range.",
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW, not CLOSED: previous reviews of ecaf362..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f returned one Important each and do not count for acceptance. Both findings are repaired; local focused/full gates and the 47-path BUG=0 audit pass. Repaired-source SHA 1d02d3272b196c96ae84354a3478117af97459b9 passed exact-SHA CI run 37732260773. Verify hosted CI on the synchronized readiness snapshot, freeze FINAL_REVIEW_HEAD, and obtain two fresh independent read-only ACCEPT reviews of that identical ecaf362..<FINAL_REVIEW_HEAD> range.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md",
-    "nextAction": "Rerun the complete prompt-focused matrix, fresh production authority audit, all full verification and scope gates, then commit and push a new candidate, verify exact-SHA hosted CI, and obtain two new independent ACCEPT reviews of the same ecaf362..<FINAL_REVIEW_HEAD> range."
+    "nextAction": "Push the synchronized readiness evidence, verify its exact-SHA hosted CI and local/remote SHA, then obtain two fresh independent ACCEPT reviews of the same ecaf362..<FINAL_REVIEW_HEAD> range."
   },
   "securityRemediation": {
     "status": "complete",

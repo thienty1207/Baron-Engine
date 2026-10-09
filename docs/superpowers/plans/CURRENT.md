@@ -1,16 +1,16 @@
 # Current Baron Build Plan
 
-## Active repair: SPEC-05 final closure verification (FIX REQUIRED — 2026-10-08)
+## Active repair: SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW — 2026-10-09)
 
-Two independent reviews of `ecaf362..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f` both returned `FIX REQUIRED` with zero Critical and one Important each: identity-less Harness intake could borrow another operation's confirmed intent, and installer output capture could absorb a concurrent `.baron/project.toml` edit before rollback. Both now have RED→GREEN repairs; the fresh authority audit covers 47 caller paths with `BUG=0`. The prompt matrix and fresh full gates pass: Core 634/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 948/0/4 ignored across 112 suites; fmt, Clippy, locked release, smoke, trust docs, version and CLI help pass. Default PowerShell's lifecycle limitation is disclosed separately (4/7); supported bundled PowerShell 7 is 7/7. Post-edit scoped-doc gates pass; commit/push and exact-SHA hosted CI remain before two fresh independent reviews.
+The repaired source/evidence commit `1d02d3272b196c96ae84354a3478117af97459b9` is pushed and its exact-SHA GitHub Actions run [37732260773](https://github.com/thienty1207/Baron-Engine/actions/runs/37732260773) passed Format/Clippy plus Linux and Windows native test jobs. The two Important findings from review range `ecaf362..c50b3b9bb29e58878f7edf00bcea4f0adb1bb06f` have RED→GREEN repairs. Current authority audit: 47 production caller paths, `BUG=0`; recorded focused/full local gates pass, with the default-host PowerShell archive-module limitation disclosed separately.
 
 - Execution plan: [SPEC-05 final closure verification](2026-10-06-spec-05-final-closure-verification-plan.md); evidence ledger: [2026-10-06 final verification](2026-10-06-spec-05-final-verification.md); authority audit: [current caller inventory](2026-10-01-spec-05-authority-audit.md).
 - Authority boundary: exact lifecycle identity and persisted binding → indexed ACTIVE → canonical managed frontmatter. CURRENT stays a presentation projection for identified work; ambiguous legacy selectors fail closed. Shared Vault journal operations follow checkout → Vault locking.
 - Lifecycle baseline: fresh default host PowerShell is 4/7 because its archive module cannot load; the repository-supported bundled PowerShell 7 target is 7/7. This environment-specific failure is disclosed, not counted as a product pass.
 - Scope: no release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile edits. Public version remains `5.0.0`.
-- Review gate: both reviews of the previous snapshot are `FIX REQUIRED`; neither counts toward closure. After fixing both findings, rerun all gates, push a new exact source/evidence snapshot, and obtain two new independent read-only ACCEPTs for the same exact `ecaf362..<FINAL_REVIEW_HEAD>` range.
+- Review gate: both reviews of the previous snapshot are `FIX REQUIRED`; neither counts toward closure. Push this synchronized status/evidence snapshot, verify its own exact-SHA hosted CI, freeze that SHA as `FINAL_REVIEW_HEAD`, and obtain two new independent read-only `ACCEPT` reviews for the identical `ecaf362..<FINAL_REVIEW_HEAD>` range.
 - Post-edit gates: 13 changed-Markdown relative links checked with 0 broken; status JSON parses; tracked-source and filename retirement gates have no hits; `git diff ecaf362 --check` exits 0. No manifest/lockfile or out-of-scope changes.
-- Safe next action: commit and push this evidence snapshot, verify exact-SHA hosted CI, then request two fresh independent read-only ACCEPT reviews of one exact `ecaf362..<FINAL_REVIEW_HEAD>` range. Keep SPEC-05 open until both accept.
+- Safe next action: push this synchronized readiness snapshot, verify its exact-SHA workflow, then dispatch the two independent reviewers. Keep SPEC-05 open until both accept and closure evidence is pushed.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
