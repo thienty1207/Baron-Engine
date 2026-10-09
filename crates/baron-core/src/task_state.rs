@@ -15,7 +15,7 @@ use crate::intent::{intent_status, operation_intent_for_identity, operation_inte
 use crate::operation::{
     canonical_task_text, task_id_for_task, LifecycleIdentity, OperationContext,
 };
-use crate::plan::{active_plan_authority, plan_status, plan_status_for_identity};
+use crate::plan::{active_plan_authority, indexed_plan_status_for_identity, plan_status};
 use crate::proof::{latest_proof, proof_for_operation};
 use crate::trace::{
     latest_trace_score, latest_trace_score_for_operation_in_vault, TraceOperationBinding,
@@ -139,7 +139,7 @@ fn compile_task_state_with_id(
         Some(identity) => (
             operation_intent_for_identity(repo_root, identity, MAX_FIELD_CHARS * 4)?
                 .unwrap_or_default(),
-            plan_status_for_identity(repo_root, identity)?,
+            indexed_plan_status_for_identity(repo_root, identity)?,
             operation_scoped_source(&continuity_path, identity, MAX_FIELD_CHARS * 4),
             operation_scoped_source(&recovery_path, identity, MAX_FIELD_CHARS * 4),
         ),

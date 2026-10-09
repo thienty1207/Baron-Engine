@@ -11,7 +11,7 @@ use crate::execution_receipt::ReceiptContext;
 use crate::operation::{LifecycleIdentity, OperationContext};
 use crate::plan::{
     active_plan_authority, indexed_active_plan_authority_for_binding,
-    managed_active_plan_operation_binding, plan_status_for_identity, PlanOperationBinding,
+    indexed_plan_status_for_identity, managed_active_plan_operation_binding, PlanOperationBinding,
 };
 use crate::proof::{latest_proof, proof_for_operation};
 use crate::safe_io::{
@@ -318,7 +318,7 @@ fn record_continuity_checkpoint_internal(
     if let Some(identity) = identity {
         // Validate even retries: an event-key match cannot hide corrupted
         // ACTIVE/frontmatter authority or authorize a stale checkpoint.
-        plan_status_for_identity(repo_root, identity)?;
+        indexed_plan_status_for_identity(repo_root, identity)?;
     }
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
     if let Some(identity) = identity {
@@ -576,7 +576,7 @@ fn render_operation_resume_packet(
     identity: &LifecycleIdentity,
     metadata: &ResumePacketMetadata<'_>,
 ) -> Result<String> {
-    let plan = plan_status_for_identity(repo_root, identity)?;
+    let plan = indexed_plan_status_for_identity(repo_root, identity)?;
     let title = field(&plan, "- Title: ");
     let state = title
         .map(|task| compile_task_state_for_operation(repo_root, vault, identity, Some(task)))
@@ -637,7 +637,7 @@ fn render_recovery(
     identity: Option<&LifecycleIdentity>,
 ) -> Result<String> {
     let plan = match identity {
-        Some(identity) => plan_status_for_identity(repo_root, identity)?,
+        Some(identity) => indexed_plan_status_for_identity(repo_root, identity)?,
         None => read_optional(&repo_root.join("docs/baron/plans/CURRENT.md")),
     };
     let harness = if identity.is_none() {

@@ -319,6 +319,66 @@ fn shared_vault_active_plan_index_preserves_operations_from_other_checkouts() {
 }
 
 #[test]
+fn same_operation_identity_in_second_shared_vault_checkout_fails_without_partial_plan_state() {
+    let temp = tempdir().unwrap();
+    let repo_a = temp.path().join("checkout-a");
+    let repo_b = temp.path().join("checkout-b");
+    let vault = temp.path().join("shared-vault");
+    fs::create_dir_all(&repo_a).unwrap();
+    initialize_project(&repo_a, AdapterKind::Codex, &vault).unwrap();
+    let context_a = ensure_vault(&vault, &repo_a).unwrap();
+
+    fs::create_dir_all(repo_b.join(".baron")).unwrap();
+    fs::copy(
+        repo_a.join(".baron/project.toml"),
+        repo_b.join(".baron/project.toml"),
+    )
+    .unwrap();
+    let context_b = ensure_vault(&vault, &repo_b).unwrap();
+    let title = "same operation across shared-vault checkouts";
+    let identity = LifecycleIdentity::resolve(
+        &context_a.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("shared-session"),
+        Some("shared-request"),
+    )
+    .unwrap();
+    let plan_a = start_or_resume_plan_for_identity(&repo_a, &context_a, title, &identity).unwrap();
+    let repo_b_plans = repo_b.join("docs/baron/plans");
+    let vault_plans = context_b.project_root.join("Plans");
+    let repo_plans_before = snapshot_tree(&repo_b_plans);
+    let vault_plans_before = snapshot_tree(&vault_plans);
+
+    let second_checkout = start_or_resume_plan_for_identity(&repo_b, &context_b, title, &identity)
+        .expect_err("a second checkout must not create a competing plan for one shared identity");
+    assert!(
+        second_checkout
+            .to_string()
+            .contains("plan path not present in this checkout"),
+        "the conflict must be detected by the pre-write ownership check: {second_checkout:#}"
+    );
+    assert_eq!(
+        snapshot_tree(&repo_b_plans),
+        repo_plans_before,
+        "the rejected checkout must not leave partial local plan files or indexes"
+    );
+    assert_eq!(
+        snapshot_tree(&vault_plans),
+        vault_plans_before,
+        "the rejected checkout must not append partial shared Vault plan state"
+    );
+    assert!(
+        !repo_b.join(".baron/plan-transition.json").exists(),
+        "a rejected competing checkout must not leave a blocking transition journal"
+    );
+
+    let resumed = start_or_resume_plan_for_identity(&repo_a, &context_a, title, &identity).unwrap();
+    assert_eq!(resumed.repo_path, plan_a.repo_path);
+    assert!(resumed.resumed);
+}
+
+#[test]
 fn interrupted_plan_status_transition_recovers_after_projection_write_failure() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

@@ -169,3 +169,23 @@
 - [x] Commit and push the synchronized repair at `752ea138d7092acda56edc832472e3bae78ec820`; verify local/remote branch SHA equality and exact-SHA Baron CI run `37889435584` (Format/Clippy, Linux and Windows native tests, release builds, and version smoke all succeeded).
 - [ ] Synchronize run `37889435584` into maintained status/evidence, push the documentation snapshot, verify its local/remote SHA equality and exact-SHA CI, then freeze `FINAL_REVIEW_HEAD`.
 - [ ] Obtain two fresh independent read-only reviews of the identical complete `ecaf362..<FINAL_REVIEW_HEAD>` range; both must explicitly ACCEPT with zero Critical/Important findings.
+
+### Task 11: Repair final exact-range review findings
+
+**Files:** `crates/baron-core/src/proof.rs`, `crates/baron-core/src/plan.rs`, `crates/baron-core/src/task_state.rs`, `crates/baron-core/src/prepare.rs`, `crates/baron-core/src/continuity.rs`, related Core tests, and maintained status/audit/verification evidence.
+
+**Interfaces:** consumes the two `FIX REQUIRED` reviews of `ecaf362..02779815c87bf2df6373085125857302503f2e05`; produces fresh RED→GREEN regressions and a new exact review candidate only after full verification and authority re-audit.
+
+- [x] Reproduce missing-ACTIVE proof visibility, Task State proof/current-plan visibility, and identity completion status before generation recovery; each failed before its repair.
+- [x] Reproduce generic completion/reconciliation passing from frontmatter-only evidence without indexed ACTIVE; the audit-driven regression failed before its repair.
+- [x] Reproduce the repeated identical lifecycle identity across two checkouts sharing one Vault; the RED test observed partial local plan/index writes before the preflight repair.
+- [x] Add regressions for each observed behavior and run them RED before modifying the corresponding production paths.
+- [x] Fix each confirmed root cause while preserving frontmatter fallback for legacy diagnostics and repo→Vault lock ordering. Indexed current-state readers now fail closed; shared identity ownership is checked before plan publication.
+- [x] Rerun affected focused suites and the complete prompt matrix: 325 Core passes across 23 targets plus the required repeated `harness_improvement` 13/13 (338 executions total); required CLI selectors/evidence/hooks 38/38 plus migration CLI 3/3.
+- [x] Run all Core/CLI/adapters/workspace targets: Core 635/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; workspace 949/0/4 ignored across 112.
+- [x] Run `cargo fmt --all -- --check`, warnings-denied Clippy, and `cargo build --workspace --release --locked`; all exit 0. Release binary is exactly `baron 5.0.0`; required ignored release smoke 1/1; public trust docs 12/12; five CLI help selectors pass.
+- [x] Verify lifecycle baseline honestly: default host 4/7 due unavailable `Microsoft.PowerShell.Archive`; supported bundled PowerShell 7 7/7. Current `session_replay` is 5/5.
+- [x] Refresh the complete production authority audit after the latest repairs: 48 groups, categories 11/8/17/9/3, `BUG=0`; no owned Critical/Important issue remains known from this source audit.
+- [x] Verify JSON, changed-Markdown relative links, retired-adapter source/filename gate, `git diff ecaf362 --check`, and 70-path scope (no manifest/lockfile, release workflow, Hotel Staff, or SPEC-06 changes).
+- [ ] Commit and push the readiness snapshot; verify local/remote SHA equality and exact-SHA hosted CI before freezing `FINAL_REVIEW_HEAD`.
+- [ ] Obtain two fresh independent read-only ACCEPT reviews of the identical complete `ecaf362..<FINAL_REVIEW_HEAD>` range; if either finds Critical/Important, restart the repair/full-verification/review cycle.

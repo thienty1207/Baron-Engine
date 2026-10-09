@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use baron_core::automation::reconcile;
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::control_plane::{
     gate_evidence_status_strict_for_operation, record_gate_evidence_with_receipt_bound,
@@ -14,11 +15,13 @@ use baron_core::operation::{
     AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
 };
 use baron_core::plan::{
-    active_plan_authority_for_binding, active_plan_completion_evidence_status_for_identity,
+    active_plan_authority_for_binding, active_plan_completion_evidence_status,
+    active_plan_completion_evidence_status_for_identity, complete_plan_for_identity,
     indexed_active_plan_authority_for_binding, start_or_resume_plan,
     start_or_resume_plan_for_identity, PlanOperationBinding,
 };
 use baron_core::proof::{proof_for_operation, record_proof, record_proof_for_operation};
+use baron_core::task_state::compile_task_state_for_operation;
 use baron_core::trace::{
     record_trace, record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
 };
@@ -217,6 +220,75 @@ fn evidence_ingress_can_require_indexed_authority_without_removing_legacy_plan_r
         .is_none());
     fs::remove_file(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
     let before = snapshot(temp.path());
+
+    let task_state =
+        compile_task_state_for_operation(&repo, &vault, identity, Some("fix README alpha typo"))
+            .unwrap();
+    assert!(
+        task_state.current_plan.is_none(),
+        "operation Task State must not present a frontmatter-only plan as current without indexed ACTIVE authority"
+    );
+    assert!(
+        task_state.proof_state.is_none(),
+        "operation Task State must not expose old-generation proof without indexed ACTIVE authority"
+    );
+    assert!(
+        complete_plan_for_identity(
+            &repo,
+            &vault,
+            "must not complete while indexed ACTIVE authority is absent",
+            identity,
+        )
+        .is_err(),
+        "operation completion must not publish from frontmatter-only authority"
+    );
+    assert_eq!(
+        snapshot(temp.path()),
+        before,
+        "rejected operation completion must not write plan or Vault state"
+    );
+    let missing_active_completion =
+        active_plan_completion_evidence_status_for_identity(&repo, &vault, identity)
+            .unwrap()
+            .unwrap();
+    assert!(
+        !missing_active_completion.passed,
+        "identity completion evidence must fail closed while indexed ACTIVE authority is absent"
+    );
+    assert!(
+        missing_active_completion
+            .issues
+            .iter()
+            .any(|issue| issue.contains("active plan for operation") && issue.contains("missing")),
+        "completion diagnostics must identify missing indexed operation authority: {:?}",
+        missing_active_completion.issues
+    );
+    let generic_completion = active_plan_completion_evidence_status(&repo)
+        .unwrap()
+        .unwrap();
+    assert!(
+        !generic_completion.passed,
+        "generic completion reconciliation must not pass frontmatter-only evidence without indexed ACTIVE"
+    );
+    let reconciliation = reconcile(&repo).unwrap();
+    assert!(reconciliation.active_plan);
+    assert!(
+        !reconciliation.passed,
+        "unindexed identified plan state must not be reconciled as complete"
+    );
+    assert!(
+        missing_active_completion
+            .issues
+            .iter()
+            .any(|issue| issue.contains("active plan for operation") && issue.contains("missing")),
+        "completion diagnostics must identify missing indexed operation authority: {:?}",
+        missing_active_completion.issues
+    );
+    assert_eq!(
+        snapshot(temp.path()),
+        before,
+        "authority-sensitive evidence reads must not repair or mutate missing ACTIVE state"
+    );
 
     let unselected_proof = record_proof(&repo, &vault, "must not publish without ACTIVE");
     assert!(

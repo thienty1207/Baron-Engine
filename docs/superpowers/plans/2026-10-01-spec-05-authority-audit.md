@@ -227,3 +227,40 @@ No caller-path group was added or removed: the complete inventory remains 47 gro
 ## Exact-source readiness snapshot and hosted CI — 2026-10-09
 
 The audited production source is committed at `752ea138d7092acda56edc832472e3bae78ec820` on `codex/spec-05-multi-agent-concurrency-durable-state`; `git ls-remote` reports the same branch SHA. No executable source changed between this audit and that commit. Exact-SHA Baron CI run [37889435584](https://github.com/thienty1207/Baron-Engine/actions/runs/37889435584) completed `success`: Format/Clippy, Linux native tests, and Windows native tests all passed, including both release builds and CLI version smoke. The production authority inventory remains 47 groups with `BUG=0`; the CI result establishes readiness only. Fresh exact-range independent reviews and their acceptance remain required.
+
+## Review correction — 2026-10-09
+
+The fresh read-only reviews of `ecaf362..02779815c87bf2df6373085125857302503f2e05` invalidate the preceding `BUG=0` conclusion for closure. Both reviewers found that `proof_for_operation` falls back to generation-unfiltered evidence while indexed ACTIVE is missing; that result is consumed by operation Task State, and the frontmatter fallback used by completion status needs a focused regression. Reviewer 2 also found a repeated-operation-identity collision across shared-Vault checkouts that may leave partial plan state and a transition journal that blocks later operations. These are at least two known Important paths pending RED reproductions and repair. Re-run the complete production authority inventory after fixes; do not report `BUG=0` or READY until the root causes are fixed and the audit is refreshed.
+
+## Follow-up read-only audit and implementation checkpoint — 2026-10-09
+
+A second read-only audit searched the prompt's 21 authority patterns across production Rust in Core, CLI, and adapters, then traced callers. It counted 48 caller-path groups: `PRESENTATION_ONLY=11`, `LEGACY_SINGLE_ACTIVE_SAFE=8`, `EXACT_OPERATION_SCOPED=16`, `AMBIGUOUS_FAIL_CLOSED=8`, `OUT_OF_SPEC=3`, `BUG=2`, with no Critical finding. The two Important paths were (1) Task State calling the legacy frontmatter-fallback plan status reader, and (2) generic completion/reconciliation evaluating an identified plan discovered from frontmatter without requiring indexed ACTIVE. This count is the audit's pre-repair snapshot and does not establish current BUG status.
+
+The local repair adds `indexed_plan_status_for_identity` for Task State, Prepare, and identity continuity/resume views while retaining `plan_status_for_identity` as a legacy diagnostic reader. Generic completion status now fails closed for identified plans whose authority was not loaded from indexed ACTIVE. Regression coverage in `authority_ingress` observed both paths RED before their fixes. Combined fresh affected suites pass: authority_ingress 6/6, plan 58/58, operation_context 18/18, continuity 7/7, prepare 8/8, harness_improvement 13/13, and automation 9/9. Earlier repair paths also have RED→GREEN evidence for generation-filtered proof, identity completion diagnostics, and shared-checkout plan ownership preflight.
+
+The full authority inventory has not yet been rerun after these last source edits. Do not carry forward either 47-group `BUG=0` or this pre-repair `BUG=2` count as the current result; rerun the complete classification against the final source, then synchronize counts and findings here. SPEC-05 remains `FIX REQUIRED` until that audit and the complete prompt verification pass, exact-SHA CI is green on a pushed candidate, and two fresh independent reviewers ACCEPT one identical full range.
+
+## 2026-10-09 complete post-repair production authority re-audit
+
+Reran all 21 required search patterns over production Rust in `crates/baron-core/src/**`, `crates/baron-cli/src/**`, and `crates/baron-adapters/src/**`, then traced each authority-sensitive caller path. Current raw lexical match counts, in prompt order, are: `CURRENT.md` 52; `active_plan(` 25; `active_plan_authority(` 6; `active_plan_operation_binding(` 5; `current_plan_title` 0; `current_plan_risk` 0; `current_harness_title(` 3; `current_harness_risk(` 4; `latest_proof(` 6; `latest_trace` 24; `reconcile(` 8; `record_proof` 20; `record_trace` 13; `score_trace` 8; `proof_for_operation` 23; `trace_for_operation` 16; `active_plan_completion_evidence_status` 7; `compile_task_state` 10; `record_continuity` 17; `gate_evidence_status` 25; and `record_lifecycle_event_for_operation` 6. Raw hits include declarations and non-authoritative references; classification is by unique production runtime path, not by lexical hit.
+
+The final inventory has 48 caller-path groups. The two previously-BUG paths are now classified by their enforced behavior: identified Task State/Prepare/continuity current-plan projections require validated indexed ACTIVE and are `EXACT_OPERATION_SCOPED`; generic completion/reconciliation rejects identified frontmatter-only state when indexed ACTIVE is missing and is `AMBIGUOUS_FAIL_CLOSED`. The repeated same-identity cross-checkout start is rejected by the existing exact-operation lifecycle path before plan/index/journal publication. No search-hit caller was left unclassified.
+
+| Reclassified prior path | Current enforced behavior | Classification |
+| --- | --- | --- |
+| Task State, Prepare, and identity continuity current-plan/resume projections | Use indexed-only operation plan status; absent ACTIVE yields unknown/no current plan and does not surface stale proof or continuity as current. | `EXACT_OPERATION_SCOPED` |
+| Generic completion evidence and reconciliation | Identified frontmatter-only plan without indexed ACTIVE is an explicit failed integrity state; it cannot pass completion. | `AMBIGUOUS_FAIL_CLOSED` |
+
+These two rows replace the two pre-repair `BUG` classifications; they are not additional caller groups.
+
+| Classification | Current caller-path groups |
+| --- | ---: |
+| `PRESENTATION_ONLY` | 11 |
+| `LEGACY_SINGLE_ACTIVE_SAFE` | 8 |
+| `EXACT_OPERATION_SCOPED` | 17 |
+| `AMBIGUOUS_FAIL_CLOSED` | 9 |
+| `OUT_OF_SPEC` | 3 |
+| `BUG` | **0** |
+| **Total** | **48** |
+
+This complete post-repair re-audit supersedes both the historical 47-group `BUG=0` count and the pre-repair 48-group `BUG=2` snapshot. Focused regressions and full local verification pass on this source. No SPEC-05-owned Critical/Important issue is known from the source audit; independent exact-range acceptance is still pending, so this is readiness evidence, not closure.

@@ -2,6 +2,14 @@
 
 Date: 2026-10-06. Historical status at that checkpoint: `READY FOR ADVERSARIAL REVIEW`; that readiness was later invalidated by the hosted Linux failure recorded below. The document remains the detailed record for the 2026-10-06 runs.
 
+## Latest continuation checkpoint — 2026-10-09
+
+Current status: `SPEC-05: FIX REQUIRED`; no current-source readiness, closure, or acceptance claim. Two fresh reviews of `ecaf362..02779815c87bf2df6373085125857302503f2e05` returned `FIX REQUIRED`; a later read-only authority audit found two additional Important caller paths: Task State showed a frontmatter-only plan as current, and generic completion/reconciliation could pass with ACTIVE missing. That audit snapshot counted 48 caller paths with `BUG=2` and no Critical; it predates the latest repairs and must be rerun.
+
+The four findings now have observed RED→GREEN regressions and local repairs. Focused current-source results: `authority_ingress` 6/6, `plan` 58/58, `operation_context` 18/18, `continuity` 7/7, `prepare` 8/8, `harness_improvement` 13/13, and `automation` 9/9. Indexed-only status is used by Task State, Prepare, and identity continuity/resume views; compatibility plan diagnostics retain frontmatter fallback. Generic completion status rejects identified plans without indexed ACTIVE. Same-identity cross-checkout plan start is rejected before plan/Vault publication and leaves the owning checkout resumable.
+
+Still pending on this source: the full Step 2 focused regression matrix, Core/CLI/adapters/workspace all-target commands, formatter, warnings-denied Clippy, locked release build, release/trust/docs/scope gates, complete production authority audit, a new commit/push and exact-SHA GitHub CI, and two fresh independent ACCEPT reviews. Previously recorded 329/38 focused totals, 634/190/124/948 all-target totals, 47-group `BUG=0`, and CI runs `37889435584`/`37892777783` are pre-repair evidence only. An initial current-source Core all-target attempt without the required isolated session-root overrides was stopped before completion; it is not test evidence. Subsequent runs set unique nonexistent Codex/Claude session roots.
+
 ## Source and scope
 
 - Branch: `codex/spec-05-multi-agent-concurrency-durable-state`.
@@ -193,3 +201,45 @@ The source/evidence snapshot is not yet committed or pushed, so no final review 
 ## Pushed readiness snapshot and exact-SHA CI — 2026-10-09
 
 The authority-generation repair and its full local verification were committed and pushed as `752ea138d7092acda56edc832472e3bae78ec820` on `codex/spec-05-multi-agent-concurrency-durable-state`; local HEAD and `git ls-remote` match. Exact-SHA Baron CI run [37889435584](https://github.com/thienty1207/Baron-Engine/actions/runs/37889435584) completed successfully. Format/Clippy, Linux native tests, Windows native tests, both release builds, and both CLI version smoke steps passed. The final production audit remains 47 groups (`11/8/17/8/3`), `BUG=0`. The source commit is READY FOR ADVERSARIAL REVIEW, not closed. This ledger update must itself be pushed, its exact-SHA CI verified, and only then can the final review head be frozen for two fresh independent reviews of the identical `ecaf362..<FINAL_REVIEW_HEAD>` range. Earlier reviewer verdicts do not count. No release/tag/version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+
+## Fresh exact-range review findings — 2026-10-09
+
+Two independent read-only reviewers completed the exact range `ecaf362c275431edfc5e590fd6a87d926b9bde9d..02779815c87bf2df6373085125857302503f2e05`. Both returned `FIX REQUIRED`, with no Critical findings and two unique Important findings:
+
+1. When the repo ACTIVE index is missing, `proof_for_operation` calls the unfiltered tuple lookup, allowing an old-generation proof to appear in current operation Task State. The identity completion status path can also frontmatter-discover the plan and compare evidence against the same old generation; add explicit assertions for the interval before recovery/reindex.
+2. Starting the same lifecycle identity from another checkout sharing the Vault can create a second checkout-local plan and then fail while merging the shared ACTIVE index. Review indicates the failed transition may remain in the journal and block future plan operations; reproduce this with a two-checkout regression, inspect on-disk state and recovery behavior, then fix the root cause.
+
+The missing-ACTIVE case is already partly exercised by `authority_ingress`, but it asserts only failed ingress and evidence invalidation after generation rotation; it does not assert read/current Task State or completion while ACTIVE is absent. The shared-checkout plan tests cover different operation identities only. Until both regressions are watched fail, fixed, and rerun with the entire local matrix and refreshed 47-group authority audit, status is `FIX REQUIRED`. Candidate CI runs `37889435584` on `752ea13` and `37892777783` on `0277981` passed, but neither removes these review findings. Both old review verdicts are `FIX REQUIRED`, not ACCEPT. No release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+
+## Complete post-repair verification — 2026-10-09
+
+This is the fresh result after the local fixes for missing indexed-ACTIVE proof/current-plan/completion authority and same-identity shared-Vault cross-checkout partial writes. The tracked source is based on `02779815c87bf2df6373085125857302503f2e05` plus the current local repair; prior counts and CI on `0277981` do not certify this source.
+
+| Gate | Fresh current-source result |
+| --- | --- |
+| Prompt Core focused matrix | 325 passed across 23 named targets; required second `harness_improvement` run 13/13; combined 338 executions, 0 failed/ignored |
+| Prompt CLI selector/evidence/hook matrix | 38/38 across `execution_cli` 15, `intent_operation_cli` 2, `operation_evidence_cli` 11, `phase12_hooks_cli` 6, and `plan_identity_cli` 4; additional `migration_cli` 3/3 |
+| Core all-targets | PASS, 635 passed / 0 failed / 0 ignored across 60 suites |
+| CLI all-targets | PASS, 190 passed / 0 failed / 1 ignored across 38 suites |
+| Adapters all-targets | PASS, 124 passed / 0 failed / 3 ignored across 14 suites |
+| Workspace all-targets | PASS, 949 passed / 0 failed / 4 ignored across 112 suites |
+| `cargo fmt --all -- --check` | PASS, exit 0 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | PASS, exit 0 |
+| `cargo build --workspace --release --locked` | PASS, exit 0 |
+| Release binary | PASS; reports exactly `baron 5.0.0` |
+| Required ignored release smoke | PASS, 1/1 via `phase14_release` |
+| Public trust docs | PASS, 12/12 |
+| CLI help | PASS; root, proof record, trace record, trace score, continuity recover all exit 0 |
+| Default-host lifecycle baseline | 4 passed / 3 failed, exit 101; all three fail because host `Microsoft.PowerShell.Archive` cannot load `Compress-Archive` |
+| Supported bundled PowerShell 7 lifecycle | PASS, 7/7 in CLI/workspace all-target runs |
+| `session_replay` UTF-8 regression | PASS, 5/5 in focused/Core/workspace runs |
+| Retirement gate | PASS; `phase1_target_red` 8/8, no tracked retired-name or filename hits |
+| Status JSON | PASS; parses |
+| Changed Markdown relative links | PASS; 18 local relative links in 10 changed Markdown files, 0 broken |
+| `git diff ecaf362 --check` | PASS, exit 0; only working-copy LF/CRLF warnings |
+| Scope | PASS; 70 changed paths, no manifest/lockfile, release workflow, Hotel Staff, or SPEC-06 changes |
+| Fresh authority audit | PASS; 48 groups, `PRESENTATION_ONLY=11`, `LEGACY_SINGLE_ACTIVE_SAFE=8`, `EXACT_OPERATION_SCOPED=17`, `AMBIGUOUS_FAIL_CLOSED=9`, `OUT_OF_SPEC=3`, `BUG=0` |
+| Current-source hosted CI | PENDING until this readiness snapshot is committed and pushed |
+| Fresh exact-range reviewers | PENDING; earlier FIX REQUIRED reports do not count as acceptance |
+
+The audit details and raw search counts are in [the current authority ledger](2026-10-01-spec-05-authority-audit.md). Local verification is complete and status may advance to `READY FOR ADVERSARIAL REVIEW`, not `CLOSED`. Next: commit and push this source/evidence snapshot, verify local/remote SHA equality and exact-SHA GitHub checks, freeze `FINAL_REVIEW_HEAD`, then obtain two fresh independent read-only `ACCEPT` verdicts for the same full `ecaf362..<FINAL_REVIEW_HEAD>` range. Do not close unless both accept with zero unresolved Critical/Important findings. No release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.

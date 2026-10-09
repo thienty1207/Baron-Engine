@@ -20,7 +20,7 @@ use crate::operation::{
     canonical_task_text, task_id_for_task, LifecycleIdentity, OperationContext,
     OperationIdentityError, SupportedAdapter,
 };
-use crate::plan::plan_status_for_identity;
+use crate::plan::indexed_plan_status_for_identity;
 use crate::platform::{platform_name, render_platform_context};
 use crate::proof::proof_for_operation;
 use crate::risk::RiskLane;
@@ -371,7 +371,8 @@ pub fn prepare(
     let intent_source = operation_intent_for_identity(&repo_root, &identity, MAX_STATUS_CHARS)
         .map_err(project_error)?
         .unwrap_or_default();
-    let plan_source = plan_status_for_identity(&repo_root, &identity).map_err(project_error)?;
+    let plan_source =
+        indexed_plan_status_for_identity(&repo_root, &identity).map_err(project_error)?;
     let continuity_source = operation_scoped_source(
         &crate::continuity::operation_checkpoint_path(&repo_root, &identity),
         &identity,

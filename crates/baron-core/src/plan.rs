@@ -441,6 +441,12 @@ pub fn active_plan_completion_evidence_status(
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
     match sole_active_managed_plan(repo_root) {
+        Ok(Some(active)) if active.binding.is_some() && !active.authority_indexed => {
+            return Ok(Some(CompletionEvidenceStatus {
+                passed: false,
+                issues: vec!["identified plan is missing indexed ACTIVE authority".to_string()],
+            }));
+        }
         Ok(Some(active)) if active.binding.is_some() => {
             return Ok(Some(completion_evidence_status(repo_root, &active, None)?));
         }
@@ -482,7 +488,7 @@ pub fn active_plan_completion_evidence_status_for_identity(
     let binding = binding_for_identity(vault, identity)?;
     let repo_root = repo_root.as_ref();
     let _lock = acquire_project_lock(repo_root)?;
-    let active = match active_plan_for_binding(repo_root, &binding) {
+    let active = match active_plan_for_indexed_binding(repo_root, &binding) {
         Ok(Some(active)) => active,
         Ok(None) => {
             return Ok(Some(CompletionEvidenceStatus {
@@ -592,6 +598,9 @@ fn start_or_resume_plan_internal(
     let title = title.trim();
     let _lock = acquire_project_lock(repo_root)?;
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    if let Some(binding) = binding {
+        validate_shared_operation_plan_ownership(repo_root, vault, binding)?;
+    }
     ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let matching_active = match binding {
         Some(requested) => active_plan_for_new_operation(repo_root, requested)?,
@@ -1305,10 +1314,33 @@ pub fn plan_status_for_identity(
     repo_root: impl AsRef<Path>,
     identity: &LifecycleIdentity,
 ) -> Result<String> {
-    let repo_root = repo_root.as_ref();
+    plan_status_for_identity_with_policy(repo_root.as_ref(), identity, false)
+}
+
+/// Current-state consumers must not surface a frontmatter-only plan when its
+/// indexed ACTIVE authority is missing. The compatibility reader above keeps
+/// legacy identified-plan diagnostics available without granting them current
+/// authority.
+pub(crate) fn indexed_plan_status_for_identity(
+    repo_root: impl AsRef<Path>,
+    identity: &LifecycleIdentity,
+) -> Result<String> {
+    plan_status_for_identity_with_policy(repo_root.as_ref(), identity, true)
+}
+
+fn plan_status_for_identity_with_policy(
+    repo_root: &Path,
+    identity: &LifecycleIdentity,
+    require_indexed_authority: bool,
+) -> Result<String> {
     let _lock = acquire_project_lock(repo_root)?;
     let binding = PlanOperationBinding::from_identity(identity);
-    let Some(active) = active_plan_for_binding(repo_root, &binding)? else {
+    let active_plan = if require_indexed_authority {
+        active_plan_for_indexed_binding(repo_root, &binding)?
+    } else {
+        active_plan_for_binding(repo_root, &binding)?
+    };
+    let Some(active) = active_plan else {
         return Ok(
             "# Baron Plan Status\n\n- Active plan: unknown for this operation\n".to_string(),
         );
@@ -1530,6 +1562,56 @@ fn ensure_active_plan_vault_index_consistent(repo_root: &Path, vault: &VaultCont
     Ok(())
 }
 
+fn validate_shared_operation_plan_ownership(
+    repo_root: &Path,
+    vault: &VaultContext,
+    binding: &PlanOperationBinding,
+) -> Result<()> {
+    let Some(shared) = read_active_plan_vault_index_entries(vault)?
+        .into_iter()
+        .find(|entry| {
+            entry
+                .binding()
+                .is_ok_and(|entry_binding| entry_binding == *binding)
+        })
+    else {
+        return Ok(());
+    };
+
+    if shared.status == "completed" {
+        bail!(
+            "operation `{}` is already completed; a new lifecycle requires a fresh operation identity",
+            binding.operation_id
+        );
+    }
+    if !is_safe_plan_path(&shared.plan_path) {
+        bail!(
+            "shared Vault ACTIVE entry for operation `{}` contains an unsafe plan path",
+            binding.operation_id
+        );
+    }
+    let candidate = repo_root.join(&shared.plan_path);
+    if !candidate.is_file() {
+        bail!(
+            "shared Vault ACTIVE entry for operation `{}` points to a plan path not present in this checkout; refusing to create a competing plan",
+            binding.operation_id
+        );
+    }
+    let path = resolve_managed_plan_path(repo_root, &shared.plan_path)?;
+
+    let metadata = load_plan_file_metadata(&path)?;
+    if metadata.operation_binding()?.as_ref() != Some(binding)
+        || metadata.status != shared.status
+        || metadata.authority_generation != shared.authority_generation
+    {
+        bail!(
+            "shared Vault ACTIVE entry for operation `{}` conflicts with its local plan authority",
+            binding.operation_id
+        );
+    }
+    Ok(())
+}
+
 fn load_active_plan_index(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
     let entries = read_active_plan_index_entries(repo_root)?;
     for entry in &entries {
@@ -1678,20 +1760,28 @@ fn active_plan_for_binding(
     repo_root: &Path,
     binding: &PlanOperationBinding,
 ) -> Result<Option<ActivePlan>> {
-    active_plan_for_binding_with_completion_policy(repo_root, binding, false)
+    active_plan_for_binding_with_completion_policy(repo_root, binding, false, true)
+}
+
+fn active_plan_for_indexed_binding(
+    repo_root: &Path,
+    binding: &PlanOperationBinding,
+) -> Result<Option<ActivePlan>> {
+    active_plan_for_binding_with_completion_policy(repo_root, binding, false, false)
 }
 
 fn active_plan_for_new_operation(
     repo_root: &Path,
     binding: &PlanOperationBinding,
 ) -> Result<Option<ActivePlan>> {
-    active_plan_for_binding_with_completion_policy(repo_root, binding, true)
+    active_plan_for_binding_with_completion_policy(repo_root, binding, true, true)
 }
 
 fn active_plan_for_binding_with_completion_policy(
     repo_root: &Path,
     binding: &PlanOperationBinding,
     reject_completed: bool,
+    allow_frontmatter_fallback: bool,
 ) -> Result<Option<ActivePlan>> {
     let mut matches = Vec::new();
     for entry in load_active_plan_index(repo_root)? {
@@ -1731,6 +1821,10 @@ fn active_plan_for_binding_with_completion_policy(
     }
     if let Some(active) = matches.pop() {
         return Ok(Some(active));
+    }
+
+    if !allow_frontmatter_fallback {
+        return Ok(None);
     }
 
     // Existing identified plans created before ACTIVE.md was introduced remain

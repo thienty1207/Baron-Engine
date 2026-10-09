@@ -358,8 +358,9 @@ pub fn proof_by_id(repo_root: &Path, proof_id: &str) -> Result<Option<ProofRecor
     Ok(None)
 }
 
-/// Find the newest proof that carries the exact operation binding. Unbound
-/// and partially bound legacy records are intentionally excluded.
+/// Find the newest proof that carries the exact operation binding while that
+/// operation has indexed ACTIVE authority. Frontmatter-only discovery remains
+/// useful for legacy plan reads, but cannot make persisted evidence current.
 pub fn proof_for_operation(
     repo_root: &Path,
     expected: &ReceiptContext,
@@ -373,35 +374,16 @@ pub fn proof_for_operation(
         session_id: expected.session_id.clone(),
         request_id: expected.request_id.clone(),
     };
-    if let Some(authority) =
+    let Some(authority) =
         indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
-    {
-        return proof_for_operation_in_generation(
-            repo_root,
-            expected,
-            authority.authority_generation.as_deref(),
-        );
-    }
-    proof_for_operation_unfiltered(repo_root, expected)
-}
-
-fn proof_for_operation_unfiltered(
-    repo_root: &Path,
-    expected: &ReceiptContext,
-) -> Result<Option<ProofRecord>> {
-    expected.validate()?;
-    let mut paths = proof_paths(repo_root)?;
-    paths.sort_by_key(|path| artifact_sort_key(path));
-    for path in paths.into_iter().rev() {
-        let proof = parse_proof(&path)?;
-        let Some(binding) = proof.binding.as_ref() else {
-            continue;
-        };
-        if operation_binding_matches(binding, expected) && binding.gate_kind.trim() == "proof" {
-            return Ok(Some(proof));
-        }
-    }
-    Ok(None)
+    else {
+        return Ok(None);
+    };
+    proof_for_operation_in_generation(
+        repo_root,
+        expected,
+        authority.authority_generation.as_deref(),
+    )
 }
 
 pub(crate) fn proof_for_operation_in_generation(
