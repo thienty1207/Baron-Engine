@@ -189,3 +189,23 @@
 - [x] Verify JSON, changed-Markdown relative links, retired-adapter source/filename gate, `git diff ecaf362 --check`, and 70-path scope (no manifest/lockfile, release workflow, Hotel Staff, or SPEC-06 changes).
 - [ ] Commit and push the readiness snapshot; verify local/remote SHA equality and exact-SHA hosted CI before freezing `FINAL_REVIEW_HEAD`.
 - [ ] Obtain two fresh independent read-only ACCEPT reviews of the identical complete `ecaf362..<FINAL_REVIEW_HEAD>` range; if either finds Critical/Important, restart the repair/full-verification/review cycle.
+
+### Task 12: Repair the latest shared-Vault authority findings
+
+**Files:** `crates/baron-core/src/plan.rs`, `crates/baron-core/tests/plan.rs`, and the maintained verification/status/audit evidence.
+
+**Interfaces:** consumes the two independent FIX REQUIRED reports for `ecaf362..b481e3f49593806dcef569da23fc9332ee02d15c`; produces RED→GREEN regressions for stale cross-checkout plan overwrites and duplicate identity after an orphaned shared Vault plan, plus a verified decision on the reported generic reconcile false-negative.
+
+- [x] Freeze the exact review reports: Sagan and Hegel both inspected `ecaf362..b481e3f49593806dcef569da23fc9332ee02d15c`, both found Important shared-Vault operation authority defects, and neither changed files or ran tests.
+- [x] Confirm the stale mirror path: lifecycle mutation validates binding/status/generation but writes checkout-local full plan content to the shared Vault mirror; a stale copy can overwrite newer progress.
+- [x] Confirm the missing-index path: a shared ACTIVE row lookup returns no conflict when the row is absent even though the shared Vault may already contain a plan mirror for that identity.
+- [x] Add real-behavior regressions for stale shared Vault writes/resumes, copied pending-transition replay, orphaned Vault plan identity, and exact-owner ACTIVE recovery. The stale-write, orphan-plan, and reconcile regressions were observed failing on `b481e3f` before production edits.
+- [x] Verify generic `reconcile()` falsely rejected a sole identified plan with a valid indexed ACTIVE row; the new regression confirmed the failure, and matching discovery to the validated ACTIVE row removes the false diagnostic.
+- [x] Repair shared authority and plan publication: persist a hashed canonical checkout owner, reject stale local/Vault byte divergence and foreign-owner journal recovery, scan Vault plans when the shared ACTIVE row is absent, and allow exact-owner recovery. Preserve repo→Vault lock ordering and fail-closed semantics.
+- [x] Verify the affected `plan` suite at 64/64, including backward-compatible migration of an ownerless legacy plan only when its local and Vault copies match exactly.
+- [x] Rerun the prompt-focused matrix: Core 327/0 across 23 unique targets, plus the required repeated harness_improvement invocation (340 total executions); CLI selector/evidence/hooks 38/0 plus migration CLI 3/3. The plan suite is 64/64.
+- [x] Run fresh all-targets: Core 641/0/0 across 60 suites, CLI 190/0/1 ignored across 38 suites, adapters 124/0/3 ignored across 14 suites, and workspace all-targets exit 0. The bundled PowerShell 7 lifecycle target is 7/7; the default-host baseline is 4/7 because Microsoft.PowerShell.Archive cannot load.
+- [x] Run fresh fmt check, warnings-denied Clippy, locked release build, release smoke 1/1, public trust docs 12/12, binary version 5.0.0, five CLI help checks, tracked retirement/source-name gate, and out-of-scope path audit; all pass.
+- [x] Re-audit all 21 authority search terms across Core, CLI, and adapters and trace all 48 production caller groups: PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=9, OUT_OF_SPEC=3, BUG=0. The current raw counts and owner-path reasoning are recorded in the authority ledger.
+- [x] Finish the post-readiness-doc relative-link and JSON checks, then rerun diff/scope checks before commit: 18 relative links across 10 changed Markdown files, 0 broken; JSON parses; `git diff ecaf362 --check` exits 0; 70-path scope has no out-of-scope changes.
+- [ ] Push a new readiness candidate, verify local/remote SHA equality and exact-SHA CI, then obtain two new independent ACCEPT reviews of one identical `ecaf362..<FINAL_REVIEW_HEAD>` range.

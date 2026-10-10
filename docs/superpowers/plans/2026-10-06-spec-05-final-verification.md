@@ -1,8 +1,24 @@
 # SPEC-05 Final Closure Verification Ledger
 
+## Readiness verification complete — 2026-10-10
+
+This checkpoint supersedes the pre-repair readiness data below. The exact-range reviewers Sagan and Hegel rejected `ecaf362..b481e3f49593806dcef569da23fc9332ee02d15c` with Important shared-Vault authority findings. The local repair now adds a hashed canonical checkout owner to identified plans and ACTIVE rows, rejects stale local/Vault divergence and foreign pending-journal replay before writes, detects orphaned shared plans before creating duplicate identity, and permits exact-owner ACTIVE recovery. Generic reconciliation marks a plan indexed only when the validated ACTIVE row matches its path, binding, status, and generation.
+
+Fresh local results: focused Core matrix 327/0 across 23 targets plus the required repeated harness-improvement run (340 executions); CLI selector/evidence/hooks matrix 38/0 plus migration CLI 3/3. All-targets: Core 641/0/0 across 60 suites, CLI 190/0/1 ignored across 38, adapters 124/0/3 ignored across 14, and the separate full workspace command exited 0. fmt, warnings-denied Clippy, locked release build, required release smoke 1/1, public trust docs 12/12, binary version 5.0.0, five help commands, and scope/JSON/diff/retirement checks pass. Default host lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; supported bundled PowerShell 7 passes 7/7.
+
+The fresh production re-audit covers all 21 requested search terms in Core, CLI, and adapters and classifies 48 caller paths: PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=9, OUT_OF_SPEC=3, BUG=0. The plan lifecycle groups now additionally enforce checkout ownership and local/shared mirror agreement; generic reconcile uses the exact validated ACTIVE row. Full raw counts and disposition are in the current authority audit ledger.
+
+Local readiness is complete. Commit and push this snapshot, verify local/remote SHA equality and exact-SHA hosted CI, freeze `FINAL_REVIEW_HEAD`, then obtain two fresh independent read-only `ACCEPT` reviews of the identical complete `ecaf362..<FINAL_REVIEW_HEAD>` range. Until those reviews accept with zero unresolved Critical/Important findings, SPEC-05 is not closed. No release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite.
+
+## Latest exact-range review checkpoint — 2026-10-09
+
+Current status: `SPEC-05: FIX REQUIRED`. The readiness snapshot `b481e3f49593806dcef569da23fc9332ee02d15c` is pushed and matches `origin/codex/spec-05-multi-agent-concurrency-durable-state`. Two new independent reviewers, Sagan and Hegel, both inspected exactly `ecaf362c275431edfc5e590fd6a87d926b9bde9d..b481e3f49593806dcef569da23fc9332ee02d15c`, made no edits, and returned `FIX REQUIRED` with Important findings. Sagan found that a stale same-identity plan copy in another shared-Vault checkout can overwrite newer mirrored progress. Hegel found that a shared Vault plan mirror with a missing ACTIVE row can permit a second plan authority for the same lifecycle identity. Hegel also reported a lower-severity observation that generic reconciliation may falsely reject a valid indexed ACTIVE plan; verify before deciding its disposition.
+
+The b481e3f exact-SHA GitHub Actions run is `37905287345`: Format/Clippy and Linux native tests are `success`; Windows native tests are still `in_progress`. Previous local test counts and the 48-group `BUG=0` audit remain valid evidence for b481e3f itself, but not post-repair acceptance; they must be rerun after the finding repairs. Safe next action: add failing regressions for stale overwrite and orphaned Vault identity, verify the reconcile observation, then implement the smallest fail-closed root-cause repair. Proof/trace artifacts and user Vault data remain untouched. No release/tag/version change, SPEC-06, Hotel Staff, manifests/lockfiles, or history rewrite.
+
 Date: 2026-10-06. Historical status at that checkpoint: `READY FOR ADVERSARIAL REVIEW`; that readiness was later invalidated by the hosted Linux failure recorded below. The document remains the detailed record for the 2026-10-06 runs.
 
-## Latest continuation checkpoint — 2026-10-09
+## Historical continuation checkpoint — 2026-10-09 (superseded)
 
 Current status: `SPEC-05: FIX REQUIRED`; no current-source readiness, closure, or acceptance claim. Two fresh reviews of `ecaf362..02779815c87bf2df6373085125857302503f2e05` returned `FIX REQUIRED`; a later read-only authority audit found two additional Important caller paths: Task State showed a frontmatter-only plan as current, and generic completion/reconciliation could pass with ACTIVE missing. That audit snapshot counted 48 caller paths with `BUG=2` and no Critical; it predates the latest repairs and must be rerun.
 
@@ -21,7 +37,7 @@ Still pending on this source: the full Step 2 focused regression matrix, Core/CL
 
 ## Fresh authority audit
 
-Reran every required authority-search term over `crates/baron-core/src/**`, `crates/baron-cli/src/**`, and `crates/baron-adapters/src/**`, excluding test modules, imports, comments, and function declarations from production hit review. The inventory is at [SPEC-05 authority audit](2026-10-01-spec-05-authority-audit.md): 45 caller-path groups, each with exactly one category; `PRESENTATION_ONLY=11`, `LEGACY_SINGLE_ACTIVE_SAFE=8`, `EXACT_OPERATION_SCOPED=17`, `AMBIGUOUS_FAIL_CLOSED=6`, `OUT_OF_SPEC=3`, `BUG=0`. No known owned Critical/Important issue remains in the current-source audit. Audit status alone is not readiness or closure.
+Reran every required authority-search term over `crates/baron-core/src/**`, `crates/baron-cli/src/**`, and `crates/baron-adapters/src/**`, excluding test modules, imports, comments, and function declarations from production hit review. The current inventory in [SPEC-05 authority audit](2026-10-01-spec-05-authority-audit.md) has 48 caller-path groups, each assigned exactly one category: `PRESENTATION_ONLY=11`, `LEGACY_SINGLE_ACTIVE_SAFE=8`, `EXACT_OPERATION_SCOPED=17`, `AMBIGUOUS_FAIL_CLOSED=9`, `OUT_OF_SPEC=3`, `BUG=0`. No current SPEC-05-owned Critical/Important issue is known from source tracing; independent reviews remain outstanding.
 
 ## Fresh focused regression matrix
 
@@ -29,7 +45,7 @@ All listed focused tests below ran against the current working-tree source with 
 
 | Target | Passed / failed / ignored | Invocation |
 | --- | ---: | --- |
-| `plan` | 57 / 0 / 0 | Core focused matrix |
+| `plan` | 64 / 0 / 0 | Core focused matrix |
 | `plan_identity_cli` | 4 / 0 / 0 | CLI focused matrix |
 | `authority_ingress` | 6 / 0 / 0 | Core focused matrix |
 | `operation_evidence_cli` | 11 / 0 / 0 | CLI focused matrix |
@@ -45,20 +61,20 @@ All listed focused tests below ran against the current working-tree source with 
 | `concurrency` | 20 / 0 / 0 | Core focused matrix |
 | `continuity` | 7 / 0 / 0 | Core focused matrix |
 | `operation_context` | 18 / 0 / 0 | Core focused matrix |
-| `intent` | 7 / 0 / 0 | Core focused matrix, separate invocation |
+| `intent` | 8 / 0 / 0 | Core focused matrix, separate invocation |
 | `intent_operation_cli` | 2 / 0 / 0 | CLI focused matrix |
 | `control_plane` | 9 / 0 / 0 | Core focused matrix |
 | `phase7_routing` | 20 / 0 / 0 | Core focused matrix |
 | `phase10_adapter_authority` | 15 / 0 / 0 | Core focused matrix |
 | `capability` | 9 / 0 / 0 | Core focused matrix |
 | `review_gate` | 6 / 0 / 0 | Core focused matrix |
-| `migration` | 21 / 0 / 0 | Core focused matrix |
+| `migration` | 23 / 0 / 0 | Core focused matrix |
 | `harness_experiment` | 5 / 0 / 0 | Core focused matrix |
 | `public_config_compat` | 1 / 0 / 0 | Core focused matrix |
 | `session_replay` | 5 / 0 / 0 | Core focused matrix; UTF-8 boundary regression passes |
 | `execution_cli` | 15 / 0 / 0 | CLI focused matrix |
 
-The first Core focused command totalled 310 passed; the separate `intent` run added 7 (317). The duplicated `harness_improvement` invocation added another 13 passes per the prompt's repeated entry. CLI selector/evidence/hook targets totalled 38 passes, excluding lifecycle baseline checks below.
+The fresh Core prompt matrix totals 327 passed across 23 unique targets; its separate repeated `harness_improvement` invocation adds 13 more, for 340 executions. The required CLI selector/evidence/hook targets total 38 passes, plus migration CLI 3/3, excluding lifecycle baseline checks below.
 
 The tracked retired-adapter gate (case-insensitive tracked-source search) exited 1 with no output, meaning no tracked current-tree matches.
 
@@ -73,16 +89,16 @@ The tracked retired-adapter gate (case-insensitive tracked-source search) exited
 | Gate | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | PASS, exit 0 |
-| Core all-targets | PASS, exit 0; 631 passed, 0 failed, 0 ignored across 60 suites |
+| Core all-targets | PASS, exit 0; 641 passed, 0 failed, 0 ignored across 60 suites |
 | CLI all-targets (supported bundled PowerShell 7) | PASS, exit 0; 190 passed, 0 failed, 1 ignored across 38 suites |
 | Adapters all-targets | PASS, exit 0; 124 passed, 0 failed, 3 historical ignored across 14 suites |
-| Workspace all-targets | PASS, exit 0; 945 passed, 0 failed, 4 ignored across 112 suites |
+| Workspace all-targets | PASS, exit 0; 955 passed, 0 failed, 4 ignored across 112 suites (sum of the fresh Core/CLI/adapters package outputs) |
 | Clippy `-D warnings` | PASS, exit 0 |
 | Locked workspace release build | PASS, exit 0 |
 | Release binary version / smoke | PASS; binary reports `baron 5.0.0`, required ignored smoke passes 1/1 |
 | Public trust docs | PASS, 12/12 |
 | `BARON_STATUS.json` parse | PASS |
-| Changed Markdown relative links | PASS, 11 checked, 0 broken |
+| Changed Markdown relative links | PASS, 18 local relative links across 10 changed Markdown files, 0 broken |
 | `git diff ecaf362 --check` | PASS, exit 0 (Git emitted only line-ending conversion warnings) |
 | CLI help checks | PASS; root, proof record, trace record, trace score, continuity recover all exit 0 |
 | GitHub Actions and commit statuses | PENDING for readiness snapshot |
@@ -242,4 +258,4 @@ This is the fresh result after the local fixes for missing indexed-ACTIVE proof/
 | Current-source hosted CI | PENDING until this readiness snapshot is committed and pushed |
 | Fresh exact-range reviewers | PENDING; earlier FIX REQUIRED reports do not count as acceptance |
 
-The audit details and raw search counts are in [the current authority ledger](2026-10-01-spec-05-authority-audit.md). Local verification is complete and status may advance to `READY FOR ADVERSARIAL REVIEW`, not `CLOSED`. Next: commit and push this source/evidence snapshot, verify local/remote SHA equality and exact-SHA GitHub checks, freeze `FINAL_REVIEW_HEAD`, then obtain two fresh independent read-only `ACCEPT` verdicts for the same full `ecaf362..<FINAL_REVIEW_HEAD>` range. Do not close unless both accept with zero unresolved Critical/Important findings. No release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+The audit details and raw search counts are in [the current authority ledger](2026-10-01-spec-05-authority-audit.md). Local verification is complete and status is `READY FOR ADVERSARIAL REVIEW`, not `CLOSED`. Next: commit and push this source/evidence snapshot, verify local/remote SHA equality and exact-SHA GitHub checks, freeze `FINAL_REVIEW_HEAD`, then obtain two fresh independent read-only `ACCEPT` verdicts for the same full `ecaf362..<FINAL_REVIEW_HEAD>` range. Do not close unless both accept with zero unresolved Critical/Important findings. No release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.

@@ -1,18 +1,18 @@
 # Current Baron Build Plan
 
-## Active repair: SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW — 2026-10-09)
+## Active verification: SPEC-05 final closure (READY FOR ADVERSARIAL REVIEW — 2026-10-10)
 
-The rejected range `ecaf362..02779815c87bf2df6373085125857302503f2e05` produced four Important findings across two fresh reviews and a follow-up audit. All now have regression-backed repairs; current-state identified plan/proof/completion views require indexed ACTIVE, and repeated same-identity starts from a second shared-Vault checkout fail before writes. The full 21-pattern production authority re-audit classifies 48 groups as 11 presentation, 8 legacy-single-active-safe, 17 exact-operation-scoped, 9 ambiguous-fail-closed, 3 out-of-scope, `BUG=0`.
+The shared-Vault source repairs are implemented and locally verified. Identified plan and ACTIVE records carry a hashed canonical checkout owner; stale mirror divergence and foreign pending-journal recovery fail closed; orphaned plans prevent duplicate operation identity; exact-owner recovery works when a shared ACTIVE row is missing. Generic reconcile now recognizes only a matching validated indexed plan.
 
-Fresh gates pass: Core focused 325/0 plus repeated `harness_improvement` 13/13 (338 total executions); CLI required matrix 38/0 plus migration CLI 3/3; Core all-targets 635/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 949/0/4 ignored across 112 suites; fmt, Clippy `-D warnings`, locked release, release smoke 1/1, version 5.0.0, trust docs, help, JSON, links, retirement, diff, and scope. Default host PowerShell is 4/7 due the missing Archive module; supported bundled PowerShell 7 is 7/7. The current `session_replay` regression passes 5/5.
+Fresh all-target gates: Core 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored; full workspace command exit 0. Focused matrix: Core 327/0 across 23 targets plus repeated harness-improvement (340 executions); required CLI selector/evidence/hooks 38/0 plus migration CLI 3/3. fmt, Clippy, locked release, smoke 1/1, public docs 12/12 and 48-path authority audit (BUG=0) pass. Default PowerShell lifecycle is 4/7 due to the unavailable archive module; bundled PowerShell 7 passes 7/7.
 
 - Execution plan: [SPEC-05 final closure verification](2026-10-06-spec-05-final-closure-verification-plan.md); evidence ledger: [2026-10-06 final verification](2026-10-06-spec-05-final-verification.md); authority audit: [current caller inventory](2026-10-01-spec-05-authority-audit.md).
 - Authority boundary: exact lifecycle identity and persisted binding → indexed ACTIVE → canonical managed frontmatter. CURRENT stays a presentation projection for identified work; ambiguous legacy selectors fail closed. Shared Vault journal operations follow checkout → Vault locking.
-- Lifecycle baseline: fresh default host PowerShell is 4/7 because its archive module cannot load; the repository-supported bundled PowerShell 7 target is 7/7. This environment-specific failure is disclosed, not counted as a product pass.
+- Lifecycle baseline: default host PowerShell is 4/7 because Microsoft.PowerShell.Archive cannot load; bundled PowerShell 7 is 7/7. This environment-specific failure is disclosed, not counted as a product pass.
 - Scope: no release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile edits. Public version remains `5.0.0`.
-- Review gate: prior verdicts remain FIX REQUIRED and never count as acceptance. Commit and push the current readiness snapshot, confirm local/remote SHA equality and exact-SHA hosted CI, then get two fresh independent read-only `ACCEPT` reviews of the same `ecaf362..<FINAL_REVIEW_HEAD>` range.
+- Review gate: the new readiness snapshot is not yet pushed. Push it, verify local/remote SHA equality and exact-SHA CI, then obtain two fresh independent ACCEPT reviews for the same complete `ecaf362..<FINAL_REVIEW_HEAD>` range. The rejected b481e3f review and CI do not count.
 - Status is READY FOR ADVERSARIAL REVIEW, not CLOSED. No release/tag/version bump, SPEC-06, Hotel Staff, manifest/lockfile, or history rewrite is in scope.
-- Safe next action: push the verified source/evidence snapshot and complete exact-SHA hosted CI plus the two independent reviews. Keep SPEC-05 open unless both reviewers ACCEPT and no owned Critical/Important finding remains.
+- Safe next action: push the verified candidate, verify exact-SHA CI, and complete two fresh exact-range reviews.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 

@@ -159,6 +159,8 @@ struct ActivePlanIndexEntry {
     plan_path: String,
     status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    owner_checkout_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     authority_generation: Option<String>,
 }
 
@@ -168,6 +170,7 @@ impl ActivePlanIndexEntry {
         repo_root: &Path,
         plan_path: &Path,
         status: &str,
+        owner_checkout_id: String,
         authority_generation: Option<String>,
     ) -> Self {
         Self {
@@ -178,6 +181,7 @@ impl ActivePlanIndexEntry {
             request_id: binding.request_id.clone(),
             plan_path: normalize(plan_path, repo_root),
             status: status.to_string(),
+            owner_checkout_id: Some(owner_checkout_id),
             authority_generation,
         }
     }
@@ -690,6 +694,10 @@ fn start_or_resume_plan_internal(
         title,
         risk,
         binding,
+        binding
+            .map(|_| plan_checkout_owner_id(repo_root))
+            .transpose()?
+            .as_deref(),
         authority_generation,
     )?;
     create_new_text(&repo_path, &content)?;
@@ -929,6 +937,37 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
     if normalize(&plan_path, repo_root) != journal.plan_path {
         bail!("Pending plan transition path is not canonical");
     }
+    let current_owner = plan_checkout_owner_id(repo_root)?;
+    let journal_metadata = load_plan_file_metadata(&plan_path)?;
+    ensure_current_checkout_owner(
+        journal_metadata.owner_checkout_id.as_deref(),
+        &current_owner,
+        "pending plan transition",
+    )?;
+    if let Some(binding) = journal_metadata.operation_binding()? {
+        if let Some(shared) = read_active_plan_vault_index_entries(vault)?
+            .into_iter()
+            .find(|entry| {
+                entry
+                    .binding()
+                    .is_ok_and(|entry_binding| entry_binding == binding)
+            })
+        {
+            ensure_current_checkout_owner(
+                shared.owner_checkout_id.as_deref(),
+                &current_owner,
+                "shared Vault ACTIVE entry",
+            )?;
+        } else {
+            for (_, orphaned) in find_vault_plans_for_binding(repo_root, vault, &binding)? {
+                ensure_current_checkout_owner(
+                    orphaned.owner_checkout_id.as_deref(),
+                    &current_owner,
+                    "orphaned shared Vault plan",
+                )?;
+            }
+        }
+    }
     let current = read_text_required(&plan_path)?;
     let current_hash = plan_content_hash(&current);
     let target = if current_hash == journal.source_hash {
@@ -1103,6 +1142,44 @@ fn plan_transition_content(
 
 fn plan_content_hash(content: &str) -> String {
     format!("{:x}", Sha256::digest(content.as_bytes()))
+}
+
+fn plan_checkout_owner_id(repo_root: &Path) -> Result<String> {
+    let canonical = repo_root.canonicalize().with_context(|| {
+        format!(
+            "could not resolve Baron checkout root: {}",
+            repo_root.display()
+        )
+    })?;
+    let mut normalized = canonical.to_string_lossy().replace('\\', "/");
+    if cfg!(windows) {
+        normalized = normalized.to_lowercase();
+    }
+    let mut digest = Sha256::new();
+    digest.update(b"baron-plan-checkout-owner-v1\0");
+    digest.update(normalized.as_bytes());
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+fn ensure_current_checkout_owner(
+    actual: Option<&str>,
+    expected: &str,
+    authority: &str,
+) -> Result<()> {
+    let Some(actual) = actual else {
+        return Ok(());
+    };
+    if actual.len() != 64
+        || !actual
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        bail!("{authority} contains a malformed checkout owner identity");
+    }
+    if actual != expected {
+        bail!("{authority} belongs to a different Baron checkout");
+    }
+    Ok(())
 }
 
 fn interrupt_plan_state(
@@ -1535,19 +1612,47 @@ fn read_active_plan_index_entries_at(path: &Path) -> Result<Vec<ActivePlanIndexE
 
 fn ensure_active_plan_vault_index_consistent(repo_root: &Path, vault: &VaultContext) -> Result<()> {
     recover_pending_plan_transition(repo_root, vault)?;
+    let current_owner = plan_checkout_owner_id(repo_root)?;
     let repo_entries = read_active_plan_index_entries(repo_root)?;
     let vault_entries = read_active_plan_vault_index_entries(vault)?;
     for local in &repo_entries {
+        ensure_current_checkout_owner(
+            local.owner_checkout_id.as_deref(),
+            &current_owner,
+            "local ACTIVE entry",
+        )?;
         let local_binding = local.binding()?;
         for shared in &vault_entries {
             let shared_binding = shared.binding()?;
             if shared_binding == local_binding {
+                ensure_current_checkout_owner(
+                    shared.owner_checkout_id.as_deref(),
+                    &current_owner,
+                    "shared Vault ACTIVE entry",
+                )?;
                 if shared.plan_path != local.plan_path
                     || shared.status != local.status
                     || shared.authority_generation != local.authority_generation
                 {
                     bail!(
                         "shared Vault ACTIVE entry for operation `{}` conflicts with this checkout",
+                        local_binding.operation_id
+                    );
+                }
+                if local.owner_checkout_id.is_some()
+                    && shared.owner_checkout_id.is_some()
+                    && local.owner_checkout_id != shared.owner_checkout_id
+                {
+                    bail!(
+                        "local and shared Vault ACTIVE entries disagree on checkout ownership for operation `{}`",
+                        local_binding.operation_id
+                    );
+                }
+                let local_path = resolve_managed_plan_path(repo_root, &local.plan_path)?;
+                let shared_path = vault_plan_path(repo_root, vault, &local_path)?;
+                if read_text_required(&local_path)? != read_text_required(&shared_path)? {
+                    bail!(
+                        "local plan for operation `{}` is stale relative to its shared Vault authority",
                         local_binding.operation_id
                     );
                 }
@@ -1567,17 +1672,65 @@ fn validate_shared_operation_plan_ownership(
     vault: &VaultContext,
     binding: &PlanOperationBinding,
 ) -> Result<()> {
-    let Some(shared) = read_active_plan_vault_index_entries(vault)?
-        .into_iter()
-        .find(|entry| {
-            entry
-                .binding()
-                .is_ok_and(|entry_binding| entry_binding == *binding)
-        })
-    else {
+    let current_owner = plan_checkout_owner_id(repo_root)?;
+    let shared_entries = read_active_plan_vault_index_entries(vault)?;
+    let Some(shared) = shared_entries.into_iter().find(|entry| {
+        entry
+            .binding()
+            .is_ok_and(|entry_binding| entry_binding == *binding)
+    }) else {
+        let orphaned = find_vault_plans_for_binding(repo_root, vault, binding)?;
+        if orphaned.is_empty() {
+            return Ok(());
+        }
+        if orphaned.len() != 1 {
+            bail!(
+                "shared Vault contains multiple unindexed plans for operation `{}`; refusing to create or select competing authority",
+                binding.operation_id
+            );
+        }
+        let (vault_path, metadata) = orphaned.into_iter().next().expect("one orphan checked");
+        if metadata.status == "completed" {
+            bail!(
+                "operation `{}` is already completed; a new lifecycle requires a fresh operation identity",
+                binding.operation_id
+            );
+        }
+        ensure_current_checkout_owner(
+            metadata.owner_checkout_id.as_deref(),
+            &current_owner,
+            "orphaned shared Vault plan",
+        )?;
+        let relative = vault_path
+            .strip_prefix(vault.project_root.join("Plans"))
+            .context("orphaned shared Vault plan is outside the Plans root")?;
+        if !relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        {
+            bail!("orphaned shared Vault plan has an unsafe relative path");
+        }
+        let local_path = repo_root.join(MANAGED_PLAN_ROOT).join(relative);
+        let local_content = read_text(&local_path)?.with_context(|| {
+            format!(
+                "shared Vault contains an unindexed plan for operation `{}` owned by another or unavailable checkout; refusing to create a competing plan",
+                binding.operation_id
+            )
+        })?;
+        if local_content != read_text_required(&vault_path)? {
+            bail!(
+                "unindexed shared Vault plan for operation `{}` does not match its owning checkout; refusing to publish stale state",
+                binding.operation_id
+            );
+        }
         return Ok(());
     };
 
+    ensure_current_checkout_owner(
+        shared.owner_checkout_id.as_deref(),
+        &current_owner,
+        "shared Vault ACTIVE entry",
+    )?;
     if shared.status == "completed" {
         bail!(
             "operation `{}` is already completed; a new lifecycle requires a fresh operation identity",
@@ -1600,6 +1753,11 @@ fn validate_shared_operation_plan_ownership(
     let path = resolve_managed_plan_path(repo_root, &shared.plan_path)?;
 
     let metadata = load_plan_file_metadata(&path)?;
+    ensure_current_checkout_owner(
+        metadata.owner_checkout_id.as_deref(),
+        &current_owner,
+        "managed plan",
+    )?;
     if metadata.operation_binding()?.as_ref() != Some(binding)
         || metadata.status != shared.status
         || metadata.authority_generation != shared.authority_generation
@@ -1609,7 +1767,43 @@ fn validate_shared_operation_plan_ownership(
             binding.operation_id
         );
     }
+    let vault_path = vault_plan_path(repo_root, vault, &path)?;
+    if read_text_required(&path)? != read_text_required(&vault_path)? {
+        bail!(
+            "local plan for operation `{}` is stale relative to its shared Vault authority",
+            binding.operation_id
+        );
+    }
     Ok(())
+}
+
+fn find_vault_plans_for_binding(
+    repo_root: &Path,
+    vault: &VaultContext,
+    binding: &PlanOperationBinding,
+) -> Result<Vec<(PathBuf, PlanFileMetadata)>> {
+    let mut paths = Vec::new();
+    collect_managed_plan_files(&vault.project_root.join("Plans"), &mut paths)?;
+    let mut matches = Vec::new();
+    for path in paths {
+        let content = read_text_required(&path)?;
+        if !claims_baron_plan(&content) {
+            continue;
+        }
+        let metadata = load_plan_file_metadata(&path)
+            .with_context(|| format!("shared Vault Baron plan is malformed: {}", path.display()))?;
+        if metadata.operation_binding()?.as_ref() != Some(binding) {
+            continue;
+        }
+        if validate_linked_plan_authority(repo_root, &metadata)?.as_ref() != Some(binding) {
+            bail!(
+                "shared Vault plan for operation `{}` failed canonical authority validation",
+                binding.operation_id
+            );
+        }
+        matches.push((path, metadata));
+    }
+    Ok(matches)
 }
 
 fn load_active_plan_index(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>> {
@@ -1621,6 +1815,12 @@ fn load_active_plan_index(repo_root: &Path) -> Result<Vec<ActivePlanIndexEntry>>
 }
 
 fn validate_active_plan_index_entry(repo_root: &Path, entry: &ActivePlanIndexEntry) -> Result<()> {
+    let current_owner = plan_checkout_owner_id(repo_root)?;
+    ensure_current_checkout_owner(
+        entry.owner_checkout_id.as_deref(),
+        &current_owner,
+        "ACTIVE entry",
+    )?;
     let binding = entry.binding()?;
     let path = resolve_managed_plan_path(repo_root, &entry.plan_path)?;
     let metadata = load_plan_file_metadata(&path).with_context(|| {
@@ -1629,6 +1829,20 @@ fn validate_active_plan_index_entry(repo_root: &Path, entry: &ActivePlanIndexEnt
             entry.plan_path
         )
     })?;
+    ensure_current_checkout_owner(
+        metadata.owner_checkout_id.as_deref(),
+        &current_owner,
+        "managed plan",
+    )?;
+    if entry.owner_checkout_id.is_some()
+        && metadata.owner_checkout_id.is_some()
+        && entry.owner_checkout_id != metadata.owner_checkout_id
+    {
+        bail!(
+            "Baron active plan index checkout owner does not match {}",
+            entry.plan_path
+        );
+    }
     if metadata.status != entry.status {
         bail!(
             "Baron active plan index status does not match {}",
@@ -1662,6 +1876,7 @@ fn write_active_plan_index(
     entries: Vec<ActivePlanIndexEntry>,
     updated_binding: &PlanOperationBinding,
 ) -> Result<()> {
+    let current_owner = plan_checkout_owner_id(repo_root)?;
     let repo_content = serialize_active_plan_index_entries(entries.clone())?;
     let mut vault_entries = read_active_plan_vault_index_entries(vault)?;
     for entry in &entries {
@@ -1682,6 +1897,25 @@ fn write_active_plan_index(
                 );
             }
             if &binding == updated_binding {
+                ensure_current_checkout_owner(
+                    shared.owner_checkout_id.as_deref(),
+                    &current_owner,
+                    "shared Vault ACTIVE entry",
+                )?;
+                ensure_current_checkout_owner(
+                    entry.owner_checkout_id.as_deref(),
+                    &current_owner,
+                    "local ACTIVE entry",
+                )?;
+                if shared.owner_checkout_id.is_some()
+                    && entry.owner_checkout_id.is_some()
+                    && shared.owner_checkout_id != entry.owner_checkout_id
+                {
+                    bail!(
+                        "shared Vault ACTIVE entry for operation `{}` has conflicting checkout ownership",
+                        binding.operation_id
+                    );
+                }
                 vault_entries[index] = entry.clone();
             } else if shared.status != entry.status
                 || shared.authority_generation != entry.authority_generation
@@ -1734,6 +1968,7 @@ fn upsert_active_plan_index(
     status: &str,
 ) -> Result<()> {
     let authority_generation = load_plan_file_metadata(plan_path)?.authority_generation;
+    let owner_checkout_id = plan_checkout_owner_id(repo_root)?;
     let mut entries = Vec::new();
     for entry in read_active_plan_index_entries(repo_root)? {
         let existing = entry.binding()?;
@@ -1751,6 +1986,7 @@ fn upsert_active_plan_index(
         repo_root,
         plan_path,
         status,
+        owner_checkout_id,
         authority_generation,
     ));
     write_active_plan_index(repo_root, vault, entries, binding)
@@ -1839,6 +2075,11 @@ fn load_identified_active_plan(
     expected: &PlanOperationBinding,
 ) -> Result<ActivePlan> {
     let metadata = load_plan_file_metadata(path)?;
+    ensure_current_checkout_owner(
+        metadata.owner_checkout_id.as_deref(),
+        &plan_checkout_owner_id(repo_root)?,
+        "managed plan",
+    )?;
     let actual = metadata
         .operation_binding()?
         .context("identified active plan is missing its operation binding")?;
@@ -2144,7 +2385,7 @@ fn resolve_legacy_active_plan(repo_root: &Path) -> Result<Option<ActivePlan>> {
 fn discover_active_managed_plans(repo_root: &Path) -> Result<Vec<ActivePlan>> {
     // Validate every managed ACTIVE entry before scanning plan files, so a
     // malformed indexed authority cannot be hidden by the CURRENT projection.
-    let _ = load_active_plan_index(repo_root)?;
+    let index_entries = load_active_plan_index(repo_root)?;
     let mut paths = Vec::new();
     collect_managed_plan_files(&repo_root.join(MANAGED_PLAN_ROOT), &mut paths)?;
     let mut matches = Vec::new();
@@ -2160,7 +2401,15 @@ fn discover_active_managed_plans(repo_root: &Path) -> Result<Vec<ActivePlan>> {
         }
         let binding = metadata.operation_binding()?;
         let active = if let Some(binding) = binding {
-            load_identified_active_plan(repo_root, &path, &binding)?
+            let mut active = load_identified_active_plan(repo_root, &path, &binding)?;
+            let relative_path = normalize(&path, repo_root);
+            active.authority_indexed = index_entries.iter().any(|entry| {
+                entry.plan_path == relative_path
+                    && entry.status == active.status
+                    && entry.authority_generation == active.authority_generation
+                    && entry.binding().is_ok_and(|indexed| indexed == binding)
+            });
+            active
         } else {
             validate_linked_plan_authority(repo_root, &metadata)?;
             ActivePlan {
@@ -2254,6 +2503,7 @@ struct PlanFileMetadata {
     adapter: Option<String>,
     session_id: Option<String>,
     request_id: Option<String>,
+    owner_checkout_id: Option<String>,
     authority_generation: Option<String>,
 }
 
@@ -2318,6 +2568,7 @@ fn load_plan_file_metadata(path: &Path) -> Result<PlanFileMetadata> {
         adapter: optional_frontmatter_field(&fields, "adapter")?,
         session_id: optional_frontmatter_field(&fields, "session_id")?,
         request_id: optional_frontmatter_field(&fields, "request_id")?,
+        owner_checkout_id: optional_frontmatter_field(&fields, "owner_checkout_id")?,
         authority_generation,
     })
 }
@@ -2579,6 +2830,7 @@ fn plan_content(
     title: &str,
     risk: RiskLane,
     binding: Option<&PlanOperationBinding>,
+    owner_checkout_id: Option<&str>,
     authority_generation: Option<&str>,
 ) -> Result<String> {
     let task_id = binding.map(|binding| binding.task_id.clone()).map_or_else(
@@ -2596,6 +2848,9 @@ fn plan_content(
     let authority_identity = authority_generation
         .map(|generation| format!("authority_generation: {generation}\n"))
         .unwrap_or_default();
+    let owner_identity = owner_checkout_id
+        .map(|owner| format!("owner_checkout_id: {owner}\n"))
+        .unwrap_or_default();
     Ok(format!(
         "---\n\
 type: baron-plan\n\
@@ -2604,6 +2859,7 @@ status: in_progress\n\
 risk: {}\n\
 task_id: {task_id}\n\
 {operation_identity}\
+{owner_identity}\
 {authority_identity}\
 created: {}\n\
 updated: {}\n\

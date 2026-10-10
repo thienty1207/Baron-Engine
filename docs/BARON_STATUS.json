@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Commit and push the fully verified readiness snapshot, confirm local/remote SHA equality and exact-SHA GitHub CI, then obtain two fresh independent ACCEPT reviews of the same complete ecaf362..<FINAL_REVIEW_HEAD> range.",
+  "nextAction": "Commit and push the locally verified readiness snapshot, verify its exact-SHA hosted CI, then obtain two fresh independent ACCEPT reviews of the identical full ecaf362..<FINAL_REVIEW_HEAD> range.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
@@ -41,9 +41,8 @@
       ]
     },
     "verificationBlockers": [
-      "Current local verification and the complete authority audit pass, but the readiness snapshot is not yet committed/pushed; exact-SHA hosted CI evidence is pending.",
-      "After push and remote SHA equality, two fresh independent read-only reviewers must ACCEPT the same complete ecaf362..<FINAL_REVIEW_HEAD> range. Prior FIX REQUIRED reports and any quota/tool failure do not count as acceptance.",
-      "Default-host lifecycle_scripts remains 4/7 because this host cannot load Microsoft.PowerShell.Archive; the supported bundled PowerShell 7 target passes 7/7. This is an environment limitation, not a product pass or closure blocker."
+      "Local prompt verification and the fresh 48-path production authority audit are complete; the audit found BUG=0. The new readiness snapshot still needs commit/push, local/remote SHA equality and exact-SHA hosted CI.",
+      "Two fresh independent reviewers must ACCEPT the identical complete ecaf362..<FINAL_REVIEW_HEAD> range with zero Critical or Important findings. Earlier FIX REQUIRED reviews of b481e3f do not count."
     ],
     "implementationCommits": [
       "b4e5f77",
@@ -73,41 +72,41 @@
       "4a3efc0",
       "6bdf96d"
     ],
-    "closureBasis": "READY FOR ADVERSARIAL REVIEW, not CLOSED. All four Important findings from the rejected ecaf362..02779815c87bf2df6373085125857302503f2e05 range have local RED-to-GREEN repairs. The fresh full source audit classifies 48 production caller-path groups with BUG=0; fresh prompt focused matrices, Core/CLI/adapters/workspace all-targets, format, Clippy, locked release build, smoke, version/help, JSON/docs/scope gates all pass. The readiness snapshot still needs commit/push, SHA equality, exact-SHA hosted CI, and two fresh independent ACCEPT reviews of one identical ecaf362..<FINAL_REVIEW_HEAD> range. No release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile changes are in scope.",
+    "closureBasis": "READY FOR ADVERSARIAL REVIEW. Fresh local verification is complete: focused Core matrix 327/0 across 23 unique targets plus repeated harness_improvement (340 executions); required CLI selector/evidence/hooks 38/0 plus migration_cli 3/3; Core all-targets 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; full workspace command exit 0. The fresh production authority audit classified 48 paths and found BUG=0. Exact-SHA hosted CI and two new independent ACCEPT reviews remain; no release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile changes are in scope.",
     "verification": {
-      "focusedConcurrencyMatrix": "PASS fresh current source: Core matrix 325/0 across 23 targets plus repeated harness_improvement 13/13 (338 total executions); required CLI matrix 38/0 across five targets, plus migration_cli 3/3; session_replay 5/5. Default-host lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; supported bundled PowerShell 7 passes 7/7.",
-      "currentFocusedRepairs": "PASS fresh current source: authority_ingress 6/6, plan 58/58, operation_context 18/18, continuity 7/7, prepare 8/8, harness_improvement 13/13 (plus required second run 13/13), automation 9/9; focused matrix total Core 338 executions/0 failures and CLI 38/38 plus migration_cli 3/3. Missing indexed ACTIVE now hides operation plan/proof and blocks completion/reconcile without writes; shared-Vault identical identity in a second checkout is rejected before partial plan state.",
+      "focusedConcurrencyMatrix": "PASS fresh current source: Core 327/0 across 23 unique targets plus repeated harness_improvement 13/13 (340 total executions); required CLI selector/evidence/hooks matrix 38/0 plus migration_cli 3/3; session_replay 5/5. Default-host lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; supported bundled PowerShell 7 passes 7/7.",
+      "currentFocusedRepairs": "PASS affected plan suite 64/64 on current repaired source, including stale shared-Vault update/resume rejection, copied journal replay rejection, orphaned shared plan duplicate prevention, exact-owner recovery of missing ACTIVE, ownerless legacy-state migration, and valid indexed reconcile authority. Full focused matrix is green.",
       "stopReplayFreshness": "PASS: current focused regression observed stale continue=true/reconciliation_passed=true before the fix, then verified current failing evidence blocks through both dedup-cache and journal-only replay",
       "postStopReplayFixIntegratedGates": "HISTORICAL: verification-954e702e19874bf5b7a108bea5027463 completed local gates before the 2026-10-05 hook/rollback repairs; do not treat its counts as current acceptance.",
       "latestReviewRepairRegressions": "PASS RED-to-GREEN: migration rollback re-entry, shared review-gate capsule lock and stale-checkout protection, paired trace publication/mirror authority. Latest focused results: migration 21/21, proof_trace 31/31, review_gate 6/6, phase7_routing 20/20, phase10_adapter_authority 15/15, concurrency 20/20, plan 56/56.",
       "freshReviewRepairRegressions": "HISTORICAL PASS: cross-operation confirmed CURRENT intent cannot authorize identity-less Harness intake (Core intent 8/8); callback-time project/local config cannot become migration rollback authority (Core migration 23/23, CLI migration 3/3). These checks are from the prior source snapshot.",
       "indexedActiveGenerationRepair": "PASS: strict indexed ACTIVE authority blocks evidence publication and current operation projections without authority; recovery rotates generation and stale artifacts do not satisfy completion. Latest current plan is 58/58, proof_trace 36/36, authority_ingress 6/6; current operation Task State and generic reconciliation have explicit missing-ACTIVE no-write regressions. Public Rust struct shapes remain unchanged.",
-      "coreAllTargets": "PASS fresh current source: cargo test -p baron-core --all-targets --no-fail-fast -j 1; 635 passed, 0 failed, 0 ignored across 60 suites.",
+      "coreAllTargets": "PASS fresh current source: cargo test -p baron-core --all-targets --no-fail-fast -j 1; 641 passed, 0 failed, 0 ignored across 60 suites.",
       "cliExecution": "PASS fresh current source: execution_cli 15/15, intent_operation_cli 2/2, operation_evidence_cli 11/11, phase12_hooks_cli 6/6, plan_identity_cli 4/4; migration_cli 3/3; full CLI all-targets 190 passed, 0 failed, 1 ignored across 38 suites.",
       "adaptersAllTargets": "PASS current repaired source: cargo test -p baron-adapters --all-targets --no-fail-fast -j 1; 124 passed, 0 failed, 3 historical ignored.",
-      "workspaceAllTargets": "PASS fresh current source: cargo test --workspace --all-targets --no-fail-fast -j 1; 949 passed, 0 failed, 4 ignored across 112 suites.",
+      "workspaceAllTargets": "PASS fresh current source: cargo test --workspace --all-targets --no-fail-fast -j 1 exited 0; fresh package outputs aggregate to 955 passed, 0 failed, 4 ignored across 112 suites.",
       "format": "PASS: cargo fmt --all -- --check exited 0.",
       "clippyWarningsDenied": "PASS current repaired source: cargo clippy --workspace --all-targets -- -D warnings exited 0.",
       "releaseBuild": "PASS current repaired source: cargo build --workspace --release --locked exited 0.",
       "binaryVersion": "PASS current release binary prints exactly baron 5.0.0.",
       "releaseSmoke": "PASS current repaired source: required ignored release binary smoke passed 1/1.",
       "diffCheck": "PASS: git diff ecaf362 --check exited 0; Git emitted only LF-to-CRLF working-copy warnings.",
-      "maintainedMarkdownRelativeLinks": "PASS: 18 repository-relative links across 10 changed Markdown files resolve; 0 broken.",
+      "maintainedMarkdownRelativeLinks": "PASS: 18 local relative links across 10 changed Markdown files resolve; 0 broken.",
       "baselineFailureComparison": "CURRENT lifecycle_scripts default host PowerShell: 4 passed/3 failed because Microsoft.PowerShell.Archive could not load Compress-Archive; supported bundled PowerShell 7 rerun passed 7/7. Current session_replay UTF-8 suite passed 5/5.",
-      "retiredAdapterGate": "PASS: phase1_target_red 8/8; tracked source and filenames contain no retired-adapter hits.",
-      "statusJson": "PASS: docs/BARON_STATUS.json parses after the current readiness synchronization.",
-      "hostedCi": "PASS for pre-finding candidate 02779815c87bf2df6373085125857302503f2e05: Baron CI run 37892777783 completed success for Format/Clippy, Linux and Windows native tests, release builds, and CLI version smoke. Two fresh exact-range reviews then found Important issues; this CI does not cover the pending repair.",
-      "currentHostedCi": "PENDING: the fresh local readiness snapshot must be committed/pushed first; then verify its exact SHA in GitHub Actions and commit status. Prior run 37892777783 is for the rejected pre-repair candidate and does not cover current source.",
+      "retiredAdapterGate": "PASS current source: tracked-source and tracked-filename searches have no retired-adapter hits; Core phase1_target_red is 8/8.",
+      "statusJson": "PASS: docs/BARON_STATUS.json parses after readiness synchronization.",
+      "hostedCi": "HISTORICAL: Baron CI run 37892777783 passed on an earlier candidate, but does not cover the latest shared-Vault repair.",
+      "currentHostedCi": "PENDING: commit and push the current readiness snapshot, verify local and remote branch SHA equality, then inspect GitHub Actions and commit-status checks for that exact SHA.",
       "cliHelp": "PASS: release binary root help, proof record, trace record, trace score, and continuity recover help commands all exited 0.",
-      "mutationInventory": "PASS fresh complete 2026-10-09 re-audit across Core, CLI, and adapters: 48 caller groups (PRESENTATION_ONLY 11, LEGACY_SINGLE_ACTIVE_SAFE 8, EXACT_OPERATION_SCOPED 17, AMBIGUOUS_FAIL_CLOSED 9, OUT_OF_SPEC 3), BUG=0. The prior 48-group BUG=2 snapshot is superseded; details and all 21 raw search counts are in the authority audit ledger.",
-      "reviewDisposition": "READY FOR ADVERSARIAL REVIEW, not CLOSED. The two reviewers of ecaf362..02779815c87bf2df6373085125857302503f2e05 returned FIX REQUIRED; all four Important paths now have local regression-backed repairs, the current full verification passes, and the production authority audit reports BUG=0. Push this exact readiness snapshot, verify hosted CI, then obtain two fresh independent ACCEPT reviews of the same exact full range.",
+      "mutationInventory": "PASS fresh 2026-10-10 re-audit across Core, CLI, and adapters: 48 production caller groups (PRESENTATION_ONLY 11, LEGACY_SINGLE_ACTIVE_SAFE 8, EXACT_OPERATION_SCOPED 17, AMBIGUOUS_FAIL_CLOSED 9, OUT_OF_SPEC 3), BUG=0. The 21 raw pattern counts and updated plan lifecycle classification are in the authority audit ledger.",
+      "reviewDisposition": "READY FOR ADVERSARIAL REVIEW. Fresh local gates and the 48-path BUG=0 audit pass. The previous ecaf362..b481e3f49593806dcef569da23fc9332ee02d15c reviews returned FIX REQUIRED and their shared-Vault findings have regression-backed repairs; those verdicts do not count for closure. Push this readiness snapshot, verify exact-SHA hosted CI, then obtain two fresh independent ACCEPT reviews of one identical full range.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW, not CLOSED. Fresh full local verification passes and the current source authority inventory is 48 caller-path groups with BUG=0. The readiness commit must be pushed and its exact-SHA CI verified before two new independent read-only reviewers assess the same full ecaf362..<FINAL_REVIEW_HEAD> range. Earlier FIX REQUIRED reviews do not count; only two explicit ACCEPT verdicts with zero Critical/Important findings permit closure.",
+      "adversarialReview": "READY FOR ADVERSARIAL REVIEW. Fresh local gates and the 48-path BUG=0 audit pass. The prior exact-range reviews found Important issues that now have regression-backed repairs, but those verdicts remain historical FIX REQUIRED. Exact-SHA hosted CI for the new candidate and two fresh independent ACCEPT reviews remain pending; do not mark CLOSED before both exact-range verdicts accept.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md",
-    "nextAction": "Commit and push this verified readiness snapshot, confirm local/remote SHA equality and exact-SHA GitHub CI, then obtain two fresh independent ACCEPT reviews of the same full ecaf362..<FINAL_REVIEW_HEAD> range."
+    "nextAction": "Push the locally verified readiness snapshot, verify exact-SHA hosted CI and local/remote SHA equality, then obtain two fresh independent ACCEPT reviews of the identical full range before considering closure."
   },
   "securityRemediation": {
     "status": "complete",

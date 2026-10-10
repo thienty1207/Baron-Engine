@@ -355,7 +355,7 @@ fn same_operation_identity_in_second_shared_vault_checkout_fails_without_partial
     assert!(
         second_checkout
             .to_string()
-            .contains("plan path not present in this checkout"),
+            .contains("different Baron checkout"),
         "the conflict must be detected by the pre-write ownership check: {second_checkout:#}"
     );
     assert_eq!(
@@ -376,6 +376,342 @@ fn same_operation_identity_in_second_shared_vault_checkout_fails_without_partial
     let resumed = start_or_resume_plan_for_identity(&repo_a, &context_a, title, &identity).unwrap();
     assert_eq!(resumed.repo_path, plan_a.repo_path);
     assert!(resumed.resumed);
+}
+
+#[test]
+fn stale_shared_vault_checkout_cannot_overwrite_newer_plan_progress() {
+    let temp = tempdir().unwrap();
+    let repo_a = temp.path().join("checkout-a");
+    let repo_b = temp.path().join("checkout-b");
+    let vault = temp.path().join("shared-vault");
+    fs::create_dir_all(&repo_a).unwrap();
+    initialize_project(&repo_a, AdapterKind::Codex, &vault).unwrap();
+    let context_a = ensure_vault(&vault, &repo_a).unwrap();
+
+    fs::create_dir_all(repo_b.join(".baron")).unwrap();
+    fs::copy(
+        repo_a.join(".baron/project.toml"),
+        repo_b.join(".baron/project.toml"),
+    )
+    .unwrap();
+    let context_b = ensure_vault(&vault, &repo_b).unwrap();
+    let title = "update shared plan without losing progress";
+    let identity = LifecycleIdentity::resolve(
+        &context_a.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("shared-session"),
+        Some("shared-request"),
+    )
+    .unwrap();
+    let plan_a = start_or_resume_plan_for_identity(&repo_a, &context_a, title, &identity).unwrap();
+    let relative_plan = plan_a.repo_path.strip_prefix(&repo_a).unwrap();
+    let plan_b_path = repo_b.join(relative_plan);
+    fs::create_dir_all(plan_b_path.parent().unwrap()).unwrap();
+    fs::copy(&plan_a.repo_path, &plan_b_path).unwrap();
+    fs::copy(
+        repo_a.join("docs/baron/plans/ACTIVE.md"),
+        repo_b.join("docs/baron/plans/ACTIVE.md"),
+    )
+    .unwrap();
+
+    update_plan_for_identity(&repo_a, &context_a, "new progress from owner", &identity).unwrap();
+    let stale_checkout_before = fs::read(&plan_b_path).unwrap();
+    let vault_plan_before = fs::read(&plan_a.vault_path).unwrap();
+    assert!(String::from_utf8_lossy(&vault_plan_before).contains("new progress from owner"));
+
+    let stale_resume = start_or_resume_plan_for_identity(&repo_b, &context_b, title, &identity)
+        .expect_err("a copied operation plan cannot transition from a different checkout");
+    assert!(stale_resume
+        .to_string()
+        .contains("different Baron checkout"));
+    assert_eq!(fs::read(&plan_a.vault_path).unwrap(), vault_plan_before);
+
+    let stale_write = update_plan_for_identity(
+        &repo_b,
+        &context_b,
+        "stale progress from second checkout",
+        &identity,
+    )
+    .expect_err("a stale checkout must not publish over the newer shared Vault plan");
+
+    assert_eq!(
+        fs::read(&plan_b_path).unwrap(),
+        stale_checkout_before,
+        "a rejected stale mutation must not change the second checkout's local plan"
+    );
+    let vault_plan_after = fs::read(&plan_a.vault_path).unwrap();
+    assert_eq!(
+        vault_plan_after, vault_plan_before,
+        "a rejected stale mutation must preserve the owner's newer shared Vault progress"
+    );
+    assert!(String::from_utf8_lossy(&vault_plan_after).contains("new progress from owner"));
+    assert!(
+        !String::from_utf8_lossy(&vault_plan_after).contains("stale progress from second checkout"),
+        "the stale checkout's progress must never replace shared Vault authority: {stale_write:#}"
+    );
+}
+
+#[test]
+fn copied_pending_transition_cannot_replay_from_another_checkout() {
+    let temp = tempdir().unwrap();
+    let repo_a = temp.path().join("checkout-a");
+    let repo_b = temp.path().join("checkout-b");
+    let vault = temp.path().join("shared-vault");
+    fs::create_dir_all(&repo_a).unwrap();
+    initialize_project(&repo_a, AdapterKind::Codex, &vault).unwrap();
+    let context_a = ensure_vault(&vault, &repo_a).unwrap();
+    let title = "recover an interrupted shared transition safely";
+    let identity = LifecycleIdentity::resolve(
+        &context_a.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("transition-session"),
+        Some("transition-request"),
+    )
+    .unwrap();
+    let plan_a = start_or_resume_plan_for_identity(&repo_a, &context_a, title, &identity).unwrap();
+
+    let current_path_a = repo_a.join("docs/baron/plans/CURRENT.md");
+    fs::remove_file(&current_path_a).unwrap();
+    fs::create_dir(&current_path_a).unwrap();
+    interrupt_plan_for_identity(
+        &repo_a,
+        &context_a,
+        "leave a recoverable journal",
+        &identity,
+    )
+    .expect_err("the directory projection forces a pending journal after plan publication");
+    let journal_a = repo_a.join(".baron/plan-transition.json");
+    assert!(journal_a.is_file());
+
+    fs::create_dir_all(repo_b.join(".baron")).unwrap();
+    fs::copy(
+        repo_a.join(".baron/project.toml"),
+        repo_b.join(".baron/project.toml"),
+    )
+    .unwrap();
+    let context_b = ensure_vault(&vault, &repo_b).unwrap();
+    let relative_plan = plan_a.repo_path.strip_prefix(&repo_a).unwrap();
+    let plan_b = repo_b.join(relative_plan);
+    fs::create_dir_all(plan_b.parent().unwrap()).unwrap();
+    fs::copy(&plan_a.repo_path, &plan_b).unwrap();
+    fs::copy(
+        repo_a.join("docs/baron/plans/ACTIVE.md"),
+        repo_b.join("docs/baron/plans/ACTIVE.md"),
+    )
+    .unwrap();
+    fs::copy(&journal_a, repo_b.join(".baron/plan-transition.json")).unwrap();
+    let vault_plan_before = fs::read(&plan_a.vault_path).unwrap();
+    let vault_active_before = fs::read(context_a.project_root.join("Plans/ACTIVE.md")).unwrap();
+
+    let replay = update_plan_for_identity(
+        &repo_b,
+        &context_b,
+        "replay stale pending transition",
+        &identity,
+    )
+    .expect_err("a different checkout cannot replay another checkout's transition journal");
+
+    assert!(replay.to_string().contains("different Baron checkout"));
+    assert_eq!(fs::read(&plan_a.vault_path).unwrap(), vault_plan_before);
+    assert_eq!(
+        fs::read(context_a.project_root.join("Plans/ACTIVE.md")).unwrap(),
+        vault_active_before
+    );
+}
+
+#[test]
+fn orphaned_shared_vault_plan_blocks_duplicate_operation_identity() {
+    let temp = tempdir().unwrap();
+    let repo_a = temp.path().join("checkout-a");
+    let repo_b = temp.path().join("checkout-b");
+    let vault = temp.path().join("shared-vault");
+    fs::create_dir_all(&repo_a).unwrap();
+    initialize_project(&repo_a, AdapterKind::Codex, &vault).unwrap();
+    let context_a = ensure_vault(&vault, &repo_a).unwrap();
+
+    fs::create_dir_all(repo_b.join(".baron")).unwrap();
+    fs::copy(
+        repo_a.join(".baron/project.toml"),
+        repo_b.join(".baron/project.toml"),
+    )
+    .unwrap();
+    let context_b = ensure_vault(&vault, &repo_b).unwrap();
+    let title = "resume the orphaned shared operation";
+    let identity = LifecycleIdentity::resolve(
+        &context_a.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("orphan-session"),
+        Some("orphan-request"),
+    )
+    .unwrap();
+    let plan_a = start_or_resume_plan_for_identity(&repo_a, &context_a, title, &identity).unwrap();
+    let vault_active_path = context_a.project_root.join("Plans/ACTIVE.md");
+    let vault_active = fs::read_to_string(&vault_active_path).unwrap();
+    let without_operation_row = vault_active
+        .lines()
+        .filter(|line| !line.contains(identity.operation_id()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&vault_active_path, format!("{without_operation_row}\n")).unwrap();
+
+    let repo_b_plans = repo_b.join("docs/baron/plans");
+    let vault_plans = context_b.project_root.join("Plans");
+    let repo_plans_before = snapshot_tree(&repo_b_plans);
+    let vault_plans_before = snapshot_tree(&vault_plans);
+    assert!(plan_a.vault_path.is_file());
+
+    let duplicate = start_or_resume_plan_for_identity(&repo_b, &context_b, title, &identity)
+        .expect_err("an unindexed shared Vault plan must reserve its operation identity");
+
+    assert_eq!(
+        snapshot_tree(&repo_b_plans),
+        repo_plans_before,
+        "a conflicting orphaned operation must not create local plans or ACTIVE rows"
+    );
+    assert_eq!(
+        snapshot_tree(&vault_plans),
+        vault_plans_before,
+        "a conflicting orphaned operation must not create or replace shared Vault plans"
+    );
+    assert!(
+        !duplicate.to_string().is_empty(),
+        "the conflicting shared operation should provide a diagnostic"
+    );
+}
+
+#[test]
+fn generic_completion_status_recognizes_valid_indexed_active_authority() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let title = "repair the current project README";
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("reconcile-session"),
+        Some("reconcile-request"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+
+    let status = reconcile(&repo).unwrap();
+
+    assert!(
+        !status
+            .gaps
+            .iter()
+            .any(|issue| issue.contains("identified plan is missing indexed ACTIVE authority")),
+        "a validated ACTIVE row must not be mistaken for missing authority: {:?}",
+        status.gaps
+    );
+}
+
+#[test]
+fn checkout_owner_recovers_vault_plan_when_shared_active_row_was_not_published() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("checkout");
+    let vault = temp.path().join("vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let title = "recover the interrupted shared plan publication";
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("recover-session"),
+        Some("recover-request"),
+    )
+    .unwrap();
+    let original = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+    let vault_active_path = context.project_root.join("Plans/ACTIVE.md");
+    let vault_active = fs::read_to_string(&vault_active_path).unwrap();
+    let without_operation_row = vault_active
+        .lines()
+        .filter(|line| !line.contains(identity.operation_id()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&vault_active_path, format!("{without_operation_row}\n")).unwrap();
+
+    let recovered = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+
+    assert!(recovered.resumed);
+    assert_eq!(recovered.repo_path, original.repo_path);
+    assert!(fs::read_to_string(vault_active_path)
+        .unwrap()
+        .contains(identity.operation_id()));
+}
+
+#[test]
+fn legacy_ownerless_plan_is_adopted_only_from_an_exact_local_vault_mirror() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let title = "migrate a legacy shared operation authority";
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        title,
+        SupportedAdapter::Codex,
+        Some("legacy-session"),
+        Some("legacy-request"),
+    )
+    .unwrap();
+    let plan = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+
+    for path in [&plan.repo_path, &plan.vault_path] {
+        let legacy = fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .filter(|line| !line.starts_with("owner_checkout_id: "))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(path, format!("{legacy}\n")).unwrap();
+    }
+    for path in [
+        repo.join("docs/baron/plans/ACTIVE.md"),
+        context.project_root.join("Plans/ACTIVE.md"),
+    ] {
+        let legacy = fs::read_to_string(&path)
+            .unwrap()
+            .lines()
+            .map(|line| {
+                let Some(json) = line
+                    .strip_prefix("<!-- BARON:ACTIVE-PLAN ")
+                    .and_then(|value| value.strip_suffix(" -->"))
+                else {
+                    return line.to_string();
+                };
+                let mut entry: serde_json::Value = serde_json::from_str(json).unwrap();
+                entry.as_object_mut().unwrap().remove("owner_checkout_id");
+                format!(
+                    "<!-- BARON:ACTIVE-PLAN {} -->",
+                    serde_json::to_string(&entry).unwrap()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(path, format!("{legacy}\n")).unwrap();
+    }
+
+    let resumed = start_or_resume_plan_for_identity(&repo, &context, title, &identity).unwrap();
+
+    assert!(resumed.resumed);
+    let local_active = fs::read_to_string(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let vault_active = fs::read_to_string(context.project_root.join("Plans/ACTIVE.md")).unwrap();
+    assert!(local_active.contains("owner_checkout_id"));
+    assert!(vault_active.contains("owner_checkout_id"));
+    assert!(!local_active.contains(&repo.to_string_lossy().to_string()));
+    assert_eq!(
+        fs::read(&plan.repo_path).unwrap(),
+        fs::read(&plan.vault_path).unwrap()
+    );
 }
 
 #[test]

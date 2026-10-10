@@ -1,15 +1,15 @@
 # Baron Build Status
 
-## SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW — 2026-10-09)
+## SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW — 2026-10-10)
 
-The two prior independent reviews rejected `ecaf362..02779815c87bf2df6373085125857302503f2e05`; the follow-up audit found two more Important paths. All four findings now have RED→GREEN repairs, including generation-filtered proof and indexed-only current plan/completion authority, plus a pre-write shared-Vault ownership check for repeated operation identity across checkouts. The fresh complete source audit now finds 48 production caller-path groups and `BUG=0` (11 presentation, 8 legacy-single-active-safe, 17 exact-operation-scoped, 9 ambiguous-fail-closed, 3 out-of-scope). The old review verdicts remain FIX REQUIRED and do not count for closure.
+The latest shared-Vault repairs have completed fresh local verification. Identified plans and ACTIVE rows carry a hashed canonical checkout owner; stale local/Vault divergence and foreign transition-journal replay fail closed; orphaned Vault plans block duplicate operation identities; exact owners can recover their missing ACTIVE row. Generic reconciliation recognizes a plan only when its validated indexed entry matches.
 
-- Fresh focused matrix: Core 325/0 across 23 targets plus the required repeated `harness_improvement` 13/13 (338 executions total); required CLI matrix 38/0 across five targets, plus `migration_cli` 3/3.
-- Fresh all-targets: Core 635/0/0 ignored across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; workspace 949/0/4 ignored across 112.
-- Other fresh local gates pass: fmt, warnings-denied Clippy, locked release build, release smoke 1/1, public trust docs 12/12, release binary `baron 5.0.0`, five CLI help selectors, JSON parsing, changed Markdown links, retirement source/filename checks, `git diff ecaf362 --check`, and scope inventory (70 paths; no manifests/lockfiles, release workflow, Hotel Staff, or SPEC-06).
-- Lifecycle honesty: default host PowerShell remains 4/7 because `Microsoft.PowerShell.Archive` cannot load `Compress-Archive`; supported bundled PowerShell 7 passes 7/7. The current `session_replay` UTF-8 regression passes 5/5.
-- Current source/evidence is ready for review but not yet pushed. Next commit and push the readiness snapshot, verify remote SHA and exact-SHA hosted GitHub checks, then obtain two fresh independent read-only `ACCEPT` verdicts for the same full `ecaf362..<FINAL_REVIEW_HEAD>` range. Do not mark CLOSED unless both accept with zero unresolved Critical/Important findings.
-- Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+- Fresh all-target package results: Core 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14. The separate full workspace all-target command exited 0.
+- Focused prompt matrix: Core 327/0 across 23 targets plus the required repeated harness-improvement run (340 total executions); required CLI selector/evidence/hook matrix 38/0 plus migration CLI 3/3. Plan is 64/64; session replay UTF-8 regression 5/5.
+- Fresh gates: fmt, warnings-denied Clippy, locked release build, required release smoke 1/1, public trust docs 12/12, release binary version, five CLI help checks, JSON, diff and scope checks all pass. Default PowerShell lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; the supported bundled PowerShell 7 run is 7/7.
+- Fresh authority re-audit: 48 production caller groups; PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=9, OUT_OF_SPEC=3, BUG=0. Full per-pattern counts and plan-path disposition are in the authority audit ledger.
+- Status is READY FOR ADVERSARIAL REVIEW, not CLOSED. The new readiness snapshot still needs commit/push, exact-SHA GitHub CI verification, and two fresh independent ACCEPT reviews of the identical complete range from ecaf362. The rejected b481e3f review and CI do not count.
+- Public version remains 5.0.0; no release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
 
 Execution records: [SPEC-05 final closure verification plan](superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md); [final verification ledger](superpowers/plans/2026-10-06-spec-05-final-verification.md); [current authority audit](superpowers/plans/2026-10-01-spec-05-authority-audit.md).
 
