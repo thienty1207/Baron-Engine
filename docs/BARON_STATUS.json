@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-09",
+  "lastUpdated": "2026-10-10",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -16,18 +16,25 @@
   ],
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
-  "currentPhaseStatus": "ready_for_adversarial_review",
-  "nextAction": "Commit and push the locally verified readiness snapshot, verify its exact-SHA hosted CI, then obtain two fresh independent ACCEPT reviews of the identical full ecaf362..<FINAL_REVIEW_HEAD> range.",
+  "currentPhaseStatus": "closed",
+  "nextAction": "Continue normal Baron 5.0.0 maintenance; SPEC-05 closure gates are complete.",
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",
     "spec": "SPEC-05",
     "name": "Multi-Agent Concurrency and Durable State",
-    "status": "ready_for_adversarial_review",
+    "status": "closed",
     "baselineVersion": "5.0.0",
     "candidateVersion": "5.0.0",
     "publicVersionBump": false,
     "baselineCommit": "ecaf362c275431edfc5e590fd6a87d926b9bde9d",
     "branch": "codex/spec-05-multi-agent-concurrency-durable-state",
+    "finalReviewHead": "af2e1db020355af4fe0f621e8de3f8f780fbd2ad",
+    "acceptedReviewRange": "ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad",
+    "hostedCiRun": "https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177",
+    "independentReviews": [
+      {"reviewer": "Nietzsche", "verdict": "ACCEPT", "range": "ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad", "checklistItems": 23, "criticalFindings": 0, "importantFindings": 0, "readOnly": true, "testsRun": false},
+      {"reviewer": "Dewey", "verdict": "ACCEPT", "range": "ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad", "checklistItems": 23, "criticalFindings": 0, "importantFindings": 0, "readOnly": true, "testsRun": false}
+    ],
     "scope": "serialize owned proof, trace, plan, config, harness, intent, recovery, control-plane, review-gate, experiment, automation publication, capability registry, and runtime evidence mutations; use exact operation authority for identified flows and keep CURRENT as projection",
     "previousSpec": {
       "spec": "SPEC-04",
@@ -40,10 +47,7 @@
         "Windows lifecycle tests need the supported BARON_TEST_POWERSHELL override to use the bundled PowerShell 7 host in this environment"
       ]
     },
-    "verificationBlockers": [
-      "Local prompt verification and the fresh 48-path production authority audit are complete; the audit found BUG=0. The new readiness snapshot still needs commit/push, local/remote SHA equality and exact-SHA hosted CI.",
-      "Two fresh independent reviewers must ACCEPT the identical complete ecaf362..<FINAL_REVIEW_HEAD> range with zero Critical or Important findings. Earlier FIX REQUIRED reviews of b481e3f do not count."
-    ],
+    "verificationBlockers": [],
     "implementationCommits": [
       "b4e5f77",
       "0d06d3d",
@@ -72,7 +76,7 @@
       "4a3efc0",
       "6bdf96d"
     ],
-    "closureBasis": "READY FOR ADVERSARIAL REVIEW. Fresh local verification is complete: focused Core matrix 327/0 across 23 unique targets plus repeated harness_improvement (340 executions); required CLI selector/evidence/hooks 38/0 plus migration_cli 3/3; Core all-targets 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; full workspace command exit 0. The fresh production authority audit classified 48 paths and found BUG=0. Exact-SHA hosted CI and two new independent ACCEPT reviews remain; no release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile changes are in scope.",
+    "closureBasis": "CLOSED. Fresh local verification is complete: focused Core matrix 327/0 across 23 unique targets plus repeated harness_improvement (340 executions); required CLI selector/evidence/hooks 38/0 plus migration_cli 3/3; Core all-targets 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14; full workspace command exit 0. The fresh production authority audit classified 48 paths and found BUG=0. Exact-SHA GitHub Actions run 38014117177 succeeded on af2e1db. Nietzsche and Dewey independently ACCEPTED the identical ecaf362..af2e1db range, assessing all 23 checklist items with zero Critical/Important findings. No release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile changes are in scope.",
     "verification": {
       "focusedConcurrencyMatrix": "PASS fresh current source: Core 327/0 across 23 unique targets plus repeated harness_improvement 13/13 (340 total executions); required CLI selector/evidence/hooks matrix 38/0 plus migration_cli 3/3; session_replay 5/5. Default-host lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; supported bundled PowerShell 7 passes 7/7.",
       "currentFocusedRepairs": "PASS affected plan suite 64/64 on current repaired source, including stale shared-Vault update/resume rejection, copied journal replay rejection, orphaned shared plan duplicate prevention, exact-owner recovery of missing ACTIVE, ownerless legacy-state migration, and valid indexed reconcile authority. Full focused matrix is green.",
@@ -96,17 +100,17 @@
       "retiredAdapterGate": "PASS current source: tracked-source and tracked-filename searches have no retired-adapter hits; Core phase1_target_red is 8/8.",
       "statusJson": "PASS: docs/BARON_STATUS.json parses after readiness synchronization.",
       "hostedCi": "HISTORICAL: Baron CI run 37892777783 passed on an earlier candidate, but does not cover the latest shared-Vault repair.",
-      "currentHostedCi": "PENDING: commit and push the current readiness snapshot, verify local and remote branch SHA equality, then inspect GitHub Actions and commit-status checks for that exact SHA.",
+      "currentHostedCi": "PASS: GitHub Actions run 38014117177 completed success on exact final review SHA af2e1db020355af4fe0f621e8de3f8f780fbd2ad; Format/Clippy, Linux native tests, and Windows native tests all succeeded. https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177",
       "cliHelp": "PASS: release binary root help, proof record, trace record, trace score, and continuity recover help commands all exited 0.",
       "mutationInventory": "PASS fresh 2026-10-10 re-audit across Core, CLI, and adapters: 48 production caller groups (PRESENTATION_ONLY 11, LEGACY_SINGLE_ACTIVE_SAFE 8, EXACT_OPERATION_SCOPED 17, AMBIGUOUS_FAIL_CLOSED 9, OUT_OF_SPEC 3), BUG=0. The 21 raw pattern counts and updated plan lifecycle classification are in the authority audit ledger.",
-      "reviewDisposition": "READY FOR ADVERSARIAL REVIEW. Fresh local gates and the 48-path BUG=0 audit pass. The previous ecaf362..b481e3f49593806dcef569da23fc9332ee02d15c reviews returned FIX REQUIRED and their shared-Vault findings have regression-backed repairs; those verdicts do not count for closure. Push this readiness snapshot, verify exact-SHA hosted CI, then obtain two fresh independent ACCEPT reviews of one identical full range.",
+      "reviewDisposition": "ACCEPT. Fresh independent read-only reviewers Nietzsche and Dewey each assessed all 23 checklist items for exact range ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad and reported zero Critical and zero Important findings. Reviewers did not run tests; local and hosted test evidence is recorded separately.",
       "legacyCompatibility": "HISTORICAL at 0536a27: legacy proof/trace/plan paths remain readable; public config Eq contracts, unknown TOML values, identity_binding, and opaque legacy adapter values survive config mutation without unsupported activation; ProviderObservation public shape remains source-compatible while stale cache fingerprints are rejected; semantic latest selection handles legacy timestamp names",
       "scopeBoundary": "HISTORICAL at 0536a27: context/session/replay/cache writers and diagnostic SQLite/index accelerators remain outside B-09..B-27 and mapped to B-28..B-31; hook claim/journal publication remains locked SPEC-05 authority",
-      "adversarialReview": "READY FOR ADVERSARIAL REVIEW. Fresh local gates and the 48-path BUG=0 audit pass. The prior exact-range reviews found Important issues that now have regression-backed repairs, but those verdicts remain historical FIX REQUIRED. Exact-SHA hosted CI for the new candidate and two fresh independent ACCEPT reviews remain pending; do not mark CLOSED before both exact-range verdicts accept.",
+      "adversarialReview": "CLOSED. The exact accepted range is ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad. Nietzsche and Dewey both returned ACCEPT, assessed 23/23 items, and found zero Critical/Important issues. Exact-SHA CI run 38014117177 succeeded. Closure evidence changes are documentation-only; executable source is unchanged after review.",
       "workspaceKnownFailures": []
     },
     "activePlan": "docs/superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md",
-    "nextAction": "Push the locally verified readiness snapshot, verify exact-SHA hosted CI and local/remote SHA equality, then obtain two fresh independent ACCEPT reviews of the identical full range before considering closure."
+    "nextAction": "Continue normal Baron 5.0.0 maintenance; SPEC-05 closure gates are complete."
   },
   "securityRemediation": {
     "status": "complete",

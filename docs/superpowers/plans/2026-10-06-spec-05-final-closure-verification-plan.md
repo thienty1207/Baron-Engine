@@ -208,4 +208,16 @@
 - [x] Run fresh fmt check, warnings-denied Clippy, locked release build, release smoke 1/1, public trust docs 12/12, binary version 5.0.0, five CLI help checks, tracked retirement/source-name gate, and out-of-scope path audit; all pass.
 - [x] Re-audit all 21 authority search terms across Core, CLI, and adapters and trace all 48 production caller groups: PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=9, OUT_OF_SPEC=3, BUG=0. The current raw counts and owner-path reasoning are recorded in the authority ledger.
 - [x] Finish the post-readiness-doc relative-link and JSON checks, then rerun diff/scope checks before commit: 18 relative links across 10 changed Markdown files, 0 broken; JSON parses; `git diff ecaf362 --check` exits 0; 70-path scope has no out-of-scope changes.
-- [ ] Push a new readiness candidate, verify local/remote SHA equality and exact-SHA CI, then obtain two new independent ACCEPT reviews of one identical `ecaf362..<FINAL_REVIEW_HEAD>` range.
+- [x] Push readiness candidate `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; local and remote SHAs match. Exact-SHA Baron CI run `38014117177` succeeded on Linux, Windows, and Format/Clippy.
+- [x] Freeze and review the identical range `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad` with two fresh independent read-only reviewers. Nietzsche and Dewey each assessed 23/23 items, reported Critical=0 and Important=0, and returned `ACCEPT`.
+
+### Task 13: Record and publish final SPEC-05 closure
+
+**Files:** maintained status dashboard/JSON, current plan/build log, final verification ledger, and this closure plan.
+
+**Interfaces:** consumes the pushed, CI-green exact review head and both accepted 23-item reports; produces a documentation-only closure snapshot without changing the reviewed executable source.
+
+- [x] Confirm the final review head is still `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`, and local HEAD equals the remote branch SHA.
+- [x] Record the exact accepted source range, CI run `38014117177`, reviewer names/verdicts, 23/23 checklist coverage, and zero Critical/Important findings in maintained evidence.
+- [x] Set the maintained SPEC-05 status to `CLOSED` and remove all closure blockers; preserve the 4/7 default-host PowerShell limitation as a disclosed environment caveat (bundled PowerShell 7 is 7/7).
+- [ ] Commit/push the documentation-only closure evidence, verify local/remote SHA equality, and record the closure-evidence commit in the final receipt.

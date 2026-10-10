@@ -1,17 +1,19 @@
 # Baron Build Status
 
-## SPEC-05 final closure verification (READY FOR ADVERSARIAL REVIEW — 2026-10-10)
+## SPEC-05 final closure (CLOSED — 2026-10-10)
 
-The latest shared-Vault repairs have completed fresh local verification. Identified plans and ACTIVE rows carry a hashed canonical checkout owner; stale local/Vault divergence and foreign transition-journal replay fail closed; orphaned Vault plans block duplicate operation identities; exact owners can recover their missing ACTIVE row. Generic reconciliation recognizes a plan only when its validated indexed entry matches.
+SPEC-05 is closed at the accepted source range [`ecaf362c..af2e1db`](https://github.com/thienty1207/Baron-Engine/compare/ecaf362c275431edfc5e590fd6a87d926b9bde9d...af2e1db020355af4fe0f621e8de3f8f780fbd2ad), with final review head `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`. The shared-Vault repairs make identified plan ownership checkout-bound, reject stale local/Vault divergence and foreign transition-journal replay, prevent duplicate identities from orphaned Vault plans, and allow exact-owner recovery of a missing ACTIVE row. Generic reconciliation recognizes a plan only when its validated indexed entry matches.
 
 - Fresh all-target package results: Core 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14. The separate full workspace all-target command exited 0.
 - Focused prompt matrix: Core 327/0 across 23 targets plus the required repeated harness-improvement run (340 total executions); required CLI selector/evidence/hook matrix 38/0 plus migration CLI 3/3. Plan is 64/64; session replay UTF-8 regression 5/5.
 - Fresh gates: fmt, warnings-denied Clippy, locked release build, required release smoke 1/1, public trust docs 12/12, release binary version, five CLI help checks, JSON, diff and scope checks all pass. Default PowerShell lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; the supported bundled PowerShell 7 run is 7/7.
 - Fresh authority re-audit: 48 production caller groups; PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=9, OUT_OF_SPEC=3, BUG=0. Full per-pattern counts and plan-path disposition are in the authority audit ledger.
-- Status is READY FOR ADVERSARIAL REVIEW, not CLOSED. The new readiness snapshot still needs commit/push, exact-SHA GitHub CI verification, and two fresh independent ACCEPT reviews of the identical complete range from ecaf362. The rejected b481e3f review and CI do not count.
+- Exact-SHA hosted CI: [Baron CI run 38014117177](https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177) completed `success` on `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; Format/Clippy and Linux and Windows native test jobs all passed.
+- Fresh independent read-only reviews: Nietzsche and Dewey each returned `ACCEPT` for the identical complete `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad` range. Both assessed all 23 checklist items and reported zero Critical and zero Important findings. They did not run tests; local and hosted test evidence is recorded separately.
+- Final status is CLOSED. The prior `b481e3f` FIX REQUIRED reviews do not count toward this closure.
 - Public version remains 5.0.0; no release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
 
-Execution records: [SPEC-05 final closure verification plan](superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md); [final verification ledger](superpowers/plans/2026-10-06-spec-05-final-verification.md); [current authority audit](superpowers/plans/2026-10-01-spec-05-authority-audit.md).
+Execution records: [SPEC-05 final closure verification plan](superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md); [final verification ledger](superpowers/plans/2026-10-06-spec-05-final-verification.md); [current authority audit](superpowers/plans/2026-10-01-spec-05-authority-audit.md). Closure documentation is evidence-only; executable source did not change after review.
 
 ## Historical pre-repair status (superseded 2026-10-06)
 

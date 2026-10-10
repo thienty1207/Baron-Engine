@@ -1,6 +1,12 @@
 # SPEC-05 Final Closure Verification Ledger
 
-## Readiness verification complete — 2026-10-10
+## SPEC-05 closure complete — 2026-10-10
+
+Status: `SPEC-05: CLOSED`. The accepted source/review range is `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; final review head `af2e1db020355af4fe0f621e8de3f8f780fbd2ad` is pushed and matches the branch remote. Exact-SHA [Baron CI run 38014117177](https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177) completed `success`: Format/Clippy, Linux native tests, and Windows native tests all passed.
+
+Two fresh independent read-only reviewers assessed the same complete range and all 23 required checklist items: Nietzsche — `ACCEPT`, Critical 0, Important 0; Dewey — `ACCEPT`, Critical 0, Important 0. Neither edited files or ran tests; test evidence is the fresh local verification below and the exact-SHA hosted run above. No unresolved SPEC-05-owned Critical or Important findings remain. The closure snapshot changes only documentation/evidence; executable source is unchanged after review. Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+
+### Final readiness evidence — 2026-10-10
 
 This checkpoint supersedes the pre-repair readiness data below. The exact-range reviewers Sagan and Hegel rejected `ecaf362..b481e3f49593806dcef569da23fc9332ee02d15c` with Important shared-Vault authority findings. The local repair now adds a hashed canonical checkout owner to identified plans and ACTIVE rows, rejects stale local/Vault divergence and foreign pending-journal replay before writes, detects orphaned shared plans before creating duplicate identity, and permits exact-owner ACTIVE recovery. Generic reconciliation marks a plan indexed only when the validated ACTIVE row matches its path, binding, status, and generation.
 
@@ -8,7 +14,7 @@ Fresh local results: focused Core matrix 327/0 across 23 targets plus the requir
 
 The fresh production re-audit covers all 21 requested search terms in Core, CLI, and adapters and classifies 48 caller paths: PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=9, OUT_OF_SPEC=3, BUG=0. The plan lifecycle groups now additionally enforce checkout ownership and local/shared mirror agreement; generic reconcile uses the exact validated ACTIVE row. Full raw counts and disposition are in the current authority audit ledger.
 
-Local readiness is complete. Commit and push this snapshot, verify local/remote SHA equality and exact-SHA hosted CI, freeze `FINAL_REVIEW_HEAD`, then obtain two fresh independent read-only `ACCEPT` reviews of the identical complete `ecaf362..<FINAL_REVIEW_HEAD>` range. Until those reviews accept with zero unresolved Critical/Important findings, SPEC-05 is not closed. No release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite.
+The readiness evidence above was committed/pushed as `af2e1db` and superseded by the closure checkpoint at the top of this ledger. The two accepted reports and exact-SHA hosted CI are recorded above.
 
 ## Latest exact-range review checkpoint — 2026-10-09
 

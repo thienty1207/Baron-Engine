@@ -1,18 +1,19 @@
 # Current Baron Build Plan
 
-## Active verification: SPEC-05 final closure (READY FOR ADVERSARIAL REVIEW — 2026-10-10)
+## SPEC-05 final closure (CLOSED — 2026-10-10)
 
 The shared-Vault source repairs are implemented and locally verified. Identified plan and ACTIVE records carry a hashed canonical checkout owner; stale mirror divergence and foreign pending-journal recovery fail closed; orphaned plans prevent duplicate operation identity; exact-owner recovery works when a shared ACTIVE row is missing. Generic reconcile now recognizes only a matching validated indexed plan.
 
-Fresh all-target gates: Core 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored; full workspace command exit 0. Focused matrix: Core 327/0 across 23 targets plus repeated harness-improvement (340 executions); required CLI selector/evidence/hooks 38/0 plus migration CLI 3/3. fmt, Clippy, locked release, smoke 1/1, public docs 12/12 and 48-path authority audit (BUG=0) pass. Default PowerShell lifecycle is 4/7 due to the unavailable archive module; bundled PowerShell 7 passes 7/7.
+Accepted source range: `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad`. Fresh all-target gates: Core 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored; full workspace command exit 0. Focused matrix: Core 327/0 across 23 targets plus repeated harness-improvement (340 executions); required CLI selector/evidence/hooks 38/0 plus migration CLI 3/3. fmt, Clippy, locked release, smoke 1/1, public docs 12/12 and 48-path authority audit (BUG=0) pass. Default PowerShell lifecycle is 4/7 due to the unavailable archive module; bundled PowerShell 7 passes 7/7.
 
 - Execution plan: [SPEC-05 final closure verification](2026-10-06-spec-05-final-closure-verification-plan.md); evidence ledger: [2026-10-06 final verification](2026-10-06-spec-05-final-verification.md); authority audit: [current caller inventory](2026-10-01-spec-05-authority-audit.md).
 - Authority boundary: exact lifecycle identity and persisted binding → indexed ACTIVE → canonical managed frontmatter. CURRENT stays a presentation projection for identified work; ambiguous legacy selectors fail closed. Shared Vault journal operations follow checkout → Vault locking.
 - Lifecycle baseline: default host PowerShell is 4/7 because Microsoft.PowerShell.Archive cannot load; bundled PowerShell 7 is 7/7. This environment-specific failure is disclosed, not counted as a product pass.
 - Scope: no release, tag, version bump, SPEC-06, Hotel Staff, or manifest/lockfile edits. Public version remains `5.0.0`.
-- Review gate: the new readiness snapshot is not yet pushed. Push it, verify local/remote SHA equality and exact-SHA CI, then obtain two fresh independent ACCEPT reviews for the same complete `ecaf362..<FINAL_REVIEW_HEAD>` range. The rejected b481e3f review and CI do not count.
-- Status is READY FOR ADVERSARIAL REVIEW, not CLOSED. No release/tag/version bump, SPEC-06, Hotel Staff, manifest/lockfile, or history rewrite is in scope.
-- Safe next action: push the verified candidate, verify exact-SHA CI, and complete two fresh exact-range reviews.
+- Exact-SHA GitHub Actions [run 38014117177](https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177) succeeded on `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`, including Format/Clippy and Linux/Windows native tests.
+- Fresh read-only reviewers Nietzsche and Dewey independently returned ACCEPT for that same complete range; both assessed all 23 checklist items and reported zero Critical/Important findings. Reviewers did not run tests.
+- Status is CLOSED. Closure evidence is documentation-only after the accepted source head. No release/tag/version bump, SPEC-06, Hotel Staff, manifest/lockfile, or history rewrite is in scope.
+- Safe next action: normal Baron 5.0.0 maintenance; no SPEC-05 closure gate remains.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
 
