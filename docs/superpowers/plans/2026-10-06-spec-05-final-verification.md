@@ -2,7 +2,7 @@
 
 ## SPEC-05 closure complete — 2026-10-10
 
-Status: `SPEC-05: CLOSED`. The accepted source/review range is `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; final review head `af2e1db020355af4fe0f621e8de3f8f780fbd2ad` is pushed and matches the branch remote. Exact-SHA [Baron CI run 38014117177](https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177) completed `success`: Format/Clippy, Linux native tests, and Windows native tests all passed.
+Status: `SPEC-05: CLOSED`. The accepted source/review range is `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; final review head `af2e1db020355af4fe0f621e8de3f8f780fbd2ad` is pushed and matches the branch remote. Exact-SHA [Baron CI run 38014117177](https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177) completed `success`: Format/Clippy, Linux native tests, and Windows native tests all passed. The closure status/evidence snapshot is documentation-only commit `32a92331716d1c26f69bed1e32312a7b4981d0f6`, pushed and confirmed equal to the remote branch SHA.
 
 Two fresh independent read-only reviewers assessed the same complete range and all 23 required checklist items: Nietzsche — `ACCEPT`, Critical 0, Important 0; Dewey — `ACCEPT`, Critical 0, Important 0. Neither edited files or ran tests; test evidence is the fresh local verification below and the exact-SHA hosted run above. No unresolved SPEC-05-owned Critical or Important findings remain. The closure snapshot changes only documentation/evidence; executable source is unchanged after review. Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
 

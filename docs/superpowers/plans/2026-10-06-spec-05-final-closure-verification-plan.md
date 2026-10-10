@@ -220,4 +220,4 @@
 - [x] Confirm the final review head is still `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`, and local HEAD equals the remote branch SHA.
 - [x] Record the exact accepted source range, CI run `38014117177`, reviewer names/verdicts, 23/23 checklist coverage, and zero Critical/Important findings in maintained evidence.
 - [x] Set the maintained SPEC-05 status to `CLOSED` and remove all closure blockers; preserve the 4/7 default-host PowerShell limitation as a disclosed environment caveat (bundled PowerShell 7 is 7/7).
-- [ ] Commit/push the documentation-only closure evidence, verify local/remote SHA equality, and record the closure-evidence commit in the final receipt.
+- [x] Commit/push the documentation-only closure evidence as `32a92331716d1c26f69bed1e32312a7b4981d0f6`; verify local HEAD and remote branch SHA equality. Record this closure commit and the accepted source boundary in the final receipt.

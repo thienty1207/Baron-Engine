@@ -13,6 +13,7 @@ Accepted source range: `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355a
 - Exact-SHA GitHub Actions [run 38014117177](https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177) succeeded on `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`, including Format/Clippy and Linux/Windows native tests.
 - Fresh read-only reviewers Nietzsche and Dewey independently returned ACCEPT for that same complete range; both assessed all 23 checklist items and reported zero Critical/Important findings. Reviewers did not run tests.
 - Status is CLOSED. Closure evidence is documentation-only after the accepted source head. No release/tag/version bump, SPEC-06, Hotel Staff, manifest/lockfile, or history rewrite is in scope.
+- Closure evidence commit `32a92331716d1c26f69bed1e32312a7b4981d0f6` was pushed and verified against the remote branch SHA; executable source remains the reviewed `af2e1db` candidate.
 - Safe next action: normal Baron 5.0.0 maintenance; no SPEC-05 closure gate remains.
 
 ## Baron 5.0.1 Stabilization - SPEC-05 Multi-Agent Concurrency and Durable State (ready for adversarial review, 2026-09-29)
