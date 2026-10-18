@@ -91,7 +91,7 @@
 
 - [x] **Step 1: Update maintained status.** Preserved the SPEC-05 historical CLOSED range; recorded H-01/H-02/H-03 outcomes, branch/source checkpoint, proof/trace status, persisted-state boundary, and next safe action using verified facts.
 - [x] **Step 2: Run doc gates.** Status JSON parses; relative links in five changed Markdown files have 0 broken targets; `git diff --cached --check` passes; CLI smoke prints `baron 5.0.0`; retired-adapter content and filename gates have no tracked matches.
-- [ ] **Step 3: Commit the evidence.** Commit only maintained status, plan/log updates, and the new follow-up verification ledger.
+- [x] **Step 3: Commit the evidence.** Committed the maintained status, plan/log updates, and follow-up verification ledger as `3fe6354`.
 
 ### Task 5: Verify source and review the complete integration scope
 
