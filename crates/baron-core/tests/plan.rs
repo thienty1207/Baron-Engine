@@ -1382,6 +1382,79 @@ fn identified_plan_persists_exact_identity_and_rejects_hijack() {
 }
 
 #[test]
+fn moving_checkout_fails_closed_without_changing_shared_plan_authority() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let moved_repo = temp.path().join("relocated-demo");
+    let vault_root = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
+    let context = ensure_vault(&vault_root, &repo).unwrap();
+    let identity = LifecycleIdentity::resolve(
+        &context.project_id,
+        "backend login security",
+        SupportedAdapter::Codex,
+        Some("relocation-session"),
+        Some("relocation-request"),
+    )
+    .unwrap();
+    let plan = start_or_resume_plan_for_identity(
+        &repo,
+        &context,
+        "backend login security",
+        &identity,
+    )
+    .unwrap();
+    let plan_relative_path = plan.repo_path.strip_prefix(&repo).unwrap();
+    let local_plan_before = fs::read(&plan.repo_path).unwrap();
+    let current_before = fs::read(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
+    let local_active_before = fs::read(repo.join("docs/baron/plans/ACTIVE.md")).unwrap();
+    let local_index_before = fs::read(repo.join("docs/baron/plans/INDEX.md")).unwrap();
+    let vault_plan_before = fs::read(&plan.vault_path).unwrap();
+    let vault_active_before = fs::read(context.project_root.join("Plans/ACTIVE.md")).unwrap();
+
+    fs::rename(&repo, &moved_repo).unwrap();
+    let moved_context = vault_context_without_create(&vault_root, &moved_repo).unwrap();
+    assert_eq!(moved_context.project_id, context.project_id);
+    assert_eq!(moved_context.identity_binding, context.identity_binding);
+    assert_eq!(moved_context.project_root, context.project_root);
+
+    let error = start_or_resume_plan_for_identity(
+        &moved_repo,
+        &moved_context,
+        "backend login security",
+        &identity,
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains("different Baron checkout"),
+        "unexpected relocation result: {error:#}"
+    );
+
+    assert_eq!(
+        fs::read(moved_repo.join(plan_relative_path)).unwrap(),
+        local_plan_before
+    );
+    assert_eq!(
+        fs::read(moved_repo.join("docs/baron/plans/CURRENT.md")).unwrap(),
+        current_before
+    );
+    assert_eq!(
+        fs::read(moved_repo.join("docs/baron/plans/ACTIVE.md")).unwrap(),
+        local_active_before
+    );
+    assert_eq!(
+        fs::read(moved_repo.join("docs/baron/plans/INDEX.md")).unwrap(),
+        local_index_before
+    );
+    assert_eq!(fs::read(&plan.vault_path).unwrap(), vault_plan_before);
+    assert_eq!(
+        fs::read(moved_context.project_root.join("Plans/ACTIVE.md")).unwrap(),
+        vault_active_before
+    );
+}
+
+#[test]
 fn title_only_start_cannot_add_an_unbound_plan_while_identified_work_is_active() {
     let (_temp, repo, context, _identity, identified_path) = identified_plan_fixture(
         "fix README active alpha",

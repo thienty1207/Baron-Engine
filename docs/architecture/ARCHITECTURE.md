@@ -83,6 +83,21 @@ memory result must match the project firewall and current trust policy before
 ranking; candidate, contested, superseded, expired, and unrelated project
 records remain ineligible as current truth.
 
+### Identified plan checkout ownership
+
+An identified plan is bound to its project and operation identity, and its
+local and Vault authority records include the canonical checkout owner. Moving
+the checkout to a different canonical path changes that owner. Core rejects a
+resume whose owner does not match and leaves the plan, `ACTIVE.md`, and shared
+Vault authority unchanged. Symlink aliases that resolve to the original
+canonical path retain the same owner where the platform supports them.
+
+To resume after an accidental move, restore the checkout at its original
+canonical path. Baron does not automatically reassign plan ownership. An
+intentional rehome requires a future explicit, audited operation that verifies
+the persisted project ID and identity binding, local and Vault `ACTIVE.md`, and
+both plan frontmatter copies while holding the checkout and Vault locks.
+
 ## Hooks, fallback, and safety
 
 Codex and Claude hooks observe session start, prompt, compaction, and stop
