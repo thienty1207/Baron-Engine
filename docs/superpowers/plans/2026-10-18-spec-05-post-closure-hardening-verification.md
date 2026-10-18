@@ -2,20 +2,21 @@
 
 ## Status and boundary
 
-- Status: in progress; local hardening changes are implemented, complete workspace gates and whole-lineage review remain pending.
-- Branch: `fix/spec-05-post-closure-hardening`.
-- Source checkpoint: `6527d83e73634bae1e67388e06ca6769dc517edf`.
-- SPEC-05 source tip used as the base: `1772124d7e49adf99775c4df62d706b7311a4a3f`.
-- Original accepted SPEC-05 closure remains `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; this follow-up does not reopen or rewrite that closure record.
-- Public version remains `5.0.0`. No release, tag, version bump, history rewrite, or merge has occurred.
+- Status: in progress; local implementation and required local gates are complete. Whole-lineage independent review, push, PR, and hosted checks remain pending.
+- Branch: fix/spec-05-post-closure-hardening.
+- Tested source checkpoint: 5815160699ed535ab42c89b1056fd10ff3d94396.
+- SPEC-05 source tip used as the base: 1772124d7e49adf99775c4df62d706b7311a4a3f.
+- Original accepted SPEC-05 closure remains ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad; this follow-up does not reopen or rewrite that closure record.
+- Current range from origin/main is 89 commits and 102 paths: the accepted 82-commit/98-path lineage plus seven follow-up commits. The branch is 0 commits behind origin/main.
+- Public version remains 5.0.0. No release, tag, version bump, history rewrite, push, PR, or merge has occurred.
 
 ## Hardening findings
 
 ### H-01 — CONFIRMED BUG, fixed
 
-Ordinary identified-plan progress publication updated local plan, Vault mirror, ACTIVE records, and CURRENT without a durable transition intent. A child-process regression first failed at the interruption before local publication because no recoverable intent existed. Progress publication now reuses the existing hash- and owner-checked plan transition journal, and an identical immediate retry does not duplicate the last progress note.
+The initial hypothesis was that ordinary identified-plan progress publication might lose recoverability across local/Vault/ACTIVE/CURRENT writes. A deterministic child-process test failed before the change because no durable transition intent existed. Progress publication now reuses the existing hash- and owner-checked plan transition journal; an identical immediate retry does not duplicate the last progress note.
 
-Evidence: the exact recovery test passed across four subprocess interruption points, two retries, separate operation A/B state, mirror equality, and no false completion. Focused plan/concurrency tests passed 158/158.
+Evidence: the exact recovery test passed across four subprocess interruption points, two retries, separate operation A/B state, mirror equality, and no false completion. The post-change Core unit, concurrency, and plan targets passed 77 + 20 + 65 = 162 tests. The final Core all-target command passed all targets with zero failures.
 
 ### H-02 — ALREADY FIXED, verified
 
@@ -23,35 +24,56 @@ The existing canonical checkout-owner fence rejects a moved checkout even when t
 
 Recovery contract: restore the checkout at the original canonical path. Automatic owner reassignment is unsupported; intentional relocation requires a future explicit audited operation validating both local and shared identity/plan authority under checkout and Vault locks.
 
-Evidence: `cargo test -p baron-core --test plan moving_checkout_fails_closed_without_changing_shared_plan_authority -- --exact --nocapture` passed 1/1.
+Evidence: the exact moved-checkout regression passed 1/1 and is included in the 65-test plan target.
 
 ### H-03 — CONFIRMED BUG, fixed
 
-The prior cache trim could evict a live hook claim, and journal lookup silently skipped malformed JSONL rows. Cache updates now stage candidates, evict completed responses first and expired claims afterward, preserve non-expired/malformed/future claims, and reject an all-live capacity overflow without mutating prior state. Every non-empty row in the latest 512 journal lines is parsed strictly, and hook replay evidence is validated before correlation or publication.
+The prior cache trim could evict a live hook claim, and journal lookup silently skipped malformed JSONL rows. Cache updates now stage candidates, evict completed responses first and expired claims afterward, preserve non-expired/malformed/future claims, and reject all-live capacity overflow without mutating prior state. Every non-empty row in the latest 512 journal lines is parsed strictly, and replay evidence is validated before correlation or publication.
 
 Replay guarantee is finite: a response can be recovered while retained in the latest 256 dedup entries or its event row remains among the latest 512 journal lines. After both windows expire, a delivery may execute again and add a journal row. Its operation-scoped continuity checkpoint remains immutable and deduplicated by event identity. Stop retries continue to reconcile current evidence.
 
-Evidence: real hook stress coverage replays the first delivery after 279 later distinct hook events and observes one event row and an unchanged checkpoint. A child-process replay after 513 later valid journal rows and an evicted cache observes the bounded replay behavior and the same single checkpoint. Red/green unit and integration regressions cover live-claim retention, capacity failure, expired-claim eviction, malformed/future-claim retention, malformed journal rejection before turn-map publication, and crash recovery from a journal-published response.
+Evidence: the pre-fix regressions demonstrated live-claim eviction, accepting a claim at all-live capacity, malformed rows being skipped, and correlation publication before malformed-journal rejection. RED/GREEN regressions cover those cases, response recovery after journal publication, the original 280-event retention stress, Stop replay after both windows expire across a child-process restart, and concurrent same-event delivery from two checkouts sharing one Vault. The final phase12_hooks target passed 16/16.
 
-Focused verification: Core unit + automation + phase12 hooks + hook identity + concurrency completed with 140 passed, 0 failed across 5 suite summaries.
+## Source audit coverage
+
+Read and compared relevant files in the requested Core, CLI, and adapter areas, with focused tracing of the changed call paths and their callers. Directly inspected the plan transition/recovery path and safe_io contract; config, identity, Vault context, operation identity, proof/trace authority, automation hook claim/replay, receipt authority, CLI command dispatch, adapter installation, matching Core/CLI/adapter integration tests, repository AGENTS.md, status/plans, Cargo manifests, and CI/release workflows. This is scoped implementation and integration review, not a claim that every line in every source file was exhaustively read. The independent read-only reviewer is still pending.
+
+Observed integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446; origin/codex/spec-05-multi-agent-concurrency-durable-state is 1772124d7e49adf99775c4df62d706b7311a4a3f. The current range has 89 commits and 102 changed paths. No Cargo.toml or Cargo.lock path differs from origin/main. Tracked path inspection found no .env, Baron project/local config, Vault/capsule data, user handoff document, or supplied untracked spec in the branch. The primary checkout remains on main with its user-owned untracked handoff and spec preserved.
+
+## Local verification
+
+- Core: cargo test -p baron-core --all-targets --no-fail-fast -j 1 — PASS, all targets, zero failures. The final Core run used a temporary BARON_HOME and bundled PowerShell 7.
+- CLI: cargo test -p baron-cli --all-targets --no-fail-fast -j 1 — PASS with the bundled PowerShell 7 override. The initial default Windows PowerShell run had lifecycle failures because Microsoft.PowerShell.Archive was unavailable; the supported host rerun passed.
+- Adapters: cargo test -p baron-adapters --all-targets --no-fail-fast -j 1 — PASS.
+- Workspace: cargo test --workspace --all-targets --no-fail-fast -j 1 — PASS, zero failing targets, with bundled PowerShell 7.
+- Formatting: cargo fmt --all -- --check — PASS.
+- Clippy: cargo clippy --workspace --all-targets -- -D warnings — PASS.
+- Release build: cargo build --workspace --release --locked — PASS.
+- Release binary smoke: baron --version printed exactly baron 5.0.0.
+- CLI help smoke: root help and proof record, trace record, trace score, and continuity recover help commands all exited 0.
+- Status JSON parsed; repository-relative links in five follow-up Markdown files resolved; retired-adapter tracked-content and tracked-filename checks found no matches; git diff --check passed.
+
+### Local test-home caveat
+
+The earlier full-workspace test invocation did not set BARON_HOME. Existing receipt-authority integration paths call the signing API, which can create machine-home authority state when no seed exists. A separate 32-byte machine authority seed is now present, but its pre-run existence cannot be established from the available evidence. Its value was not read, changed, removed, or staged. This seed is not a Project ID, project binding, Vault root, or capsule. The final separate Core all-target run used a fresh temporary BARON_HOME. Any further local Cargo test run must use an isolated BARON_HOME.
 
 ## Maintained documentation gates
 
-- `docs/BARON_STATUS.json` parsed successfully with PowerShell `ConvertFrom-Json`; the original SPEC-05 phase remains `closed` while the separate follow-up is `in_progress`.
-- Repository-relative Markdown links in five changed follow-up Markdown files resolved with zero broken targets.
-- `cargo run --locked -p baron-cli -- --version` completed and printed exactly `baron 5.0.0`.
-- Retired-adapter content grep and tracked-filename search returned no matches.
-- `git diff --check` is run on the staged evidence before the Task 4 commit.
+- docs/BARON_STATUS.json parses successfully; the original SPEC-05 phase stays closed while the separate follow-up is in progress.
+- Repository-relative links in the maintained follow-up Markdown files resolve.
+- The release version remains exactly 5.0.0.
+- The retired-adapter content and tracked-filename gates return no matches.
+- Staging is limited to explicitly reviewed branch files; no machine state, environment file, Vault, generated build output, or user-owned untracked handoff is staged.
 
 ## Recovery and persisted-state boundary
 
-In the original checkout, `.env`, `.baron/project.toml`, `.baron/local.toml`, machine configuration, Vault root, capsule, and Project ID were not found in the checked recovery locations. No `baron init` ran, and no replacement Project ID, Vault, or capsule was created. All regression tests use temporary identities, repos, and Vaults. No Baron proof or trace was produced against the original project identity.
+In the original checkout and checked recovery locations, .env, .baron/project.toml, .baron/local.toml, machine config.toml, the former Vault root, capsule, and Project ID were not found. A distinct machine-level receipt-authority seed exists as noted above; it cannot establish the original project identity or Vault. No baron init ran, and no replacement Project ID, Vault, or capsule was created. All H regression fixtures use temporary repositories and Vaults. No Baron proof or trace was produced against the original project identity.
 
-Changes and generated test fixtures are confined to the managed worktree and temporary directories. The original checkout and its user-owned files remain untouched.
+The managed worktree and temporary fixtures contain the project changes. The earlier full-workspace test command may have created per-user authority state, and the available timestamp evidence cannot determine whether it predated that command. It remains untouched. The original checkout and its user-owned files remain unchanged.
 
-## Verification still pending
+## Remaining work
 
-- `cargo fmt --all -- --check` and complete workspace Core/CLI/adapter/all-target tests after the final source state.
-- Warnings-denied workspace Clippy, locked release build, CLI version/help, status JSON, relative Markdown links, diff check, and retired-adapter gate.
-- Inspection of the full SPEC-05 integration lineage against `origin/main`, including the 82 pre-existing commits and 98 paths, followed by an independent read-only whole-branch review.
-- Push, PR creation, and hosted checks on the actual PR head. Stop before merge until the user approves the reviewed integration scope.
+- Complete product-constraint checks and read-only review of the entire origin/main..HEAD lineage, including all 82 pre-existing SPEC-05 commits / 98 paths and follow-up files.
+- Obtain independent whole-branch review of the exact final source range; resolve Critical/Important findings with RED/GREEN tests and record deferred Minor findings.
+- Commit final evidence, push the reviewed branch, create a PR into main, and verify required CI on the actual PR head SHA.
+- Stop before merge until the user approves the reviewed integration scope. No merge or post-merge CI has occurred.

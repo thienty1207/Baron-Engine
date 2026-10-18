@@ -98,7 +98,7 @@
 **Files:**
 - No source changes unless a test or review finding requires a separately tested fix.
 
-- [ ] **Step 1: Run required local gates.** Run Core, CLI, adapters, workspace tests, fmt, warnings-denied Clippy, locked release build, and all spec-specific focused checks with bundled PowerShell 7 for lifecycle scripts.
+- [x] **Step 1: Run required local gates.** Core, CLI, adapters, and workspace all-target tests pass; fmt, warnings-denied Clippy, locked release build, version/help smoke, and spec-specific focused checks pass. Lifecycle scripts used bundled PowerShell 7; the final Core all-target rerun used a temporary BARON_HOME.
 - [ ] **Step 2: Verify product constraints.** Confirm `baron --version` is `5.0.0`; no secrets, machine config, `.env`, Vault data, generated artifacts, or `docs/current/current.md` are staged; compare the entire hardening head to `origin/main` and inspect all 82 pre-existing commits / 98 paths and any added files.
 - [ ] **Step 3: Obtain an independent whole-branch review.** Review the exact source range and this plan/spec; resolve Critical/Important findings with RED→GREEN tests, record deferred Minor findings, and rerun the affected suites.
 

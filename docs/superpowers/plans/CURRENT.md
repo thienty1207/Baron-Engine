@@ -2,31 +2,36 @@
 
 ## Current follow-up — SPEC-05 post-closure hardening (IN PROGRESS — 2026-10-18)
 
-This follow-up is separate from the original SPEC-05 closure and leaves its
-accepted range and CLOSED status intact. The managed branch is
-`fix/spec-05-post-closure-hardening`, with source checkpoint
-`6527d83e73634bae1e67388e06ca6769dc517edf`.
+This follow-up is separate from the original SPEC-05 closure. The accepted
+historical range and CLOSED status remain intact. Branch
+fix/spec-05-post-closure-hardening has tested source checkpoint
+5815160699ed535ab42c89b1056fd10ff3d94396.
 
-- H-01 is a confirmed ordinary plan-progress publication bug, fixed with a
-  recoverable transition intent and four subprocess interruption regressions.
-- H-02 checkout relocation is already fail-closed under the canonical owner
-  fence; the moved-checkout test confirms all local and Vault authority bytes
-  remain unchanged. Restore the original canonical path to resume.
-- H-03 live hook claims are retained, a cache full of live claims fails
-  closed, and malformed non-empty JSONL rows in the inspected tail fail before
-  hook correlation or publication. The replay contract is bounded to 256 cache
-  entries and 512 journal lines.
-- Focused results are green: plan/concurrency `158/158`; relocation `1/1`;
-  Core unit + automation + phase12 hooks + hook identity + concurrency
-  `140/140`. Full workspace gates and whole-branch review are pending.
-- No original project identity, Vault, or machine configuration was restored
-  or replaced; tests use temporary identities and Vaults. No original-project
-  proof or trace was produced.
+- H-01 is a confirmed progress-publication bug, fixed with recoverable intent
+  and four subprocess interruption regressions.
+- H-02 relocation is already fail-closed under the canonical owner fence;
+  the moved-checkout regression confirms local and shared Vault authority
+  bytes remain unchanged. Restore the original canonical path to resume.
+- H-03 live hook claims are retained, all-live capacity fails closed, and
+  malformed journal rows in the inspected tail fail before hook publication.
+  Replay evidence remains bounded to 256 cache entries and 512 journal lines.
+  Stop replay after expiry and concurrent shared-Vault publication have
+  additional integration coverage.
+- Core, CLI, adapter, and workspace all-target tests passed. Format, Clippy,
+  locked release build, version/help smoke, JSON/link, and retirement gates
+  passed. The final Core all-target rerun used a temporary BARON_HOME.
+- The original project identity, project/local TOML, machine config, Vault and
+  capsule were not recovered; no replacement was created. The full-workspace
+  test command used the host default machine home; possible per-user test state
+  is recorded in the verification ledger. No original-project proof or trace
+  was produced.
+- The current branch is 89 commits/102 paths ahead of origin/main, including
+  the 82-commit/98-path SPEC-05 lineage. Whole-lineage review and hosted PR
+  checks remain pending.
 
 Plan: [SPEC-05 post-closure hardening](2026-10-18-spec-05-post-closure-hardening.md); verification: [evidence ledger](2026-10-18-spec-05-post-closure-hardening-verification.md).
 
-Safe next action: finish Task 5 local gates and review all SPEC-05 lineage,
-then prepare a PR and stop before merge pending user approval.
+Safe next action: complete read-only review of the complete integration range, push it, open a PR and verify its exact-head checks; stop before merge pending user approval.
 
 ## SPEC-05 final closure (CLOSED — 2026-10-10)
 

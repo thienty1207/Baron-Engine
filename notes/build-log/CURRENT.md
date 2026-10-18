@@ -3,27 +3,35 @@
 ## SPEC-05 post-closure hardening follow-up — 2026-10-18 (IN PROGRESS)
 
 This follow-up does not change the accepted SPEC-05 source range or its
-historical CLOSED status. Branch `fix/spec-05-post-closure-hardening` is at
-source checkpoint `6527d83e73634bae1e67388e06ca6769dc517edf`.
+historical CLOSED status. Branch fix/spec-05-post-closure-hardening has
+tested source checkpoint 5815160699ed535ab42c89b1056fd10ff3d94396.
 
-H-01 was confirmed and fixed: progress writes now use the existing recoverable
-plan transition journal; four child-process interruption boundaries recover
-idempotently. H-02 is already fail-closed: moving a checkout with the same
-persisted identity is rejected without changing local or Vault plan authority;
-restore the original canonical path. H-03 was confirmed and fixed: cache
-trimming preserves live claims and fails closed at all-live capacity; malformed
-non-empty rows in the inspected journal tail fail before hook correlation or
-publication. Replay guarantees are bounded to 256 response-cache entries and
-512 journal lines; beyond both windows a hook may run again, while the
-operation-scoped continuity checkpoint remains immutable.
+H-01 was confirmed and fixed: ordinary identified-plan progress writes now
+use the existing recoverable transition journal; four child-process
+interruption boundaries recover idempotently. H-02 is already fail-closed:
+moving a checkout with the same persisted fixture identity is rejected
+without changing local or Vault plan authority; restore the original
+canonical path. H-03 was confirmed and fixed: cache trimming preserves live
+claims, all-live capacity fails closed, and malformed non-empty rows in the
+inspected journal tail fail before correlation/publication. Replay is bounded
+to 256 cache entries and 512 journal lines. Added tests cover Stop replay after
+both evidence windows expire and simultaneous same-event delivery from two
+checkouts sharing one Vault.
 
-Focused verification after changes: plan/concurrency 158 passed; relocation
-regression 1 passed; Core unit, automation, phase12 hooks, hook identity, and
-concurrency 140 passed. Complete workspace gates, independent whole-lineage
-review, PR-hosted checks, and merge remain pending. Original `.env`, Baron
-configuration, machine configuration, Vault, capsule, and Project ID were not
-recovered in checked locations. No replacement identity was created and all
-tests used temporary fixtures; original-project proof/trace status is unknown.
+Local verification passed: Core, CLI, adapter, and workspace all-target tests;
+format; warnings-denied Clippy; locked release build; release CLI version and
+help; status JSON, Markdown links, and retired-adapter gates. Lifecycle tests
+used bundled PowerShell 7. A final Core all-target rerun used temporary
+BARON_HOME. The earlier full-workspace invocation used the host default
+machine home; receipt-authority tests can create per-user state there, and its
+provenance is uncertain. No machine data was staged. The original project
+.env, project/local TOML, machine config.toml, Vault root, capsule and
+Project ID were not recovered; no replacement identity was created. No
+original-project proof or trace was produced.
+
+The branch is 89 commits/102 paths ahead of origin/main, including the
+82-commit/98-path SPEC-05 lineage plus seven follow-up commits. Independent
+whole-lineage review, PR-head CI and merge remain pending.
 
 Plan: [post-closure hardening](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence: [verification ledger](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

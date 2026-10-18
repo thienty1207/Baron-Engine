@@ -2,43 +2,48 @@
 
 ## SPEC-05 post-closure hardening follow-up (IN PROGRESS — 2026-10-18)
 
-This follow-up verifies the user-requested hardening work after the original
-SPEC-05 closure. It does not reopen or change the accepted closure range
-`ecaf362c..af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; that historical status
-remains CLOSED below.
+This follow-up records additional maintenance after the original SPEC-05
+closure. The accepted closure range
+ecaf362c..af2e1db020355af4fe0f621e8de3f8f780fbd2ad and its historical
+CLOSED status remain unchanged.
 
-- Work branch: `fix/spec-05-post-closure-hardening`; H-01–H-03 source checkpoint:
-  `6527d83e73634bae1e67388e06ca6769dc517edf`.
-- H-01: **CONFIRMED BUG — fixed.** Ordinary identified-plan progress
-  publication had no recoverable intent across its local/Vault/ACTIVE/CURRENT
-  write sequence. It now journals before publication and recovers idempotently
-  at four tested interruption boundaries.
-- H-02: **ALREADY FIXED — verified.** A moved checkout with the same
-  persisted project ID and binding is rejected by the canonical checkout-owner
-  fence without changing local or shared Vault authority. Restoring the
-  original canonical path is the supported recovery; owner reassignment needs
-  a future explicit audited operation.
-- H-03: **CONFIRMED BUG — fixed.** Cache trimming could evict live claims and
-  malformed journal rows were silently skipped. Live claims are preserved,
-  capacity fails closed, and every non-empty row in the inspected 512-line tail
-  is parsed strictly before hook correlation or publication. Replay evidence
-  remains finite: 256 cache entries and 512 journal lines.
-- Local focused verification after the fixes: H-01 plan/concurrency
-  `158/158`; H-02 relocation regression `1/1`; H-03 Core unit, automation,
-  phase12 hooks, hook identity, and concurrency suites `140/140`. The complete
-  current workspace verification matrix, independent review, PR-head CI, and
-  merge are still pending.
-- Recovery boundary: the original checkout’s `.env`, project/local TOML,
-  machine configuration, Vault root, capsule, and Project ID were not found in
-  the checked locations. No replacement identity or Vault was created. Tests
-  use temporary fixtures; no Baron proof/trace was run against the original
-  project.
-- Persisted-state boundary: changes are confined to the managed worktree,
-  temporary test fixtures, and this follow-up evidence. The original checkout
-  and its user-owned untracked files remain untouched.
-- Safe next action: complete all local gates and the whole-lineage independent
-  review, prepare a PR, verify its hosted checks, then stop for user approval
-  before merging the 82-commit/98-path integration scope.
+- Work branch: fix/spec-05-post-closure-hardening; tested source checkpoint:
+  5815160699ed535ab42c89b1056fd10ff3d94396.
+- H-01: **CONFIRMED BUG — fixed.** Identified plan-progress publication now
+  records recoverable intent and resumes idempotently at four tested
+  subprocess interruption boundaries.
+- H-02: **ALREADY FIXED — verified.** A moved checkout retaining the same
+  fixture identity is rejected by the canonical owner fence with no local or
+  shared Vault authority mutation. Restore the original canonical path;
+  automatic owner reassignment remains unsupported.
+- H-03: **CONFIRMED BUG — fixed.** Live claims survive cache trimming, an
+  all-live cache fails closed, and malformed rows in the inspected journal tail
+  block hook correlation/publication. Replay evidence is explicitly finite:
+  256 cache entries and 512 journal lines. Added Stop-after-expiry authority
+  recheck and concurrent distinct-checkout/shared-Vault publication regressions.
+- Local verification: Core, CLI, adapter, and full-workspace all-target test
+  commands passed; format, warnings-denied Clippy, locked release build, CLI
+  version/help, status JSON, Markdown links, and retired-adapter gates passed.
+  The full-workspace run used bundled PowerShell 7; a later Core all-target
+  rerun used a temporary BARON_HOME.
+- Recovery: .env, project/local TOML, machine config.toml, original Vault
+  root, capsule, and Project ID were not found in checked locations. No
+  replacement identity or Vault was created. Local authority state is separate
+  from project identity and was not staged; the full-workspace test invocation
+  used the default machine home, so possible per-user test state is recorded in
+  the evidence ledger. No original-project proof or trace was produced.
+- Integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446;
+  the current hardening branch is 89 commits ahead and changes 102 paths.
+  This contains the 82-commit/98-path accepted SPEC-05 lineage plus seven
+  follow-up commits. Independent whole-lineage review and PR-head CI are
+  pending.
+- Persisted-state boundary: source and tracked evidence changes are in the
+  managed worktree. Regression repos and Vaults use temporary fixtures. The
+  original checkout and its user-owned untracked files remain untouched.
+- Safe next action: complete read-only review of the full integration range,
+  push the reviewed branch, open a PR to main, and verify checks on its exact
+  head. Stop before merge until the user approves the reviewed integration
+  scope.
 
 Plan: [post-closure hardening plan](superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence ledger: [verification record](superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 
