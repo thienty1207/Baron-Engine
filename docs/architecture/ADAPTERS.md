@@ -74,6 +74,15 @@ the managed bridge. They do not create a second router or proof authority.
 Event keys are deduplicated under the project lock, and reconciliation remains
 available when hooks do not run.
 
+Hook replay has a finite evidence window: Core retains at most 256 dedup cache
+entries and consults the latest 512 lines of the Vault event journal. A retry
+is answered from either source while its event evidence remains there. A
+malformed non-empty row in the inspected journal tail fails closed. Once an
+event has aged out of both bounded stores, a later delivery may run again and
+append another journal row; its operation-scoped continuity checkpoint remains
+immutable and deduplicated by event identity. Stop retries still reconcile
+current operation evidence before publishing their response.
+
 Updates operate on the adapter's managed set and the Core baseline. Unknown
 JSON/TOML keys, user text outside markers, custom skills and agents, and
 third-party hooks are preserved. Missing or changed baselines fail closed and

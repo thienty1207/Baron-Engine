@@ -265,6 +265,13 @@ pub fn handle_hook(
         }
         Err(error) => bail!("{}", hook_correlation::failure(&error)),
     };
+    // Validate durable replay evidence before correlation, continuity, or
+    // delivery-state publication can mutate the checkout or Vault.
+    {
+        let _lock = acquire_project_lock(repo_root)?;
+        let _vault_lock = acquire_project_lock(&vault.project_root)?;
+        let _ = journal_tail_entries(&journal_path(vault))?;
+    }
     let supplied_session_id = ingress.session.clone();
     let supplied_request_id = ingress.turn.clone();
     let mut task = ingress
@@ -476,7 +483,7 @@ pub fn handle_hook(
                 journal_response(&journal_path(vault), &event_key)?
             };
             if let Some(response) = journal_response {
-                dedup_store_response(&mut dedup, &event_key, &response);
+                dedup_store_response(&mut dedup, &event_key, &response)?;
                 save_dedup_state(vault, &dedup)?;
                 return Ok(response);
             }
@@ -1052,7 +1059,7 @@ fn publish_hook_response(
             return Ok(existing);
         }
         if let Some(existing) = journal_response(&journal_path(vault), event_key)? {
-            dedup_store_response(&mut dedup, event_key, &existing);
+            dedup_store_response(&mut dedup, event_key, &existing)?;
             save_dedup_state(vault, &dedup)?;
             return Ok(existing);
         }
@@ -1069,7 +1076,7 @@ fn publish_hook_response(
     // The journal's first Stop response is historical only. Stop retries do
     // not recover it; the fenced dedup cache is refreshed after reconciliation.
     append_journal_locked(vault, &published_entry)?;
-    dedup_store_response(&mut dedup, event_key, response);
+    dedup_store_response(&mut dedup, event_key, response)?;
     save_dedup_state(vault, &dedup)?;
     Ok(response.to_string())
 }
@@ -1237,14 +1244,18 @@ fn dedup_response(state: &DedupState, key: &str) -> Option<String> {
 }
 
 fn dedup_claim_is_live(state: &DedupState, key: &str) -> bool {
-    let Some(entry) = state
+    state
         .entries
         .iter()
         .rev()
         .find(|entry| entry.key == key && entry.response.is_none())
-    else {
+        .is_some_and(dedup_entry_claim_is_live)
+}
+
+fn dedup_entry_claim_is_live(entry: &DedupEntry) -> bool {
+    if entry.response.is_some() {
         return false;
-    };
+    }
     let Some(claimed_at) = entry.claimed_at.as_deref() else {
         return true;
     };
@@ -1257,14 +1268,16 @@ fn dedup_claim_is_live(state: &DedupState, key: &str) -> bool {
 
 fn dedup_claim(state: &mut DedupState, key: &str) -> Result<String> {
     let claim_token = artifact_instance_id("00000000")?;
-    state.entries.retain(|entry| entry.key != key);
-    state.entries.push(DedupEntry {
+    let mut updated = state.clone();
+    updated.entries.retain(|entry| entry.key != key);
+    updated.entries.push(DedupEntry {
         key: key.to_string(),
         response: None,
         claimed_at: Some(now()),
         claim_token: Some(claim_token.clone()),
     });
-    trim_dedup_entries(state);
+    trim_dedup_entries(&mut updated)?;
+    *state = updated;
     Ok(claim_token)
 }
 
@@ -1338,50 +1351,76 @@ fn release_dedup_claim(repo_root: &Path, vault: &VaultContext, key: &str, claim_
     }
 }
 
-fn dedup_store_response(state: &mut DedupState, key: &str, response: &str) {
-    state.entries.retain(|entry| entry.key != key);
-    state.entries.push(DedupEntry {
+fn dedup_store_response(state: &mut DedupState, key: &str, response: &str) -> Result<()> {
+    let mut updated = state.clone();
+    updated.entries.retain(|entry| entry.key != key);
+    updated.entries.push(DedupEntry {
         key: key.to_string(),
         response: Some(response.to_string()),
         claimed_at: None,
         claim_token: None,
     });
-    trim_dedup_entries(state);
+    trim_dedup_entries(&mut updated)?;
+    *state = updated;
+    Ok(())
 }
 
-fn trim_dedup_entries(state: &mut DedupState) {
-    let excess = state.entries.len().saturating_sub(MAX_DEDUP_ENTRIES);
-    if excess > 0 {
-        state.entries.drain(0..excess);
+fn trim_dedup_entries(state: &mut DedupState) -> Result<()> {
+    while state.entries.len() > MAX_DEDUP_ENTRIES {
+        let index = state
+            .entries
+            .iter()
+            .position(|entry| entry.response.is_some())
+            .or_else(|| {
+                state
+                    .entries
+                    .iter()
+                    .position(|entry| !dedup_entry_claim_is_live(entry))
+            })
+            .context("Hook dedup cache is full of live claims; refusing new delivery")?;
+        state.entries.remove(index);
     }
+    Ok(())
 }
 
-fn journal_contains_key(path: &Path, key: &str) -> Result<bool> {
+fn journal_tail_entries(path: &Path) -> Result<Vec<JournalEntry>> {
     let Some(content) = read_text(path)? else {
-        return Ok(false);
+        return Ok(Vec::new());
     };
-    Ok(content
+    let mut entries = Vec::new();
+    for (offset_from_end, line) in content
         .lines()
         .rev()
         .take(MAX_JOURNAL_SCAN_LINES)
-        .filter_map(|line| serde_json::from_str::<JournalEntry>(line).ok())
+        .enumerate()
+    {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let entry = serde_json::from_str::<JournalEntry>(line).with_context(|| {
+            format!(
+                "Malformed automation journal JSONL row within the latest {MAX_JOURNAL_SCAN_LINES} lines ({} lines from end): {}",
+                offset_from_end + 1,
+                path.display()
+            )
+        })?;
+        entries.push(entry);
+    }
+    Ok(entries)
+}
+
+fn journal_contains_key(path: &Path, key: &str) -> Result<bool> {
+    Ok(journal_tail_entries(path)?
+        .iter()
         .any(|entry| entry.event_key.as_deref() == Some(key)))
 }
 
 fn journal_response(path: &Path, key: &str) -> Result<Option<String>> {
-    let Some(content) = read_text(path)? else {
-        return Ok(None);
-    };
-    Ok(content
-        .lines()
-        .rev()
-        .take(MAX_JOURNAL_SCAN_LINES)
-        .filter_map(|line| serde_json::from_str::<JournalEntry>(line).ok())
-        .find_map(|entry| {
-            (entry.event_key.as_deref() == Some(key))
-                .then_some(entry.response)
-                .flatten()
-        }))
+    Ok(journal_tail_entries(path)?.into_iter().find_map(|entry| {
+        (entry.event_key.as_deref() == Some(key))
+            .then_some(entry.response)
+            .flatten()
+    }))
 }
 
 fn render_prepare_projection(packet: &PreparePacketV1) -> String {
@@ -1558,6 +1597,94 @@ mod tests {
     }
 
     #[test]
+    fn live_hook_claim_survives_response_cache_trimming() {
+        let mut state = DedupState::default();
+        state.entries.push(DedupEntry {
+            key: "in-flight".to_string(),
+            response: None,
+            claimed_at: Some(now()),
+            claim_token: Some("live-owner".to_string()),
+        });
+        for index in 0..MAX_DEDUP_ENTRIES - 1 {
+            state.entries.push(DedupEntry {
+                key: format!("response-{index}"),
+                response: Some("cached response".to_string()),
+                claimed_at: None,
+                claim_token: None,
+            });
+        }
+
+        dedup_store_response(&mut state, "new-response", "new cached response").unwrap();
+
+        assert_eq!(state.entries.len(), MAX_DEDUP_ENTRIES);
+        assert!(dedup_claim_is_live(&state, "in-flight"));
+        assert!(dedup_claim_matches(&state, "in-flight", "live-owner"));
+        assert!(dedup_response(&state, "response-0").is_none());
+    }
+
+    #[test]
+    fn dedup_capacity_of_live_claims_fails_closed() {
+        let mut state = DedupState::default();
+        for index in 0..MAX_DEDUP_ENTRIES {
+            state.entries.push(DedupEntry {
+                key: format!("live-{index}"),
+                response: None,
+                claimed_at: Some(now()),
+                claim_token: Some(format!("owner-{index}")),
+            });
+        }
+        let before = serde_json::to_value(&state).unwrap();
+
+        let result = dedup_claim(&mut state, "new-live-claim");
+
+        assert!(
+            result.is_err(),
+            "a full cache of in-flight claims must reject a new delivery"
+        );
+        assert_eq!(serde_json::to_value(&state).unwrap(), before);
+    }
+
+    #[test]
+    fn dedup_trimming_preserves_malformed_and_future_claims() {
+        let mut state = DedupState::default();
+        state.entries.push(DedupEntry {
+            key: "expired".to_string(),
+            response: None,
+            claimed_at: Some((Local::now() - chrono::Duration::minutes(10)).to_rfc3339()),
+            claim_token: Some("expired-owner".to_string()),
+        });
+        state.entries.push(DedupEntry {
+            key: "malformed".to_string(),
+            response: None,
+            claimed_at: Some("not-a-timestamp".to_string()),
+            claim_token: Some("malformed-owner".to_string()),
+        });
+        state.entries.push(DedupEntry {
+            key: "future".to_string(),
+            response: None,
+            claimed_at: Some((Local::now() + chrono::Duration::minutes(5)).to_rfc3339()),
+            claim_token: Some("future-owner".to_string()),
+        });
+        while state.entries.len() < MAX_DEDUP_ENTRIES {
+            let index = state.entries.len();
+            state.entries.push(DedupEntry {
+                key: format!("live-{index}"),
+                response: None,
+                claimed_at: Some(now()),
+                claim_token: Some(format!("owner-{index}")),
+            });
+        }
+
+        let replacement = dedup_claim(&mut state, "replacement").unwrap();
+
+        assert_eq!(state.entries.len(), MAX_DEDUP_ENTRIES);
+        assert!(!state.entries.iter().any(|entry| entry.key == "expired"));
+        assert!(dedup_claim_is_live(&state, "malformed"));
+        assert!(dedup_claim_is_live(&state, "future"));
+        assert!(dedup_claim_matches(&state, "replacement", &replacement));
+    }
+
+    #[test]
     fn journal_response_rehydrates_dedup_after_publication_crash() {
         let temp = tempdir().unwrap();
         let journal = temp.path().join("automation-journal.jsonl");
@@ -1593,7 +1720,7 @@ mod tests {
             claim_token: Some("crashed-owner".to_string()),
         });
         let recovered = journal_response(&journal, event_key).unwrap().unwrap();
-        dedup_store_response(&mut state, event_key, &recovered);
+        dedup_store_response(&mut state, event_key, &recovered).unwrap();
 
         assert_eq!(recovered, response);
         assert_eq!(dedup_response(&state, event_key).as_deref(), Some(response));

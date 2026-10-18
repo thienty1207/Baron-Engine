@@ -1,4 +1,5 @@
 use std::fs;
+use std::process::Command;
 use std::sync::{Arc, Barrier};
 use std::thread;
 
@@ -10,8 +11,13 @@ use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::plan::start_or_resume_plan_for_identity;
 use baron_core::prepare::{prepare, PrepareRequestV1};
-use baron_core::vault::ensure_vault;
+use baron_core::vault::{ensure_vault, vault_context_without_create};
 use tempfile::tempdir;
+
+const REPLAY_REPO_ENV: &str = "BARON_TEST_HOOK_REPLAY_REPO";
+const REPLAY_VAULT_ENV: &str = "BARON_TEST_HOOK_REPLAY_VAULT";
+const REPLAY_PAYLOAD_ENV: &str = "BARON_TEST_HOOK_REPLAY_PAYLOAD";
+const REPLAY_EVENT_KEY_ENV: &str = "BARON_TEST_HOOK_REPLAY_EVENT_KEY";
 
 fn project(
     adapter: AdapterKind,
@@ -568,7 +574,37 @@ fn concurrent_internal_event_append_is_lossless_and_dedup_retention_is_bounded()
         .unwrap()
         .contains("Events recorded: 12"));
 
-    for index in 0..280 {
+    let first_payload = r#"{"session_id":"retention","request_id":"0"}"#;
+    let first_response = handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::PreCompact,
+        first_payload,
+    )
+    .unwrap();
+    let first_value = json(&first_response);
+    let first_event_key = first_value["baron"]["event_key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first_operation = first_value["baron"]["operation_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first_checkpoint_dir = repo
+        .join("docs/baron/continuity/operations")
+        .join(&first_operation)
+        .join("checkpoints");
+    let first_checkpoint = fs::read_dir(&first_checkpoint_dir)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let first_checkpoint_before = fs::read(&first_checkpoint).unwrap();
+
+    for index in 1..280 {
         handle_hook(
             &repo,
             &vault,
@@ -581,4 +617,289 @@ fn concurrent_internal_event_append_is_lossless_and_dedup_retention_is_bounded()
     let dedup = fs::read_to_string(repo.join(".baron/cache/automation-dedup.json")).unwrap();
     let dedup: serde_json::Value = serde_json::from_str(&dedup).unwrap();
     assert!(dedup["entries"].as_array().unwrap().len() <= 256);
+    assert!(!dedup["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|entry| entry["key"] == first_event_key));
+
+    let journal_before_retry = journal(&vault);
+    assert_eq!(
+        journal_event_count(&journal_before_retry, &first_event_key),
+        1
+    );
+    let replay = handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::PreCompact,
+        first_payload,
+    )
+    .unwrap();
+    assert_eq!(replay, first_response);
+    assert_eq!(journal(&vault), journal_before_retry);
+    assert_eq!(
+        fs::read(&first_checkpoint).unwrap(),
+        first_checkpoint_before
+    );
+}
+
+#[test]
+fn malformed_journal_tail_blocks_hook_before_publication() {
+    let (_temp, repo, vault) = project(AdapterKind::Codex);
+    let journal_path = vault
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    let malformed = b"{not-valid-json}\n";
+    fs::write(&journal_path, malformed).unwrap();
+    let dedup_path = repo.join(".baron/cache/automation-dedup.json");
+    let correlation_path = repo.join(".baron/state/hook-correlations.json");
+    let continuity_path = repo.join("docs/baron/continuity/CURRENT.md");
+    let operation_checkpoints = repo.join("docs/baron/continuity/operations");
+
+    let result = handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::UserPromptSubmit,
+        r#"{"session_id":"malformed-tail-session","request_id":"malformed-tail-request","task":"fix README typo"}"#,
+    );
+
+    assert!(
+        result.is_err(),
+        "malformed replay evidence must fail closed"
+    );
+    let error = result.unwrap_err();
+    assert!(
+        format!("{error:#}").contains("Malformed automation journal JSONL row"),
+        "unexpected malformed journal error: {error:#}"
+    );
+    assert_eq!(fs::read(&journal_path).unwrap(), malformed);
+    assert!(
+        !dedup_path.exists(),
+        "failed lookup must not claim or cache an event"
+    );
+    assert!(
+        !correlation_path.exists(),
+        "failed lookup must precede host turn correlation publication"
+    );
+    assert!(
+        !continuity_path.exists(),
+        "failed lookup must not publish continuity"
+    );
+    assert!(
+        !operation_checkpoints.exists(),
+        "failed lookup must not create an operation checkpoint"
+    );
+}
+
+#[test]
+fn hook_replay_after_both_finite_evidence_windows_expires_across_restart() {
+    let (_temp, repo, vault) = project(AdapterKind::Codex);
+    let target_payload = serde_json::json!({
+        "session_id": "retention-target-session",
+        "request_id": "retention-target-request",
+        "task": "current repository state"
+    })
+    .to_string();
+    let first_response = handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::PreCompact,
+        &target_payload,
+    )
+    .unwrap();
+    let first_value = json(&first_response);
+    let event_key = first_value["baron"]["event_key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let operation_id = first_value["baron"]["operation_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let checkpoint_dir = repo
+        .join("docs/baron/continuity/operations")
+        .join(&operation_id)
+        .join("checkpoints");
+    let mut checkpoint_paths = fs::read_dir(&checkpoint_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "md"))
+        .collect::<Vec<_>>();
+    checkpoint_paths.sort();
+    assert_eq!(checkpoint_paths.len(), 1);
+    let checkpoint_path = checkpoint_paths.pop().unwrap();
+    let checkpoint_before = fs::read(&checkpoint_path).unwrap();
+    let vault_checkpoint = vault
+        .project_root
+        .join("Continuity/Operations")
+        .join(&operation_id)
+        .join("Checkpoints")
+        .join(checkpoint_path.file_name().unwrap());
+    let vault_checkpoint_before = fs::read(&vault_checkpoint).unwrap();
+
+    seed_response_cache(&repo, "expired-response-window", 256);
+    append_journal_events(&vault, "expired-journal-window", 513);
+    let dedup_path = repo.join(".baron/cache/automation-dedup.json");
+    let dedup: serde_json::Value = serde_json::from_slice(&fs::read(&dedup_path).unwrap()).unwrap();
+    assert!(
+        !dedup["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["key"] == event_key),
+        "the target response must be outside the seeded 256-entry cache window"
+    );
+
+    let vault_reopened = vault_context_without_create(&vault.vault_root, &repo).unwrap();
+    assert_eq!(vault_reopened.project_id, vault.project_id);
+    let journal_before_out_of_window_retry = journal(&vault_reopened);
+    assert_eq!(
+        journal_event_count(&journal_before_out_of_window_retry, &event_key),
+        1
+    );
+    let tail: Vec<_> = journal_before_out_of_window_retry
+        .lines()
+        .rev()
+        .take(512)
+        .collect();
+    assert_eq!(tail.len(), 512);
+    assert!(!tail.iter().any(|line| {
+        serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .is_some_and(|entry| entry["event_key"] == event_key)
+    }));
+
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "hook_replay_after_both_finite_evidence_windows_expire_child_process",
+            "--nocapture",
+        ])
+        .env(REPLAY_REPO_ENV, &repo)
+        .env(REPLAY_VAULT_ENV, &vault.vault_root)
+        .env(REPLAY_PAYLOAD_ENV, &target_payload)
+        .env(REPLAY_EVENT_KEY_ENV, &event_key)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "child replay failed: {}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let journal_after_out_of_window_retry = journal(&vault_reopened);
+    assert_eq!(
+        journal_event_count(&journal_after_out_of_window_retry, &event_key),
+        2,
+        "outside both finite evidence windows the hook may publish another journal row"
+    );
+    assert_eq!(
+        journal_after_out_of_window_retry.lines().count(),
+        journal_before_out_of_window_retry.lines().count() + 1
+    );
+    assert_eq!(fs::read(&checkpoint_path).unwrap(), checkpoint_before);
+    assert_eq!(
+        fs::read(&vault_checkpoint).unwrap(),
+        vault_checkpoint_before
+    );
+    assert_eq!(
+        fs::read_dir(&checkpoint_dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "md"))
+            .count(),
+        1,
+        "continuity checkpoint identity remains immutable after replay"
+    );
+}
+
+#[test]
+fn hook_replay_after_both_finite_evidence_windows_expire_child_process() {
+    let (Ok(repo), Ok(vault_root), Ok(payload), Ok(expected_event_key)) = (
+        std::env::var(REPLAY_REPO_ENV),
+        std::env::var(REPLAY_VAULT_ENV),
+        std::env::var(REPLAY_PAYLOAD_ENV),
+        std::env::var(REPLAY_EVENT_KEY_ENV),
+    ) else {
+        return;
+    };
+    let repo = std::path::PathBuf::from(repo);
+    let vault = vault_context_without_create(vault_root, &repo).unwrap();
+    let response = handle_hook(
+        &repo,
+        &vault,
+        HookAdapter::Codex,
+        AutomationEvent::PreCompact,
+        &payload,
+    )
+    .unwrap();
+    assert_eq!(json(&response)["baron"]["event_key"], expected_event_key);
+}
+
+fn journal_event_count(content: &str, event_key: &str) -> usize {
+    content
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|entry| entry["event_key"].as_str() == Some(event_key))
+        .count()
+}
+
+fn seed_response_cache(repo: &std::path::Path, prefix: &str, count: usize) {
+    let entries = (0..count)
+        .map(|index| {
+            serde_json::json!({
+                "key": format!("seeded-{prefix}-{index}"),
+                "response": "{\"continue\":true}",
+                "claimed_at": null,
+                "claim_token": null
+            })
+        })
+        .collect::<Vec<_>>();
+    fs::write(
+        repo.join(".baron/cache/automation-dedup.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1,
+            "entries": entries
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+}
+
+fn append_journal_events(vault: &baron_core::vault::VaultContext, prefix: &str, count: usize) {
+    use std::io::Write;
+
+    let path = vault
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    let mut lines = String::new();
+    for index in 0..count {
+        let event_key = format!("seeded-{prefix}-event-{index}");
+        lines.push_str(
+            &serde_json::json!({
+                "timestamp": "2026-10-18T00:00:00+00:00",
+                "event": "pre_compact",
+                "adapter": "codex",
+                "session_id": format!("seeded-{prefix}-session-{index}"),
+                "request_id": format!("seeded-{prefix}-request-{index}"),
+                "event_key": event_key,
+                "event_kind": "pre_compact",
+                "task_id": "seeded-task",
+                "child": false,
+                "response": "{\"continue\":true}"
+            })
+            .to_string(),
+        );
+        lines.push('\n');
+    }
+    fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .unwrap()
+        .write_all(lines.as_bytes())
+        .unwrap();
 }
