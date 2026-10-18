@@ -40,7 +40,7 @@ Focused verification: Core unit + automation + phase12 hooks + hook identity + c
 - `docs/BARON_STATUS.json` parsed successfully with PowerShell `ConvertFrom-Json`; the original SPEC-05 phase remains `closed` while the separate follow-up is `in_progress`.
 - Repository-relative Markdown links in five changed follow-up Markdown files resolved with zero broken targets.
 - `cargo run --locked -p baron-cli -- --version` completed and printed exactly `baron 5.0.0`.
-- Retired-adapter content grep (`git grep -in reasonix`) and tracked-filename search returned no matches.
+- Retired-adapter content grep and tracked-filename search returned no matches.
 - `git diff --check` is run on the staged evidence before the Task 4 commit.
 
 ## Recovery and persisted-state boundary

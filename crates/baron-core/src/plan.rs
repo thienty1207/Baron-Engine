@@ -3144,6 +3144,17 @@ impl ActivePlan {
     }
 }
 
+struct CurrentPlanView<'a> {
+    title: &'a str,
+    risk: RiskLane,
+    status: &'a str,
+    plan_path: &'a Path,
+    next_action: &'a str,
+    verification: &'a str,
+    binding: Option<&'a PlanOperationBinding>,
+    task_id: Option<&'a str>,
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -3366,15 +3377,4 @@ mod tests {
             plan_checkout_owner_id(&alias).unwrap()
         );
     }
-}
-
-struct CurrentPlanView<'a> {
-    title: &'a str,
-    risk: RiskLane,
-    status: &'a str,
-    plan_path: &'a Path,
-    next_action: &'a str,
-    verification: &'a str,
-    binding: Option<&'a PlanOperationBinding>,
-    task_id: Option<&'a str>,
 }

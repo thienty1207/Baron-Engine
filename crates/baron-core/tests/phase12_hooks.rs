@@ -18,6 +18,7 @@ const REPLAY_REPO_ENV: &str = "BARON_TEST_HOOK_REPLAY_REPO";
 const REPLAY_VAULT_ENV: &str = "BARON_TEST_HOOK_REPLAY_VAULT";
 const REPLAY_PAYLOAD_ENV: &str = "BARON_TEST_HOOK_REPLAY_PAYLOAD";
 const REPLAY_EVENT_KEY_ENV: &str = "BARON_TEST_HOOK_REPLAY_EVENT_KEY";
+const REPLAY_EVENT_ENV: &str = "BARON_TEST_HOOK_REPLAY_EVENT";
 
 fn project(
     adapter: AdapterKind,
@@ -695,22 +696,68 @@ fn malformed_journal_tail_blocks_hook_before_publication() {
 
 #[test]
 fn hook_replay_after_both_finite_evidence_windows_expires_across_restart() {
+    exercise_hook_replay_after_both_finite_evidence_windows_expire(false);
+}
+
+#[test]
+fn stop_replay_after_both_finite_evidence_windows_rechecks_authority() {
+    exercise_hook_replay_after_both_finite_evidence_windows_expire(true);
+}
+
+fn exercise_hook_replay_after_both_finite_evidence_windows_expire(stop: bool) {
     let (_temp, repo, vault) = project(AdapterKind::Codex);
-    let target_payload = serde_json::json!({
-        "session_id": "retention-target-session",
-        "request_id": "retention-target-request",
-        "task": "current repository state"
-    })
-    .to_string();
-    let first_response = handle_hook(
-        &repo,
-        &vault,
-        HookAdapter::Codex,
-        AutomationEvent::PreCompact,
-        &target_payload,
-    )
-    .unwrap();
+    let (event, target_payload) = if stop {
+        let task = "backend login security";
+        let prompt_payload = serde_json::json!({
+            "session_id": "retention-stop-session",
+            "turn_id": "retention-stop-turn",
+            "prompt": task
+        })
+        .to_string();
+        handle_hook(
+            &repo,
+            &vault,
+            HookAdapter::Codex,
+            AutomationEvent::UserPromptSubmit,
+            &prompt_payload,
+        )
+        .unwrap();
+        let identity = LifecycleIdentity::resolve(
+            &vault.project_id,
+            task,
+            SupportedAdapter::Codex,
+            Some("retention-stop-session"),
+            Some("retention-stop-turn"),
+        )
+        .unwrap();
+        start_or_resume_plan_for_identity(&repo, &vault, task, &identity).unwrap();
+        (
+            AutomationEvent::Stop,
+            serde_json::json!({
+                "session_id": "retention-stop-session",
+                "turn_id": "retention-stop-turn",
+                "stop_hook_active": false
+            })
+            .to_string(),
+        )
+    } else {
+        (
+            AutomationEvent::PreCompact,
+            serde_json::json!({
+                "session_id": "retention-target-session",
+                "request_id": "retention-target-request",
+                "task": "current repository state"
+            })
+            .to_string(),
+        )
+    };
+    let first_response =
+        handle_hook(&repo, &vault, HookAdapter::Codex, event, &target_payload).unwrap();
     let first_value = json(&first_response);
+    if stop {
+        assert_eq!(first_value["decision"], "block");
+        assert_ne!(first_value["completed"], true);
+    }
     let event_key = first_value["baron"]["event_key"]
         .as_str()
         .unwrap()
@@ -723,22 +770,28 @@ fn hook_replay_after_both_finite_evidence_windows_expires_across_restart() {
         .join("docs/baron/continuity/operations")
         .join(&operation_id)
         .join("checkpoints");
-    let mut checkpoint_paths = fs::read_dir(&checkpoint_dir)
+    let checkpoint_paths = fs::read_dir(&checkpoint_dir)
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .filter(|path| path.extension().is_some_and(|extension| extension == "md"))
         .collect::<Vec<_>>();
-    checkpoint_paths.sort();
-    assert_eq!(checkpoint_paths.len(), 1);
-    let checkpoint_path = checkpoint_paths.pop().unwrap();
-    let checkpoint_before = fs::read(&checkpoint_path).unwrap();
-    let vault_checkpoint = vault
-        .project_root
-        .join("Continuity/Operations")
-        .join(&operation_id)
-        .join("Checkpoints")
-        .join(checkpoint_path.file_name().unwrap());
-    let vault_checkpoint_before = fs::read(&vault_checkpoint).unwrap();
+    assert!(!checkpoint_paths.is_empty());
+    let checkpoint_snapshots = checkpoint_paths
+        .iter()
+        .map(|path| (path.clone(), fs::read(path).unwrap()))
+        .collect::<Vec<_>>();
+    let vault_checkpoint_snapshots = checkpoint_paths
+        .iter()
+        .map(|path| {
+            let vault_path = vault
+                .project_root
+                .join("Continuity/Operations")
+                .join(&operation_id)
+                .join("Checkpoints")
+                .join(path.file_name().unwrap());
+            (vault_path.clone(), fs::read(vault_path).unwrap())
+        })
+        .collect::<Vec<_>>();
 
     seed_response_cache(&repo, "expired-response-window", 256);
     append_journal_events(&vault, "expired-journal-window", 513);
@@ -782,6 +835,7 @@ fn hook_replay_after_both_finite_evidence_windows_expires_across_restart() {
         .env(REPLAY_VAULT_ENV, &vault.vault_root)
         .env(REPLAY_PAYLOAD_ENV, &target_payload)
         .env(REPLAY_EVENT_KEY_ENV, &event_key)
+        .env(REPLAY_EVENT_ENV, if stop { "stop" } else { "pre_compact" })
         .output()
         .unwrap();
     assert!(
@@ -801,19 +855,20 @@ fn hook_replay_after_both_finite_evidence_windows_expires_across_restart() {
         journal_after_out_of_window_retry.lines().count(),
         journal_before_out_of_window_retry.lines().count() + 1
     );
-    assert_eq!(fs::read(&checkpoint_path).unwrap(), checkpoint_before);
-    assert_eq!(
-        fs::read(&vault_checkpoint).unwrap(),
-        vault_checkpoint_before
-    );
+    for (path, bytes) in &checkpoint_snapshots {
+        assert_eq!(fs::read(path).unwrap(), *bytes);
+    }
+    for (path, bytes) in &vault_checkpoint_snapshots {
+        assert_eq!(fs::read(path).unwrap(), *bytes);
+    }
     assert_eq!(
         fs::read_dir(&checkpoint_dir)
             .unwrap()
             .filter_map(Result::ok)
             .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "md"))
             .count(),
-        1,
-        "continuity checkpoint identity remains immutable after replay"
+        checkpoint_snapshots.len(),
+        "continuity checkpoint set remains immutable after replay"
     );
 }
 
@@ -829,15 +884,98 @@ fn hook_replay_after_both_finite_evidence_windows_expire_child_process() {
     };
     let repo = std::path::PathBuf::from(repo);
     let vault = vault_context_without_create(vault_root, &repo).unwrap();
-    let response = handle_hook(
-        &repo,
-        &vault,
-        HookAdapter::Codex,
-        AutomationEvent::PreCompact,
-        &payload,
+    let event = if std::env::var(REPLAY_EVENT_ENV).as_deref() == Ok("stop") {
+        AutomationEvent::Stop
+    } else {
+        AutomationEvent::PreCompact
+    };
+    let response = handle_hook(&repo, &vault, HookAdapter::Codex, event, &payload).unwrap();
+    let value = json(&response);
+    assert_eq!(value["baron"]["event_key"], expected_event_key);
+    if event == AutomationEvent::Stop {
+        assert_eq!(value["decision"], "block");
+        assert_ne!(value["completed"], true);
+    }
+}
+
+#[test]
+fn concurrent_same_event_from_distinct_checkouts_sharing_a_vault_is_published_once() {
+    let (_temp, repo_a, vault_a) = project(AdapterKind::Codex);
+    let repo_b = repo_a.parent().unwrap().join("second-checkout");
+    fs::create_dir_all(repo_b.join(".baron")).unwrap();
+    fs::copy(
+        repo_a.join(".baron/project.toml"),
+        repo_b.join(".baron/project.toml"),
     )
     .unwrap();
-    assert_eq!(json(&response)["baron"]["event_key"], expected_event_key);
+    let vault_b = vault_context_without_create(&vault_a.vault_root, &repo_b).unwrap();
+    assert_eq!(vault_a.project_id, vault_b.project_id);
+    assert_eq!(vault_a.project_root, vault_b.project_root);
+
+    let payload = r#"{"session_id":"shared-replay-session","request_id":"shared-replay-request","task":"current repository state"}"#;
+    let barrier = Arc::new(Barrier::new(3));
+    let repo_a_worker = repo_a.clone();
+    let vault_a_worker = vault_a.clone();
+    let barrier_a = Arc::clone(&barrier);
+    let worker_a = thread::spawn(move || {
+        barrier_a.wait();
+        handle_hook(
+            &repo_a_worker,
+            &vault_a_worker,
+            HookAdapter::Codex,
+            AutomationEvent::PreCompact,
+            payload,
+        )
+        .unwrap()
+    });
+    let repo_b_worker = repo_b.clone();
+    let vault_b_worker = vault_b.clone();
+    let barrier_b = Arc::clone(&barrier);
+    let worker_b = thread::spawn(move || {
+        barrier_b.wait();
+        handle_hook(
+            &repo_b_worker,
+            &vault_b_worker,
+            HookAdapter::Codex,
+            AutomationEvent::PreCompact,
+            payload,
+        )
+        .unwrap()
+    });
+    barrier.wait();
+    let response_a = worker_a.join().unwrap();
+    let response_b = worker_b.join().unwrap();
+    let response_value_a = json(&response_a);
+    let response_value_b = json(&response_b);
+    let event_key = response_value_a["baron"]["event_key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(response_value_b["baron"]["event_key"], event_key);
+    assert_eq!(response_value_a["continue"], true);
+    assert_eq!(response_value_b["continue"], true);
+    let journal_before_retry = journal(&vault_a);
+    assert_eq!(journal_event_count(&journal_before_retry, &event_key), 1);
+
+    let retry = handle_hook(
+        &repo_b,
+        &vault_b,
+        HookAdapter::Codex,
+        AutomationEvent::PreCompact,
+        payload,
+    )
+    .unwrap();
+    assert_eq!(json(&retry)["baron"]["event_key"], event_key);
+    let dedup: serde_json::Value = serde_json::from_slice(
+        &fs::read(repo_b.join(".baron/cache/automation-dedup.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(dedup["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|entry| entry["key"] == event_key && entry["response"].is_string()));
+    assert_eq!(journal(&vault_a), journal_before_retry);
 }
 
 fn journal_event_count(content: &str, event_key: &str) -> usize {
