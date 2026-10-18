@@ -1,5 +1,33 @@
 # Current Baron Build Plan
 
+## Current follow-up — SPEC-05 post-closure hardening (IN PROGRESS — 2026-10-18)
+
+This follow-up is separate from the original SPEC-05 closure and leaves its
+accepted range and CLOSED status intact. The managed branch is
+`fix/spec-05-post-closure-hardening`, with source checkpoint
+`6527d83e73634bae1e67388e06ca6769dc517edf`.
+
+- H-01 is a confirmed ordinary plan-progress publication bug, fixed with a
+  recoverable transition intent and four subprocess interruption regressions.
+- H-02 checkout relocation is already fail-closed under the canonical owner
+  fence; the moved-checkout test confirms all local and Vault authority bytes
+  remain unchanged. Restore the original canonical path to resume.
+- H-03 live hook claims are retained, a cache full of live claims fails
+  closed, and malformed non-empty JSONL rows in the inspected tail fail before
+  hook correlation or publication. The replay contract is bounded to 256 cache
+  entries and 512 journal lines.
+- Focused results are green: plan/concurrency `158/158`; relocation `1/1`;
+  Core unit + automation + phase12 hooks + hook identity + concurrency
+  `140/140`. Full workspace gates and whole-branch review are pending.
+- No original project identity, Vault, or machine configuration was restored
+  or replaced; tests use temporary identities and Vaults. No original-project
+  proof or trace was produced.
+
+Plan: [SPEC-05 post-closure hardening](2026-10-18-spec-05-post-closure-hardening.md); verification: [evidence ledger](2026-10-18-spec-05-post-closure-hardening-verification.md).
+
+Safe next action: finish Task 5 local gates and review all SPEC-05 lineage,
+then prepare a PR and stop before merge pending user approval.
+
 ## SPEC-05 final closure (CLOSED — 2026-10-10)
 
 The shared-Vault source repairs are implemented and locally verified. Identified plan and ACTIVE records carry a hashed canonical checkout owner; stale mirror divergence and foreign pending-journal recovery fail closed; orphaned plans prevent duplicate operation identity; exact-owner recovery works when a shared ACTIVE row is missing. Generic reconcile now recognizes only a matching validated indexed plan.
