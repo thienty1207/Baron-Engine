@@ -29,6 +29,40 @@ const ACTIVE_PLAN_INDEX_FILE: &str = "ACTIVE.md";
 const ACTIVE_PLAN_MARKER: &str = "<!-- BARON:ACTIVE-PLAN ";
 const PLAN_TRANSITION_JOURNAL: &str = ".baron/plan-transition.json";
 
+#[cfg(test)]
+thread_local! {
+    static PLAN_PROGRESS_FAILPOINT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+macro_rules! plan_progress_checkpoint {
+    ($stage:expr) => {
+        check_plan_progress_failpoint($stage)?;
+    };
+}
+
+#[cfg(not(test))]
+macro_rules! plan_progress_checkpoint {
+    ($stage:expr) => {};
+}
+
+#[cfg(test)]
+fn check_plan_progress_failpoint(stage: &str) -> Result<()> {
+    let should_fail = PLAN_PROGRESS_FAILPOINT.with(|failpoint| {
+        let mut failpoint = failpoint.borrow_mut();
+        if failpoint.as_deref() == Some(stage) {
+            failpoint.take();
+            true
+        } else {
+            false
+        }
+    });
+    if should_fail {
+        bail!("Injected plan progress interruption at {stage}");
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanRecord {
     pub title: String,
@@ -776,25 +810,7 @@ fn update_plan_state(
     note: &str,
     active: &ActivePlan,
 ) -> Result<()> {
-    append_progress(&active.path, note.trim())?;
-    mirror_plan(repo_root, vault, &active.path)?;
-    if let Some(binding) = active.binding.as_ref() {
-        upsert_active_plan_index(repo_root, vault, binding, &active.path, &active.status)?;
-    }
-    write_current(
-        repo_root,
-        vault,
-        CurrentPlanView {
-            title: &active.title,
-            risk: active.risk,
-            status: &active.status,
-            plan_path: &active.path,
-            next_action: note.trim(),
-            verification: "not_run",
-            binding: active.binding.as_ref(),
-            task_id: Some(&active.task_id),
-        },
-    )
+    publish_plan_progress_update(repo_root, vault, note.trim(), active)
 }
 
 pub fn interrupt_plan(
@@ -830,6 +846,61 @@ struct PlanStatusTransition<'a> {
     current_title: &'a str,
     next_action: &'a str,
     authority_generation: Option<String>,
+}
+
+fn publish_plan_progress_update(
+    repo_root: &Path,
+    vault: &VaultContext,
+    note: &str,
+    active: &ActivePlan,
+) -> Result<()> {
+    let source = read_text_required(&active.path)?;
+    let source_hash = plan_content_hash(&source);
+    let vault_path = vault_plan_path(repo_root, vault, &active.path)?;
+    let vault_source_hash = read_text(&vault_path)?.map(|content| plan_content_hash(&content));
+    if vault_source_hash
+        .as_deref()
+        .is_some_and(|hash| hash != source_hash)
+    {
+        bail!(
+            "Vault plan mirror changed before progress publication; preserving it for recovery: {}",
+            vault_path.display()
+        );
+    }
+
+    let updated_at = now();
+    let target = plan_transition_content(
+        &source,
+        &active.status,
+        &updated_at,
+        None,
+        note,
+        active.authority_generation.as_deref(),
+    );
+    let journal = PlanTransitionJournal {
+        schema_version: 1,
+        plan_path: normalize(&active.path, repo_root),
+        source_hash,
+        vault_source_hash,
+        target_hash: plan_content_hash(&target),
+        source_status: active.status.clone(),
+        status: active.status.clone(),
+        updated_at,
+        verification: None,
+        progress_note: note.to_string(),
+        title: active.title.clone(),
+        current_title: active.title.clone(),
+        risk: active.risk,
+        task_id: active.task_id.clone(),
+        binding: active.binding.clone(),
+        authority_generation: active.authority_generation.clone(),
+        next_action: note.to_string(),
+    };
+    let journal_path = repo_root.join(PLAN_TRANSITION_JOURNAL);
+    let serialized = format!("{}\n", serde_json::to_string_pretty(&journal)?);
+    write(&journal_path, &serialized)?;
+    plan_progress_checkpoint!("before_local");
+    recover_pending_plan_transition(repo_root, vault)
 }
 
 fn publish_plan_status_transition(
@@ -912,15 +983,11 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
     };
     let journal: PlanTransitionJournal = serde_json::from_str(&serialized)
         .context("Pending plan status transition journal is malformed")?;
+    let source_status = parse_plan_status(&journal.source_status)?;
+    let target_status = parse_plan_status(&journal.status)?;
     if journal.schema_version != 1
-        || !matches!(
-            journal.source_status.as_str(),
-            "in_progress" | "interrupted"
-        )
-        || !matches!(
-            journal.status.as_str(),
-            "in_progress" | "interrupted" | "completed"
-        )
+        || !is_active_plan_status(&source_status)
+        || (!is_active_plan_status(&target_status) && target_status != "completed")
     {
         bail!("Pending plan status transition journal has an unsupported schema or status");
     }
@@ -970,6 +1037,10 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
     }
     let current = read_text_required(&plan_path)?;
     let current_hash = plan_content_hash(&current);
+    let target_authority_generation = journal
+        .authority_generation
+        .clone()
+        .or_else(|| journal_metadata.authority_generation.clone());
     let target = if current_hash == journal.source_hash {
         let source_metadata = load_plan_file_metadata(&plan_path)?;
         validate_transition_metadata(
@@ -984,7 +1055,7 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
             &journal.updated_at,
             journal.verification.as_deref(),
             &journal.progress_note,
-            journal.authority_generation.as_deref(),
+            target_authority_generation.as_deref(),
         );
         if plan_content_hash(&target) != journal.target_hash {
             bail!("Pending plan transition target hash does not match its journal");
@@ -999,9 +1070,13 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
             plan_path.display()
         );
     };
+    plan_progress_checkpoint!("after_local");
 
     let metadata = load_plan_file_metadata(&plan_path)?;
     validate_transition_metadata(repo_root, &metadata, &journal, &journal.status)?;
+    if metadata.authority_generation.as_deref() != target_authority_generation.as_deref() {
+        bail!("Pending plan transition authority generation does not match its journal");
+    }
     let binding = metadata.operation_binding()?;
     if journal.status == "completed" {
         let active = ActivePlan {
@@ -1042,6 +1117,7 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
         );
     }
     write(&vault_path, &target)?;
+    plan_progress_checkpoint!("after_vault");
     update_plan_indexes(
         repo_root,
         vault,
@@ -1053,6 +1129,7 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
     if let Some(binding) = binding.as_ref() {
         upsert_active_plan_index(repo_root, vault, binding, &plan_path, &journal.status)?;
     }
+    plan_progress_checkpoint!("after_active");
     write_current(
         repo_root,
         vault,
@@ -1137,7 +1214,19 @@ fn plan_transition_content(
         }
     }
     let updated = updated.join("\n");
-    format!("{updated}\n- {updated_at} - {progress_note}\n")
+    if latest_progress_note(content) == Some(progress_note) {
+        format!("{updated}\n")
+    } else {
+        format!("{updated}\n- {updated_at} - {progress_note}\n")
+    }
+}
+
+fn latest_progress_note(content: &str) -> Option<&str> {
+    let (_, progress) = content.split_once("## Progress Log")?;
+    progress.lines().rev().find_map(|line| {
+        line.strip_prefix("- ")
+            .and_then(|entry| entry.split_once(" - ").map(|(_, note)| note))
+    })
 }
 
 fn plan_content_hash(content: &str) -> String {
@@ -2797,20 +2886,6 @@ fn single_line(value: &str) -> String {
     value.replace(['\r', '\n'], " ").trim().to_string()
 }
 
-fn append_progress(path: &Path, note: &str) -> Result<()> {
-    let mut content = read_text_required(path)?;
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(&format!("- {} - {}\n", now(), note));
-    write(path, &content)
-}
-
-fn mirror_plan(repo_root: &Path, vault: &VaultContext, plan_path: &Path) -> Result<()> {
-    let content = read_text_required(plan_path)?;
-    write(&vault_plan_path(repo_root, vault, plan_path)?, &content)
-}
-
 fn vault_plan_path(repo_root: &Path, vault: &VaultContext, repo_path: &Path) -> Result<PathBuf> {
     let relative = repo_path
         .strip_prefix(repo_root.join(MANAGED_PLAN_ROOT))
@@ -3066,6 +3141,230 @@ impl ActivePlan {
             bail!("Active Baron plan authority mismatch: {issue}");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::process::Command;
+
+    use super::*;
+    use crate::operation::{LifecycleIdentity, SupportedAdapter};
+    use crate::vault::{ensure_vault, vault_context_without_create};
+    use tempfile::tempdir;
+
+    const PROGRESS_CRASH_REPO: &str = "BARON_TEST_PLAN_PROGRESS_REPO";
+    const PROGRESS_CRASH_VAULT: &str = "BARON_TEST_PLAN_PROGRESS_VAULT";
+    const PROGRESS_CRASH_STAGE: &str = "BARON_TEST_PLAN_PROGRESS_STAGE";
+    const PLAN_A_TITLE: &str = "repair identified plan A";
+    const PLAN_B_TITLE: &str = "repair identified plan B";
+    const PROGRESS_NOTE: &str = "post-restart progress note";
+
+    fn set_plan_progress_failpoint(stage: &str) {
+        PLAN_PROGRESS_FAILPOINT.with(|failpoint| {
+            *failpoint.borrow_mut() = Some(stage.to_string());
+        });
+    }
+
+    #[test]
+    fn identified_progress_update_child_interrupts_at_requested_publication_boundary() {
+        let (Ok(repo), Ok(vault_root), Ok(stage)) = (
+            std::env::var(PROGRESS_CRASH_REPO),
+            std::env::var(PROGRESS_CRASH_VAULT),
+            std::env::var(PROGRESS_CRASH_STAGE),
+        ) else {
+            return;
+        };
+        let repo = PathBuf::from(repo);
+        let vault_root = PathBuf::from(vault_root);
+        let vault = vault_context_without_create(&vault_root, &repo).unwrap();
+        let identity = progress_test_identity(&vault, PLAN_A_TITLE, "progress-session-a");
+        set_plan_progress_failpoint(&stage);
+
+        let error = update_plan_for_identity(&repo, &vault, PROGRESS_NOTE, &identity).unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Injected plan progress interruption"));
+    }
+
+    #[test]
+    fn identified_progress_update_recovers_idempotently_at_all_publication_boundaries() {
+        for stage in ["before_local", "after_local", "after_vault", "after_active"] {
+            let temp = tempdir().unwrap();
+            let repo = temp.path().join("repo");
+            let vault_root = temp.path().join("vault");
+            fs::create_dir_all(&repo).unwrap();
+            let vault = ensure_vault(&vault_root, &repo).unwrap();
+            let identity_a = progress_test_identity(&vault, PLAN_A_TITLE, "progress-session-a");
+            let identity_b = progress_test_identity(&vault, PLAN_B_TITLE, "progress-session-b");
+            let plan_a =
+                start_or_resume_plan_for_identity(&repo, &vault, PLAN_A_TITLE, &identity_a)
+                    .unwrap();
+            let plan_b =
+                start_or_resume_plan_for_identity(&repo, &vault, PLAN_B_TITLE, &identity_b)
+                    .unwrap();
+            let current_path = repo.join(MANAGED_PLAN_ROOT).join("CURRENT.md");
+            let current_before = fs::read_to_string(&current_path).unwrap();
+            assert!(current_before.contains(&normalize(&plan_b.repo_path, &repo)));
+            let plan_b_local_before = fs::read(&plan_b.repo_path).unwrap();
+            let plan_b_vault_before = fs::read(&plan_b.vault_path).unwrap();
+            let local_active_before = fs::read_to_string(active_plan_index_path(&repo)).unwrap();
+            let vault_active_before =
+                fs::read_to_string(active_plan_vault_index_path(&vault)).unwrap();
+            let active_b_local_before =
+                active_entry(&local_active_before, identity_b.operation_id());
+            let active_b_vault_before =
+                active_entry(&vault_active_before, identity_b.operation_id());
+
+            let output = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "plan::tests::identified_progress_update_child_interrupts_at_requested_publication_boundary",
+                    "--nocapture",
+                ])
+                .env(PROGRESS_CRASH_REPO, &repo)
+                .env(PROGRESS_CRASH_VAULT, &vault_root)
+                .env(PROGRESS_CRASH_STAGE, stage)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "child did not stop at {stage}: {}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                repo.join(PLAN_TRANSITION_JOURNAL).is_file(),
+                "interrupted update at {stage} must leave a recoverable intent"
+            );
+
+            let current_after_interruption = fs::read_to_string(&current_path).unwrap();
+            assert!(
+                current_after_interruption.contains(&normalize(&plan_b.repo_path, &repo)),
+                "CURRENT must remain on B when A is interrupted at {stage}"
+            );
+            assert_eq!(fs::read(&plan_b.repo_path).unwrap(), plan_b_local_before);
+            assert_eq!(fs::read(&plan_b.vault_path).unwrap(), plan_b_vault_before);
+            let local_active_after_interruption =
+                fs::read_to_string(active_plan_index_path(&repo)).unwrap();
+            let vault_active_after_interruption =
+                fs::read_to_string(active_plan_vault_index_path(&vault)).unwrap();
+            assert_eq!(
+                active_entry(&local_active_after_interruption, identity_b.operation_id()),
+                active_b_local_before
+            );
+            assert_eq!(
+                active_entry(&vault_active_after_interruption, identity_b.operation_id()),
+                active_b_vault_before
+            );
+
+            let reopened_vault = vault_context_without_create(&vault_root, &repo).unwrap();
+            update_plan_for_identity(&repo, &reopened_vault, PROGRESS_NOTE, &identity_a).unwrap();
+            update_plan_for_identity(&repo, &reopened_vault, PROGRESS_NOTE, &identity_a).unwrap();
+
+            let local_a = fs::read_to_string(&plan_a.repo_path).unwrap();
+            let vault_a = fs::read_to_string(&plan_a.vault_path).unwrap();
+            assert_eq!(
+                local_a, vault_a,
+                "A's local and Vault plans diverged at {stage}"
+            );
+            assert_eq!(
+                progress_note_count(&local_a, PROGRESS_NOTE),
+                1,
+                "stage: {stage}"
+            );
+            assert!(local_a.contains("status: in_progress"));
+            assert!(!local_a.contains("verification: passed"));
+
+            let local_active_after = fs::read_to_string(active_plan_index_path(&repo)).unwrap();
+            let vault_active_after =
+                fs::read_to_string(active_plan_vault_index_path(&reopened_vault)).unwrap();
+            assert_eq!(
+                active_entry(&local_active_after, identity_b.operation_id()),
+                active_b_local_before
+            );
+            assert_eq!(
+                active_entry(&vault_active_after, identity_b.operation_id()),
+                active_b_vault_before
+            );
+            assert_eq!(fs::read(&plan_b.repo_path).unwrap(), plan_b_local_before);
+            assert_eq!(fs::read(&plan_b.vault_path).unwrap(), plan_b_vault_before);
+        }
+    }
+
+    fn progress_test_identity(
+        vault: &VaultContext,
+        title: &str,
+        session_id: &str,
+    ) -> LifecycleIdentity {
+        LifecycleIdentity::resolve(
+            &vault.project_id,
+            title,
+            SupportedAdapter::Codex,
+            Some(session_id),
+            Some(&format!("request-{session_id}")),
+        )
+        .unwrap()
+    }
+
+    fn active_entry(content: &str, operation_id: &str) -> String {
+        content
+            .lines()
+            .find(|line| line.contains(operation_id))
+            .unwrap_or_else(|| panic!("ACTIVE entry missing for operation {operation_id}"))
+            .to_string()
+    }
+
+    fn progress_note_count(content: &str, note: &str) -> usize {
+        let Some((_, progress)) = content.split_once("## Progress Log") else {
+            return 0;
+        };
+        progress
+            .lines()
+            .filter(|line| {
+                line.strip_prefix("- ")
+                    .and_then(|entry| entry.split_once(" - ").map(|(_, text)| text))
+                    == Some(note)
+            })
+            .count()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_checkout_alias_has_the_same_plan_owner() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let alias = temp.path().join("repo-alias");
+        fs::create_dir_all(&repo).unwrap();
+        symlink(&repo, &alias).unwrap();
+
+        assert_eq!(
+            plan_checkout_owner_id(&repo).unwrap(),
+            plan_checkout_owner_id(&alias).unwrap()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn canonical_checkout_alias_has_the_same_plan_owner() {
+        use std::os::windows::fs::symlink_dir;
+
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let alias = temp.path().join("repo-alias");
+        fs::create_dir_all(&repo).unwrap();
+        if symlink_dir(&repo, &alias).is_err() {
+            return;
+        }
+
+        assert_eq!(
+            plan_checkout_owner_id(&repo).unwrap(),
+            plan_checkout_owner_id(&alias).unwrap()
+        );
     }
 }
 
