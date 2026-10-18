@@ -1398,13 +1398,9 @@ fn moving_checkout_fails_closed_without_changing_shared_plan_authority() {
         Some("relocation-request"),
     )
     .unwrap();
-    let plan = start_or_resume_plan_for_identity(
-        &repo,
-        &context,
-        "backend login security",
-        &identity,
-    )
-    .unwrap();
+    let plan =
+        start_or_resume_plan_for_identity(&repo, &context, "backend login security", &identity)
+            .unwrap();
     let plan_relative_path = plan.repo_path.strip_prefix(&repo).unwrap();
     let local_plan_before = fs::read(&plan.repo_path).unwrap();
     let current_before = fs::read(repo.join("docs/baron/plans/CURRENT.md")).unwrap();
