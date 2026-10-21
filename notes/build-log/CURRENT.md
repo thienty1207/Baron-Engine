@@ -6,7 +6,7 @@ Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
 `codex/spec-05-maintenance-01-logic-integrity`. Work is isolated in a managed
 worktree. This is separate from the historical SPEC-05 `CLOSED` record.
 
-Current task: G-01, verify plan recovery after CURRENT publication.
+Current task: Task 8, classify sibling callers and run verification gates.
 LOG-01 has typed default-fail-closed CLI handling and 8 passing
 `phase12_hooks_cli` tests. LOG-02's six plan/trace/architecture/platform/
 session state JSON is now strict and byte-preserving. A barrier test forced
@@ -29,9 +29,17 @@ snapshots now capture exact file length under checkout→Vault locks and validat
 the full snapshot afterward with bounded buffers/rows and retained event kinds.
 Automation 14/14, Autopilot 6/6, scanner unit 4/4, and phase12_hooks 16/16 pass.
 
-Safe next action: add deterministic subprocess recovery coverage immediately
-after `CURRENT.md` is published but before the transition journal is removed;
-repeat restart/recovery and assert B's bytes remain stable.
+G-01 initially reproduced RED because no failpoint existed after `CURRENT.md`
+publication. A test-only `after_current_before_journal_cleanup` interruption
+now proves the pending intent survives; two fresh recovery subprocesses and
+retries update A once, clear the journal, align Repo/Vault plan/index/CURRENT,
+and preserve B's plan and ACTIVE rows byte-for-byte. This closes a coverage gap
+without finding a source defect. Plan unit tests pass 5/5 and plan integration
+tests pass 67/67.
+
+Safe next action: disposition production sibling callers across the required
+read, fallback, authority, lock and multi-file publication patterns, then run
+the complete local verification matrix.
 
 Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
 

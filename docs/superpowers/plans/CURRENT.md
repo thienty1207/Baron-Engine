@@ -17,15 +17,16 @@
   findings and projects unavailable status (review gate 9/9, context 2/2).
   LOG-06 uses locked length snapshots and bounded strict streaming for both
   automation status and Autopilot (automation 14/14, Autopilot 6/6, scanner
-  unit 4/4, phase12_hooks 16/16). G-01 is next.
+  unit 4/4, phase12_hooks 16/16). G-01 is closed as a coverage gap: the
+  after-CURRENT crash/recovery test passes across two subprocess retries; plan
+  unit tests are 5/5 and integration tests are 67/67. Task 8 is next.
 - Proof and trace: focused CLI, managed-file, CodeGraph, session
-  state/concurrency, review-gate, and automation-journal proof is recorded;
-  full phase proof and trace remain pending.
+  state/concurrency, review-gate, automation-journal, and post-CURRENT recovery
+  proof is recorded; sibling audit and full phase proof/trace remain pending.
 - Persisted-state boundary: use temp repositories, Vaults, session roots, and
   BARON_HOME only. Preserve the user's original checkout and machine state.
-- Safe next action: test recovery after a crash immediately following A's
-  CURRENT publication and before transition-journal cleanup, while proving B
-  remains byte-identical through retries and restarts.
+- Safe next action: classify sibling production call sites across the required
+  failure/read/authority/locking patterns, then run all local gates.
 
 Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
 

@@ -5,19 +5,20 @@
 - Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
   based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`.
-- Current task: G-01, testing recovery after CURRENT publication but before
-  transition-journal cleanup. LOG-01 through LOG-06 have focused RED/GREEN
-  evidence.
+- Current task: Task 8, classifying sibling production callers and running
+  the required local gates. LOG-01 through LOG-06 have focused RED/GREEN
+  evidence; G-01 is now closed as a coverage gap.
 - Proof and trace: CLI, managed-file, CodeGraph cache, session-state/race,
-  review-gate, and bounded automation-journal regressions are recorded; G-01
-  and full verification remain pending. Tests use temporary project, Vault,
-  session-root, and BARON_HOME data.
+  review-gate, bounded automation-journal, and post-CURRENT recovery
+  regressions are recorded; sibling audit and full verification remain
+  pending. Tests use temporary project, Vault, session-root, and BARON_HOME
+  data.
 - Persisted-state boundary: isolated worktree only; the user's primary
   checkout, untracked inputs, original project/Vault, and machine state remain
   outside the mutation boundary.
-- Safe next action: add deterministic subprocess recovery coverage for a crash
-  after A publishes CURRENT but before transition-journal cleanup; B must
-  remain byte-identical across repeated restarts and retries.
+- Safe next action: classify production sibling callers for the spec's
+  fail-open, ignored-read, read-modify-write, CURRENT-authority, journal-lock,
+  and multi-file-publication patterns, then run all local gates.
 
 Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
 

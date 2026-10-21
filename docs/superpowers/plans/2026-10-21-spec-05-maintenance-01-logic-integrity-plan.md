@@ -96,10 +96,10 @@
 
 **Files:** `crates/baron-core/src/plan.rs`; `crates/baron-core/tests/plan.rs`.
 
-- [ ] Add child-process fault stage `after_current_before_journal_cleanup` and an A/B fixture where A publishes progress while B's authority is snapshotted byte-for-byte.
-- [ ] Run the test and record whether current code fails or passes; this is a coverage-gap test, not a presumed source fix.
-- [ ] Require restart/retry recovery to apply A exactly once, keep Repo/Vault/index/CURRENT coherent, preserve or safely remove the journal, and leave B byte-identical. Do not make CURRENT authoritative.
-- [ ] Run the complete plan suite; commit only a source fix if the new test proves one is needed, otherwise commit the test and classify `TEST GAP CLOSED — NO SOURCE BUG`.
+- [x] Add child-process fault stage `after_current_before_journal_cleanup` and an A/B fixture where A publishes progress while B's authority is snapshotted byte-for-byte.
+- [x] Run the test RED: current code had no failpoint at this boundary, so the child completed publication instead of interrupting with the transition journal still present.
+- [x] Require two fresh recovery subprocesses and repeated retries to apply A exactly once, keep Repo/Vault plan/index/CURRENT coherent, safely clear the journal, and leave B's plan files and ACTIVE rows byte-identical. CURRENT remains a projection, not the authority.
+- [x] Run plan unit tests (5/5) and the complete plan integration target (67/67); commit the test-only boundary and classify `TEST GAP CLOSED — NO SOURCE BUG`.
 
 ## Task 8: sibling audit, status, and release gates
 
