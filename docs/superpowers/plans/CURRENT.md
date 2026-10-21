@@ -4,11 +4,14 @@
 
 This follow-up is separate from the original SPEC-05 closure. The accepted
 historical range and CLOSED status remain intact. Branch
-fix/spec-05-post-closure-hardening has tested source checkpoint
-5815160699ed535ab42c89b1056fd10ff3d94396.
+fix/spec-05-post-closure-hardening tests checkpoint
+06efdf69ea5d41d58044b3738ef6bfef45e33cb7.
 
 - H-01 is a confirmed progress-publication bug, fixed with recoverable intent
-  and four subprocess interruption regressions.
+  and four subprocess interruption regressions. A follow-up test exposed
+  start/resume rejecting the local/Vault divergence before journal replay
+  after an `after_local` interruption; recovery now runs before mirror
+  validation, and that regression passed RED/GREEN.
 - H-02 relocation is already fail-closed under the canonical owner fence;
   the moved-checkout regression confirms local and shared Vault authority
   bytes remain unchanged. Restore the original canonical path to resume.
@@ -17,21 +20,24 @@ fix/spec-05-post-closure-hardening has tested source checkpoint
   Replay evidence remains bounded to 256 cache entries and 512 journal lines.
   Stop replay after expiry and concurrent shared-Vault publication have
   additional integration coverage.
-- Core, CLI, adapter, and workspace all-target tests passed. Format, Clippy,
-  locked release build, version/help smoke, JSON/link, and retirement gates
-  passed. The final Core all-target rerun used a temporary BARON_HOME.
+- Format, warnings-denied Clippy, locked release build, CLI version smoke,
+  H-01 regression, all Core targets, all CLI targets, and adapter targets that
+  started passed. The workspace command exited 1 because Windows Application
+  Control blocked four adapter test executables before startup (OS error
+  4551); workspace verification is partial. Fresh Cargo tests used a temporary
+  BARON_HOME. JSON/link and retirement gates need a fresh post-fix rerun.
 - The original project identity, project/local TOML, machine config, Vault and
   capsule were not recovered; no replacement was created. The full-workspace
   test command used the host default machine home; possible per-user test state
   is recorded in the verification ledger. No original-project proof or trace
   was produced.
-- The current branch is 89 commits/102 paths ahead of origin/main, including
-  the 82-commit/98-path SPEC-05 lineage. Whole-lineage review and hosted PR
-  checks remain pending.
+- HEAD is 91 commits/102 paths ahead of origin/main, including the
+  82-commit/98-path SPEC-05 lineage. Whole-lineage review and hosted PR checks
+  remain pending.
 
 Plan: [SPEC-05 post-closure hardening](2026-10-18-spec-05-post-closure-hardening.md); verification: [evidence ledger](2026-10-18-spec-05-post-closure-hardening-verification.md).
 
-Safe next action: complete read-only review of the complete integration range, push it, open a PR and verify its exact-head checks; stop before merge pending user approval.
+Safe next action: complete verification and independent review of the complete integration range, push it, open a PR and verify its exact-head checks; stop before merge pending user approval.
 
 ## SPEC-05 final closure (CLOSED — 2026-10-10)
 

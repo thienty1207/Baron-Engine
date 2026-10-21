@@ -98,7 +98,7 @@
 **Files:**
 - No source changes unless a test or review finding requires a separately tested fix.
 
-- [x] **Step 1: Run required local gates.** Core, CLI, adapters, and workspace all-target tests pass; fmt, warnings-denied Clippy, locked release build, version/help smoke, and spec-specific focused checks pass. Lifecycle scripts used bundled PowerShell 7; the final Core all-target rerun used a temporary BARON_HOME.
+- [ ] **Step 1: Run required local gates.** Formatting, warnings-denied Clippy, locked release build, release version smoke, H-01 regression, all Core targets, all CLI targets, and adapter targets that started passed. The fresh `cargo test --workspace --all-targets --no-fail-fast -j 1` run exited 1 because Windows Application Control blocked adapter_lifecycle, phase12_hooks, phase15_docs, and phase1_current before execution (OS error 4551). Retry those targets in a supported host/CI; do not claim the workspace gate passed.
 - [ ] **Step 2: Verify product constraints.** Confirm `baron --version` is `5.0.0`; no secrets, machine config, `.env`, Vault data, generated artifacts, or `docs/current/current.md` are staged; compare the entire hardening head to `origin/main` and inspect all 82 pre-existing commits / 98 paths and any added files.
 - [ ] **Step 3: Obtain an independent whole-branch review.** Review the exact source range and this plan/spec; resolve Critical/Important findings with RED→GREEN tests, record deferred Minor findings, and rerun the affected suites.
 

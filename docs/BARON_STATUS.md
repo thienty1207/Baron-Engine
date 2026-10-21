@@ -8,10 +8,13 @@ ecaf362c..af2e1db020355af4fe0f621e8de3f8f780fbd2ad and its historical
 CLOSED status remain unchanged.
 
 - Work branch: fix/spec-05-post-closure-hardening; tested source checkpoint:
-  5815160699ed535ab42c89b1056fd10ff3d94396.
+  06efdf69ea5d41d58044b3738ef6bfef45e33cb7.
 - H-01: **CONFIRMED BUG — fixed.** Identified plan-progress publication now
   records recoverable intent and resumes idempotently at four tested
-  subprocess interruption boundaries.
+  subprocess interruption boundaries. A follow-up regression exposed that
+  start/resume validated the local/Vault mirror before replaying an interrupted
+  `after_local` transition. Recovery now runs first under the existing locks;
+  the `after_local` start/resume regression was observed RED then GREEN.
 - H-02: **ALREADY FIXED — verified.** A moved checkout retaining the same
   fixture identity is rejected by the canonical owner fence with no local or
   shared Vault authority mutation. Restore the original canonical path;
@@ -21,11 +24,15 @@ CLOSED status remain unchanged.
   block hook correlation/publication. Replay evidence is explicitly finite:
   256 cache entries and 512 journal lines. Added Stop-after-expiry authority
   recheck and concurrent distinct-checkout/shared-Vault publication regressions.
-- Local verification: Core, CLI, adapter, and full-workspace all-target test
-  commands passed; format, warnings-denied Clippy, locked release build, CLI
-  version/help, status JSON, Markdown links, and retired-adapter gates passed.
-  The full-workspace run used bundled PowerShell 7; a later Core all-target
-  rerun used a temporary BARON_HOME.
+- Local verification: formatting, warnings-denied Clippy, locked release
+  build, release CLI version, and the H-01 regression passed. In the fresh
+  workspace all-target run, every Core and CLI target and the adapter targets
+  that started passed. Four adapter executables were blocked before test
+  startup by Windows Application Control (OS error 4551), so the workspace
+  command exited 1 and the full gate is partial. This run used a temporary
+  BARON_HOME and bundled PowerShell 7. Status JSON parsing, relative links in
+  the five changed Markdown files, and the tracked retired-adapter gate passed
+  afterward.
 - Recovery: .env, project/local TOML, machine config.toml, original Vault
   root, capsule, and Project ID were not found in checked locations. No
   replacement identity or Vault was created. Local authority state is separate
@@ -33,17 +40,15 @@ CLOSED status remain unchanged.
   used the default machine home, so possible per-user test state is recorded in
   the evidence ledger. No original-project proof or trace was produced.
 - Integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446;
-  the current hardening branch is 89 commits ahead and changes 102 paths.
-  This contains the 82-commit/98-path accepted SPEC-05 lineage plus seven
-  follow-up commits. Independent whole-lineage review and PR-head CI are
-  pending.
+  HEAD is 91 commits ahead and changes 102 paths. This contains the accepted
+  82-commit/98-path SPEC-05 lineage plus nine follow-up commits. Independent
+  whole-lineage review and PR-head CI are pending.
 - Persisted-state boundary: source and tracked evidence changes are in the
   managed worktree. Regression repos and Vaults use temporary fixtures. The
   original checkout and its user-owned untracked files remain untouched.
-- Safe next action: complete read-only review of the full integration range,
-  push the reviewed branch, open a PR to main, and verify checks on its exact
-  head. Stop before merge until the user approves the reviewed integration
-  scope.
+- Safe next action: finish verification and independent review, push the
+  reviewed branch, open a PR to main, and verify checks on its exact head. Stop
+  before merge until the user approves the reviewed integration scope.
 
 Plan: [post-closure hardening plan](superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence ledger: [verification record](superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

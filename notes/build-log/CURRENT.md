@@ -4,11 +4,15 @@
 
 This follow-up does not change the accepted SPEC-05 source range or its
 historical CLOSED status. Branch fix/spec-05-post-closure-hardening has
-tested source checkpoint 5815160699ed535ab42c89b1056fd10ff3d94396.
+tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7.
 
 H-01 was confirmed and fixed: ordinary identified-plan progress writes now
 use the existing recoverable transition journal; four child-process
-interruption boundaries recover idempotently. H-02 is already fail-closed:
+interruption boundaries recover idempotently. A follow-up regression showed
+that identified start/resume checked local/Vault equality before replaying an
+`after_local` journal. Recovery now runs before that mirror check while keeping
+the existing checkout-then-Vault locks and journal validation; the regression
+was observed RED then GREEN. H-02 is already fail-closed:
 moving a checkout with the same persisted fixture identity is rejected
 without changing local or Vault plan authority; restore the original
 canonical path. H-03 was confirmed and fixed: cache trimming preserves live
@@ -18,10 +22,12 @@ to 256 cache entries and 512 journal lines. Added tests cover Stop replay after
 both evidence windows expire and simultaneous same-event delivery from two
 checkouts sharing one Vault.
 
-Local verification passed: Core, CLI, adapter, and workspace all-target tests;
-format; warnings-denied Clippy; locked release build; release CLI version and
-help; status JSON, Markdown links, and retired-adapter gates. Lifecycle tests
-used bundled PowerShell 7. A final Core all-target rerun used temporary
+Local verification passed: format; warnings-denied Clippy; locked release
+build; release CLI version; the H-01 regression; and all Core/CLI targets and
+adapter targets that started in the workspace run. That workspace command
+exited 1 because Windows Application Control blocked four adapter test
+executables before startup (OS error 4551). Those targets remain unverified in
+this host. Fresh Cargo tests used bundled PowerShell 7 and temporary
 BARON_HOME. The earlier full-workspace invocation used the host default
 machine home; receipt-authority tests can create per-user state there, and its
 provenance is uncertain. No machine data was staged. The original project
@@ -29,9 +35,10 @@ provenance is uncertain. No machine data was staged. The original project
 Project ID were not recovered; no replacement identity was created. No
 original-project proof or trace was produced.
 
-The branch is 89 commits/102 paths ahead of origin/main, including the
-82-commit/98-path SPEC-05 lineage plus seven follow-up commits. Independent
-whole-lineage review, PR-head CI and merge remain pending.
+HEAD is 91 commits/102 paths ahead of origin/main, including the
+82-commit/98-path SPEC-05 lineage plus nine follow-up commits. Independent
+whole-lineage review and PR-head CI remain pending. Merge remains stopped
+until the user approves the reviewed integration scope.
 
 Plan: [post-closure hardening](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence: [verification ledger](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 
