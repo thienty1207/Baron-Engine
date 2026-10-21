@@ -697,50 +697,60 @@ fn proof_record_is_written_to_repo_and_vault() {
 }
 
 #[test]
-fn unreadable_current_harness_cannot_downgrade_legacy_trace_risk() {
-    let temp = tempdir().unwrap();
-    let repo = temp.path().join("demo");
-    let vault = temp.path().join("Vault");
-    fs::create_dir_all(&repo).unwrap();
-    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
-    let context = ensure_vault(&vault, &repo).unwrap();
-    confirm_intent(&repo, &context, "auth login authorization flow");
-    start_or_resume_plan(&repo, &context, "auth login authorization flow").unwrap();
-    start_or_resume_intake(&repo, &context, "auth login authorization flow").unwrap();
-    record_proof(
-        &repo,
-        &context,
-        "Authorization tests passed for tenant isolation.",
-    )
-    .unwrap();
-    let current = repo.join("docs/baron/harness/CURRENT.md");
-    assert!(fs::read_to_string(&current)
-        .unwrap()
-        .contains("Risk: `high`"));
-    fs::write(&current, [0xff, 0xfe, 0xfd]).unwrap();
+fn untrusted_current_harness_cannot_downgrade_legacy_trace_risk() {
+    let malformed_current = b"# Current Harness\n\n- Risk: `unknown`\n";
+    let missing_risk = b"# Current Harness\n\n- Title: missing risk\n";
+    let duplicate_risks = b"# Current Harness\n\n- Risk: `low`\n- Risk: `medium`\n";
+    for (label, current_bytes) in [
+        ("unreadable", &[0xff, 0xfe, 0xfd][..]),
+        ("readable but malformed", malformed_current),
+        ("missing risk", missing_risk),
+        ("duplicate risks", duplicate_risks),
+    ] {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("demo");
+        let vault = temp.path().join("Vault");
+        fs::create_dir_all(&repo).unwrap();
+        initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        confirm_intent(&repo, &context, "auth login authorization flow");
+        start_or_resume_plan(&repo, &context, "auth login authorization flow").unwrap();
+        start_or_resume_intake(&repo, &context, "auth login authorization flow").unwrap();
+        record_proof(
+            &repo,
+            &context,
+            "Authorization tests passed for tenant isolation.",
+        )
+        .unwrap();
+        let current = repo.join("docs/baron/harness/CURRENT.md");
+        assert!(fs::read_to_string(&current)
+            .unwrap()
+            .contains("Risk: `high`"));
+        fs::write(&current, current_bytes).unwrap();
 
-    let trace = record_trace(
-        &repo,
-        &context,
-        "Authorization tests passed for tenant isolation.",
-        TraceOutcome::Completed,
-    )
-    .unwrap();
-    let content = fs::read_to_string(&trace.repo_path).unwrap();
-    let score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
+        let trace = record_trace(
+            &repo,
+            &context,
+            "Authorization tests passed for tenant isolation.",
+            TraceOutcome::Completed,
+        )
+        .unwrap();
+        let content = fs::read_to_string(&trace.repo_path).unwrap();
+        let score = score_trace(&repo, &context, Some(&trace.id)).unwrap();
 
-    assert!(
-        !score.passed,
-        "unreadable current Harness risk must not yield a passing trace; risk line: {}",
-        content
-            .lines()
-            .find(|line| line.starts_with("- Risk:"))
-            .unwrap_or("missing")
-    );
-    assert!(
-        content.contains("- Risk: `high`"),
-        "unreadable Harness CURRENT must not downgrade a known high-risk plan"
-    );
+        assert!(
+            !score.passed,
+            "{label} Harness CURRENT risk must not yield a passing trace; risk line: {}",
+            content
+                .lines()
+                .find(|line| line.starts_with("- Risk:"))
+                .unwrap_or("missing")
+        );
+        assert!(
+            content.contains("- Risk: `high`"),
+            "{label} Harness CURRENT must not downgrade a known high-risk plan"
+        );
+    }
 }
 
 #[test]
