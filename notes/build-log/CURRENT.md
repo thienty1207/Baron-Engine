@@ -1,47 +1,39 @@
 # Current Build Note
 
-## SPEC-05 Maintenance 01 logic integrity — 2026-10-21 (IN PROGRESS)
+## SPEC-05 Maintenance 01 logic integrity — 2026-10-21 (READY FOR REVIEW)
 
 Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
 `codex/spec-05-maintenance-01-logic-integrity`. Work is isolated in a managed
 worktree. This is separate from the historical SPEC-05 `CLOSED` record.
 
-Current task: Task 8, classify sibling callers and run verification gates.
-LOG-01 has typed default-fail-closed CLI handling and 8 passing
-`phase12_hooks_cli` tests. LOG-02's six plan/trace/architecture/platform/
-session state JSON is now strict and byte-preserving. A barrier test forced
-two importers to read the same initial state and was RED with 1/2 disjoint
-sources; checkout-then-Vault revalidation now preserves 2/2 and retries
-deduplicate. Full phase proof and trace remain pending. Tests use temporary
-repositories, Vaults, session roots, and BARON_HOME; the user's primary
-checkout, untracked inputs, original project/Vault, and machine state remain
-untouched.
+Implementation and local gates are complete on the isolated worktree. The
+source snapshot is `6333ec23e084b9b2d5a6f23c3d31be9c31aba99a`, based on
+`9038afa9f840e3a62acc0f97c6aaa31849247525`.
 
-LOG-05 was RED for invalid UTF-8 (reported one open despite two files), missing,
-unknown, and duplicate status fields, a findings path that was a regular file,
-and context that omitted unavailable state. Strict directory-chain, entry,
-UTF-8, and status validation now propagates errors; focused review-gate tests
-pass 9/9 and context unavailable tests pass 2/2.
+LOG-01 through LOG-06 have RED/GREEN regression evidence; G-01 is a closed
+test gap, with post-CURRENT recovery and repeated subprocess retries passing.
+Expanded sibling tracing confirmed and fixed three further bug groups across
+four call sites: full journal read/error suppression in harness audit,
+malformed-row skipping in continuity packet generation, ignored unreadable
+intent during Autopilot approval, and
+Harness CURRENT read failure downgrading high-risk trace evaluation. Each
+production fix has a regression.
 
-LOG-06 was RED for malformed automation prefixes/tails, oversized rows,
-missing-versus-empty labels, and malformed Autopilot journals. Streaming
-snapshots now capture exact file length under checkout→Vault locks and validate
-the full snapshot afterward with bounded buffers/rows and retained event kinds.
-Automation 14/14, Autopilot 6/6, scanner unit 4/4, and phase12_hooks 16/16 pass.
+Local verification passed with explicit exit codes: Core, CLI, adapters, and
+workspace all-target tests; cargo fmt --all -- --check; workspace Clippy with
+warnings denied; locked workspace release build; and release CLI baron 5.0.0.
+See the verification ledger for commands, outcomes, scope, and remaining
+diagnostic-only/contract-limited observations. The source audit was a
+production-tree lexical sweep plus targeted semantic tracing, not a line-by-line
+review of every match. No project-scoped Baron trace/proof was created; evidence
+is test-based.
 
-G-01 initially reproduced RED because no failpoint existed after `CURRENT.md`
-publication. A test-only `after_current_before_journal_cleanup` interruption
-now proves the pending intent survives; two fresh recovery subprocesses and
-retries update A once, clear the journal, align Repo/Vault plan/index/CURRENT,
-and preserve B's plan and ACTIVE rows byte-for-byte. This closes a coverage gap
-without finding a source defect. Plan unit tests pass 5/5 and plan integration
-tests pass 67/67.
+Safe next action: independent read-only review of the complete
+9038afa9..branch HEAD range, followed by a scoped push/PR and exact-head CI
+verification if repository access permits. Stop before merge pending owner
+approval.
 
-Safe next action: disposition production sibling callers across the required
-read, fallback, authority, lock and multi-file publication patterns, then run
-the complete local verification matrix.
-
-Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
+Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); [verification ledger](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
 ## SPEC-05 post-closure hardening follow-up — 2026-10-18 (IN PROGRESS)
 

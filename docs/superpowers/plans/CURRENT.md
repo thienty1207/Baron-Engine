@@ -1,6 +1,6 @@
 # Current Baron Build Plan
 
-## Current maintenance — SPEC-05 Maintenance 01 logic integrity (IN PROGRESS — 2026-10-21)
+## Current maintenance — SPEC-05 Maintenance 01 logic integrity (READY FOR REVIEW — 2026-10-21)
 
 - Baseline: `main` / `origin/main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`; isolated worktree.
@@ -19,16 +19,32 @@
   automation status and Autopilot (automation 14/14, Autopilot 6/6, scanner
   unit 4/4, phase12_hooks 16/16). G-01 is closed as a coverage gap: the
   after-CURRENT crash/recovery test passes across two subprocess retries; plan
-  unit tests are 5/5 and integration tests are 67/67. Task 8 is next.
-- Proof and trace: focused CLI, managed-file, CodeGraph, session
-  state/concurrency, review-gate, automation-journal, and post-CURRENT recovery
-  proof is recorded; sibling audit and full phase proof/trace remain pending.
+  unit tests are 5/5 and integration tests are 67/67. Sibling tracing found and
+  fixed three additional bug groups across four call sites: harness audit and continuity packet
+  readers now reject corrupt journals through the bounded scanner; unreadable
+  CURRENT_INTENT blocks Autopilot approval; unreadable Harness CURRENT cannot
+  lower a high-risk trace to Medium.
+- Verification: separate Core (CORE_EXIT_CODE=0), CLI (CLI_EXIT_CODE=0),
+  adapter (ADAPTERS_EXIT_CODE=0), and workspace (WORKSPACE_EXIT_CODE=0)
+  all-target runs passed. cargo fmt --all -- --check, warnings-denied workspace
+  Clippy, and cargo build --workspace --release --locked passed; the release
+  binary printed baron 5.0.0. Tests used temporary BARON_HOME/session roots and
+  bundled PowerShell 7.
+- Source snapshot after implementation fixes:
+  6333ec23e084b9b2d5a6f23c3d31be9c31aba99a. The sibling audit combined a
+  lexical sweep of Core/CLI/adapter production sources with targeted semantic
+  tracing; it was not a line-by-line manual review of every match. Remaining
+  diagnostic-only/contract-limited observations are in the verification
+  ledger.
+- Proof and trace: RED/GREEN test evidence is recorded. No project-scoped
+  Baron proof or trace was created for the user's unrecovered identity.
 - Persisted-state boundary: use temp repositories, Vaults, session roots, and
   BARON_HOME only. Preserve the user's original checkout and machine state.
-- Safe next action: classify sibling production call sites across the required
-  failure/read/authority/locking patterns, then run all local gates.
+- Safe next action: request independent read-only review of the complete
+  baseline-to-branch range. Then push/open a scoped PR and verify exact-head CI
+  if access permits; stop before merge pending owner approval.
 
-Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
+Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification: [evidence ledger](2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
 ## Current follow-up — SPEC-05 post-closure hardening (IN PROGRESS — 2026-10-18)
 

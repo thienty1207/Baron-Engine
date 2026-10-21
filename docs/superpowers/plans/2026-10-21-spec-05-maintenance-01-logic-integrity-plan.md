@@ -39,7 +39,7 @@
 - [x] Run the new CLI tests and confirm they fail for the soft response produced by `render_hook_failure`.
 - [x] Add typed Core failure classification. Mark only malformed `UserPromptSubmit` JSON advisory to preserve the existing documented prompt fallback; default every other error and all untyped CLI setup errors to fail-closed.
 - [x] Run the two new tests plus `cli_hook_failure_is_soft_and_fallback_command_remains_available` and `cli_corrupt_dedup_state_is_a_hard_hook_failure_with_blocking_response`.
-- [ ] Commit the Core/CLI fix and regressions.
+- [x] Commit the Core/CLI fix and regressions.
 
 ## Task 2: LOG-02 — preserve managed index and document bytes
 
@@ -105,7 +105,7 @@
 
 **Files:** `docs/BARON_STATUS.md`; `docs/BARON_STATUS.json`; `docs/superpowers/plans/CURRENT.md`; `notes/build-log/CURRENT.md`; new maintenance verification record.
 
-- [ ] Search and disposition production matches for the spec's error/default, ignored read, read-modify-write, completion/error, CURRENT authority, journal-lock, and multi-file publication patterns.
-- [ ] Record actual source baseline/final SHA, RED/GREEN outcomes, sibling classifications, remaining limitations, and local/hosted verification. Keep historical SPEC-05 CLOSED unchanged; Maintenance 01 moves from `IN_PROGRESS` to `READY_FOR_REVIEW` only after local gates.
-- [ ] Run fmt; Core, CLI, adapter, workspace tests; Clippy with warnings denied; locked release build; `baron 5.0.0` smoke; status JSON, links, diff, retirement and scope gates. Use temporary BARON_HOME and session roots.
-- [ ] Review the complete `main`→branch range, commit scoped changes, push/open PR if available, and verify hosted checks on the exact PR head. Stop before merge.
+- [x] Search and disposition production matches for the spec's error/default, ignored read, read-modify-write, completion/error, CURRENT authority, journal-lock, and multi-file publication patterns. The lexical sweep plus targeted semantic review is documented with its limits; it is not represented as a line-by-line review of every match.
+- [x] Record actual source baseline/source snapshot SHAs, RED/GREEN outcomes, sibling classifications, remaining limitations, and local verification in the evidence ledger. Historical SPEC-05 CLOSED remains unchanged; Maintenance 01 is READY_FOR_REVIEW after local gates.
+- [x] Run fmt; separate Core, CLI, adapter, and workspace tests; Clippy with warnings denied; locked release build; `baron 5.0.0` smoke; status JSON, relative links, diff, and scope checks. No retired-adapter identifier is specified by this maintenance scope. All tests used temporary BARON_HOME/session roots.
+- [ ] Obtain independent read-only review of the full `main`→branch range, then push/open PR and verify hosted checks on the exact PR head if permissions allow. Stop before merge.

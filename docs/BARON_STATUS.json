@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "Complete Maintenance 01 LOG-01..LOG-06 and G-01 regressions and local verification; then submit a scoped PR and stop before merge pending user approval.",
+  "nextAction": "Obtain independent review of the complete Maintenance 01 source range, then push/open a scoped PR and verify exact-head CI if access permits; stop before merge pending owner approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -41,11 +41,12 @@
     "evidenceLedger": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md"
   },
   "maintenance01": {
-    "status": "IN_PROGRESS",
+    "status": "READY_FOR_REVIEW",
     "started": "2026-10-21",
     "spec": "SPEC-05-MAINTENANCE-01-LOGIC-INTEGRITY-HARDENING",
     "baselineSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
     "branch": "codex/spec-05-maintenance-01-logic-integrity",
+    "sourceSnapshotSha": "6333ec23e084b9b2d5a6f23c3d31be9c31aba99a",
     "findings": {
       "LOG-01": "CONFIRMED BUG; malformed Stop JSON and corrupt Stop journal were RED at the CLI boundary; typed failure disposition fixed the downgrade, and all 8 phase12_hooks_cli tests pass including the preserved soft UserPromptSubmit fallback",
       "LOG-02": "CONFIRMED BUG; six public-mutator invalid-UTF-8 regressions were observed RED for plan indexes, trace indexes, architecture/platform managed docs, and sibling harness story index; safe missing-only reads and trace-index preflight now pass all six",
@@ -55,9 +56,20 @@
       "LOG-06": "CONFIRMED BUG; automation status and Autopilot read the whole journal under checkout/Vault locks, counted malformed rows as healthy partial data, and collapsed missing/empty/corrupt states. A locked regular-file length snapshot is now streamed after releasing both locks using 8 KiB buffers, strict JSON/UTF-8 validation, a 1 MiB row cap, exact counts/latest labels, a 64-kind/256-byte diagnostic bound, and explicit missing/empty/present states. RED/GREEN focused results: automation 14/14, Autopilot 6/6, scanner unit 4/4, phase12_hooks 16/16.",
       "G-01": "TEST GAP CLOSED — NO SOURCE BUG: the test was RED because the after_current_before_journal_cleanup failpoint did not exist. The test-only boundary now interrupts after Repo/Vault/index/CURRENT publication while the journal remains, and two fresh recovery subprocesses plus retries apply A exactly once, clear the journal, keep all A projections coherent, and preserve B byte-for-byte. Plan unit tests 5/5 and plan integration tests 67/67 pass."
     },
-    "proofStatus": "LOG-01 CLI, LOG-02 managed-file, LOG-03 graph-cache, LOG-04 state/concurrency, LOG-05 review-status/context, LOG-06 bounded-journal, and G-01 post-CURRENT recovery RED/GREEN evidence recorded; sibling audit and full verification pending",
-    "traceStatus": "No implementation trace recorded yet",
+    "siblingAudit": "Lexical sweep across Core, CLI, and adapter production Rust sources followed by targeted semantic tracing of authority, completion, proof, trace, plan, hook, capability, receipt, review, journal, and multi-file publication paths. Three additional confirmed sibling bugs were fixed with RED/GREEN regressions. This was not a line-by-line review of every lexical match; diagnostic-only and contract-limited observations are documented in the verification ledger.",
+    "additionalFindings": {
+      "LOG06-harness-audit": "CONFIRMED BUG; harness audit read and substring-matched the full shared journal under both locks and hid read errors; it now consumes the strict bounded scanner and distinguishes missing from empty.",
+      "LOG06-continuity": "CONFIRMED BUG; continuity packet generation skipped malformed journal rows and could use a stale event; it now propagates strict bounded scanner errors before publication.",
+      "autopilot-intent": "CONFIRMED BUG; unreadable CURRENT_INTENT was represented as no intent and approval could proceed; read failures now propagate and approval preserves candidate state.",
+      "trace-risk": "CONFIRMED BUG; unreadable Harness CURRENT defaulted to Medium and could let a high-risk legacy trace pass; read errors now conservatively select High and the regression requires the trace to fail."
+    },
+    "proofStatus": "Targeted RED/GREEN tests cover LOG-01..LOG-06, G-01 recovery after CURRENT publication, the two sibling journal readers, unreadable Autopilot intent approval, and high-risk trace risk downgrade. No Baron proof/trace artifact was produced against the user's unrecovered project identity.",
+    "traceStatus": "Test-based implementation evidence only; no project-scoped Baron trace was produced.",
     "persistedStateBoundary": "Isolated worktree and temporary fixtures; original project, Vault, session roots, and machine state are outside the mutation boundary",
+    "localGates": "PASS: cargo fmt --all -- --check; Core, CLI, adapters, and workspace all-target tests with no failures; cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --release --locked; release CLI prints baron 5.0.0. Commands used temporary BARON_HOME and Codex/Claude session roots plus bundled PowerShell 7.",
+    "reviewStatus": "PENDING independent read-only review of the complete baseline-to-branch range.",
+    "pullRequestStatus": "Not created yet; hosted exact-head CI is unavailable until a PR exists.",
+    "knownLimitations": "The lexical source sweep is not a manual line-by-line review of every match. Optional diagnostic projections can represent unreadable CURRENT files as absent; CodeGraph source fingerprint/call-edge helpers may omit advisory cache/edge data on transient metadata or reread failure. These are classified and bounded in the verification ledger; no authoritative green path was found in the traced callers.",
     "plan": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md",
     "verificationLedger": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md"
   },

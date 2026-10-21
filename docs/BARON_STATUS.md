@@ -1,26 +1,37 @@
 # Baron Build Status
 
-## SPEC-05 Maintenance 01 — logic integrity hardening (IN PROGRESS — 2026-10-21)
+## SPEC-05 Maintenance 01 — logic integrity hardening (READY FOR REVIEW — 2026-10-21)
 
 - Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
   based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`.
-- Current task: Task 8, classifying sibling production callers and running
-  the required local gates. LOG-01 through LOG-06 have focused RED/GREEN
-  evidence; G-01 is now closed as a coverage gap.
-- Proof and trace: CLI, managed-file, CodeGraph cache, session-state/race,
-  review-gate, bounded automation-journal, and post-CURRENT recovery
-  regressions are recorded; sibling audit and full verification remain
-  pending. Tests use temporary project, Vault, session-root, and BARON_HOME
-  data.
+- Current source snapshot: `6333ec23e084b9b2d5a6f23c3d31be9c31aba99a`,
+  following implementation commits through `1b2098fe0c5d140d8ed71aa0859db6dc377aae1b`.
+- LOG-01..LOG-06 have RED/GREEN regressions; G-01 is closed as a test gap.
+  Expanded sibling review found and fixed three additional bug groups across
+  four call sites:
+  malformed automation journals in harness audit/continuity, unreadable
+  current intent during Autopilot approval, and unreadable Harness CURRENT
+  downgrading high-risk trace evaluation.
+- Local verification passed: fmt, Core/CLI/adapter/workspace all-target tests,
+  warnings-denied Clippy, locked release build, and release CLI version
+  (`baron 5.0.0`). The whole-tree sweep was lexical plus targeted semantic
+  tracing, not a line-by-line review of every raw match. Remaining
+  diagnostic-only and contract-limited cases are recorded in the verification
+  ledger.
+- Test fixtures used temporary project, Vault, session-root, and BARON_HOME
+  data. The user's primary checkout, untracked inputs, original project/Vault,
+  and machine state remained outside the mutation boundary. No project
+  recovery identity was created or modified.
 - Persisted-state boundary: isolated worktree only; the user's primary
   checkout, untracked inputs, original project/Vault, and machine state remain
   outside the mutation boundary.
-- Safe next action: classify production sibling callers for the spec's
-  fail-open, ignored-read, read-modify-write, CURRENT-authority, journal-lock,
-  and multi-file-publication patterns, then run all local gates.
+- Safe next action: obtain independent review of the complete
+  `9038afa9..final branch HEAD` range, then push/open a scoped PR and verify
+  CI on its exact head if repository access permits. Stop before merge pending
+  the repository owner's explicit approval.
 
-Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
+Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification ledger: [Maintenance 01 verification](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
 ## SPEC-05 post-closure hardening follow-up (IN PROGRESS — 2026-10-18)
 
