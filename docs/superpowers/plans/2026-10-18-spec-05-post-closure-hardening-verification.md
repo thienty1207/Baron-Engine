@@ -7,7 +7,14 @@
 - Tested source checkpoint: e452b62a4aac08def36e51af1d559679d73bd1b3.
 - SPEC-05 source tip used as the base: 1772124d7e49adf99775c4df62d706b7311a4a3f.
 - Original accepted SPEC-05 closure remains ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad; this follow-up does not reopen or rewrite that closure record.
-- At tested source checkpoint `e452b62`, the range from origin/main was 94 commits and 102 paths. The final documentation checkpoint is `74c231269d2042e5bf0dc3d3a97f2ff9af04b972`, 95 commits ahead and 0 behind `origin/main`, still 102 paths. The reviewer verified the final commit list and changed-path manifest and performed detailed H-path and related authority review; this was not a line-by-line review.
+- At tested source checkpoint `e452b62`, the range from origin/main was 94
+  commits and 102 paths. The final reviewed checkpoint was
+  `74c231269d2042e5bf0dc3d3a97f2ff9af04b972`, 95 commits ahead and 0 behind
+  `origin/main`, still 102 paths. Subsequent commits update documentation only
+  and preserve that path manifest; separate read-only review covered the status,
+  compatibility, and next-action updates. The reviewer verified the reviewed
+  commit list and changed-path manifest and performed detailed H-path and
+  related authority review; this was not a line-by-line review.
 - Public version remains 5.0.0. No release, tag, version bump, history rewrite, push, PR, or merge has occurred.
 
 ## Hardening findings
