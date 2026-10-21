@@ -1,8 +1,8 @@
 use std::fs;
 
 use baron_core::automation::{
-    automation_status, handle_hook, reconcile, reconcile_for_operation, AutomationEvent,
-    HookAdapter,
+    automation_status, handle_hook, reconcile, reconcile_for_operation, record_lifecycle_event,
+    AutomationEvent, HookAdapter,
 };
 use baron_core::config::{initialize_project, AdapterKind};
 use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
@@ -96,6 +96,127 @@ fn automation_status_waits_for_the_shared_vault_journal_lock() {
         "automation status read the shared Vault journal without the capsule lock"
     );
     assert!(status.contains("Events recorded: 1"));
+}
+
+#[test]
+fn automation_status_distinguishes_missing_and_empty_journals() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+
+    let missing = automation_status(&repo, &context).unwrap();
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    fs::write(&journal, b"").unwrap();
+    let empty = automation_status(&repo, &context).unwrap();
+
+    assert!(missing.contains("Journal state: `missing`"));
+    assert!(empty.contains("Journal state: `empty`"));
+}
+
+#[test]
+fn automation_status_counts_all_valid_rows_and_reports_the_latest_event() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    record_lifecycle_event(
+        &context,
+        HookAdapter::Codex,
+        AutomationEvent::ContextCompiled,
+    )
+    .unwrap();
+    record_lifecycle_event(&context, HookAdapter::Codex, AutomationEvent::PlanStarted).unwrap();
+
+    let status = automation_status(&repo, &context).unwrap();
+
+    assert!(status.contains("Events recorded: 2"));
+    assert!(status.contains("Latest event: `plan_started`"));
+}
+
+#[test]
+fn automation_status_rejects_malformed_prefix_and_tail_rows() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    let valid = br#"{"timestamp":"2026-10-21T00:00:00Z","event":"plan_started","adapter":"codex","session_id":null}"#;
+
+    for bytes in [
+        [b"{malformed}\n".as_slice(), valid.as_slice(), b"\n"].concat(),
+        [valid.as_slice(), b"\n{malformed}\n".as_slice()].concat(),
+    ] {
+        fs::write(&journal, bytes).unwrap();
+        assert!(automation_status(&repo, &context).is_err());
+    }
+}
+
+#[test]
+fn automation_status_rejects_invalid_utf8_rows() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    fs::write(&journal, b"\xff\n").unwrap();
+
+    assert!(automation_status(&repo, &context).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn automation_status_rejects_a_symlinked_journal() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    let external = temp.path().join("external-journal.jsonl");
+    fs::write(&external, b"").unwrap();
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    symlink(external, &journal).unwrap();
+
+    assert!(automation_status(&repo, &context).is_err());
+}
+
+#[test]
+fn automation_status_rejects_an_oversized_journal_row() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    fs::write(&journal, vec![b'x'; 1024 * 1024 + 1]).unwrap();
+
+    assert!(automation_status(&repo, &context).is_err());
 }
 
 #[test]

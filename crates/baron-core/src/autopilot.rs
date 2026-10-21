@@ -13,9 +13,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Duration, Local, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use crate::automation::{scan_automation_journal, JournalPresence};
 use crate::harness::record_decision;
 use crate::intent::intent_status;
 use crate::operation::OperationContext;
@@ -154,6 +154,11 @@ enum ApprovalAction {
     Correct(String),
 }
 
+struct ObservedAutomation {
+    presence: JournalPresence,
+    events: Vec<String>,
+}
+
 pub fn review_after_task(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
@@ -185,7 +190,8 @@ fn review_after_task_inner(
     } else {
         summary
     };
-    let observed_automation = observed_automation(repo_root, vault)?;
+    let journal_observation = observed_automation(repo_root, vault)?;
+    let observed_automation = journal_observation.events.clone();
     let resume_sources = resume_sources(repo_root);
     let scope = project_scope(vault);
     let correlation = correlation(operation, &summary, vault);
@@ -566,8 +572,9 @@ pub fn autopilot_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Re
     ));
     output.push_str("- Trusted fact policy: `candidates are not facts until approved by an existing authority`\n");
     output.push_str(&format!(
-        "- Observed automation: {}\n",
-        values_or_none(&observed)
+        "- Automation journal: `{}`\n- Observed automation: {}\n",
+        observed.presence.as_str(),
+        values_or_none(&observed.events)
     ));
     output.push_str(&format!(
         "- Candidate file: `{}`\n",
@@ -1664,27 +1671,19 @@ fn status_rank(status: &str) -> u8 {
     }
 }
 
-fn observed_automation(repo_root: &Path, vault: &VaultContext) -> Result<Vec<String>> {
-    let _repo_lock = acquire_project_lock(repo_root)?;
-    let _vault_lock = acquire_project_lock(&vault.project_root)?;
-    let path = vault
-        .project_root
-        .join("Artifacts/automation-journal.jsonl");
-    let mut events = fs::read_to_string(path)
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-        .filter_map(|value| {
-            value
-                .get("event_kind")
-                .or_else(|| value.get("event"))
-                .and_then(Value::as_str)
-                .map(pretty_event)
-        })
+fn observed_automation(repo_root: &Path, vault: &VaultContext) -> Result<ObservedAutomation> {
+    let journal = scan_automation_journal(repo_root, vault)?;
+    let mut events = journal
+        .observed_event_kinds
+        .iter()
+        .map(|event| pretty_event(event))
         .collect::<Vec<_>>();
     events.sort();
     events.dedup();
-    Ok(events)
+    Ok(ObservedAutomation {
+        presence: journal.presence,
+        events,
+    })
 }
 
 fn pretty_event(event: &str) -> String {

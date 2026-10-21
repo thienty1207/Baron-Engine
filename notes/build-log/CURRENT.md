@@ -6,7 +6,7 @@ Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
 `codex/spec-05-maintenance-01-logic-integrity`. Work is isolated in a managed
 worktree. This is separate from the historical SPEC-05 `CLOSED` record.
 
-Current task: LOG-06, validate bounded automation journal snapshots.
+Current task: G-01, verify plan recovery after CURRENT publication.
 LOG-01 has typed default-fail-closed CLI handling and 8 passing
 `phase12_hooks_cli` tests. LOG-02's six plan/trace/architecture/platform/
 session state JSON is now strict and byte-preserving. A barrier test forced
@@ -23,9 +23,15 @@ and context that omitted unavailable state. Strict directory-chain, entry,
 UTF-8, and status validation now propagates errors; focused review-gate tests
 pass 9/9 and context unavailable tests pass 2/2.
 
-Safe next action: add bounded journal snapshot tests for malformed rows,
-missing versus empty files, oversized rows, exact latest-event semantics, and
-lock availability during scanning.
+LOG-06 was RED for malformed automation prefixes/tails, oversized rows,
+missing-versus-empty labels, and malformed Autopilot journals. Streaming
+snapshots now capture exact file length under checkout→Vault locks and validate
+the full snapshot afterward with bounded buffers/rows and retained event kinds.
+Automation 14/14, Autopilot 6/6, scanner unit 4/4, and phase12_hooks 16/16 pass.
+
+Safe next action: add deterministic subprocess recovery coverage immediately
+after `CURRENT.md` is published but before the transition journal is removed;
+repeat restart/recovery and assert B's bytes remain stable.
 
 Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
 

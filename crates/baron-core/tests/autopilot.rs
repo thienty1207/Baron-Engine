@@ -213,6 +213,44 @@ fn autopilot_status_waits_for_the_shared_vault_journal_lock() {
     assert!(status.contains("ContextCompiled"));
 }
 
+#[test]
+fn autopilot_status_rejects_malformed_journal_rows() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    fs::write(&journal, b"{malformed}\n").unwrap();
+
+    assert!(autopilot_status(&repo, &context).is_err());
+}
+
+#[test]
+fn autopilot_status_distinguishes_missing_and_empty_journals() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+
+    let missing = autopilot_status(&repo, &context).unwrap();
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    fs::write(&journal, b"").unwrap();
+    let empty = autopilot_status(&repo, &context).unwrap();
+
+    assert!(missing.contains("Automation journal: `missing`"));
+    assert!(empty.contains("Automation journal: `empty`"));
+}
+
 trait ReadToStringLossy {
     fn read_to_string_lossy(&self) -> String;
 }

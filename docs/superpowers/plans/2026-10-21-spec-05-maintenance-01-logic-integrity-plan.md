@@ -87,10 +87,10 @@
 
 **Interfaces:** Add a crate-visible journal snapshot scanner. It opens the regular journal and captures its length while holding checkout then Vault locks, then releases both locks before streaming rows. It validates every non-empty JSONL row, enforces a maximum row size, distinguishes missing from present-empty, and folds into caller-owned bounded state.
 
-- [ ] Add tests for valid total/latest results, malformed prefix/tail, missing versus empty, oversized row, latest-event correctness during concurrent append, and acquiring the mutation locks while a snapshot is being scanned.
-- [ ] Run tests and confirm current code silently returns healthy zero/partial diagnostics and holds locks during full reads.
-- [ ] Implement the scanner and use it from both `automation_status` and `autopilot::observed_automation`; preserve exact event counts and latest-event labels or report explicit unknown when impossible.
-- [ ] Run automation, hook, autopilot, and shared-Vault concurrency suites; commit.
+- [x] Add tests for valid total/latest results, malformed prefix/tail and invalid UTF-8, missing versus empty, oversized row, latest-event correctness during concurrent append, scan under held mutation locks, and bounded retained event kinds.
+- [x] Run tests RED: malformed automation prefix/tail, oversized rows, missing/empty labeling and malformed Autopilot input failed assertions because current readers reported counts or healthy partial/empty results. Existing lock tests confirmed readers waited on the shared Vault lock during reads.
+- [x] Implement a regular-file snapshot opened under checkout then Vault locks; capture its length, release both locks, then stream 8 KiB buffers with a 1 MiB row cap, strict JSON/UTF-8 validation, exact count/latest semantics, and capped event-kind retention. Both automation status and Autopilot consume this scanner; missing, empty, present, and corrupt states are distinct.
+- [x] Run automation (14/14), Autopilot (6/6), journal scanner unit (4/4), and phase12_hooks (16/16, including shared-Vault concurrency, replay/dedup, Stop); commit the scoped changes and evidence.
 
 ## Task 7: G-01 — recovery after CURRENT publication
 

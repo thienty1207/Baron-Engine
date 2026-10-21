@@ -5,18 +5,19 @@
 - Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
   based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`.
-- Current task: LOG-06, validating bounded journal snapshots for automation
-  status and Autopilot. LOG-01 through LOG-05 have focused RED/GREEN evidence.
-- Proof and trace: CLI, managed-file, CodeGraph cache, and session-state/race
-  regressions are recorded; broader proof/trace and full verification remain
-  pending. Tests use temporary project, Vault, session-root, and BARON_HOME
-  data.
+- Current task: G-01, testing recovery after CURRENT publication but before
+  transition-journal cleanup. LOG-01 through LOG-06 have focused RED/GREEN
+  evidence.
+- Proof and trace: CLI, managed-file, CodeGraph cache, session-state/race,
+  review-gate, and bounded automation-journal regressions are recorded; G-01
+  and full verification remain pending. Tests use temporary project, Vault,
+  session-root, and BARON_HOME data.
 - Persisted-state boundary: isolated worktree only; the user's primary
   checkout, untracked inputs, original project/Vault, and machine state remain
   outside the mutation boundary.
-- Safe next action: add journal regressions for corrupt rows, missing versus
-  empty files, oversized rows, exact latest-event semantics, and lock release
-  during scanning.
+- Safe next action: add deterministic subprocess recovery coverage for a crash
+  after A publishes CURRENT but before transition-journal cleanup; B must
+  remain byte-identical across repeated restarts and retries.
 
 Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
 
