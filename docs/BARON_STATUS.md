@@ -20,7 +20,11 @@ CLOSED status remain unchanged.
   v2 hash. Ordinary case-insensitive Windows paths retain their prior owner
   IDs. RED/GREEN tests cover distinct `Repo` and `repo` roots, case-insensitive
   aliases, and legacy hash stability. Moved checkouts remain fail-closed;
-  automatic owner reassignment is unsupported.
+  automatic owner reassignment is unsupported. Compatibility note: existing
+  plans created below a case-sensitive Windows ancestor before this fix retain
+  the old folded v1 owner ID and fail strict validation even at the same path.
+  Since that ID cannot distinguish case-only sibling roots, recovery requires
+  a future explicit audited migration.
 - H-03: **CONFIRMED BUG — fixed.** Live claims survive cache trimming, an
   all-live cache fails closed, and malformed rows in the inspected journal
   tail block hook correlation/publication. Replay remains finite at 256 cache
@@ -30,9 +34,12 @@ CLOSED status remain unchanged.
   malformed prefix outside the selected rows and bounded reader/append I/O.
 - The first independent review of the 93-commit/102-path history found no
   Critical issues and two Important findings (H-02 path collision and H-03
-  unbounded journal I/O); both are fixed at this checkpoint. It was a scoped
-  review, not a line-by-line scan of every changed line. Exact final-range
-  review is pending.
+  unbounded journal I/O); both are fixed. Final review verified HEAD
+  74c231269d2042e5bf0dc3d3a97f2ff9af04b972 and the 95-commit/102-path range;
+  it found no Critical or Important findings. Two Minor notes remain: the
+  diagnostic automation status command reads its full journal, and pre-fix
+  plans below case-sensitive Windows ancestors need a future explicit audited
+  migration. This review was scoped, not line-by-line.
 - Local verification: `cargo fmt --all -- --check`,
   `cargo test --workspace --all-targets --no-fail-fast -j 1`,
   `cargo clippy --workspace --all-targets -- -D warnings`, and
@@ -47,11 +54,11 @@ CLOSED status remain unchanged.
   provenance before an earlier test run is uncertain. No original-project
   proof or trace was produced.
 - Integration scope: `origin/main` is
-  afc0b1b1137c0684c33e7e45a4c9b0e56d012446. This source checkpoint is 94
-  commits ahead, 0 behind, and changes 102 paths. The first independent review
-  covered the full lineage and path manifest, with detailed H-01/H-02/H-03 and
-  related authority/migration/CI review; it did not inspect every changed
-  line. Exact final-range review, push, PR, and PR-head CI remain pending.
+  afc0b1b1137c0684c33e7e45a4c9b0e56d012446. Final reviewed HEAD
+  74c231269d2042e5bf0dc3d3a97f2ff9af04b972 is 95 commits ahead, 0 behind,
+  and changes 102 paths. Independent review covered the final commit/path
+  manifest and detailed H-01/H-02/H-03 and related authority areas, but was not
+  line-by-line. Push, PR, and PR-head CI remain pending.
 - Persisted-state boundary: source and tracked evidence changes are in the
   managed worktree. Regression repos and Vaults use temporary fixtures. The
   original checkout and its user-owned untracked files remain untouched.

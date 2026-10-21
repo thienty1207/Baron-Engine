@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "Commit the verified evidence, obtain exact final-range review, then push and open a PR for exact-head CI. Stop before merge pending user approval.",
+  "nextAction": "Push the independently reviewed branch, open a PR, and verify required checks on the exact PR head. Stop before merge pending user approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -28,12 +28,12 @@
     "spec05SourceTip": "1772124d7e49adf99775c4df62d706b7311a4a3f",
     "findings": {
       "H-01": "CONFIRMED BUG; journaled progress publication and four recovery boundaries are fixed. Follow-up found and fixed start/resume mirror validation running before pending-journal recovery; the after_local resume regression was observed RED then GREEN.",
-      "H-02": "CONFIRMED BUG, fixed: case-sensitive Windows directories preserve path case in a domain-separated owner hash; case-insensitive paths retain legacy owner IDs. Tests cover distinct case-sensitive roots, aliases, and legacy hash stability. Moved checkouts remain fail-closed.",
+      "H-02": "CONFIRMED BUG, fixed: case-sensitive Windows directories preserve path case in a domain-separated owner hash; case-insensitive paths retain legacy owner IDs. Tests cover distinct case-sensitive roots, aliases, and legacy hash stability. Moved checkouts remain fail-closed. Pre-fix plans under case-sensitive ancestors retain the ambiguous folded v1 owner and fail strict validation; recovery needs a future explicit audited migration.",
       "H-03": "CONFIRMED BUG, fixed: live claims are retained, all-live capacity fails closed, malformed replay rows reject hook work, reverse reads are capped at 4 MiB and selected to 512 lines, append boundary detection reads one byte, and oversized unresolved tails fail closed."
     },
     "focusedVerification": "PASS: H-01 exact recovery regression; Core unit and integration targets in fresh workspace run had 0 failed assertions, including plan 65/65 and phase12_hooks 16/16; H-02 moved-checkout regression 1; H-03 targeted suites and replay regressions passed.",
     "fullWorkspaceGates": "PASS locally at source checkpoint e452b62: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1; cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --release --locked; release CLI reports baron 5.0.0. Tests used isolated temporary BARON_HOME and bundled PowerShell 7. Hosted CI pending.",
-    "independentWholeLineageReview": "First review of the 93-commit history and 102-path manifest found no Critical and two Important findings (H-02 case-sensitive path collision, H-03 unbounded journal I/O); both were fixed with RED/GREEN regressions. Review was scoped and not line-by-line. Exact final-range review pending.",
+    "independentWholeLineageReview": "Final review verified HEAD 74c231269d2042e5bf0dc3d3a97f2ff9af04b972 and the 95-commit/102-path range. No Critical or Important findings remain. Minor notes: automation_status reads its full diagnostic journal; pre-fix plans under case-sensitive Windows ancestors retain an ambiguous folded v1 owner and need a future explicit audited migration. Review was scoped, not line-by-line; reviewer did not run tests.",
     "pullRequestHostedChecks": "pending",
     "identityRecovery": "Original project and machine-local configuration, Vault root, capsule, and Project ID were not found in checked locations; no replacement was created. Tests use temporary identities and Vaults.",
     "persistedStateBoundary": "Tracked changes are in the managed worktree; regression repos, Vaults, and fresh test runs use temporary fixtures and BARON_HOME. An earlier invocation used the host machine home; a separate receipt-authority seed was observed, but its prior provenance is uncertain. Its value was not read or changed, and no machine data was staged. No original-project proof or trace was produced.",

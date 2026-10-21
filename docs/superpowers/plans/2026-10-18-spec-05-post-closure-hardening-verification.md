@@ -2,12 +2,12 @@
 
 ## Status and boundary
 
-- Status: in progress; H-01/H-02/H-03 source fixes and first independent whole-lineage review are complete. Both Important findings from the first review have RED/GREEN regressions and fixes. The full local workspace all-target suite, formatting, warnings-denied Clippy, locked release build, and release version smoke pass at source checkpoint `e452b62`. The first review was scoped, not line-by-line; exact final-range review, push, PR, and hosted checks remain pending.
+- Status: in progress; H-01/H-02/H-03 source fixes and independent final-range review are complete. The full local workspace all-target suite, formatting, warnings-denied Clippy, locked release build, and release version smoke pass at source checkpoint `e452b62`. Final review found no Critical or Important findings and recorded two Minor notes. The review was scoped, not line-by-line; push, PR, and hosted checks remain pending.
 - Branch: fix/spec-05-post-closure-hardening.
 - Tested source checkpoint: e452b62a4aac08def36e51af1d559679d73bd1b3.
 - SPEC-05 source tip used as the base: 1772124d7e49adf99775c4df62d706b7311a4a3f.
 - Original accepted SPEC-05 closure remains ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad; this follow-up does not reopen or rewrite that closure record.
-- At tested source checkpoint `e452b62`, the range from origin/main is 94 commits and 102 paths; the branch is 0 commits behind `origin/main`. The first reviewer inspected the full lineage/path manifest with detailed H-path and authority review but did not inspect every changed line.
+- At tested source checkpoint `e452b62`, the range from origin/main was 94 commits and 102 paths. The final documentation checkpoint is `74c231269d2042e5bf0dc3d3a97f2ff9af04b972`, 95 commits ahead and 0 behind `origin/main`, still 102 paths. The reviewer verified the final commit list and changed-path manifest and performed detailed H-path and related authority review; this was not a line-by-line review.
 - Public version remains 5.0.0. No release, tag, version bump, history rewrite, push, PR, or merge has occurred.
 
 ## Hardening findings
@@ -22,7 +22,7 @@ Evidence: the exact recovery test passed across four subprocess interruption poi
 
 The moved-checkout fence rejects a different canonical path and the relocation regression verified local/Vault authority bytes remain unchanged. Independent review found that Windows owner hashing lowercased canonical paths, conflating distinct checkout roots under a case-sensitive directory. A Windows regression enabled case sensitivity on its fixture and observed the old collision RED. The implementation detects a case-sensitive ancestor and derives a case-preserving, domain-separated v2 owner hash; ordinary case-insensitive paths keep the prior owner ID. The regression now distinguishes `Repo` and `repo`; companion tests preserve case-insensitive alias behavior and the existing legacy hash.
 
-Recovery contract: restore the checkout at the original canonical path. Automatic owner reassignment is unsupported; intentional relocation requires a future explicit audited operation validating both local and shared identity/plan authority under checkout and Vault locks.
+Recovery contract: restore a moved checkout at its original canonical path. Automatic owner reassignment is unsupported; intentional relocation requires a future explicit audited operation validating both local and shared identity/plan authority under checkout and Vault locks. Compatibility note: the fix changes the owner hash for Windows paths under a case-sensitive ancestor. A plan created before this fix stores the old case-folded v1 owner and now fails strict owner validation even when the checkout remains at the same path. Because v1 cannot distinguish case-only sibling roots, this behavior is fail-closed; recovery requires a future explicit audited migration.
 
 Evidence: the moved-checkout test passed 1/1 in the plan target; Windows case-sensitive and case-insensitive owner tests passed 2/2.
 
@@ -36,9 +36,9 @@ Evidence: the pre-fix regressions demonstrated live-claim eviction, accepting a 
 
 ## Source audit coverage
 
-Read and compared relevant files in the requested Core, CLI, and adapter areas, with focused tracing of the changed call paths and their callers. Directly inspected the plan transition/recovery path and safe_io contract; config, identity, Vault context, operation identity, proof/trace authority, automation hook claim/replay, receipt authority, CLI command dispatch, adapter installation, matching Core/CLI/adapter integration tests, repository AGENTS.md, status/plans, Cargo manifests, and CI/release workflows. The first independent review covered the 93-commit history and 102-path manifest, with detailed review of H-01/H-02/H-03 paths and related authority/migration/CI areas; it was not line-by-line. It found no Critical issues and two Important findings (H-02 case-sensitive owner collision; H-03 unbounded journal reads), both fixed with RED/GREEN regressions. Exact final-range review remains pending.
+Read and compared relevant files in the requested Core, CLI, and adapter areas, with focused tracing of the changed call paths and their callers. Directly inspected the plan transition/recovery path and safe_io contract; config, identity, Vault context, operation identity, proof/trace authority, automation hook claim/replay, receipt authority, CLI command dispatch, adapter installation, matching Core/CLI/adapter integration tests, repository AGENTS.md, status/plans, Cargo manifests, and CI/release workflows. The first independent review covered the 93-commit history and 102-path manifest, with detailed review of H-01/H-02/H-03 paths and related authority/migration/CI areas; it was not line-by-line. It found no Critical issues and two Important findings (H-02 case-sensitive owner collision; H-03 unbounded journal reads), both fixed with RED/GREEN regressions. Final review verified HEAD `74c231269d2042e5bf0dc3d3a97f2ff9af04b972`, the 95-commit/102-path range, review package manifest, plan/spec, and AGENTS.md; no Critical or Important findings remain. It recorded two Minor notes: the diagnostic `automation_status` path reads the full journal, and pre-fix plans in case-sensitive Windows namespaces retain an ambiguous folded v1 owner ID and need an explicit audited recovery migration. This was a scoped final review, not a line-by-line review; the reviewer did not run tests.
 
-Observed integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446; origin/codex/spec-05-multi-agent-concurrency-durable-state is 1772124d7e49adf99775c4df62d706b7311a4a3f. The verified source checkpoint is 94 commits and 102 changed paths from origin/main, 0 behind. No Cargo.toml or Cargo.lock path differs from origin/main. Tracked path inspection found no .env, Baron project/local config, Vault/capsule data, user handoff document, or supplied untracked spec in the branch. The primary checkout remains on main with its user-owned untracked handoff and spec preserved.
+Observed integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446; origin/codex/spec-05-multi-agent-concurrency-durable-state is 1772124d7e49adf99775c4df62d706b7311a4a3f. At final review HEAD `74c231269d2042e5bf0dc3d3a97f2ff9af04b972`, the branch is 95 commits ahead, 0 behind, and changes 102 paths from origin/main. No Cargo.toml or Cargo.lock path differs from origin/main. Tracked path inspection found no .env, Baron project/local config, Vault/capsule data, user handoff document, or supplied untracked spec in the branch. The primary checkout remains on main with its user-owned untracked handoff and spec preserved.
 
 ## Local verification
 
@@ -68,6 +68,5 @@ The managed worktree and temporary fixtures contain the project changes. The ear
 ## Remaining work
 
 - Finish the maintained-documentation gates and commit the final evidence update.
-- Obtain an exact final-range independent review. The first review covered the full history/path manifest and scoped H-path/authority areas; it found two Important findings and no Critical findings, and both Important findings are fixed.
-- Push the reviewed branch, create a PR into main, and verify required CI on the actual PR head SHA.
+- Push the independently reviewed branch, create a PR into main, and verify required CI on the actual PR head SHA.
 - Stop before merge until the user approves the reviewed integration scope. No merge or post-merge CI has occurred.

@@ -16,7 +16,10 @@ e452b62a4aac08def36e51af1d559679d73bd1b3.
   case-preserving, domain-separated owner hash only when an ancestor enables
   case sensitivity. Case-insensitive paths retain legacy owner IDs. RED/GREEN
   tests cover `Repo` versus `repo`, aliases, and legacy hash stability.
-  Relocation remains fail-closed; restore the original canonical path to resume.
+  Relocation remains fail-closed; restore the original canonical path to resume
+  plans with existing owner IDs. Pre-fix plans under a case-sensitive Windows
+  ancestor keep the ambiguous folded v1 ID and fail strict validation after
+  the hash change; recovery needs a future explicit audited migration.
 - H-03 live hook claims are retained, all-live capacity fails closed, and
   malformed journal rows in the inspected tail fail before hook publication.
   Replay evidence remains bounded to 256 cache entries and 512 journal lines.
@@ -26,11 +29,12 @@ e452b62a4aac08def36e51af1d559679d73bd1b3.
   512-line window, while append boundary detection reads one byte. Oversized
   unresolved tails fail closed. Malformed-prefix and bounded-I/O regressions
   were observed RED then GREEN.
-- Independent review completed for the 93-commit/102-path history and detailed
-  H-01/H-02/H-03 and authority paths. It found no Critical findings and two
-  Important findings (H-02 path collision and H-03 unbounded journal reads).
-  Both findings have RED/GREEN fixes. The first review was scoped, not
-  line-by-line; exact final-range review remains pending.
+- Independent final-range review verified HEAD
+  `74c231269d2042e5bf0dc3d3a97f2ff9af04b972`, the 95-commit/102-path range,
+  the plan/spec, and `AGENTS.md`. It found no Critical or Important findings.
+  Two Minor notes remain: the diagnostic `automation_status` path reads its
+  full journal, and pre-fix plans under case-sensitive Windows ancestors need
+  a future explicit audited migration. The review was scoped, not line-by-line.
 - `cargo fmt --all -- --check`,
   `cargo test --workspace --all-targets --no-fail-fast -j 1`,
   `cargo clippy --workspace --all-targets -- -D warnings`, and
@@ -44,21 +48,22 @@ e452b62a4aac08def36e51af1d559679d73bd1b3.
   workspace run used a temporary BARON_HOME. No original-project proof or
   trace was produced.
 - Tested source checkpoint `e452b62a4aac08def36e51af1d559679d73bd1b3` is 94
-  commits ahead, 0 behind, and 102 paths from origin/main. The first review
-  covered the full history/path manifest with focused H-path and authority
-  tracing; it did not read every changed line. Exact final-range review and
-  hosted PR checks remain pending.
+  commits ahead, 0 behind, and 102 paths from origin/main. Final reviewed HEAD
+  `74c231269d2042e5bf0dc3d3a97f2ff9af04b972` includes the documentation evidence
+  commit and is 95 commits ahead with the same 102 paths. Hosted PR checks remain
+  pending.
 
 Plan: [SPEC-05 post-closure hardening](2026-10-18-spec-05-post-closure-hardening.md); verification: [evidence ledger](2026-10-18-spec-05-post-closure-hardening-verification.md).
 
 Checkpoint: H-01/H-02/H-03 fixes and local verification are complete at
 `e452b62`. The first review's two Important findings have RED/GREEN regressions
-and fixes; exact final-range review and hosted PR checks remain outstanding.
+and fixes; final review found no Critical or Important findings and documented
+two Minor notes. Push, PR, and hosted PR checks remain outstanding.
 Trace/proof against the unrecovered original project identity remains absent.
 Changes are limited to the managed worktree and temporary fixtures; original
 checkout, Vault, and per-user authority seed remain untouched. Safe next
-action: commit the verified evidence, review the final range, then push and
-open a PR. Wait for user approval before merge.
+action: commit the final review evidence, push the reviewed branch, and open a
+PR. Wait for user approval before merge.
 
 ## SPEC-05 final closure (CLOSED — 2026-10-10)
 

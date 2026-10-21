@@ -17,8 +17,11 @@ Windows when case-sensitive directories contain paths differing only in case.
 A case-preserving, domain-separated owner hash now distinguishes those roots;
 case-insensitive paths retain the existing owner ID. RED/GREEN tests cover
 both forms and aliases. Relocation remains fail-closed; restore the original
-canonical path. H-03 was confirmed and fixed: cache trimming preserves live
-claims, all-live capacity fails closed, and malformed non-empty rows in the
+canonical path for existing owner IDs. Pre-fix plans under a case-sensitive
+Windows ancestor retain the folded v1 owner ID and fail strict validation;
+recovery needs a future explicit audited migration. H-03 was confirmed and
+fixed: cache trimming preserves live claims, all-live capacity fails closed,
+and malformed non-empty rows in the
 inspected journal tail fail before correlation/publication. Replay is bounded
 to 256 cache entries and 512 journal lines. Reverse reads stop at 4 MiB and
 fail closed if the selected tail boundary cannot be found; append boundary
@@ -31,7 +34,11 @@ with detailed H-path and authority review; it was not a line-by-line scan of
 every changed line. It found no Critical issues and two Important findings:
 Windows path lowercasing could conflate distinct case-sensitive checkout
 roots, and hook replay/append paths read the full growing journal. Both now
-have RED/GREEN regressions and fixes. Exact final-range review is pending.
+have RED/GREEN regressions and fixes. Final review verified HEAD
+74c231269d2042e5bf0dc3d3a97f2ff9af04b972 and the 95-commit/102-path range; it
+found no Critical or Important findings. Minor notes cover unbounded full-file
+reading in the diagnostic automation status path and the pre-fix plan owner
+compatibility case. Review was scoped, not line-by-line.
 
 Local verification passed: `cargo fmt --all -- --check`,
 `cargo test --workspace --all-targets --no-fail-fast -j 1`,
@@ -46,19 +53,19 @@ original project .env, project/local TOML, machine config.toml, Vault root,
 capsule and Project ID were not recovered; no replacement identity was
 created. No original-project proof or trace was produced.
 
-At source checkpoint e452b62a4aac08def36e51af1d559679d73bd1b3, the branch is
-94 commits ahead, 0 behind, and changes 102 paths from origin/main. The first
-independent review was scoped, not line-by-line. Exact final-range review,
-push, PR, and PR-head CI remain pending. Merge remains stopped until the user
-approves the reviewed integration scope.
+At tested source checkpoint e452b62a4aac08def36e51af1d559679d73bd1b3, the
+branch was 94 commits ahead and 102 paths from origin/main. Final reviewed HEAD
+74c231269d2042e5bf0dc3d3a97f2ff9af04b972 is 95 commits ahead, 0 behind, and
+changes the same 102 paths. Push, PR, and PR-head CI remain pending. Merge
+remains stopped until the user approves the reviewed integration scope.
 
 Checkpoint: H-01/H-02/H-03 fixes and local gates are verified at source
-checkpoint `e452b62`. Exact-range review remains pending. Trace/proof against
-the unrecovered original project identity remains
+checkpoint `e452b62`. Final review found no Critical or Important findings.
+Trace/proof against the unrecovered original project identity remains
 absent. Persisted state remains bounded to the managed worktree and temporary
 fixtures; original checkout, Vault, and machine authority seed remain
-untouched. Safe next action: commit verified evidence, review the final range,
-and open a PR; stop before merge for user approval.
+untouched. Safe next action: commit final review evidence, push the branch, and
+open a PR; stop before merge for user approval.
 
 Plan: [post-closure hardening](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence: [verification ledger](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 
