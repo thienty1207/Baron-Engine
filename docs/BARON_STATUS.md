@@ -5,20 +5,25 @@
 - Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
   based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`.
-- Current source snapshot: `6333ec23e084b9b2d5a6f23c3d31be9c31aba99a`,
-  following implementation commits through `1b2098fe0c5d140d8ed71aa0859db6dc377aae1b`.
+- Current source snapshot:
+  `c502fa7e21ffd79e429856d66a483760593b7a23`, following the two fixes
+  requested by the initial independent review.
 - LOG-01..LOG-06 have RED/GREEN regressions; G-01 is closed as a test gap.
   Expanded sibling review found and fixed three additional bug groups across
   four call sites:
   malformed automation journals in harness audit/continuity, unreadable
-  current intent during Autopilot approval, and unreadable Harness CURRENT
-  downgrading high-risk trace evaluation.
+  current intent during Autopilot approval, and untrusted Harness CURRENT
+  risk. The initial independent review also found an import-note retry window
+  that could erase user edits; retry now preserves identity-matched note bytes.
 - Local verification passed: fmt, Core/CLI/adapter/workspace all-target tests,
   warnings-denied Clippy, locked release build, and release CLI version
   (`baron 5.0.0`). The whole-tree sweep was lexical plus targeted semantic
   tracing, not a line-by-line review of every raw match. Remaining
   diagnostic-only and contract-limited cases are recorded in the verification
   ledger.
+- Initial independent review returned FIX REQUIRED with two Important
+  findings; both fixes and RED/GREEN regressions are recorded. Updated
+  independent review is pending.
 - Test fixtures used temporary project, Vault, session-root, and BARON_HOME
   data. The user's primary checkout, untracked inputs, original project/Vault,
   and machine state remained outside the mutation boundary. No project
@@ -26,7 +31,7 @@
 - Persisted-state boundary: isolated worktree only; the user's primary
   checkout, untracked inputs, original project/Vault, and machine state remain
   outside the mutation boundary.
-- Safe next action: obtain independent review of the complete
+- Safe next action: obtain updated independent review of the complete
   `9038afa9..final branch HEAD` range, then push/open a scoped PR and verify
   CI on its exact head if repository access permits. Stop before merge pending
   the repository owner's explicit approval.

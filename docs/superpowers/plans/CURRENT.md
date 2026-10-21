@@ -22,8 +22,10 @@
   unit tests are 5/5 and integration tests are 67/67. Sibling tracing found and
   fixed three additional bug groups across four call sites: harness audit and continuity packet
   readers now reject corrupt journals through the bounded scanner; unreadable
-  CURRENT_INTENT blocks Autopilot approval; unreadable Harness CURRENT cannot
-  lower a high-risk trace to Medium.
+  CURRENT_INTENT blocks Autopilot approval; unreadable or malformed Harness
+  CURRENT cannot lower a high-risk trace. Initial independent review also
+  exposed the LOG-04 interruption window where retry could overwrite an edited
+  imported note; create-only publication now preserves identity-matched notes.
 - Verification: separate Core (CORE_EXIT_CODE=0), CLI (CLI_EXIT_CODE=0),
   adapter (ADAPTERS_EXIT_CODE=0), and workspace (WORKSPACE_EXIT_CODE=0)
   all-target runs passed. cargo fmt --all -- --check, warnings-denied workspace
@@ -31,7 +33,7 @@
   binary printed baron 5.0.0. Tests used temporary BARON_HOME/session roots and
   bundled PowerShell 7.
 - Source snapshot after implementation fixes:
-  6333ec23e084b9b2d5a6f23c3d31be9c31aba99a. The sibling audit combined a
+  `c502fa7e21ffd79e429856d66a483760593b7a23`. The sibling audit combined a
   lexical sweep of Core/CLI/adapter production sources with targeted semantic
   tracing; it was not a line-by-line manual review of every match. Remaining
   diagnostic-only/contract-limited observations are in the verification
@@ -40,7 +42,7 @@
   Baron proof or trace was created for the user's unrecovered identity.
 - Persisted-state boundary: use temp repositories, Vaults, session roots, and
   BARON_HOME only. Preserve the user's original checkout and machine state.
-- Safe next action: request independent read-only review of the complete
+- Safe next action: request updated independent read-only review of the complete
   baseline-to-branch range. Then push/open a scoped PR and verify exact-head CI
   if access permits; stop before merge pending owner approval.
 

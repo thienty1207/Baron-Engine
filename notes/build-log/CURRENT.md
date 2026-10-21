@@ -7,7 +7,7 @@ Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
 worktree. This is separate from the historical SPEC-05 `CLOSED` record.
 
 Implementation and local gates are complete on the isolated worktree. The
-source snapshot is `6333ec23e084b9b2d5a6f23c3d31be9c31aba99a`, based on
+source snapshot is `c502fa7e21ffd79e429856d66a483760593b7a23`, based on
 `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 
 LOG-01 through LOG-06 have RED/GREEN regression evidence; G-01 is a closed
@@ -15,9 +15,11 @@ test gap, with post-CURRENT recovery and repeated subprocess retries passing.
 Expanded sibling tracing confirmed and fixed three further bug groups across
 four call sites: full journal read/error suppression in harness audit,
 malformed-row skipping in continuity packet generation, ignored unreadable
-intent during Autopilot approval, and
-Harness CURRENT read failure downgrading high-risk trace evaluation. Each
-production fix has a regression.
+intent during Autopilot approval, and untrusted Harness CURRENT risk
+downgrading high-risk trace evaluation. An initial independent review also
+found the LOG-04 note/state interruption window could erase a user edit on
+retry; create-only publication now preserves matching note identity and a
+deterministic retry regression covers recovery.
 
 Local verification passed with explicit exit codes: Core, CLI, adapters, and
 workspace all-target tests; cargo fmt --all -- --check; workspace Clippy with
@@ -28,7 +30,7 @@ production-tree lexical sweep plus targeted semantic tracing, not a line-by-line
 review of every match. No project-scoped Baron trace/proof was created; evidence
 is test-based.
 
-Safe next action: independent read-only review of the complete
+Safe next action: updated independent read-only review of the complete
 9038afa9..branch HEAD range, followed by a scoped push/PR and exact-head CI
 verification if repository access permits. Stop before merge pending owner
 approval.

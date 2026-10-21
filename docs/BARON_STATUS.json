@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "Obtain independent review of the complete Maintenance 01 source range, then push/open a scoped PR and verify exact-head CI if access permits; stop before merge pending owner approval.",
+  "nextAction": "Obtain updated independent review of the complete Maintenance 01 source range, then push/open a scoped PR and verify exact-head CI if access permits; stop before merge pending owner approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -46,12 +46,12 @@
     "spec": "SPEC-05-MAINTENANCE-01-LOGIC-INTEGRITY-HARDENING",
     "baselineSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
     "branch": "codex/spec-05-maintenance-01-logic-integrity",
-    "sourceSnapshotSha": "6333ec23e084b9b2d5a6f23c3d31be9c31aba99a",
+    "sourceSnapshotSha": "c502fa7e21ffd79e429856d66a483760593b7a23",
     "findings": {
       "LOG-01": "CONFIRMED BUG; malformed Stop JSON and corrupt Stop journal were RED at the CLI boundary; typed failure disposition fixed the downgrade, and all 8 phase12_hooks_cli tests pass including the preserved soft UserPromptSubmit fallback",
       "LOG-02": "CONFIRMED BUG; six public-mutator invalid-UTF-8 regressions were observed RED for plan indexes, trace indexes, architecture/platform managed docs, and sibling harness story index; safe missing-only reads and trace-index preflight now pass all six",
       "LOG-03": "CONFIRMED BUG; unreadable Rust source was represented as empty content, causing a successful graph rebuild and changed cache; read errors now propagate before publication, and the RED/GREEN cache-preservation test plus intentional-deletion tombstone test pass",
-      "LOG-04": "CONFIRMED BUG; malformed state was hidden as empty and overwritten, and barrier-synchronized importers lost one of two disjoint source entries (1/2 RED); strict missing-only state loading, checkout-then-Vault locking, and reload-before-publication now pass corruption, union, retry, and session integration tests",
+      "LOG-04": "CONFIRMED BUG; malformed state was hidden as empty and overwritten, barrier-synchronized importers lost one of two disjoint source entries (1/2 RED), and initial review found retry after note publication could overwrite a user edit. Strict missing-only state loading, checkout-then-Vault locking, reload-before-publication, create-only note publication, and exact note-identity validation now pass corruption, union, retry, interruption, and session integration tests",
       "LOG-05": "CONFIRMED BUG; invalid UTF-8, missing/unknown/duplicate statuses, and malformed findings paths were RED as false-green or omitted context; strict path/type/UTF-8/status validation now returns explicit errors and context reports unavailable (review_gate 9/9, context 2/2 focused tests pass)",
       "LOG-06": "CONFIRMED BUG; automation status and Autopilot read the whole journal under checkout/Vault locks, counted malformed rows as healthy partial data, and collapsed missing/empty/corrupt states. A locked regular-file length snapshot is now streamed after releasing both locks using 8 KiB buffers, strict JSON/UTF-8 validation, a 1 MiB row cap, exact counts/latest labels, a 64-kind/256-byte diagnostic bound, and explicit missing/empty/present states. RED/GREEN focused results: automation 14/14, Autopilot 6/6, scanner unit 4/4, phase12_hooks 16/16.",
       "G-01": "TEST GAP CLOSED — NO SOURCE BUG: the test was RED because the after_current_before_journal_cleanup failpoint did not exist. The test-only boundary now interrupts after Repo/Vault/index/CURRENT publication while the journal remains, and two fresh recovery subprocesses plus retries apply A exactly once, clear the journal, keep all A projections coherent, and preserve B byte-for-byte. Plan unit tests 5/5 and plan integration tests 67/67 pass."
@@ -61,13 +61,14 @@
       "LOG06-harness-audit": "CONFIRMED BUG; harness audit read and substring-matched the full shared journal under both locks and hid read errors; it now consumes the strict bounded scanner and distinguishes missing from empty.",
       "LOG06-continuity": "CONFIRMED BUG; continuity packet generation skipped malformed journal rows and could use a stale event; it now propagates strict bounded scanner errors before publication.",
       "autopilot-intent": "CONFIRMED BUG; unreadable CURRENT_INTENT was represented as no intent and approval could proceed; read failures now propagate and approval preserves candidate state.",
-      "trace-risk": "CONFIRMED BUG; unreadable Harness CURRENT defaulted to Medium and could let a high-risk legacy trace pass; read errors now conservatively select High and the regression requires the trace to fail."
+      "trace-risk": "CONFIRMED BUG; unreadable or readable malformed Harness CURRENT risk could lower a high-risk legacy trace. Missing CURRENT retains the Medium compatibility default; unreadable, missing-risk, unknown-risk, duplicate-risk, or malformed present CURRENT selects High. The regression covers all four malformed/unreadable cases and requires the trace to fail.",
+      "session-import-recovery": "CONFIRMED BUG; interruption after note publication and before state publication left retry able to erase a user edit. Create-only note publication now adopts only an existing note whose frontmatter type, adapter, and source hash match. A deterministic interruption/edit/retry regression confirms byte preservation and state recovery."
     },
-    "proofStatus": "Targeted RED/GREEN tests cover LOG-01..LOG-06, G-01 recovery after CURRENT publication, the two sibling journal readers, unreadable Autopilot intent approval, and high-risk trace risk downgrade. No Baron proof/trace artifact was produced against the user's unrecovered project identity.",
+    "proofStatus": "Targeted RED/GREEN tests cover LOG-01..LOG-06, G-01 recovery after CURRENT publication, the two sibling journal readers, unreadable Autopilot intent approval, malformed/unreadable Harness risk, and session import interruption/edit/retry preservation. No Baron proof/trace artifact was produced against the user's unrecovered project identity.",
     "traceStatus": "Test-based implementation evidence only; no project-scoped Baron trace was produced.",
     "persistedStateBoundary": "Isolated worktree and temporary fixtures; original project, Vault, session roots, and machine state are outside the mutation boundary",
-    "localGates": "PASS: cargo fmt --all -- --check; Core, CLI, adapters, and workspace all-target tests with no failures; cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --release --locked; release CLI prints baron 5.0.0. Commands used temporary BARON_HOME and Codex/Claude session roots plus bundled PowerShell 7.",
-    "reviewStatus": "PENDING independent read-only review of the complete baseline-to-branch range.",
+    "localGates": "PASS on the final source snapshot: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1 (WORKSPACE_EXIT_CODE=0); cargo clippy --workspace --all-targets -- -D warnings (CLIPPY_EXIT_CODE=0); cargo build --workspace --locked --release (RELEASE_BUILD_EXIT_CODE=0); release CLI prints baron 5.0.0. Targeted interruption and malformed-risk regressions pass. Commands used temporary BARON_HOME and Codex/Claude session roots plus bundled PowerShell 7.",
+    "reviewStatus": "Initial read-only review returned FIX REQUIRED with two Important findings; both have code fixes and RED/GREEN evidence. Updated independent review of the complete baseline-to-branch range is pending.",
     "pullRequestStatus": "Not created yet; hosted exact-head CI is unavailable until a PR exists.",
     "knownLimitations": "The lexical source sweep is not a manual line-by-line review of every match. Optional diagnostic projections can represent unreadable CURRENT files as absent; CodeGraph source fingerprint/call-edge helpers may omit advisory cache/edge data on transient metadata or reread failure. These are classified and bounded in the verification ledger; no authoritative green path was found in the traced callers.",
     "plan": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md",
