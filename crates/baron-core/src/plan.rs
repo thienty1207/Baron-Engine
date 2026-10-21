@@ -1241,13 +1241,71 @@ fn plan_checkout_owner_id(repo_root: &Path) -> Result<String> {
         )
     })?;
     let mut normalized = canonical.to_string_lossy().replace('\\', "/");
-    if cfg!(windows) {
+    #[cfg(windows)]
+    let case_sensitive_namespace = windows_path_has_case_sensitive_parent(&canonical)?;
+    #[cfg(not(windows))]
+    let case_sensitive_namespace = false;
+    if cfg!(windows) && !case_sensitive_namespace {
         normalized = normalized.to_lowercase();
     }
     let mut digest = Sha256::new();
-    digest.update(b"baron-plan-checkout-owner-v1\0");
+    if case_sensitive_namespace {
+        digest.update(b"baron-plan-checkout-owner-v2-case-sensitive\0");
+    } else {
+        digest.update(b"baron-plan-checkout-owner-v1\0");
+    }
     digest.update(normalized.as_bytes());
     Ok(format!("{:x}", digest.finalize()))
+}
+
+#[cfg(windows)]
+fn windows_path_has_case_sensitive_parent(path: &Path) -> Result<bool> {
+    use std::fs::OpenOptions;
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+
+    use windows_sys::Win32::Storage::FileSystem::{
+        FileCaseSensitiveInfo, GetFileInformationByHandleEx, FILE_CASE_SENSITIVE_INFO,
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_READ_ATTRIBUTES,
+    };
+
+    const FILE_CS_FLAG_CASE_SENSITIVE_DIR: u32 = 1;
+
+    let mut parent = path.parent();
+    while let Some(directory) = parent {
+        let handle = OpenOptions::new()
+            .access_mode(FILE_READ_ATTRIBUTES)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(directory)
+            .with_context(|| {
+                format!(
+                    "could not inspect Windows checkout path semantics: {}",
+                    directory.display()
+                )
+            })?;
+        let mut info = FILE_CASE_SENSITIVE_INFO::default();
+        let queried = unsafe {
+            GetFileInformationByHandleEx(
+                handle.as_raw_handle(),
+                FileCaseSensitiveInfo,
+                (&mut info as *mut FILE_CASE_SENSITIVE_INFO).cast(),
+                std::mem::size_of::<FILE_CASE_SENSITIVE_INFO>() as u32,
+            )
+        };
+        if queried == 0 {
+            return Err(std::io::Error::last_os_error()).with_context(|| {
+                format!(
+                    "could not inspect Windows checkout path semantics: {}",
+                    directory.display()
+                )
+            });
+        }
+        if info.Flags & FILE_CS_FLAG_CASE_SENSITIVE_DIR != 0 {
+            return Ok(true);
+        }
+        parent = directory.parent();
+    }
+    Ok(false)
 }
 
 fn ensure_current_checkout_owner(
@@ -3388,6 +3446,67 @@ mod tests {
         assert_eq!(
             plan_checkout_owner_id(&repo).unwrap(),
             plan_checkout_owner_id(&alias).unwrap()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn case_sensitive_checkout_roots_have_distinct_plan_owner_ids() {
+        let temp = tempdir().unwrap();
+        let output = Command::new("fsutil.exe")
+            .args(["file", "setCaseSensitiveInfo"])
+            .arg(temp.path())
+            .arg("enable")
+            .output()
+            .expect("Windows fsutil must be available for the case-sensitive path regression");
+        assert!(
+            output.status.success(),
+            "could not enable case-sensitive test directory: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let upper = temp.path().join("Repo");
+        let lower = temp.path().join("repo");
+        fs::create_dir(&upper).unwrap();
+        fs::create_dir(&lower).unwrap();
+        assert_ne!(upper.canonicalize().unwrap(), lower.canonicalize().unwrap());
+
+        assert_ne!(
+            plan_checkout_owner_id(&upper).unwrap(),
+            plan_checkout_owner_id(&lower).unwrap(),
+            "distinct case-sensitive checkout roots must not share plan authority"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn case_insensitive_windows_path_spellings_keep_the_same_plan_owner() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        fs::create_dir(&repo).unwrap();
+        let alternate_spelling = std::path::PathBuf::from(repo.to_string_lossy().to_uppercase());
+
+        assert_eq!(
+            repo.canonicalize().unwrap(),
+            alternate_spelling.canonicalize().unwrap()
+        );
+        assert_eq!(
+            plan_checkout_owner_id(&repo).unwrap(),
+            plan_checkout_owner_id(&alternate_spelling).unwrap()
+        );
+
+        let canonical = repo.canonicalize().unwrap();
+        let legacy_path = canonical
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_lowercase();
+        let mut legacy_digest = Sha256::new();
+        legacy_digest.update(b"baron-plan-checkout-owner-v1\0");
+        legacy_digest.update(legacy_path.as_bytes());
+        assert_eq!(
+            plan_checkout_owner_id(&repo).unwrap(),
+            format!("{:x}", legacy_digest.finalize()),
+            "case-insensitive Windows checkouts must retain their existing owner identity"
         );
     }
 }

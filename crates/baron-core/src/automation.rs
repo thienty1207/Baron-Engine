@@ -1,5 +1,6 @@
 use std::collections::HashSet;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
@@ -21,7 +22,7 @@ use crate::plan::{
 };
 use crate::prepare::{prepare, PreparePacketV1, PrepareRequestV1, PREPARE_MAX_INPUT_BYTES};
 use crate::safe_io::{
-    acquire_project_lock, append_text, artifact_instance_id, read_bytes, read_text, replace_text,
+    acquire_project_lock, append_text, artifact_instance_id, read_text, replace_text,
 };
 use crate::vault::VaultContext;
 
@@ -31,6 +32,8 @@ const HOOK_MAX_CONTEXT_CHARS: usize = 6_000;
 const MAX_CHILD_EVIDENCE_CHARS: usize = 1_600;
 const MAX_DEDUP_ENTRIES: usize = 256;
 const MAX_JOURNAL_SCAN_LINES: usize = 512;
+const MAX_JOURNAL_SCAN_BYTES: usize = 4 * 1024 * 1024;
+const JOURNAL_READ_CHUNK_BYTES: usize = 8 * 1024;
 const DEDUP_SCHEMA_VERSION: u32 = 1;
 const DEDUP_CLAIM_TTL_SECONDS: i64 = 300;
 const DEDUP_PATH: &str = ".baron/cache/automation-dedup.json";
@@ -1030,10 +1033,10 @@ fn append_journal_locked(vault: &VaultContext, entry: &JournalEntry) -> Result<(
         }
     }
     let line = serde_json::to_string(entry)?;
-    let separator = match read_bytes(&path)? {
-        None => "",
-        Some(bytes) if bytes.is_empty() || bytes.ends_with(b"\n") => "",
-        Some(_) => "\n",
+    let separator = if journal_needs_separator(&path)? {
+        "\n"
+    } else {
+        ""
     };
     append_text(&path, &format!("{separator}{line}\n"))?;
     Ok(())
@@ -1383,10 +1386,140 @@ fn trim_dedup_entries(state: &mut DedupState) -> Result<()> {
     Ok(())
 }
 
-fn journal_tail_entries(path: &Path) -> Result<Vec<JournalEntry>> {
-    let Some(content) = read_text(path)? else {
-        return Ok(Vec::new());
+fn journal_needs_separator(path: &Path) -> Result<bool> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!("Could not inspect automation journal: {}", path.display())
+            })
+        }
     };
+    journal_needs_separator_from_reader(file)
+        .with_context(|| format!("Could not inspect automation journal: {}", path.display()))
+}
+
+fn journal_needs_separator_from_reader<R>(mut reader: R) -> std::io::Result<bool>
+where
+    R: Read + Seek,
+{
+    let length = reader.seek(SeekFrom::End(0))?;
+    if length == 0 {
+        return Ok(false);
+    }
+    reader.seek(SeekFrom::End(-1))?;
+    let mut last_byte = [0u8; 1];
+    reader.read_exact(&mut last_byte)?;
+    Ok(last_byte[0] != b'\n')
+}
+
+fn journal_tail_entries(path: &Path) -> Result<Vec<JournalEntry>> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("Could not read automation journal: {}", path.display()))
+        }
+    };
+    journal_tail_entries_from_reader(file, path)
+}
+
+fn journal_tail_entries_from_reader<R>(mut reader: R, path: &Path) -> Result<Vec<JournalEntry>>
+where
+    R: Read + Seek,
+{
+    let length = reader
+        .seek(SeekFrom::End(0))
+        .with_context(|| format!("Could not read automation journal: {}", path.display()))?;
+    if length == 0 {
+        return Ok(Vec::new());
+    }
+
+    reader
+        .seek(SeekFrom::End(-1))
+        .with_context(|| format!("Could not read automation journal: {}", path.display()))?;
+    let mut last_byte = [0u8; 1];
+    reader
+        .read_exact(&mut last_byte)
+        .with_context(|| format!("Could not read automation journal: {}", path.display()))?;
+    let trailing_newline = last_byte[0] == b'\n';
+
+    let mut chunks = Vec::new();
+    let mut cursor = length;
+    let mut bytes_scanned = 0usize;
+    let mut newline_count = 0usize;
+    let mut skip_trailing_newline = trailing_newline;
+    while cursor > 0 && bytes_scanned < MAX_JOURNAL_SCAN_BYTES {
+        let remaining_limit = MAX_JOURNAL_SCAN_BYTES - bytes_scanned;
+        let chunk_len = cursor
+            .min(remaining_limit as u64)
+            .min(JOURNAL_READ_CHUNK_BYTES as u64) as usize;
+        cursor -= chunk_len as u64;
+        reader
+            .seek(SeekFrom::Start(cursor))
+            .with_context(|| format!("Could not read automation journal: {}", path.display()))?;
+        let mut chunk = vec![0u8; chunk_len];
+        reader
+            .read_exact(&mut chunk)
+            .with_context(|| format!("Could not read automation journal: {}", path.display()))?;
+        for byte in chunk.iter().rev() {
+            if skip_trailing_newline {
+                skip_trailing_newline = false;
+                continue;
+            }
+            if *byte == b'\n' {
+                newline_count += 1;
+            }
+        }
+        bytes_scanned += chunk_len;
+        chunks.push(chunk);
+        if newline_count >= MAX_JOURNAL_SCAN_LINES {
+            break;
+        }
+    }
+
+    if newline_count < MAX_JOURNAL_SCAN_LINES && cursor > 0 {
+        bail!(
+            "Automation journal tail exceeds the {} byte scan limit before reaching {} lines: {}",
+            MAX_JOURNAL_SCAN_BYTES,
+            MAX_JOURNAL_SCAN_LINES,
+            path.display()
+        );
+    }
+
+    let mut content = Vec::with_capacity(bytes_scanned);
+    for chunk in chunks.iter().rev() {
+        content.extend_from_slice(chunk);
+    }
+    if newline_count >= MAX_JOURNAL_SCAN_LINES {
+        let mut skip_trailing_newline = trailing_newline;
+        let mut seen = 0usize;
+        let mut start = None;
+        for index in (0..content.len()).rev() {
+            if skip_trailing_newline {
+                skip_trailing_newline = false;
+                continue;
+            }
+            if content[index] == b'\n' {
+                seen += 1;
+                if seen == MAX_JOURNAL_SCAN_LINES {
+                    start = Some(index);
+                    break;
+                }
+            }
+        }
+        let start = start.context("Could not locate the bounded automation journal tail")?;
+        content.drain(..start);
+    }
+
+    let content = std::str::from_utf8(&content).with_context(|| {
+        format!(
+            "Automation journal tail is not valid UTF-8 within the latest {MAX_JOURNAL_SCAN_LINES} lines: {}",
+            path.display()
+        )
+    })?;
     let mut entries = Vec::new();
     for (offset_from_end, line) in content
         .lines()
@@ -1724,6 +1857,101 @@ mod tests {
 
         assert_eq!(recovered, response);
         assert_eq!(dedup_response(&state, event_key).as_deref(), Some(response));
+    }
+
+    #[test]
+    fn journal_tail_scan_ignores_a_large_prefix_outside_the_replay_window() {
+        let temp = tempdir().unwrap();
+        let journal = temp.path().join("automation-journal.jsonl");
+        fs::write(&journal, journal_with_large_invalid_prefix()).unwrap();
+
+        let entries = journal_tail_entries(&journal).unwrap();
+
+        assert_eq!(entries.len(), MAX_JOURNAL_SCAN_LINES);
+        assert_eq!(
+            entries.first().unwrap().event_key.as_deref(),
+            Some("tail-512")
+        );
+        assert_eq!(entries.last().unwrap().event_key.as_deref(), Some("tail-1"));
+        assert!(!entries
+            .iter()
+            .any(|entry| entry.event_key.as_deref() == Some("tail-0")));
+    }
+
+    #[test]
+    fn journal_tail_reader_does_not_read_the_full_history() {
+        let content = journal_with_large_invalid_prefix();
+        let file_len = content.len();
+        let mut reader = CountingReader {
+            inner: std::io::Cursor::new(content),
+            bytes_read: 0,
+        };
+
+        let entries =
+            journal_tail_entries_from_reader(&mut reader, Path::new("automation-journal.jsonl"))
+                .unwrap();
+
+        assert_eq!(entries.len(), MAX_JOURNAL_SCAN_LINES);
+        assert!(reader.bytes_read <= MAX_JOURNAL_SCAN_BYTES + 1);
+        assert!(reader.bytes_read < file_len / 2);
+    }
+
+    #[test]
+    fn journal_separator_check_reads_only_the_final_byte() {
+        let content = vec![b'x'; 8 * 1024 * 1024];
+        let mut reader = CountingReader {
+            inner: std::io::Cursor::new(content),
+            bytes_read: 0,
+        };
+
+        assert!(journal_needs_separator_from_reader(&mut reader).unwrap());
+        assert_eq!(reader.bytes_read, 1);
+    }
+
+    fn journal_with_large_invalid_prefix() -> Vec<u8> {
+        let mut content = vec![0xff; 8 * 1024 * 1024];
+        content.push(b'\n');
+
+        for index in 0..=MAX_JOURNAL_SCAN_LINES {
+            let entry = JournalEntry {
+                timestamp: now(),
+                event: AutomationEvent::UserPromptSubmit,
+                adapter: JournalAdapter::Supported(HookAdapter::Codex),
+                session_id: Some("session".to_string()),
+                request_id: Some(format!("request-{index}")),
+                event_key: Some(format!("tail-{index}")),
+                event_kind: "user_prompt_submit".to_string(),
+                task_id: Some("task".to_string()),
+                child_id: None,
+                parent_task_id: None,
+                parent_session_id: None,
+                child: false,
+                evidence: None,
+                response: Some("{}".to_string()),
+            };
+            content.extend(serde_json::to_vec(&entry).unwrap());
+            content.push(b'\n');
+        }
+        content
+    }
+
+    struct CountingReader {
+        inner: std::io::Cursor<Vec<u8>>,
+        bytes_read: usize,
+    }
+
+    impl Read for CountingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let read = self.inner.read(buffer)?;
+            self.bytes_read += read;
+            Ok(read)
+        }
+    }
+
+    impl Seek for CountingReader {
+        fn seek(&mut self, position: SeekFrom) -> std::io::Result<u64> {
+            self.inner.seek(position)
+        }
     }
 
     #[test]
