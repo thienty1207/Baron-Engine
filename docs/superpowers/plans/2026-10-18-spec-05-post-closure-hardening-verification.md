@@ -67,6 +67,5 @@ The managed worktree and temporary fixtures contain the project changes. The ear
 
 ## Remaining work
 
-- Finish the maintained-documentation gates and commit the final evidence update.
 - Push the independently reviewed branch, create a PR into main, and verify required CI on the actual PR head SHA.
 - Stop before merge until the user approves the reviewed integration scope. No merge or post-merge CI has occurred.

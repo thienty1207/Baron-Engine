@@ -64,9 +64,9 @@ CLOSED status remain unchanged.
   original checkout and its user-owned untracked files remain untouched.
 - Proof/trace status: hardening has targeted regression evidence; no proof or
   trace was produced against the unrecovered original Project ID.
-- Safe next action: commit the verified evidence, obtain an exact final-range
-  review, then push and open a PR for hosted checks. Stop before merge pending
-  user approval of the reviewed integration scope.
+- Safe next action: push the reviewed branch, open a PR, and verify required
+  checks on the exact PR head. Stop before merge pending user approval of the
+  reviewed integration scope.
 
 Plan: [post-closure hardening plan](superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence ledger: [verification record](superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

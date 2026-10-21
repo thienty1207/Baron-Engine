@@ -64,8 +64,8 @@ checkpoint `e452b62`. Final review found no Critical or Important findings.
 Trace/proof against the unrecovered original project identity remains
 absent. Persisted state remains bounded to the managed worktree and temporary
 fixtures; original checkout, Vault, and machine authority seed remain
-untouched. Safe next action: commit final review evidence, push the branch, and
-open a PR; stop before merge for user approval.
+untouched. Safe next action: push the reviewed branch, open a PR, and verify
+required checks on its exact head; stop before merge for user approval.
 
 Plan: [post-closure hardening](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence: [verification ledger](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

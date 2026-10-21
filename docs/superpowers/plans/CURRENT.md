@@ -62,8 +62,8 @@ two Minor notes. Push, PR, and hosted PR checks remain outstanding.
 Trace/proof against the unrecovered original project identity remains absent.
 Changes are limited to the managed worktree and temporary fixtures; original
 checkout, Vault, and per-user authority seed remain untouched. Safe next
-action: commit the final review evidence, push the reviewed branch, and open a
-PR. Wait for user approval before merge.
+action: push the reviewed branch, open a PR, and verify required checks on its
+exact head. Wait for user approval before merge.
 
 ## SPEC-05 final closure (CLOSED — 2026-10-10)
 
