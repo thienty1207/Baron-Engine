@@ -145,7 +145,7 @@ fn apply_installs_baron_imports_memory_and_retires_legacy_runtime() {
 }
 
 #[test]
-fn rollback_command_restores_legacy_runtime() {
+fn rollback_command_preserves_generated_project_config_and_fails_closed() {
     let (_temp, repo, vault) = fixture();
     let output = Command::cargo_bin("baron")
         .unwrap()
@@ -159,6 +159,8 @@ fn rollback_command_restores_legacy_runtime() {
         .find_map(|line| line.strip_prefix("- Migration ID: `"))
         .and_then(|value| value.strip_suffix('`'))
         .unwrap();
+    let project_config = repo.join(".baron/project.toml");
+    let config_before_rollback = fs::read(&project_config).unwrap();
 
     Command::cargo_bin("baron")
         .unwrap()
@@ -172,10 +174,16 @@ fn rollback_command_restores_legacy_runtime() {
             vault.to_str().unwrap(),
         ])
         .assert()
-        .success()
-        .stdout(predicate::str::contains("Status: `rolled_back`"));
+        .failure()
+        .stderr(predicate::str::contains(".baron/project.toml"));
 
-    assert!(repo.join("vault.config.json").exists());
-    assert!(repo.join("scripts/agent-memory.js").exists());
-    assert!(!repo.join(".baron/project.toml").exists());
+    assert_eq!(fs::read(&project_config).unwrap(), config_before_rollback);
+    assert!(!repo.join("vault.config.json").exists());
+    assert!(!repo.join("scripts/agent-memory.js").exists());
+    Command::cargo_bin("baron")
+        .unwrap()
+        .args(["migrate", "status", repo.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Status: `needs_recovery`"));
 }

@@ -1,5 +1,346 @@
 # Baron Build Status
 
+## SPEC-05 post-closure hardening follow-up (IN PROGRESS — 2026-10-18)
+
+This follow-up records additional maintenance after the original SPEC-05
+closure. The accepted closure range
+ecaf362c..af2e1db020355af4fe0f621e8de3f8f780fbd2ad and its historical
+CLOSED status remain unchanged.
+
+- Work branch: fix/spec-05-post-closure-hardening; verified source checkpoint:
+  e452b62a4aac08def36e51af1d559679d73bd1b3.
+- H-01: **CONFIRMED BUG — fixed.** Identified plan-progress publication now
+  records recoverable intent and resumes idempotently at four tested
+  subprocess interruption boundaries. A follow-up regression exposed that
+  start/resume validated the local/Vault mirror before replaying an interrupted
+  `after_local` transition. Recovery now runs first under the existing locks;
+  the `after_local` start/resume regression was observed RED then GREEN.
+- H-02: **CONFIRMED BUG — fixed.** Windows owner identity preserves case when
+  a checkout is beneath a case-sensitive directory, using a domain-separated
+  v2 hash. Ordinary case-insensitive Windows paths retain their prior owner
+  IDs. RED/GREEN tests cover distinct `Repo` and `repo` roots, case-insensitive
+  aliases, and legacy hash stability. Moved checkouts remain fail-closed;
+  automatic owner reassignment is unsupported. Compatibility note: existing
+  plans created below a case-sensitive Windows ancestor before this fix retain
+  the old folded v1 owner ID and fail strict validation even at the same path.
+  Since that ID cannot distinguish case-only sibling roots, recovery requires
+  a future explicit audited migration.
+- H-03: **CONFIRMED BUG — fixed.** Live claims survive cache trimming, an
+  all-live cache fails closed, and malformed rows in the inspected journal
+  tail block hook correlation/publication. Replay remains finite at 256 cache
+  entries and 512 journal lines. Reverse tail reads are capped at 4 MiB and
+  decode only selected rows; inability to find the boundary fails closed.
+  Append boundary detection reads one byte. RED/GREEN tests cover an 8 MiB
+  malformed prefix outside the selected rows and bounded reader/append I/O.
+- The first independent review of the 93-commit/102-path history found no
+  Critical issues and two Important findings (H-02 path collision and H-03
+  unbounded journal I/O); both are fixed. Final review verified HEAD
+  74c231269d2042e5bf0dc3d3a97f2ff9af04b972 and the 95-commit/102-path range;
+  it found no Critical or Important findings. Two Minor notes remain: the
+  diagnostic automation status command reads its full journal, and pre-fix
+  plans below case-sensitive Windows ancestors need a future explicit audited
+  migration. This review was scoped, not line-by-line.
+- Local verification: `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --no-fail-fast -j 1`,
+  `cargo clippy --workspace --all-targets -- -D warnings`, and
+  `cargo build --workspace --release --locked` passed. The workspace test run
+  used a temporary BARON_HOME and bundled PowerShell 7. The release CLI printed
+  `baron 5.0.0`. The status JSON, relative-link, retired-adapter, and diff
+  gates also pass. These are local results, not hosted CI.
+- Recovery: .env, project/local TOML, machine config.toml, original Vault
+  root, capsule, and Project ID were not found in checked locations. No
+  replacement identity or Vault was created. A separate machine-level receipt
+  authority seed was observed; its value was not read or changed, and its
+  provenance before an earlier test run is uncertain. No original-project
+  proof or trace was produced.
+- Integration scope: `origin/main` is
+  afc0b1b1137c0684c33e7e45a4c9b0e56d012446. Final reviewed HEAD
+  74c231269d2042e5bf0dc3d3a97f2ff9af04b972 is 95 commits ahead, 0 behind,
+  and changes 102 paths. Independent review covered the final commit/path
+  manifest and detailed H-01/H-02/H-03 and related authority areas, but was not
+  line-by-line. The reviewed branch push completed; PR creation is blocked
+  because the GitHub connector returned 403 and the in-app browser is signed
+  out. No PR-head CI has run.
+- Persisted-state boundary: source and tracked evidence changes are in the
+  managed worktree. Regression repos and Vaults use temporary fixtures. The
+  original checkout and its user-owned untracked files remain untouched.
+- Proof/trace status: hardening has targeted regression evidence; no proof or
+  trace was produced against the unrecovered original Project ID.
+- Safe next action: after GitHub PR write access is available, open a PR from
+  the pushed branch and verify required checks on the exact PR head. Stop
+  before merge pending user approval of the reviewed integration scope.
+
+Plan: [post-closure hardening plan](superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence ledger: [verification record](superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
+
+## SPEC-05 final closure (CLOSED — 2026-10-10)
+
+SPEC-05 is closed at the accepted source range [`ecaf362c..af2e1db`](https://github.com/thienty1207/Baron-Engine/compare/ecaf362c275431edfc5e590fd6a87d926b9bde9d...af2e1db020355af4fe0f621e8de3f8f780fbd2ad), with final review head `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`. The shared-Vault repairs make identified plan ownership checkout-bound, reject stale local/Vault divergence and foreign transition-journal replay, prevent duplicate identities from orphaned Vault plans, and allow exact-owner recovery of a missing ACTIVE row. Generic reconciliation recognizes a plan only when its validated indexed entry matches. The documentation-only closure evidence was pushed as `32a92331716d1c26f69bed1e32312a7b4981d0f6`; local and remote branch SHA matched after push.
+
+- Fresh all-target package results: Core 641/0/0 across 60 suites; CLI 190/0/1 ignored across 38; adapters 124/0/3 ignored across 14. The separate full workspace all-target command exited 0.
+- Focused prompt matrix: Core 327/0 across 23 targets plus the required repeated harness-improvement run (340 total executions); required CLI selector/evidence/hook matrix 38/0 plus migration CLI 3/3. Plan is 64/64; session replay UTF-8 regression 5/5.
+- Fresh gates: fmt, warnings-denied Clippy, locked release build, required release smoke 1/1, public trust docs 12/12, release binary version, five CLI help checks, JSON, diff and scope checks all pass. Default PowerShell lifecycle is 4/7 because Microsoft.PowerShell.Archive cannot load; the supported bundled PowerShell 7 run is 7/7.
+- Fresh authority re-audit: 48 production caller groups; PRESENTATION_ONLY=11, LEGACY_SINGLE_ACTIVE_SAFE=8, EXACT_OPERATION_SCOPED=17, AMBIGUOUS_FAIL_CLOSED=9, OUT_OF_SPEC=3, BUG=0. Full per-pattern counts and plan-path disposition are in the authority audit ledger.
+- Exact-SHA hosted CI: [Baron CI run 38014117177](https://github.com/thienty1207/Baron-Engine/actions/runs/38014117177) completed `success` on `af2e1db020355af4fe0f621e8de3f8f780fbd2ad`; Format/Clippy and Linux and Windows native test jobs all passed.
+- Fresh independent read-only reviews: Nietzsche and Dewey each returned `ACCEPT` for the identical complete `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad` range. Both assessed all 23 checklist items and reported zero Critical and zero Important findings. They did not run tests; local and hosted test evidence is recorded separately.
+- Final status is CLOSED. The prior `b481e3f` FIX REQUIRED reviews do not count toward this closure.
+- Public version remains 5.0.0; no release, tag, version bump, SPEC-06, Hotel Staff, manifest/lockfile change, or history rewrite is in scope.
+
+Execution records: [SPEC-05 final closure verification plan](superpowers/plans/2026-10-06-spec-05-final-closure-verification-plan.md); [final verification ledger](superpowers/plans/2026-10-06-spec-05-final-verification.md); [current authority audit](superpowers/plans/2026-10-01-spec-05-authority-audit.md). Closure documentation is evidence-only; executable source did not change after review.
+
+## Historical pre-repair status (superseded 2026-10-06)
+
+Two fresh independent reviews of `ecaf362..cd12561` both returned FIX REQUIRED. Their Important trace-publication/selection and shared-Vault review-gate findings, plus migration callback rollback re-entry, now have RED→GREEN regressions. Current all-target runs passed Core 618/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, and workspace 932/0/4 ignored. The first Clippy attempt found two style lints, fixed without behavior change; afterward the affected Core suites passed migration 21/21, concurrency 20/20, plan 56/56, and proof/trace 31/31, followed by Clippy, locked release build, release smoke, and public docs 12/12. No owned Critical/Important finding is currently known; this status is readiness only, pending two fresh exact-range reviews.
+
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; not closed or pushed. Exact lifecycle identity, persisted capsule binding, and validated ACTIVE/frontmatter remain authority; identified routing ignores shared CURRENT projections. Legacy unbound plans retain their compatible CURRENT-linked behavior where safe.
+- Regression evidence: shared-Vault ACTIVE union, shared-capsule identity, plan/trace lock-timeout, resumable status publication, operation-scoped harness audit, installer rollback durability, cross-checkout experiment rerun/finalization serialization, and intervention capsule-lock timeout/concurrency are covered by regression tests.
+- Focused verification: current all-target runs — Core 618/0/0, CLI 190/0/1 ignored, adapters 124/0/3 ignored, workspace 932/0/4 ignored; after two lint-only edits, migration 21/21, concurrency 20/20, plan 56/56, and proof/trace 31/31 were rerun and passed. Review-gate 6/6, phase7 routing 20/20, phase10 adapter authority 15/15 also pass.
+- Local evidence: final fmt `--check`, warnings-denied Clippy, locked release build, `baron 5.0.0`, release smoke 1/1, public docs 12/12, CLI help, JSON, changed-Markdown links (3 checked, 0 broken), retired-adapter and diff checks pass. Detailed ledger: [SPEC-05 final local verification](superpowers/plans/2026-10-05-spec-05-final-verification.md). Local checks are not GitHub CI.
+- Public version remains `5.0.0`; no release, tag, version bump, SPEC-06, or Hotel Staff change. Local results are not presented as GitHub CI.
+- Review/delivery: the two prior exact-range reviews returned FIX REQUIRED and are not acceptance. The interim WIP push does not satisfy closure. Obtain two fresh independent read-only ACCEPT reviews of exact `ecaf362..<final HEAD>` after full verification; only then mark CLOSED and push the final reviewed snapshot. Verify remote SHA and report hosted status only with evidence.
+- Safe next action: commit the verified snapshot and request two fresh exact-range adversarial reviews. Do not close or push before both ACCEPT.
+
+## Historical checkpoint: SPEC-05 implementation readiness (2026-09-29, superseded above)
+
+- Status: `SPEC-05: READY FOR ADVERSARIAL REVIEW`; SPEC-04 remains closed at
+  closure base `ecaf362c275431edfc5e590fd6a87d926b9bde9d`. This is an
+  implementation-readiness status, not a SPEC-05 closure claim.
+- Scope: B-09, B-10, B-11, B-18, B-25, B-26, B-27, W-05, and W-08 only.
+  Public version remains `5.0.0`; no release, tag, version bump, Hotel Staff
+  change, or SPEC-06 repository/Vault transaction framework was introduced.
+- Durable mutation inventory: proof, trace, plan, config, harness,
+  improvement, intent, continuity, control-plane, review-gate, experiment,
+  Autopilot, and capability registry read-modify-write paths acquire the
+  project-scoped `safe_io` lock before shared reads and hold it through the
+  related publication. True append-only journals and runtime evidence use
+  locked `append_text`; upserts use locked preserve-first atomic replacement;
+  unique proof/trace/experiment artifacts use locked create-new publication.
+  Automation hook dedup claims and final journal/response publication are
+  locked, with a bounded five-minute claim lease for crash recovery. Context
+  compile, prepare, housekeeping, Git status, and capability probes stay
+  outside the mutation critical section. Receipt-bound proof/gate/trace paths
+  revalidate the exact receipt and operation authority after slow validation
+  and before publication. Diagnostic/report-only writers remain outside this
+  B-09 scope and are not authority for completion or proof.
+- B-10/B-11/W-08: new proof and trace IDs use an 8-digit date, 20-digit epoch
+  millisecond component, and 32-hex CSPRNG suffix. New repo/Vault artifacts
+  refuse overwrite; legacy timestamp-named artifacts remain readable, and
+  latest selection compares parsed semantic timestamps instead of filename
+  lexicography. Runtime evidence is locked JSONL append; trace score/record
+  overlap is serialized without holding a lock over `git status`.
+- B-18: new plan instances contain the collision-resistant instance ID;
+  same-day same-title plans keep distinct files and historical index rows;
+  resume uses the exact persisted path. Identified active operations are
+  indexed in managed repo/Vault `Plans/ACTIVE.md`; `CURRENT.md` is only the
+  latest presentation projection. Operation-scoped update, interrupt,
+  completion, trace, and Stop/reconcile paths now resolve authority by the
+  full `(task, adapter, session_id, request_id)` identity; legacy ambiguous
+  mutations fail closed. Legacy managed plan paths and the SPEC-04 canonical
+  path/frontmatter authority checks remain readable and fail closed outside
+  `docs/baron/plans/`.
+- B-25: first initialization and config mutations are serialized before
+  existence/load decisions; only the `.baron` directory scaffold is created
+  before the lock exists so the lock path can be opened; project identity and
+  `identity_binding` survive races; unknown TOML values and opaque legacy
+  adapter values are retained without activating unsupported integrations.
+- B-26: harness intake, friction, intervention, validation/current state,
+  proposals, outcomes, `TEST_MATRIX`, stories, experiments, and review-gate
+  publications preserve concurrent appends/upserts under the same lock.
+- B-27: registry mutations are locked; capability probes run without the
+  lock; provider observations are fingerprint-bound to the registered
+  definition while preserving the pre-SPEC-05 public observation shape;
+  runtime evidence is locked append-only JSONL; the capability state file is
+  explicitly a last-completed-writer, replace-only diagnostic cache and never
+  operation authority.
+- Migration/update lock boundary: inventory and backup scans run without the
+  project lock; file imports take a bounded lock before the destination
+  read/merge/publication; quarantine takes the lock per asset; the external
+  installer callback runs unlocked. The complete post-handoff baseline is
+  captured as one bounded locked snapshot before that callback. Failed
+  post-handoff rollback is fail-closed and refuses to restore any migration
+  path when the handoff baseline no longer matches.
+- Deterministic matrix: concurrency `16/16`; config `16/16`; plan `51/51`;
+  proof/trace `29/29`; hook identity `18/18`; capability `9/9`; automation
+  `6/6`; harness `5/5`; harness improvement `5/5`; intent `7/7`; continuity
+  `6/6`; control-plane `9/9`; migration `10/10`; public config compatibility
+  `1/1`; Phase-1 retired-adapter gate `8/8`.
+- Out-of-scope boundary: context/session/replay/cache writers and the
+  diagnostic SQLite/index accelerators remain mapped to B-28..B-31; they are
+  not promoted to SPEC-05 authority. The SPEC-05 automation hook claim and
+  journal publication are `LOCKED_TRANSACTION`, not an out-of-scope cache.
+- Active plan:
+  `docs/superpowers/plans/2026-09-22-spec-05-multi-agent-concurrency-durable-state.md`.
+- Implementation commits: `b4e5f77`, `0d06d3d`, `87125a4`, `077058d`,
+  `398e8cd`, `34e1221`, `bf1857e`, `34de705`, `0c12c0c`, `cfaec117`,
+  `318594c`, `674a059`, `7a6b473`, `eeae7d8`, `cc6fbfc`, `d161d05`, and
+  `ac11117`.
+- Final review fixes in `eeae7d8` restore the public config `Eq` contracts,
+  keep `ProviderObservation` source-compatible while retaining stale-cache
+  fingerprint checks, remove the migration lock across inventory/backup work,
+  and make post-handoff rollback refuse to clobber changed state. `cc6fbfc`
+  closes the remaining self-audited backup-root `exists-check → create` race
+  by reserving the migration backup directory under the project lock. The
+  fresh adversarial fix commit `d161d05` adds the per-operation active-plan
+  index, foreign/invalid Markdown filtering, committed-vs-cleanup create-new
+  semantics, journal-response crash recovery, and an atomic handoff baseline
+  snapshot. Repair commit `ac11117` closes the remaining operation-authority
+  gap: plan lifecycle mutations, operation-bound trace publication, and
+  identified Stop/reconcile all select the exact active plan binding instead
+  of the singleton `CURRENT.md` projection, while legacy ambiguous mutations
+  fail closed. The updated read-only review package is
+  `ecaf362..ac11117`; independent reviewer acceptance is still unavailable,
+  so this status remains ready rather than claiming closure.
+- Residual classification: the hook journal and dedup files are still not one
+  SPEC-06 cross-file transaction; a crash before journal publication leaves a
+  live claim until its bounded lease expires, while a published response is
+  now recoverable from the journal and journal entries remain diagnostic-only.
+  Migration external-installer execution remains intentionally unlocked;
+  backup roots are reserved under lock and post-handoff hash conflicts fail
+  closed, but full multi-migration handoff serialization belongs to the later
+  transaction framework. Neither residual can authorize completion/proof.
+- Workspace verification: `cargo test --workspace --all-targets --no-fail-fast
+  -j 1` exited 0 with isolated session roots and
+  `BARON_TEST_POWERSHELL` set to the bundled PowerShell 7 host. The focused
+  Core, CLI, and adapter suites also pass; the repaired `lifecycle_scripts`
+  target is `7/7`, current `prepare_cli` is `6/6`, and the UTF-8 replay
+  regression is `5/5`. Formatter, workspace Clippy with `-D warnings`, locked
+  release build, explicit release smoke, `baron 5.0.0`, status JSON parsing,
+  maintained-doc checks, and diff checks pass.
+- Baseline comparison: at `ecaf362`, `lifecycle_scripts` `7/7` and
+  `prepare_cli` `5/5` pass when run with the same supported PowerShell 7 test
+  host and isolated session roots. A separate synthetic multibyte fixture
+  reproduces the old `session_replay.rs:383` panic at `ecaf362`; the repaired
+  UTF-8 regression passes on current source. The previous three lifecycle
+  failures were caused by the default host PowerShell selection and are
+  avoided via the test harness's existing `BARON_TEST_POWERSHELL` override.
+- CLI identity proof: exact update/interrupt/complete flow and legacy
+  ambiguous-mutation fail-closed behavior pass `4/4` in
+  `baron-cli --test plan_identity_cli`.
+- Next action: obtain two fresh independent adversarial verdicts over the
+  final committed source and evidence range beginning at `ecaf362`; do not
+  mark SPEC-05 closed until both accept without Critical/Important findings.
+
+## Baron 5.0.1 Stabilization - SPEC-04 Proof, Trace, Gate, and Completion Integrity (closed, 2026-09-22)
+
+- Status: `SPEC-04: CLOSED`; the independent final adversarial review accepted
+  the managed-plan authority final-fix pass on branch
+  `codex/spec-04-proof-trace-gate-completion-integrity`. This closure does not
+  bump the public version, create a tag/release, modify Hotel Staff, or claim
+  SPEC-05 work.
+- Closure source/evidence HEAD: `250989011f5b5ecda8741582a36c031c248c1d3e`;
+  public version remains `5.0.0`.
+- Closure basis: B-08, B-17, and B-32 are closed; managed plan-path authority
+  final fix was accepted; the final adversarial scan found no SPEC-04-owned
+  bug or warning left unaddressed.
+- Managed plan-path authority: every `- Plan:` pointer is confined to the
+  exact repository-relative root `docs/baron/plans/`. Resolution requires
+  real canonical containment, rejects symlink/reparse/non-regular targets,
+  and never falls back to an outside path. `vault_plan_path()` and all plan
+  mutation/mirror paths fail closed outside that root.
+- Managed plan document contract: the linked target must begin with YAML-like
+  frontmatter, declare `type: baron-plan`, and expose authority fields only
+  from that frontmatter. Duplicate known authority fields fail closed while
+  benign unknown fields remain tolerated. Body-only metadata, missing type,
+  hostile prefixes, and outside-root pointers cannot become authority.
+- Retained lifecycle authority: linked plan status remains canonical after
+  validation; CURRENT status is only a projection. Metadata equality, canonical
+  risk/task/operation identity, identified-vs-legacy separation, proof/trace
+  binding, reconcile, Stop, completion, and operation-bound trace paths remain
+  fail-closed under the preceding SPEC-04 fixes.
+- Mutation integrity: invalid pointers are rejected before `complete_plan`,
+  update, reconcile, Stop, or Vault plan mirroring can write an outside target;
+  the positive high-risk valid-proof/trace completion path remains green.
+- Focused proof: `plan` 44/44, `automation` 5/5, `proof_trace` 16/16,
+  `operation_identity` 10/10, CLI `phase12_hooks_cli` 4/4, and `execution_cli`
+  15/15. Core all-targets, formatter, and warnings-denied Clippy pass.
+- Full workspace verification with `-j 1` passes every target except exactly
+  two unrelated baseline/environment blockers: `baron-cli`
+  `lifecycle_scripts` cannot load `Microsoft.PowerShell.Archive`, and
+  `baron-cli` `prepare_cli` reaches the existing `session_replay` UTF-8
+  boundary panic at `crates/baron-core/src/session_replay.rs:383`. No
+  SPEC-04-owned failure was observed.
+- Release checks: locked release build, `baron 5.0.0`, `git diff --check`, and
+  `BARON_STATUS.json` parsing pass.
+- Active plan:
+  `docs/superpowers/plans/2026-09-22-spec-04-managed-plan-path-authority-final-fix.md`.
+- Residual limitation: the current Markdown plan schema still has no
+  independent persisted origin record that can distinguish a fully recomputed
+  edit of both Markdown files. Canonical derivation rejects the reviewed
+  high-risk A-to-low-risk B bypass; durable origin binding remains deferred.
+- Safe next action: create the SPEC-05 branch from this closure commit. Keep
+  the public version at `5.0.0`; do not release or tag.
+
+## Baron 5.0.1 Stabilization - SPEC-03 Canonical Task and Seed Alias Follow-up (closed, 2026-09-21)
+
+- Status: `closed; fresh executable verification complete`; the source/public
+  version remains `5.0.0`; no tag, release, version bump, or hosted-CI claim is
+  part of this closure.
+- Verified checkout: branch
+  `codex/spec-03-trusted-receipt-architecture` at
+  `c77c83d6e9214c40822a408f2a0483c9016c7b15`; implementation checkpoint
+  `994ce18a92eff57be497d3b99420c8bde6078c99` is pushed.
+- Owned scope: BUG-01 prevents schema-v2 authority from a parts-only
+  `LifecycleIdentity`; WARN-01 safely removes only completed Baron staging
+  aliases left after hard-link activation. SPEC-04 and unrelated defects remain
+  out of scope.
+- Authority boundary: `AuthoritativeLifecycleIdentity` is constructed only
+  with canonical task text at schema-v2 issuance; checked reconstruction remains
+  comparison-only, while verification independently recomputes the canonical
+  operation ID.
+- Seed cleanup boundary: after a valid final seed is loaded, only the exact
+  generated Baron staging-name pattern in the validated external authority
+  directory is inspected. Cleanup removes only a regular non-link exact-32-byte
+  file matching the loaded final seed; malformed/missing finals never promote
+  stale stages, and unrelated stage-like files remain untouched.
+- Fresh evidence: the nine focused suites pass with 80/80 tests; Core
+  all-targets, warnings-denied Clippy, locked release build, `baron 5.0.0`
+  binary smoke, formatter, `git diff --check`, and status JSON parsing pass.
+  The adversarial SPEC-03 matrix has no new owned failure.
+- Known unrelated workspace blockers remain unchanged: `baron-cli`
+  `lifecycle_scripts` cannot load the host `Microsoft.PowerShell.Archive`
+  module, and one `prepare_cli` fixture reaches the existing
+  `session_replay` UTF-8 boundary panic. They are outside SPEC-03 and do not
+  change its closure.
+- Active plan:
+  `docs/superpowers/plans/2026-09-21-spec-03-canonical-task-seed-alias-fix.md`
+  is complete.
+- Safe next action: normal Baron `5.0.0` maintenance; do not release, tag, bump
+  the version, modify Hotel Staff, or start SPEC-04 from this task.
+
+## Baron 5.0.1 Stabilization - SPEC-02 Operation Identity & Lifecycle Wiring (2026-09-20)
+
+- Status: `closed; final review fixes implemented and verified; unrelated host
+  blockers remain`; SPEC-01 Graphify Provider Contract is closed on the
+  pushed `adccb6e` baseline.
+- Scope: checked canonical lifecycle identity reconstruction; complete Prepare
+  ingress identity; one canonical task-ID algorithm; operation-ID isolation;
+  Task State and Plan task validation; Codex/Claude hook retry semantics; and
+  operation-bound CLI plan creation.
+- Baseline branch: `codex/spec-02-operation-identity`, based on
+  `codex/spec-01-graphify-provider-contract` at `adccb6e`.
+- Constraints: public version remains `5.0.0`; no schema bump, tag, release,
+  Hotel Staff change, SPEC-03, or SPEC-04 work.
+- Known unrelated blockers carried forward: unavailable
+  `Microsoft.PowerShell.Archive` on the host and the existing
+  `session_replay` UTF-8 boundary panic.
+- Active plan:
+  `docs/superpowers/plans/2026-09-20-spec-02-final-review-fix.md`.
+- Evidence: final review tests cover forged operation/context identities,
+  task mismatch before Plan writes, missing/blank request identity, identified
+  hook retry idempotence, anonymous delivery isolation, and empty CLI identity
+  values. Core all-targets, focused identity/Prepare/Task State/context,
+  automation/hooks, plan, control-plane, CLI plan/execution/control-plane,
+  formatter, warnings-denied Clippy, locked release build, binary version
+  smoke, and diff checks pass. The full workspace retains only the two listed
+  unrelated blockers: three installer tests cannot load
+  `Microsoft.PowerShell.Archive`, and one Prepare CLI test reaches the existing
+  `session_replay` UTF-8 boundary panic. The adversarial closure scan found no
+  remaining SPEC-02-owned issue.
+- Implementation commits: `b58c701`, `4ee56e4`, `3771df8`, `95a98a7`,
+  `1df57ef`, `9b589ec`, plus the final status/build-log documentation commit.
+- Next action: push the completed SPEC-02 final review-fix branch once; no
+  release, tag, public version bump, Hotel Staff change, SPEC-03, or SPEC-04
+  work is authorized.
+
 ## Codex + Claude Core Consolidation - Phase 16
 
 ### Phase 16 final release (2026-09-09)
@@ -48,6 +389,47 @@
   authenticated installers. Historical 4.2.2 entries below are preserved as
   release evidence.
 - Current next action: normal Baron `5.0.0` maintenance.
+
+## Baron 5.0.1 Stabilization - SPEC-01 Graphify Provider Contract (closed, 2026-09-20)
+
+- Status: `closed; final review fix implemented; unrelated verification blockers remain`; the
+  public/stable release remains `5.0.0` and no version bump or release action
+  is part of this SPEC.
+- Baseline: Baron v5.0.0 at release commit
+  `cb2940e79fe4ed4cda7c52ea64c46c049b189514`; supported Graphify is exactly
+  `0.9.25`.
+- Real provider contract: Baron passes a staging root to `graphify extract`;
+  Graphify writes `graphify-out/graph.json` beneath that root. Graphify query
+  is human-readable traversal, so Baron uses the validated local graph artifact
+  for bounded deterministic query results instead of assuming `--json`.
+- Trust boundary: Graphify remains optional and project-local; Survey fallback,
+  last-known-good promotion, current-source verification, and bounded hit/
+  character limits remain active.
+- Final review fixes: direct AST node matches may remain `Extracted`, but every
+  traversal/neighbor result is forced to `Inferred`; current-source verification
+  therefore returns `Verified` only for the direct node and `Advisory` for the
+  traversed relation. The missing-provider CLI test now runs with a test-local
+  PATH that cannot resolve Graphify, so its `survey_fallback` assertion is
+  independent of host installation.
+- Certification: `C:\Users\Ty\.local\bin\graphify.exe` reports `0.9.25`;
+  `BARON_REAL_GRAPHIFY=1 cargo test -p baron-core --test graphify_real -- --nocapture`
+  passes. `.github/workflows/release.yml` now provisions the official
+  `graphifyy==0.9.25` package in an isolated venv, checks `graphify 0.9.25`,
+  runs the same real-provider test, and blocks the release dependency chain if
+  that certification fails.
+- Git checkpoint: review-fix commit `bac54f3` is pushed on
+  `codex/spec-01-graphify-provider-contract`; no tag or release was created.
+- Verification blockers outside SPEC-01: the final workspace suite still
+  reports two pre-existing/environment-sensitive targets
+  (`lifecycle_scripts` cannot load `Microsoft.PowerShell.Archive`; `prepare_cli`
+  exposes a UTF-8 boundary panic in `session_replay`). The fixture update dry-run is also
+  blocked by its existing managed-baseline hash mismatch; no fixture file was
+  repaired or changed.
+- Active plan:
+  `docs/superpowers/plans/2026-09-20-graphify-provider-contract.md`.
+- Safe next action: observe the mandatory release certification on its protected
+  workflow path, resolve unrelated blockers in their later stabilization work,
+  and keep the public version at `5.0.0`.
 
 ### Phase 16 repair checkpoint
 

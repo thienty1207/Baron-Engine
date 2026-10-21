@@ -1,18 +1,32 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, Context, Result};
-use chrono::{Local, SecondsFormat};
+use chrono::{Local, NaiveDate, SecondsFormat, TimeZone};
 
 use crate::capability::{
     evaluate_execution_evidence, evaluate_execution_evidence_for_operation, load_capability_state,
     record_runtime_execution, CapabilityExecutionEvidence,
 };
-use crate::execution_receipt::{load_receipts, receipt_matches_context, ReceiptContext};
-use crate::harness::{current_harness_risk, update_current_validation_evidence};
-use crate::operation::OperationContext;
+use crate::execution_receipt::{
+    load_verified_receipt, receipt_matches_verified_context, ReceiptContext,
+    VerifiedExecutionReceipt,
+};
+use crate::harness::{
+    current_harness_risk, update_current_validation_evidence,
+    update_current_validation_evidence_for_operation,
+};
+use crate::operation::{OperationContext, SupportedAdapter};
+use crate::plan::{
+    active_plan_operation_binding, indexed_active_plan_authority_for_binding_locked,
+    PlanOperationBinding,
+};
 use crate::risk::RiskLane;
-use crate::safe_io::replace_text;
+use crate::safe_io::{
+    acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_bytes,
+    read_text, replace_text,
+};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +38,9 @@ pub struct ProofRecord {
     pub capability_gate_passed: bool,
     pub capability_gaps: Vec<String>,
     pub capability_warnings: Vec<String>,
+    pub receipt_id: Option<String>,
+    pub source_fingerprint: Option<String>,
+    pub binding: Option<ReceiptContext>,
 }
 
 pub fn record_proof(
@@ -31,7 +48,25 @@ pub fn record_proof(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<ProofRecord> {
-    record_proof_internal(repo_root, vault, None, summary, &[])
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let operation = active_plan_operation_binding(repo_root)?
+        .map(|binding| binding.to_operation_context())
+        .transpose()?;
+    let binding = operation
+        .as_ref()
+        .map(|operation| complete_operation_binding(vault, operation))
+        .transpose()?
+        .flatten();
+    record_proof_internal(
+        repo_root,
+        vault,
+        operation.as_ref(),
+        summary,
+        &[],
+        None,
+        binding.as_ref(),
+    )
 }
 
 pub fn record_proof_from_receipt(
@@ -60,27 +95,48 @@ pub fn record_proof_from_receipt_bound(
             binding.gate_kind.trim()
         );
     }
-    let receipt = load_receipts(repo_root)?
-        .into_iter()
-        .find(|receipt| receipt.receipt_id == receipt_id.trim())
-        .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
-    if !receipt_matches_context(repo_root, &receipt, binding)? {
+    let receipt = load_verified_receipt(repo_root, receipt_id)?;
+    if !receipt_matches_verified_context(&receipt, binding)? {
         bail!(
             "Trusted execution receipt `{}` is stale, failed, mismatched, replayed, or tampered",
             receipt.receipt_id,
         );
     }
-    let proof = record_proof(
+    let operation = operation_from_binding(binding)?;
+    record_proof_internal(
         repo_root,
         vault,
+        Some(&operation),
         &format!(
             "trusted execution receipt {} passed for {} via {}",
             receipt.receipt_id, receipt.capability, receipt.provider
         ),
-    )?;
-    append_receipt_reference(&proof.repo_path, &receipt, binding)?;
-    append_receipt_reference(&proof.vault_path, &receipt, binding)?;
-    Ok(proof)
+        &[],
+        Some((&receipt, binding)),
+        Some(binding),
+    )
+}
+
+/// Record proof with a complete operation binding but without a trusted
+/// execution receipt. This is suitable for Low-risk operation evidence; a
+/// Medium/High completion still requires a current receipt-bound proof.
+pub fn record_proof_for_operation(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    operation: &OperationContext,
+    summary: &str,
+) -> Result<ProofRecord> {
+    let binding = complete_operation_binding(vault, operation)?
+        .context("complete operation identity is required for bound proof recording")?;
+    record_proof_internal(
+        repo_root,
+        vault,
+        Some(operation),
+        summary,
+        &[],
+        None,
+        Some(&binding),
+    )
 }
 
 pub fn record_proof_with_capabilities(
@@ -102,12 +158,15 @@ pub fn record_proof_with_capabilities_for_operation(
     summary: &str,
     capability_evidence: &[CapabilityExecutionEvidence],
 ) -> Result<ProofRecord> {
+    let binding = complete_operation_binding(vault, operation)?;
     record_proof_internal(
         repo_root,
         vault,
         Some(operation),
         summary,
         capability_evidence,
+        None,
+        binding.as_ref(),
     )
 }
 
@@ -117,19 +176,15 @@ fn record_proof_internal(
     operation: Option<&OperationContext>,
     summary: &str,
     capability_evidence: &[CapabilityExecutionEvidence],
+    trusted_receipt: Option<(&VerifiedExecutionReceipt, &ReceiptContext)>,
+    binding: Option<&ReceiptContext>,
 ) -> Result<ProofRecord> {
     let repo_root = repo_root.as_ref();
-    let id = Local::now().format("%Y%m%d%H%M%S%3f").to_string();
     let date = Local::now().format("%Y-%m-%d").to_string();
-    let repo_path = repo_root
-        .join("docs/baron/proofs")
-        .join(&date)
-        .join(format!("{id}.md"));
-    let vault_path = vault
-        .project_root
-        .join("Proofs")
-        .join(&date)
-        .join(format!("{id}.md"));
+    let validation_inputs = {
+        let _lock = acquire_project_lock(repo_root)?;
+        capture_validation_inputs(repo_root)?
+    };
     let capability_gate = if let Some(operation) = operation {
         evaluate_execution_evidence_for_operation(repo_root, operation, capability_evidence)?
     } else if let Some(state) = load_capability_state(repo_root)? {
@@ -145,18 +200,90 @@ fn record_proof_internal(
             warnings: Vec::new(),
         }
     };
-    record_runtime_execution(repo_root, capability_evidence)?;
-    let content = render_proof(
-        &id,
+    let _lock = acquire_project_lock(repo_root)?;
+    if capture_validation_inputs(repo_root)? != validation_inputs {
+        bail!(
+            "Shared capability or receipt state changed during proof validation; refusing stale proof publication"
+        );
+    }
+    if let Some((receipt, receipt_binding)) = trusted_receipt {
+        let current_receipt = load_verified_receipt(repo_root, &receipt.receipt_id)
+            .context("Trusted execution receipt changed during proof validation")?;
+        if current_receipt.as_receipt() != receipt.as_receipt()
+            || !receipt_matches_verified_context(&current_receipt, receipt_binding)?
+        {
+            bail!(
+                "Trusted execution receipt became stale during proof validation; refusing proof publication"
+            );
+        }
+    }
+    if let Some(operation) = operation {
+        // Validate any exact owned story before publishing proof/runtime
+        // artifacts. Otherwise malformed managed harness metadata would fail
+        // only during the later projection update, after evidence was written.
+        crate::harness::current_harness_title_for_operation(repo_root, operation)?;
+    }
+    let id = artifact_instance_id(&date)?;
+    let repo_path = repo_root
+        .join("docs/baron/proofs")
+        .join(&date)
+        .join(format!("{id}.md"));
+    let vault_path = vault
+        .project_root
+        .join("Proofs")
+        .join(&date)
+        .join(format!("{id}.md"));
+    let binding = binding
+        .or_else(|| trusted_receipt.map(|(_, binding)| binding))
+        .cloned();
+    let plan_authority = if let Some(binding) = binding.as_ref() {
+        let plan_binding = PlanOperationBinding {
+            task_id: binding.task_id.clone(),
+            operation_id: binding.operation_id.clone(),
+            adapter: binding.adapter.clone(),
+            session_id: binding.session_id.clone(),
+            request_id: binding.request_id.clone(),
+        };
+        Some(
+            indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+                .context("operation-bound proof requires validated ACTIVE plan authority")?,
+        )
+    } else {
+        None
+    };
+    let validation_risk = plan_authority
+        .as_ref()
+        .map(|authority| authority.risk)
+        .unwrap_or_else(|| {
+            if binding.is_some() {
+                RiskLane::High
+            } else {
+                current_harness_risk(repo_root)
+            }
+        });
+    let content = render_proof(ProofView {
+        id: &id,
         summary,
         capability_evidence,
-        capability_gate.passed,
-        &capability_gate.gaps,
-        &capability_gate.warnings,
+        gate_passed: capability_gate.passed,
+        gaps: &capability_gate.gaps,
+        warnings: &capability_gate.warnings,
         operation,
-    );
-    write(&repo_path, &content)?;
-    write(&vault_path, &content)?;
+        binding: binding.as_ref(),
+        trusted_receipt: trusted_receipt.map(|(receipt, _)| receipt),
+        authority_generation: plan_authority
+            .as_ref()
+            .and_then(|authority| authority.authority_generation.as_deref()),
+    });
+    let verified = proof_satisfies_risk(summary, validation_risk) && capability_gate.passed;
+    // Reserve shared Vault mutation authority before publishing any proof or
+    // runtime evidence. Otherwise a later TEST_MATRIX lock timeout could
+    // return an error while the proof itself remained usable.
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    preflight_publication_paths(repo_root, vault, &repo_path, &vault_path)?;
+    record_runtime_execution(repo_root, capability_evidence)?;
+    create_new_text(&vault_path, &content)?;
+    create_new_text(&repo_path, &content)?;
     append(
         &repo_root.join("docs/baron/proofs/INDEX.md"),
         "# Baron Proof Index\n\n",
@@ -167,9 +294,17 @@ fn record_proof_internal(
         "# Baron Proof Index\n\n",
         &format!("- `{id}` - {}", summary.trim()),
     )?;
-    let verified =
-        proof_satisfies_risk(summary, current_harness_risk(repo_root)) && capability_gate.passed;
-    update_current_validation_evidence(repo_root, vault, summary.trim(), verified)?;
+    if let Some(operation) = operation {
+        update_current_validation_evidence_for_operation(
+            repo_root,
+            vault,
+            operation,
+            summary.trim(),
+            verified,
+        )?;
+    } else {
+        update_current_validation_evidence(repo_root, vault, summary.trim(), verified)?;
+    }
     Ok(ProofRecord {
         id,
         summary: summary.trim().to_string(),
@@ -178,6 +313,9 @@ fn record_proof_internal(
         capability_gate_passed: capability_gate.passed,
         capability_gaps: capability_gate.gaps,
         capability_warnings: capability_gate.warnings,
+        receipt_id: trusted_receipt.map(|(receipt, _)| receipt.receipt_id.clone()),
+        source_fingerprint: trusted_receipt.map(|(receipt, _)| receipt.source_fingerprint.clone()),
+        binding,
     })
 }
 
@@ -192,65 +330,153 @@ pub fn proof_status(repo_root: impl AsRef<Path>) -> Result<String> {
 }
 
 pub fn latest_proof(repo_root: &Path) -> Result<Option<ProofRecord>> {
-    let root = repo_root.join("docs/baron/proofs");
-    let Some(path) = latest_markdown(&root)? else {
+    let mut paths = proof_paths(repo_root)?;
+    paths.sort_by_key(|path| artifact_sort_key(path));
+    let Some(path) = paths.pop() else {
         return Ok(None);
     };
-    if path.file_name().and_then(|value| value.to_str()) == Some("INDEX.md") {
-        return Ok(None);
-    }
-    let content = fs::read_to_string(&path)?;
-    let id = content
-        .lines()
-        .find_map(|line| line.strip_prefix("- Proof ID: `"))
-        .and_then(|value| value.strip_suffix('`'))
-        .unwrap_or("unknown")
-        .to_string();
-    let summary = section_body(&content, "## Evidence");
-    let capability_gate_passed = !content.contains("- Capability gate: `failed`");
-    let capability_gaps = bullet_section(&content, "## Capability Gaps");
-    let capability_warnings = bullet_section(&content, "## Capability Warnings");
-    Ok(Some(ProofRecord {
-        id,
-        summary,
-        repo_path: path,
-        vault_path: PathBuf::new(),
-        capability_gate_passed,
-        capability_gaps,
-        capability_warnings,
-    }))
+    Ok(Some(parse_proof(&path)?))
 }
 
-fn render_proof(
-    id: &str,
-    summary: &str,
-    capability_evidence: &[CapabilityExecutionEvidence],
+/// Find a proof by its exact persisted ID. This is an authority selector;
+/// unlike [`latest_proof`], it never falls back to a repository-global newest
+/// artifact.
+pub fn proof_by_id(repo_root: &Path, proof_id: &str) -> Result<Option<ProofRecord>> {
+    let proof_id = proof_id.trim();
+    if proof_id.is_empty() {
+        return Ok(None);
+    }
+    for path in proof_paths(repo_root)? {
+        if path.file_stem().and_then(|value| value.to_str()) == Some(proof_id) {
+            return Ok(Some(parse_proof(&path)?));
+        }
+        let proof = parse_proof(&path)?;
+        if proof.id == proof_id {
+            return Ok(Some(proof));
+        }
+    }
+    Ok(None)
+}
+
+/// Find the newest proof that carries the exact operation binding while that
+/// operation has indexed ACTIVE authority. Frontmatter-only discovery remains
+/// useful for legacy plan reads, but cannot make persisted evidence current.
+pub fn proof_for_operation(
+    repo_root: &Path,
+    expected: &ReceiptContext,
+) -> Result<Option<ProofRecord>> {
+    expected.validate()?;
+    let _lock = acquire_project_lock(repo_root)?;
+    let plan_binding = PlanOperationBinding {
+        task_id: expected.task_id.clone(),
+        operation_id: expected.operation_id.clone(),
+        adapter: expected.adapter.clone(),
+        session_id: expected.session_id.clone(),
+        request_id: expected.request_id.clone(),
+    };
+    let Some(authority) =
+        indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+    else {
+        return Ok(None);
+    };
+    proof_for_operation_in_generation(
+        repo_root,
+        expected,
+        authority.authority_generation.as_deref(),
+    )
+}
+
+pub(crate) fn proof_for_operation_in_generation(
+    repo_root: &Path,
+    expected: &ReceiptContext,
+    authority_generation: Option<&str>,
+) -> Result<Option<ProofRecord>> {
+    expected.validate()?;
+    let mut paths = proof_paths(repo_root)?;
+    paths.sort_by_key(|path| artifact_sort_key(path));
+    for path in paths.into_iter().rev() {
+        let proof = parse_proof(&path)?;
+        let Some(binding) = proof.binding.as_ref() else {
+            continue;
+        };
+        if operation_binding_matches(binding, expected)
+            && binding.gate_kind.trim() == "proof"
+            && proof_authority_generation(&proof)?.as_deref() == authority_generation
+        {
+            return Ok(Some(proof));
+        }
+    }
+    Ok(None)
+}
+
+pub(crate) fn proof_authority_generation(proof: &ProofRecord) -> Result<Option<String>> {
+    let content = fs::read_to_string(&proof.repo_path)?;
+    Ok(optional_field_value(&content, "- Authority Generation: `"))
+}
+
+/// Return the complete operation binding persisted in a proof. A legacy
+/// proof returns `None` and remains diagnostic-only.
+pub fn proof_operation_binding(proof: &ProofRecord) -> Option<ReceiptContext> {
+    proof.binding.clone()
+}
+
+struct ProofView<'a> {
+    id: &'a str,
+    summary: &'a str,
+    capability_evidence: &'a [CapabilityExecutionEvidence],
     gate_passed: bool,
-    gaps: &[String],
-    warnings: &[String],
-    operation: Option<&OperationContext>,
-) -> String {
-    let operation_identity = operation
-        .map(|operation| {
-            format!(
-                "- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
-                operation.adapter.as_str(),
-                operation.session_id.as_deref().unwrap_or("none"),
-                operation.request_id.as_deref().unwrap_or("none")
-            )
-        })
-        .unwrap_or_default();
+    gaps: &'a [String],
+    warnings: &'a [String],
+    operation: Option<&'a OperationContext>,
+    binding: Option<&'a ReceiptContext>,
+    trusted_receipt: Option<&'a VerifiedExecutionReceipt>,
+    authority_generation: Option<&'a str>,
+}
+
+fn render_proof(view: ProofView<'_>) -> String {
+    let operation_identity = if let Some(binding) = view.binding {
+        format!(
+            "- Receipt ID: `{}`\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Gate kind: `{}`\n- Source fingerprint: `{}`\n",
+            view.trusted_receipt
+                .map(|receipt| receipt.receipt_id.as_str())
+                .unwrap_or("none"),
+            binding.task_id.trim(),
+            binding.operation_id.trim(),
+            binding.adapter.trim(),
+            binding.session_id.trim(),
+            binding.request_id.trim(),
+            binding.gate_kind.trim(),
+            view.trusted_receipt
+                .map(|receipt| receipt.source_fingerprint.as_str())
+                .unwrap_or("none"),
+        )
+    } else {
+        view.operation
+            .map(|operation| {
+                format!(
+                    "- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n",
+                    operation.adapter.as_str(),
+                    operation.session_id.as_deref().unwrap_or("none"),
+                    operation.request_id.as_deref().unwrap_or("none")
+                )
+            })
+            .unwrap_or_default()
+    };
     let mut content = format!(
-        "# Baron Proof\n\n- Proof ID: `{id}`\n- Recorded: {}\n- Capability gate: `{}`\n{}\n## Evidence\n\n{}\n\n## Capability Execution Evidence\n\n",
+        "# Baron Proof\n\n- Proof ID: `{}`\n- Recorded: {}\n- Capability gate: `{}`\n{}\n## Evidence\n\n{}\n\n## Capability Execution Evidence\n\n",
+        view.id,
         now(),
-        if gate_passed { "passed" } else { "failed" },
+        if view.gate_passed { "passed" } else { "failed" },
         operation_identity,
-        summary.trim()
+        view.summary.trim()
     );
-    if capability_evidence.is_empty() {
+    if let Some(generation) = view.authority_generation {
+        content.push_str(&format!("\n- Authority Generation: `{generation}`\n"));
+    }
+    if view.capability_evidence.is_empty() {
         content.push_str("- none recorded\n");
     } else {
-        for evidence in capability_evidence {
+        for evidence in view.capability_evidence {
             content.push_str(&format!(
                 "- `{}` via `{}` - {}\n",
                 evidence.capability.trim(),
@@ -260,9 +486,22 @@ fn render_proof(
         }
     }
     content.push_str("\n## Capability Gaps\n\n");
-    push_bullets(&mut content, gaps);
+    push_bullets(&mut content, view.gaps);
     content.push_str("\n## Capability Warnings\n\n");
-    push_bullets(&mut content, warnings);
+    push_bullets(&mut content, view.warnings);
+    if let Some(receipt) = view.trusted_receipt {
+        content.push_str(&format!(
+            "\n## Trusted Execution Receipt\n\n- Receipt ID: `{}`\n- Source: Baron-owned execution runner\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Gate kind: `{}`\n- Source fingerprint: `{}`\n",
+            receipt.receipt_id,
+            receipt.task_id.as_deref().unwrap_or("none"),
+            receipt.operation_id.as_deref().unwrap_or("none"),
+            receipt.adapter.as_deref().unwrap_or("none"),
+            receipt.session_id.as_deref().unwrap_or("none"),
+            receipt.request_id.as_deref().unwrap_or("none"),
+            receipt.gate_kind.as_deref().unwrap_or("none"),
+            receipt.source_fingerprint,
+        ));
+    }
     content
 }
 
@@ -327,15 +566,69 @@ pub fn proof_satisfies_risk(summary: &str, risk: RiskLane) -> bool {
     .any(|term| lower.contains(term))
 }
 
-fn latest_markdown(root: &Path) -> Result<Option<PathBuf>> {
-    if !root.exists() {
-        return Ok(None);
+fn artifact_sort_key(path: &Path) -> (i128, String) {
+    let timestamp = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .and_then(parse_artifact_timestamp)
+        .or_else(|| {
+            fs::metadata(path)
+                .ok()?
+                .modified()
+                .ok()?
+                .duration_since(UNIX_EPOCH)
+                .ok()
+                .map(|value| value.as_millis() as i128)
+        })
+        .unwrap_or_default();
+    (timestamp, path.to_string_lossy().into_owned())
+}
+
+fn capture_validation_inputs(repo_root: &Path) -> Result<Vec<(PathBuf, Option<Vec<u8>>)>> {
+    [
+        ".baron/capabilities.toml",
+        ".baron/cache/capability-state.json",
+        ".baron/cache/execution-receipts.jsonl",
+        ".baron/project.toml",
+        ".baron/local.toml",
+    ]
+    .into_iter()
+    .map(|relative| {
+        let path = repo_root.join(relative);
+        Ok((path.clone(), read_bytes(&path)?))
+    })
+    .collect()
+}
+
+fn parse_artifact_timestamp(stem: &str) -> Option<i128> {
+    let mut parts = stem.split('-');
+    let date = parts.next()?;
+    if let Some(millis) = parts.next() {
+        if date.len() == 8
+            && millis.len() == 20
+            && date.chars().all(|value| value.is_ascii_digit())
+            && millis.chars().all(|value| value.is_ascii_digit())
+        {
+            return millis.parse().ok();
+        }
     }
-    let mut files = Vec::new();
-    collect_markdown(root, &mut files)?;
-    files.retain(|path| path.file_name().and_then(|value| value.to_str()) != Some("INDEX.md"));
-    files.sort();
-    Ok(files.pop())
+    let prefix = stem.chars().take(17).collect::<String>();
+    if prefix.chars().count() != 17 || !prefix.chars().all(|value| value.is_ascii_digit()) {
+        return None;
+    }
+    let year = prefix.get(0..4)?.parse().ok()?;
+    let month = prefix.get(4..6)?.parse().ok()?;
+    let day = prefix.get(6..8)?.parse().ok()?;
+    let hour = prefix.get(8..10)?.parse().ok()?;
+    let minute = prefix.get(10..12)?.parse().ok()?;
+    let second = prefix.get(12..14)?.parse().ok()?;
+    let millis = prefix.get(14..17)?.parse().ok()?;
+    let legacy = NaiveDate::from_ymd_opt(year, month, day)?
+        .and_hms_milli_opt(hour, minute, second, millis)?;
+    Local
+        .from_local_datetime(&legacy)
+        .single()
+        .map(|value| value.timestamp_millis() as i128)
 }
 
 fn collect_markdown(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
@@ -352,17 +645,19 @@ fn collect_markdown(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
-}
-
-fn write(path: &Path, content: &str) -> Result<()> {
-    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 /// Returns whether a proof points at a Baron-owned receipt that is still valid
@@ -373,13 +668,10 @@ pub fn proof_has_current_receipt(repo_root: &Path, proof: &ProofRecord) -> Resul
     let Some((receipt_id, binding)) = proof_receipt_context(proof)? else {
         return Ok(false);
     };
-    let Some(receipt) = load_receipts(repo_root)?
-        .into_iter()
-        .find(|receipt| receipt.receipt_id == receipt_id)
-    else {
+    let Ok(receipt) = load_verified_receipt(repo_root, &receipt_id) else {
         return Ok(false);
     };
-    receipt_matches_context(repo_root, &receipt, &binding)
+    receipt_matches_verified_context(&receipt, &binding)
 }
 
 /// Read the explicit receipt binding recorded in a proof.  A proof without a
@@ -387,53 +679,236 @@ pub fn proof_has_current_receipt(repo_root: &Path, proof: &ProofRecord) -> Resul
 /// a medium/high-risk completion or provide a task scope for quality gates.
 pub fn proof_receipt_context(proof: &ProofRecord) -> Result<Option<(String, ReceiptContext)>> {
     let content = fs::read_to_string(&proof.repo_path)?;
-    let Some(receipt_id) = content
-        .lines()
-        .find_map(|line| line.strip_prefix("- Receipt ID: `"))
-        .and_then(|value| value.strip_suffix('`'))
-    else {
+    let Some(receipt_id) = parse_receipt_id(&content) else {
         return Ok(None);
     };
-    let binding = ReceiptContext::new(
-        field_value(&content, "- Task ID: `")?,
-        field_value(&content, "- Operation ID: `")?,
-        field_value(&content, "- Adapter: `")?,
-        field_value(&content, "- Session ID: `")?,
-        field_value(&content, "- Request ID: `")?,
-        field_value(&content, "- Gate kind: `")?,
-    );
-    Ok(Some((receipt_id.to_string(), binding)))
+    let binding =
+        parse_operation_binding(&content)?.context("proof receipt binding fields are missing")?;
+    Ok(Some((receipt_id, binding)))
 }
 
-fn field_value(content: &str, prefix: &str) -> Result<String> {
+fn parse_proof(path: &Path) -> Result<ProofRecord> {
+    let content = fs::read_to_string(path)?;
+    if !is_baron_proof_document(&content) {
+        bail!("proof document header is missing");
+    }
+    let id = content
+        .lines()
+        .find_map(|line| line.strip_prefix("- Proof ID: `"))
+        .and_then(|value| value.strip_suffix('`'))
+        .filter(|value| !value.trim().is_empty())
+        .context("proof document ID is missing")?
+        .to_string();
+    let summary = section_body(&content, "## Evidence");
+    let capability_gate_passed = !content.contains("- Capability gate: `failed`");
+    let capability_gaps = bullet_section(&content, "## Capability Gaps");
+    let capability_warnings = bullet_section(&content, "## Capability Warnings");
+    Ok(ProofRecord {
+        id,
+        summary,
+        repo_path: path.to_path_buf(),
+        vault_path: PathBuf::new(),
+        capability_gate_passed,
+        capability_gaps,
+        capability_warnings,
+        receipt_id: parse_receipt_id(&content),
+        source_fingerprint: optional_field_value(&content, "- Source fingerprint: `"),
+        binding: parse_operation_binding(&content)?,
+    })
+}
+
+fn parse_receipt_id(content: &str) -> Option<String> {
+    optional_field_value(content, "- Receipt ID: `").filter(|value| value != "none")
+}
+
+fn parse_operation_binding(content: &str) -> Result<Option<ReceiptContext>> {
+    let fields = [
+        optional_field_value(content, "- Task ID: `"),
+        optional_field_value(content, "- Operation ID: `"),
+        optional_field_value(content, "- Adapter: `"),
+        optional_field_value(content, "- Session ID: `"),
+        optional_field_value(content, "- Request ID: `"),
+        optional_field_value(content, "- Gate kind: `"),
+    ];
+    let present = fields.iter().filter(|value| value.is_some()).count();
+    if present == 0 {
+        return Ok(None);
+    }
+    if present != fields.len() {
+        bail!("proof operation binding is incomplete");
+    }
+    let [task_id, operation_id, adapter, session_id, request_id, gate_kind] = fields;
+    let binding = ReceiptContext::new(
+        task_id.expect("checked task ID"),
+        operation_id.expect("checked operation ID"),
+        adapter.expect("checked adapter"),
+        session_id.expect("checked session ID"),
+        request_id.expect("checked request ID"),
+        gate_kind.expect("checked gate kind"),
+    );
+    binding.validate()?;
+    Ok(Some(binding))
+}
+
+fn optional_field_value(content: &str, prefix: &str) -> Option<String> {
     content
         .lines()
         .find_map(|line| line.strip_prefix(prefix))
         .and_then(|value| value.strip_suffix('`'))
         .map(str::to_string)
-        .with_context(|| format!("proof receipt binding field is missing: {prefix}"))
 }
 
-fn append_receipt_reference(
-    path: &Path,
-    receipt: &crate::execution_receipt::ExecutionReceipt,
-    binding: &ReceiptContext,
+fn complete_operation_binding(
+    vault: &VaultContext,
+    operation: &OperationContext,
+) -> Result<Option<ReceiptContext>> {
+    let (Some(task_id), Some(operation_id), Some(session_id), Some(request_id)) = (
+        operation.task_id.as_deref(),
+        operation.operation_id.as_deref(),
+        operation.session_id.as_deref(),
+        operation.request_id.as_deref(),
+    ) else {
+        return Ok(None);
+    };
+    let binding = ReceiptContext::new(
+        task_id,
+        operation_id,
+        operation.adapter.as_str(),
+        session_id,
+        request_id,
+        "proof",
+    );
+    binding.validate()?;
+    operation
+        .lifecycle_identity(&vault.project_id)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    Ok(Some(binding))
+}
+
+fn operation_from_binding(binding: &ReceiptContext) -> Result<OperationContext> {
+    let adapter = SupportedAdapter::parse(&binding.adapter)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    Ok(OperationContext::new(adapter)
+        .with_task_id(binding.task_id.clone())
+        .with_operation_id(binding.operation_id.clone())
+        .with_session_id(binding.session_id.clone())
+        .with_request_id(binding.request_id.clone()))
+}
+
+fn operation_binding_matches(left: &ReceiptContext, right: &ReceiptContext) -> bool {
+    left.task_id == right.task_id
+        && left.operation_id == right.operation_id
+        && left.adapter == right.adapter
+        && left.session_id == right.session_id
+        && left.request_id == right.request_id
+}
+
+fn proof_paths(repo_root: &Path) -> Result<Vec<PathBuf>> {
+    let root = repo_root.join("docs/baron/proofs");
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    let root_metadata = fs::symlink_metadata(&root)?;
+    if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut candidates = Vec::new();
+    collect_markdown(&root, &mut candidates)?;
+    let mut paths = Vec::new();
+    for path in candidates {
+        if path.file_name().and_then(|value| value.to_str()) == Some("INDEX.md") {
+            continue;
+        }
+        let bytes = fs::read(&path)?;
+        if !bytes.starts_with(b"# Baron Proof\n") {
+            continue;
+        }
+        let content = String::from_utf8(bytes).with_context(|| {
+            format!(
+                "Baron proof document is not valid UTF-8: {}",
+                path.display()
+            )
+        })?;
+        if is_baron_proof_document(&content) {
+            paths.push(path);
+        }
+    }
+    Ok(paths)
+}
+
+fn is_baron_proof_document(content: &str) -> bool {
+    content.starts_with("# Baron Proof\n")
+}
+
+fn preflight_publication_paths(
+    repo_root: &Path,
+    vault: &VaultContext,
+    repo_path: &Path,
+    vault_path: &Path,
 ) -> Result<()> {
-    let mut content = fs::read_to_string(path)?;
-    content.push_str(&format!(
-        "\n## Trusted Execution Receipt\n\n- Receipt ID: `{}`\n- Source: Baron-owned execution runner\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `{}`\n- Session ID: `{}`\n- Request ID: `{}`\n- Gate kind: `{}`\n- Source fingerprint: `{}`\n",
-        receipt.receipt_id,
-        binding.task_id.trim(),
-        binding.operation_id.trim(),
-        binding.adapter.trim(),
-        binding.session_id.trim(),
-        binding.request_id.trim(),
-        binding.gate_kind.trim(),
-        receipt.source_fingerprint,
-    ));
-    write(path, &content)
+    let paths = vec![
+        repo_path.to_path_buf(),
+        vault_path.to_path_buf(),
+        repo_root.join("docs/baron/proofs/INDEX.md"),
+        vault.project_root.join("Proofs/INDEX.md"),
+        repo_root.join("docs/baron/harness/TEST_MATRIX.md"),
+        vault.project_root.join("ProductHarness/TEST_MATRIX.md"),
+    ];
+    for path in paths {
+        validate_publication_path(&path)?;
+    }
+    for path in [repo_path, vault_path] {
+        match fs::symlink_metadata(path) {
+            Ok(_) => bail!(
+                "Proof publication target already exists; refusing overwrite: {}",
+                path.display()
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
+fn validate_publication_path(path: &Path) -> Result<()> {
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            bail!(
+                "Proof publication target is not a regular file: {}",
+                path.display()
+            );
+        }
+    }
+    let mut current = path.parent();
+    while let Some(parent) = current {
+        match fs::symlink_metadata(parent) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                    bail!(
+                        "Proof publication parent is not a real directory: {}",
+                        parent.display()
+                    )
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        current = parent.parent();
+    }
+    Ok(())
 }
 
 fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Secs, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_artifact_timestamp;
+
+    #[test]
+    fn legacy_artifact_timestamp_is_parsed() {
+        let value = parse_artifact_timestamp("20260923085547839");
+        assert!(value.is_some());
+    }
 }

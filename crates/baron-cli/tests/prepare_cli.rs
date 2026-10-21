@@ -2,6 +2,10 @@ use std::fs;
 use std::path::Path;
 
 use assert_cmd::Command;
+use baron_core::continuity::record_continuity_checkpoint_for_operation;
+use baron_core::intent::{record_intent_for_operation, IntentBriefInput};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::plan::{interrupt_plan_for_identity, start_or_resume_plan_for_identity};
 use serde_json::{json, Value};
 use tempfile::tempdir;
 
@@ -108,55 +112,178 @@ fn prepare_repeated_input_keeps_deterministic_identity_and_route_fields() {
 }
 
 #[test]
-fn prepare_projects_interrupted_continuity_confirmed_intent_and_required_route() {
+fn prepare_resumes_exact_interrupted_operation_and_rejects_unbound_current_intent() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("prepare-resume");
     let vault = temp.path().join("Vault");
     fs::create_dir_all(&repo).unwrap();
     init(&repo, &vault, "--codex");
-    fs::create_dir_all(repo.join("docs/baron/plans")).unwrap();
     fs::create_dir_all(repo.join("docs/baron/continuity")).unwrap();
     fs::create_dir_all(repo.join("docs/baron/harness")).unwrap();
-    fs::write(
-        repo.join("docs/baron/plans/CURRENT.md"),
-        "# Current Plan\n\n- Title: implement login\n- Status: `interrupted`\n- Next action: resume login verification\n",
+    let vault_context = baron_core::vault::ensure_vault(&vault, &repo).unwrap();
+    let task = "implement the authorization policy after deciding which policy we should use";
+    let session_id = "prepare-login-session";
+    let request_id = "prepare-login-request";
+    let identity = LifecycleIdentity::resolve(
+        &vault_context.project_id,
+        task,
+        SupportedAdapter::Codex,
+        Some(session_id),
+        Some(request_id),
     )
     .unwrap();
-    fs::write(
-        repo.join("docs/baron/continuity/CURRENT.md"),
-        "# Baron Continuity Resume\n\n- Current task: `implement login`\n- Next action: resume login verification\n",
+    start_or_resume_plan_for_identity(&repo, &vault_context, task, &identity).unwrap();
+    interrupt_plan_for_identity(
+        &repo,
+        &vault_context,
+        "resume authorization policy implementation",
+        &identity,
+    )
+    .unwrap();
+    record_continuity_checkpoint_for_operation(
+        &repo,
+        &vault_context,
+        "resume authorization policy implementation",
+        &OperationContext::from_identity(&identity),
     )
     .unwrap();
     fs::write(
         repo.join("docs/baron/continuity/CURRENT_RECOVERY.md"),
-        "# Recovery\n\n- Outcome: `interrupted`\n\n## Safe Next Action\n\nresume login verification\n",
+        "# Recovery\n\n- Outcome: `interrupted`\n\n## Safe Next Action\n\nresume authorization policy implementation\n",
     )
     .unwrap();
     fs::write(
         repo.join("docs/baron/harness/CURRENT_INTENT.md"),
-        "# Baron Intent Brief\n\n- ID: `intent-login`\n- Title: Implement login\n- Confirmation: `confirmed`\n\n## Constraints\n\n- preserve existing auth behavior\n\n## Non-Goals\n\n- no provider migration\n",
+        "# Baron Intent Brief\n\n- ID: `intent-authorization`\n- Title: Decide authorization policy\n- Confirmation: `confirmed`\n\n## Constraints\n\n- preserve existing auth behavior\n\n## Non-Goals\n\n- no provider migration\n",
     )
     .unwrap();
 
     let packet = packet(run_prepare(
         &repo,
         "codex",
-        json!({"schema_version": 1, "task": "Implement login safely"}),
+        json!({
+            "schema_version": 1,
+            "task": task,
+            "session_id": session_id,
+            "request_id": request_id
+        }),
     ));
     assert_eq!(packet["task"]["resumed"], true);
     assert_eq!(packet["continuity"]["resumed"], true);
     assert_eq!(
         packet["continuity"]["safe_next_action"],
-        "resume login verification"
+        "Interrupted: resume authorization policy implementation"
     );
-    assert_eq!(packet["intent"]["confirmed"], true);
-    assert!(packet["route"]["selected_skills"]
+    assert_eq!(packet["intent"]["confirmed"], false);
+    assert!(packet["blockers"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|skill| skill["name"] == "vibe-security-scan"));
+        .any(|item| item["code"] == "intent_confirmation_required"));
+    assert!(packet["route"]["mandatory_agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|agent| agent["name"] == "security-auditor"));
     assert_eq!(packet["risk"], "high");
     assert_eq!(packet["verification"]["required_trace_tier"], "detailed");
+}
+
+#[test]
+fn prepare_reads_exact_operation_intent_when_current_projects_another_session() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("prepare-operation-intent");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    init(&repo, &vault, "--codex");
+    let vault_context = baron_core::vault::ensure_vault(&vault, &repo).unwrap();
+    let task = "implement the authorization policy after deciding which policy we should use";
+    let session_a = "authorization-session-a";
+    let request_a = "authorization-request-a";
+    let session_b = "authorization-session-b";
+    let request_b = "authorization-request-b";
+    let identity_a = LifecycleIdentity::resolve(
+        &vault_context.project_id,
+        task,
+        SupportedAdapter::Codex,
+        Some(session_a),
+        Some(request_a),
+    )
+    .unwrap();
+    let identity_b = LifecycleIdentity::resolve(
+        &vault_context.project_id,
+        task,
+        SupportedAdapter::Claude,
+        Some(session_b),
+        Some(request_b),
+    )
+    .unwrap();
+    let intent_input = |title: &str, confirmed| IntentBriefInput {
+        title: title.to_string(),
+        current_behavior: "Authorization policy is not yet selected.".to_string(),
+        target_behavior: "Implement only the explicitly selected policy.".to_string(),
+        scope: "Authorization decision and implementation.".to_string(),
+        non_goals: vec!["Do not broaden permissions.".to_string()],
+        constraints: vec!["Preserve current authentication behavior.".to_string()],
+        decisions: vec!["Policy selection is operation-specific.".to_string()],
+        required_proof: "Authorization tests pass.".to_string(),
+        unknowns: vec!["Deployment policy remains unknown.".to_string()],
+        confirmed,
+    };
+    record_intent_for_operation(
+        &repo,
+        &vault_context,
+        task,
+        &identity_a,
+        intent_input("Authorization choice A", true),
+    )
+    .unwrap();
+    record_intent_for_operation(
+        &repo,
+        &vault_context,
+        task,
+        &identity_b,
+        intent_input("Authorization choice B", false),
+    )
+    .unwrap();
+
+    let current = fs::read_to_string(repo.join("docs/baron/harness/CURRENT_INTENT.md")).unwrap();
+    assert!(current.contains(&format!("- Operation ID: `{}`", identity_b.operation_id())));
+    let packet_a = packet(run_prepare(
+        &repo,
+        "codex",
+        json!({
+            "schema_version": 1,
+            "task": task,
+            "session_id": session_a,
+            "request_id": request_a
+        }),
+    ));
+    assert_eq!(packet_a["intent"]["title"], "Authorization choice A");
+    assert_eq!(packet_a["intent"]["confirmed"], true);
+    assert!(!packet_a["blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["code"] == "intent_confirmation_required"));
+
+    let packet_b = packet(run_prepare(
+        &repo,
+        "claude",
+        json!({
+            "schema_version": 1,
+            "task": task,
+            "session_id": session_b,
+            "request_id": request_b
+        }),
+    ));
+    assert_eq!(packet_b["intent"]["title"], "Authorization choice B");
+    assert_eq!(packet_b["intent"]["confirmed"], false);
+    assert!(packet_b["blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["code"] == "intent_confirmation_required"));
 }
 
 #[test]

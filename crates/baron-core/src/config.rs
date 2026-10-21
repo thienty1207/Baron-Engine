@@ -4,13 +4,29 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::identity::{new_identity_binding, project_id_for_path};
-use crate::safe_io::{ensure_directory_chain, read_bytes, read_text_required, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, ensure_directory_chain, read_bytes, read_text, read_text_required,
+    replace_text,
+};
 use crate::vault::ensure_vault_root;
 use crate::vault::project_slug;
 
 const PROJECT_CONFIG_PATH: &str = ".baron/project.toml";
 const LOCAL_CONFIG_PATH: &str = ".baron/local.toml";
 pub const PROJECT_SCHEMA_VERSION: u32 = 4;
+const PROJECT_CONFIG_FIELDS: &[&str] = &[
+    "schema_version",
+    "project_id",
+    "identity_binding",
+    "project_slug",
+    "platform",
+    "platform_extensions",
+    "adapters",
+    "active_adapter",
+    "legacy_active_adapter",
+    "automation",
+];
+const AUTOMATION_CONFIG_FIELDS: &[&str] = &["context", "plan", "harness", "proof", "trace"];
 
 /// A supported Baron integration. Persisted compatibility values are decoded
 /// at the project-config boundary into `ConfiguredAdapter` and never enter
@@ -109,7 +125,7 @@ pub enum ProjectPlatform {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationConfig {
     pub context: bool,
     pub plan: bool,
@@ -118,7 +134,7 @@ pub struct AutomationConfig {
     pub trace: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ProjectConfig {
     pub schema_version: u32,
     pub project_id: String,
@@ -135,7 +151,7 @@ pub struct ProjectConfig {
     pub legacy_active_adapter: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct ProjectConfigWire {
     schema_version: u32,
     #[serde(default)]
@@ -151,6 +167,8 @@ struct ProjectConfigWire {
     adapters: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     active_adapter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    legacy_active_adapter: Option<String>,
     automation: AutomationConfig,
 }
 
@@ -178,6 +196,11 @@ impl Serialize for ProjectConfig {
                 .map(AdapterKind::as_str)
                 .map(str::to_string)
                 .or_else(|| self.legacy_active_adapter.clone()),
+            legacy_active_adapter: if self.active_adapter.is_some() {
+                self.legacy_active_adapter.clone()
+            } else {
+                None
+            },
             automation: self.automation.clone(),
         }
         .serialize(serializer)
@@ -204,10 +227,14 @@ impl<'de> Deserialize<'de> for ProjectConfig {
         }
         let (active_adapter, legacy_active_adapter) = match wire.active_adapter {
             Some(value) => match ConfiguredAdapter::parse(value) {
-                ConfiguredAdapter::Supported(adapter) => (Some(adapter), None),
-                ConfiguredAdapter::UnsupportedLegacy(value) => (None, Some(value)),
+                ConfiguredAdapter::Supported(adapter) => {
+                    (Some(adapter), wire.legacy_active_adapter)
+                }
+                ConfiguredAdapter::UnsupportedLegacy(value) => {
+                    (None, Some(value).or(wire.legacy_active_adapter))
+                }
             },
-            None => (None, None),
+            None => (None, wire.legacy_active_adapter),
         };
         Ok(Self {
             schema_version: wire.schema_version,
@@ -225,10 +252,48 @@ impl<'de> Deserialize<'de> for ProjectConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalConfig {
     pub vault_path: PathBuf,
 }
+
+impl PartialEq for AutomationConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.context == other.context
+            && self.plan == other.plan
+            && self.harness == other.harness
+            && self.proof == other.proof
+            && self.trace == other.trace
+    }
+}
+
+impl Eq for AutomationConfig {}
+
+impl PartialEq for ProjectConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.project_id == other.project_id
+            && self.identity_binding == other.identity_binding
+            && self.project_slug == other.project_slug
+            && self.platform == other.platform
+            && self.platform_extensions == other.platform_extensions
+            && self.adapters == other.adapters
+            && self.active_adapter == other.active_adapter
+            && self.automation == other.automation
+            && self.legacy_adapters == other.legacy_adapters
+            && self.legacy_active_adapter == other.legacy_active_adapter
+    }
+}
+
+impl Eq for ProjectConfig {}
+
+impl PartialEq for LocalConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.vault_path == other.vault_path
+    }
+}
+
+impl Eq for LocalConfig {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MachineConfig {
@@ -247,6 +312,43 @@ impl Default for AutomationConfig {
     }
 }
 
+/// Preserve unrecognized TOML keys while writing the public source-compatible
+/// config structs, which intentionally do not expose extension storage.
+fn config_text_preserving_unknown_fields(
+    path: &Path,
+    new_content: &str,
+    known_fields: &[&str],
+    nested_known_fields: Option<(&str, &[&str])>,
+) -> Result<String> {
+    let mut updated: toml::Value = toml::from_str(new_content)?;
+    if let Some(existing_content) = read_text(path)? {
+        let existing: toml::Value = toml::from_str(&existing_content)
+            .with_context(|| format!("Could not parse existing config {}", path.display()))?;
+        if let (Some(existing), Some(updated)) = (existing.as_table(), updated.as_table_mut()) {
+            for (key, value) in existing {
+                if !known_fields.contains(&key.as_str()) && !updated.contains_key(key) {
+                    updated.insert(key.clone(), value.clone());
+                }
+            }
+            if let Some((table_name, nested_known)) = nested_known_fields {
+                if let (Some(existing), Some(updated)) = (
+                    existing.get(table_name).and_then(toml::Value::as_table),
+                    updated
+                        .get_mut(table_name)
+                        .and_then(toml::Value::as_table_mut),
+                ) {
+                    for (key, value) in existing {
+                        if !nested_known.contains(&key.as_str()) && !updated.contains_key(key) {
+                            updated.insert(key.clone(), value.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(toml::to_string_pretty(&updated)?)
+}
+
 pub fn initialize_project(
     repo_path: impl AsRef<Path>,
     adapter: AdapterKind,
@@ -263,12 +365,16 @@ pub fn initialize_project_with_options(
 ) -> Result<ProjectConfig> {
     let repo_root = canonical_directory(repo_path.as_ref())?;
     let baron_root = repo_root.join(".baron");
+    // Establish only the directory scaffold before locking. This is the
+    // lock-path prerequisite required for first initialization; no managed
+    // file is read or written until the project lock is held below.
     ensure_directory_chain(&baron_root).with_context(|| {
         format!(
             "Could not create safe Baron state directory: {}",
             baron_root.display()
         )
     })?;
+    let _lock = acquire_project_lock(&repo_root)?;
 
     let project_path = repo_root.join(PROJECT_CONFIG_PATH);
     let mut config = if project_path.exists() {
@@ -304,15 +410,30 @@ pub fn initialize_project_with_options(
         }
         config.active_adapter = Some(adapter);
     }
-    atomic_write(&project_path, &toml::to_string_pretty(&config)?)?;
-
-    let local = LocalConfig {
-        vault_path: vault_path.as_ref().to_path_buf(),
-    };
-    atomic_write(
-        &repo_root.join(LOCAL_CONFIG_PATH),
-        &toml::to_string_pretty(&local)?,
+    let project_content = config_text_preserving_unknown_fields(
+        &project_path,
+        &toml::to_string_pretty(&config)?,
+        PROJECT_CONFIG_FIELDS,
+        Some(("automation", AUTOMATION_CONFIG_FIELDS)),
     )?;
+    atomic_write(&project_path, &project_content)?;
+
+    let local_path = repo_root.join(LOCAL_CONFIG_PATH);
+    let mut local = if read_bytes(&local_path)?.is_some() {
+        load_local_config(&repo_root)?
+    } else {
+        LocalConfig {
+            vault_path: PathBuf::new(),
+        }
+    };
+    local.vault_path = vault_path.as_ref().to_path_buf();
+    let local_content = config_text_preserving_unknown_fields(
+        &local_path,
+        &toml::to_string_pretty(&local)?,
+        &["vault_path"],
+        None,
+    )?;
+    atomic_write(&local_path, &local_content)?;
     write_if_missing(&baron_root.join(".gitignore"), "local.toml\ncache/\ntmp/\n")?;
     Ok(config)
 }
@@ -322,13 +443,18 @@ pub fn set_project_platform(
     platform: ProjectPlatform,
 ) -> Result<ProjectConfig> {
     let repo_root = find_project_root(repo_path)?;
+    let _lock = acquire_project_lock(&repo_root)?;
     let mut config = load_project_config(&repo_root)?;
     config.schema_version = PROJECT_SCHEMA_VERSION;
     reconcile_platform(&mut config, platform);
-    atomic_write(
-        &repo_root.join(PROJECT_CONFIG_PATH),
+    let path = repo_root.join(PROJECT_CONFIG_PATH);
+    let content = config_text_preserving_unknown_fields(
+        &path,
         &toml::to_string_pretty(&config)?,
+        PROJECT_CONFIG_FIELDS,
+        Some(("automation", AUTOMATION_CONFIG_FIELDS)),
     )?;
+    atomic_write(&path, &content)?;
     Ok(config)
 }
 
@@ -343,17 +469,21 @@ pub fn set_active_adapter(
     adapter: AdapterKind,
 ) -> Result<ProjectConfig> {
     let repo_root = find_project_root(repo_path)?;
+    let _lock = acquire_project_lock(&repo_root)?;
     let mut config = load_project_config(&repo_root)?;
     if !config.adapters.contains(&adapter) {
         config.adapters.push(adapter);
     }
     config.active_adapter = Some(adapter);
-    config.legacy_active_adapter = None;
     config.schema_version = PROJECT_SCHEMA_VERSION;
-    atomic_write(
-        &repo_root.join(PROJECT_CONFIG_PATH),
+    let path = repo_root.join(PROJECT_CONFIG_PATH);
+    let content = config_text_preserving_unknown_fields(
+        &path,
         &toml::to_string_pretty(&config)?,
+        PROJECT_CONFIG_FIELDS,
+        Some(("automation", AUTOMATION_CONFIG_FIELDS)),
     )?;
+    atomic_write(&path, &content)?;
     Ok(config)
 }
 
@@ -452,6 +582,34 @@ pub fn resolve_vault_path_for_repo(
         .with_context(|| {
             "No default Baron Vault found. Run `baron setup --vault` inside your Vault folder, pass --vault <path>, or set BARON_VAULT."
         })
+}
+
+/// Returns a configured Vault path when one is already available without
+/// creating or inventing project state. Receipt authority uses this optional
+/// value only to enforce the machine-root boundary.
+pub fn configured_vault_path_if_available(repo_root: impl AsRef<Path>) -> Result<Option<PathBuf>> {
+    if let Ok(path) = std::env::var("BARON_VAULT") {
+        if !path.trim().is_empty() {
+            return Ok(Some(PathBuf::from(path)));
+        }
+    }
+
+    let repo_root = repo_root.as_ref();
+    let local_path = repo_root.join(LOCAL_CONFIG_PATH);
+    if read_bytes(&local_path)?.is_some() {
+        let vault_path = load_local_config(repo_root)?.vault_path;
+        return Ok(Some(if vault_path.is_absolute() {
+            vault_path
+        } else {
+            repo_root.join(vault_path)
+        }));
+    }
+
+    let machine_path = machine_config_path()?;
+    if read_bytes(&machine_path)?.is_some() {
+        return Ok(Some(load_machine_config()?.default_vault_path));
+    }
+    Ok(None)
 }
 
 pub fn load_project_from(start_path: impl AsRef<Path>) -> Result<(PathBuf, ProjectConfig)> {

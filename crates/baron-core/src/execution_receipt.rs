@@ -1,8 +1,7 @@
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{atomic::AtomicU64, atomic::Ordering, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
@@ -10,19 +9,20 @@ use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::config::configured_vault_path_if_available;
 use crate::identity::project_id_for_path;
+use crate::operation::{
+    operation_id_for_parts, AuthoritativeLifecycleIdentity, LifecycleIdentity, SupportedAdapter,
+};
+use crate::receipt_authority::{hex_encode, ReceiptAuthority};
+use crate::safe_io::{acquire_project_lock, append_text, read_text};
 
 const RECEIPT_PATH: &str = ".baron/cache/execution-receipts.jsonl";
 const MAX_CAPTURE_BYTES: usize = 64 * 1024;
 const MAX_ARG_BYTES: usize = 16 * 1024;
-
-/// The process-local authority registry retains the exact integrity value that
-/// the trusted runner emitted.  Keeping only receipt IDs would let a caller
-/// rewrite the JSONL record and recompute its unkeyed digest during the same
-/// process, turning an otherwise diagnostic record into false authority.
-static CURRENT_RECEIPTS: OnceLock<Mutex<std::collections::BTreeMap<String, String>>> =
-    OnceLock::new();
-static RECEIPT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const RECEIPT_SCHEMA_V1: u32 = 1;
+const RECEIPT_SCHEMA_V2: u32 = 2;
+const RECEIPT_SIGNATURE_DOMAIN: &[u8] = b"baron-execution-receipt-v2\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -35,7 +35,11 @@ pub enum ExecutionResult {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReceiptProvenance {
+    /// Legacy serialized issuance metadata. It is diagnostic context only;
+    /// signature verification, canonical identity, and freshness establish
+    /// authority instead.
     TrustedCurrentOperation,
+    /// Explicitly diagnostic persisted metadata.
     #[default]
     PersistedDiagnostic,
 }
@@ -72,6 +76,22 @@ impl ReceiptContext {
     pub fn validate(&self) -> Result<()> {
         validate_context(self)
     }
+
+    pub fn for_identity(
+        identity: &LifecycleIdentity,
+        gate_kind: impl Into<String>,
+    ) -> Result<Self> {
+        let context = Self::new(
+            identity.task_id(),
+            identity.operation_id(),
+            identity.adapter().as_str(),
+            identity.session_id(),
+            identity.request_id(),
+            gate_kind,
+        );
+        context.validate()?;
+        Ok(context)
+    }
 }
 
 impl ExecutionResult {
@@ -105,8 +125,8 @@ pub struct ExecutionReceipt {
     pub stderr_excerpt: String,
     pub artifact_digests: Vec<String>,
     /// The operation binding is optional only for legacy generic executions.
-    /// A gate-authoritative receipt must carry every field and be produced by
-    /// `execute_command_with_context` in the current process.
+    /// A gate-authoritative receipt carries every field and is produced only
+    /// through the typed [`AuthoritativeLifecycleIdentity`] boundary.
     #[serde(default)]
     pub task_id: Option<String>,
     #[serde(default)]
@@ -119,9 +139,34 @@ pub struct ExecutionReceipt {
     pub request_id: Option<String>,
     #[serde(default)]
     pub gate_kind: Option<String>,
+    /// Issuance metadata retained for compatibility; never an authority
+    /// decision by itself.
     #[serde(default)]
     pub provenance: ReceiptProvenance,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority_key_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority_signature: Option<String>,
     pub integrity_digest: String,
+}
+
+/// A receipt that has passed machine-key, signature, freshness, result, and
+/// binding verification. Raw `ExecutionReceipt` values remain diagnostic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedExecutionReceipt(ExecutionReceipt);
+
+impl VerifiedExecutionReceipt {
+    pub fn as_receipt(&self) -> &ExecutionReceipt {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for VerifiedExecutionReceipt {
+    type Target = ExecutionReceipt;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -135,7 +180,7 @@ pub struct ExecutionRequest {
 }
 
 pub fn execute_command(request: ExecutionRequest) -> Result<ExecutionReceipt> {
-    execute_command_internal(request, None)
+    execute_command_internal(request, None, None)
 }
 
 pub fn execute_command_with_context(
@@ -143,12 +188,46 @@ pub fn execute_command_with_context(
     context: ReceiptContext,
 ) -> Result<ExecutionReceipt> {
     context.validate()?;
-    execute_command_internal(request, Some(context))
+    // This compatibility API intentionally remains diagnostic. A free-form
+    // context cannot prove that task_id came from canonical task text, so it
+    // must never mint a schema-v2 authority receipt.
+    execute_command_internal(request, Some(context), None)
+}
+
+/// Execute one command with the canonical lifecycle identity resolved at the
+/// authority-bearing ingress. Only this typed path can create a schema-v2
+/// signed receipt. The stronger identity type proves task canonicality before
+/// any authority key is loaded or created.
+pub fn execute_command_for_identity(
+    request: ExecutionRequest,
+    identity: &AuthoritativeLifecycleIdentity,
+    gate_kind: &str,
+) -> Result<ExecutionReceipt> {
+    validate_request(&request)?;
+    let repo_root = request.working_directory.canonicalize().with_context(|| {
+        format!(
+            "Could not resolve execution working directory: {}",
+            request.working_directory.display()
+        )
+    })?;
+    if !repo_root.is_dir() {
+        bail!("Execution working directory is not a directory");
+    }
+    let project_id = project_id_for_path(&repo_root)?;
+    if identity.project_id() != project_id {
+        bail!("Lifecycle identity project ID does not match the execution repository");
+    }
+    let context = ReceiptContext::for_identity(identity.as_lifecycle_identity(), gate_kind)?;
+    let vault_root = configured_vault_path_if_available(&repo_root)?;
+    let authority =
+        ReceiptAuthority::load_or_create_for_project(&repo_root, vault_root.as_deref())?;
+    execute_command_internal(request, Some(context), Some(authority))
 }
 
 fn execute_command_internal(
     request: ExecutionRequest,
     context: Option<ReceiptContext>,
+    authority: Option<ReceiptAuthority>,
 ) -> Result<ExecutionReceipt> {
     validate_request(&request)?;
     let repo_root = request.working_directory.canonicalize().with_context(|| {
@@ -211,17 +290,12 @@ fn execute_command_internal(
     };
     let exit_code = status.and_then(|value| value.code());
     let mut receipt = ExecutionReceipt {
-        schema_version: 1,
-        receipt_id: format!(
-            "receipt-{}",
-            digest_hex(
-                format!(
-                    "{project_id}:{started_at}:{}",
-                    RECEIPT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-                ),
-                16,
-            )
-        ),
+        schema_version: if authority.is_some() {
+            RECEIPT_SCHEMA_V2
+        } else {
+            RECEIPT_SCHEMA_V1
+        },
+        receipt_id: new_receipt_id()?,
         project_id,
         source_fingerprint,
         capability: normalize_label(&request.capability),
@@ -244,27 +318,42 @@ fn execute_command_internal(
         session_id: context.as_ref().map(|value| value.session_id.clone()),
         request_id: context.as_ref().map(|value| value.request_id.clone()),
         gate_kind: context.as_ref().map(|value| value.gate_kind.clone()),
-        provenance: ReceiptProvenance::TrustedCurrentOperation,
+        provenance: if authority.is_some() {
+            ReceiptProvenance::TrustedCurrentOperation
+        } else {
+            ReceiptProvenance::PersistedDiagnostic
+        },
+        authority_key_id: authority.as_ref().map(|value| value.key_id().to_string()),
+        authority_signature: None,
         integrity_digest: String::new(),
     };
+    if let Some(authority) = authority.as_ref() {
+        receipt.authority_signature = Some(authority.sign(&canonical_receipt_bytes(&receipt)?));
+    }
     receipt.integrity_digest = receipt_integrity(&receipt)?;
     append_receipt(&repo_root, &receipt)?;
-    register_current_receipt(&receipt.receipt_id, &receipt.integrity_digest)?;
     Ok(receipt)
 }
 
 pub fn load_receipts(repo_root: impl AsRef<Path>) -> Result<Vec<ExecutionReceipt>> {
     let path = repo_root.as_ref().join(RECEIPT_PATH);
-    if !path.exists() {
+    let Some(content) = read_text(&path)? else {
         return Ok(Vec::new());
-    }
+    };
     let mut receipts = Vec::new();
-    for (line_number, line) in fs::read_to_string(&path)?.lines().enumerate() {
+    let mut receipt_ids = std::collections::BTreeSet::new();
+    for (line_number, line) in content.lines().enumerate() {
         if line.trim().is_empty() {
             continue;
         }
         let receipt: ExecutionReceipt = serde_json::from_str(line)
             .with_context(|| format!("Malformed execution receipt at line {}", line_number + 1))?;
+        if !receipt_ids.insert(receipt.receipt_id.clone()) {
+            bail!(
+                "Duplicate execution receipt ID is not authoritative: {}",
+                receipt.receipt_id
+            );
+        }
         if receipt_integrity(&receipt)? != receipt.integrity_digest {
             bail!(
                 "Execution receipt integrity check failed for {}",
@@ -276,6 +365,125 @@ pub fn load_receipts(repo_root: impl AsRef<Path>) -> Result<Vec<ExecutionReceipt
     Ok(receipts)
 }
 
+pub fn load_verified_receipt(
+    repo_root: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<VerifiedExecutionReceipt> {
+    let receipt = load_receipts(repo_root.as_ref())?
+        .into_iter()
+        .find(|receipt| receipt.receipt_id == receipt_id.trim())
+        .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
+    verify_receipt_authority(repo_root, &receipt)
+}
+
+/// Loads receipts that pass the authority verifier for diagnostic reporting.
+/// Invalid records are intentionally skipped and must never be used by a
+/// correctness consumer.
+pub fn load_valid_receipts_for_diagnostics(
+    repo_root: impl AsRef<Path>,
+) -> Result<Vec<VerifiedExecutionReceipt>> {
+    let repo_root = repo_root.as_ref();
+    let verified = load_receipts(repo_root)?
+        .into_iter()
+        .filter_map(|receipt| verify_receipt_authority(repo_root, &receipt).ok())
+        .collect::<Vec<_>>();
+    Ok(verified)
+}
+
+/// Compatibility alias for the historical bulk API. It remains diagnostic
+/// filtering only; correctness-sensitive callers must use
+/// [`load_verified_receipts_strict`].
+#[deprecated(
+    note = "use load_verified_receipts_strict for authority or load_valid_receipts_for_diagnostics for diagnostics"
+)]
+pub fn load_verified_receipts(
+    repo_root: impl AsRef<Path>,
+) -> Result<Vec<VerifiedExecutionReceipt>> {
+    load_valid_receipts_for_diagnostics(repo_root)
+}
+
+/// Loads every schema-v2 persisted receipt as authority evidence. Known
+/// schema-v1 diagnostic records are ignored, but unlike the diagnostic loader,
+/// one invalid schema-v2 record fails the whole operation so callers cannot
+/// silently hide corruption.
+pub fn load_verified_receipts_strict(
+    repo_root: impl AsRef<Path>,
+) -> Result<Vec<VerifiedExecutionReceipt>> {
+    let repo_root = repo_root.as_ref();
+    load_receipts(repo_root)?
+        .into_iter()
+        .filter(|receipt| receipt.schema_version != RECEIPT_SCHEMA_V1)
+        .map(|receipt| verify_receipt_authority(repo_root, &receipt))
+        .collect()
+}
+
+pub fn verify_receipt_authority(
+    repo_root: impl AsRef<Path>,
+    receipt: &ExecutionReceipt,
+) -> Result<VerifiedExecutionReceipt> {
+    // Schema-v2 intentionally carries no canonical task text. Task-ID
+    // canonicality is guaranteed at the trusted AuthoritativeLifecycleIdentity
+    // issuance boundary; this verifier independently revalidates the complete
+    // operation tuple, including its canonical operation ID.
+    let repo_root = repo_root.as_ref().canonicalize().with_context(|| {
+        format!(
+            "Could not resolve execution repository for receipt verification: {}",
+            repo_root.as_ref().display()
+        )
+    })?;
+    if receipt.schema_version != RECEIPT_SCHEMA_V2 {
+        bail!(
+            "execution receipt schema {} is diagnostic-only; schema v2 is required for authority",
+            receipt.schema_version
+        );
+    }
+    let key_id = receipt
+        .authority_key_id
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .context("authoritative receipt key ID is missing")?;
+    let signature = receipt
+        .authority_signature
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .context("authoritative receipt signature is missing")?;
+    let vault_root = configured_vault_path_if_available(&repo_root)?;
+    ReceiptAuthority::verify_for_project(
+        &repo_root,
+        vault_root.as_deref(),
+        key_id,
+        signature,
+        &canonical_receipt_bytes(receipt)?,
+    )?;
+    if receipt_integrity(receipt)? != receipt.integrity_digest {
+        bail!(
+            "Execution receipt integrity check failed for {}",
+            receipt.receipt_id
+        );
+    }
+    let context = authoritative_context(receipt)?;
+    context.validate()?;
+    let adapter = SupportedAdapter::parse(&context.adapter)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let expected_operation = operation_id_for_parts(
+        &receipt.project_id,
+        &context.task_id,
+        adapter,
+        &context.session_id,
+        &context.request_id,
+    );
+    if receipt.operation_id.as_deref() != Some(expected_operation.as_str()) {
+        bail!("authoritative receipt operation ID does not match the canonical operation ID");
+    }
+    if !receipt_is_current(&repo_root, receipt)? {
+        bail!(
+            "Execution receipt `{}` is stale, failed, or bound to another project",
+            receipt.receipt_id
+        );
+    }
+    Ok(VerifiedExecutionReceipt(receipt.clone()))
+}
+
 pub fn receipt_is_current(repo_root: impl AsRef<Path>, receipt: &ExecutionReceipt) -> Result<bool> {
     let repo_root = repo_root.as_ref().canonicalize()?;
     Ok(receipt.project_id == project_id_for_path(&repo_root)?
@@ -285,60 +493,14 @@ pub fn receipt_is_current(repo_root: impl AsRef<Path>, receipt: &ExecutionReceip
         && receipt_integrity(receipt)? == receipt.integrity_digest)
 }
 
-/// A receipt is gate-authoritative only while the trusted runner that created
-/// it is still the current Baron operation. Persisted JSONL records are
-/// intentionally diagnostic after process restart; their unkeyed integrity
-/// digest cannot establish authenticity.
+/// A receipt remains gate-authoritative across process boundaries when its
+/// machine-local signature, exact lifecycle binding, freshness, and project
+/// scope all verify. The unkeyed integrity digest alone is diagnostic only.
 pub fn receipt_is_current_authority(
     repo_root: impl AsRef<Path>,
     receipt: &ExecutionReceipt,
 ) -> Result<bool> {
-    if receipt.provenance != ReceiptProvenance::TrustedCurrentOperation
-        || receipt
-            .task_id
-            .as_deref()
-            .map(str::is_empty)
-            .unwrap_or(true)
-        || receipt
-            .operation_id
-            .as_deref()
-            .map(str::is_empty)
-            .unwrap_or(true)
-        || receipt
-            .adapter
-            .as_deref()
-            .map(str::is_empty)
-            .unwrap_or(true)
-        || receipt
-            .session_id
-            .as_deref()
-            .map(str::is_empty)
-            .unwrap_or(true)
-        || receipt
-            .request_id
-            .as_deref()
-            .map(str::is_empty)
-            .unwrap_or(true)
-        || receipt
-            .gate_kind
-            .as_deref()
-            .map(str::is_empty)
-            .unwrap_or(true)
-    {
-        return Ok(false);
-    }
-    let Some(registry) = CURRENT_RECEIPTS.get() else {
-        return Ok(false);
-    };
-    let registered = registry
-        .lock()
-        .map(|receipts| {
-            receipts
-                .get(&receipt.receipt_id)
-                .is_some_and(|integrity| integrity == &receipt.integrity_digest)
-        })
-        .unwrap_or(false);
-    Ok(registered && receipt_is_current(repo_root, receipt)?)
+    Ok(verify_receipt_authority(repo_root, receipt).is_ok())
 }
 
 pub fn receipt_matches_context(
@@ -346,23 +508,24 @@ pub fn receipt_matches_context(
     receipt: &ExecutionReceipt,
     context: &ReceiptContext,
 ) -> Result<bool> {
+    let verified = match verify_receipt_authority(repo_root, receipt) {
+        Ok(verified) => verified,
+        Err(_) => return Ok(false),
+    };
+    receipt_matches_verified_context(&verified, context)
+}
+
+pub fn receipt_matches_verified_context(
+    receipt: &VerifiedExecutionReceipt,
+    context: &ReceiptContext,
+) -> Result<bool> {
     context.validate()?;
-    Ok(receipt_is_current_authority(repo_root, receipt)?
-        && receipt.task_id.as_deref() == Some(context.task_id.trim())
+    Ok(receipt.task_id.as_deref() == Some(context.task_id.trim())
         && receipt.operation_id.as_deref() == Some(context.operation_id.trim())
         && receipt.adapter.as_deref() == Some(context.adapter.trim())
         && receipt.session_id.as_deref() == Some(context.session_id.trim())
         && receipt.request_id.as_deref() == Some(context.request_id.trim())
         && receipt.gate_kind.as_deref() == Some(context.gate_kind.trim()))
-}
-
-fn register_current_receipt(receipt_id: &str, integrity_digest: &str) -> Result<()> {
-    let registry = CURRENT_RECEIPTS.get_or_init(|| Mutex::new(std::collections::BTreeMap::new()));
-    registry
-        .lock()
-        .map_err(|_| anyhow::anyhow!("trusted receipt registry was poisoned"))?
-        .insert(receipt_id.to_string(), integrity_digest.to_string());
-    Ok(())
 }
 
 fn validate_context(context: &ReceiptContext) -> Result<()> {
@@ -414,17 +577,110 @@ fn validate_request(request: &ExecutionRequest) -> Result<()> {
 
 fn append_receipt(repo_root: &Path, receipt: &ExecutionReceipt) -> Result<()> {
     let path = repo_root.join(RECEIPT_PATH);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
     let line = format!("{}\n", serde_json::to_string(receipt)?);
-    OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .with_context(|| format!("Could not open {}", path.display()))?
-        .write_all(line.as_bytes())
-        .with_context(|| format!("Could not append {}", path.display()))
+    let _lock = acquire_project_lock(repo_root)?;
+    append_text(&path, &line)
+        .with_context(|| format!("Could not append execution receipt: {}", path.display()))
+}
+
+fn authoritative_context(receipt: &ExecutionReceipt) -> Result<ReceiptContext> {
+    Ok(ReceiptContext::new(
+        receipt
+            .task_id
+            .clone()
+            .context("authoritative receipt task ID is missing")?,
+        receipt
+            .operation_id
+            .clone()
+            .context("authoritative receipt operation ID is missing")?,
+        receipt
+            .adapter
+            .clone()
+            .context("authoritative receipt adapter is missing")?,
+        receipt
+            .session_id
+            .clone()
+            .context("authoritative receipt session ID is missing")?,
+        receipt
+            .request_id
+            .clone()
+            .context("authoritative receipt request ID is missing")?,
+        receipt
+            .gate_kind
+            .clone()
+            .context("authoritative receipt gate kind is missing")?,
+    ))
+}
+
+#[derive(Serialize)]
+struct ReceiptSigningPayload<'a> {
+    schema_version: u32,
+    receipt_id: &'a str,
+    project_id: &'a str,
+    source_fingerprint: &'a str,
+    capability: &'a str,
+    provider: &'a str,
+    executable: &'a str,
+    arguments: &'a [String],
+    working_directory: &'a str,
+    started_at: &'a str,
+    finished_at: &'a str,
+    exit_code: Option<i32>,
+    result: ExecutionResult,
+    stdout_digest: &'a str,
+    stderr_digest: &'a str,
+    stdout_excerpt: &'a str,
+    stderr_excerpt: &'a str,
+    artifact_digests: &'a [String],
+    task_id: Option<&'a str>,
+    operation_id: Option<&'a str>,
+    adapter: Option<&'a str>,
+    session_id: Option<&'a str>,
+    request_id: Option<&'a str>,
+    gate_kind: Option<&'a str>,
+    provenance: ReceiptProvenance,
+    authority_key_id: Option<&'a str>,
+}
+
+fn canonical_receipt_bytes(receipt: &ExecutionReceipt) -> Result<Vec<u8>> {
+    let payload = ReceiptSigningPayload {
+        schema_version: receipt.schema_version,
+        receipt_id: &receipt.receipt_id,
+        project_id: &receipt.project_id,
+        source_fingerprint: &receipt.source_fingerprint,
+        capability: &receipt.capability,
+        provider: &receipt.provider,
+        executable: &receipt.executable,
+        arguments: &receipt.arguments,
+        working_directory: &receipt.working_directory,
+        started_at: &receipt.started_at,
+        finished_at: &receipt.finished_at,
+        exit_code: receipt.exit_code,
+        result: receipt.result,
+        stdout_digest: &receipt.stdout_digest,
+        stderr_digest: &receipt.stderr_digest,
+        stdout_excerpt: &receipt.stdout_excerpt,
+        stderr_excerpt: &receipt.stderr_excerpt,
+        artifact_digests: &receipt.artifact_digests,
+        task_id: receipt.task_id.as_deref(),
+        operation_id: receipt.operation_id.as_deref(),
+        adapter: receipt.adapter.as_deref(),
+        session_id: receipt.session_id.as_deref(),
+        request_id: receipt.request_id.as_deref(),
+        gate_kind: receipt.gate_kind.as_deref(),
+        provenance: receipt.provenance,
+        authority_key_id: receipt.authority_key_id.as_deref(),
+    };
+    let mut bytes = RECEIPT_SIGNATURE_DOMAIN.to_vec();
+    bytes.extend(serde_json::to_vec(&payload)?);
+    Ok(bytes)
+}
+
+fn new_receipt_id() -> Result<String> {
+    let mut random = [0_u8; 16];
+    getrandom::getrandom(&mut random)
+        .map_err(|error| anyhow::anyhow!("Could not generate receipt ID: {error}"))?;
+    Ok(format!("receipt-{}", hex_encode(random)))
 }
 
 fn read_bounded(mut reader: impl Read, limit: usize) -> Result<Vec<u8>> {
@@ -511,7 +767,7 @@ fn collect_source_files(root: &Path, current: &Path, files: &mut Vec<String>) ->
 fn receipt_integrity(receipt: &ExecutionReceipt) -> Result<String> {
     // This digest detects accidental or malformed persisted state only. It is
     // deliberately not treated as signer authenticity; authority comes from
-    // the in-process trusted runner registry and exact identity binding.
+    // the machine-key signature and exact identity binding.
     let mut value = receipt.clone();
     value.integrity_digest.clear();
     Ok(digest_bytes(&serde_json::to_vec(&value)?))
@@ -519,10 +775,6 @@ fn receipt_integrity(receipt: &ExecutionReceipt) -> Result<String> {
 
 fn digest_bytes(value: &[u8]) -> String {
     format!("{:x}", Sha256::digest(value))
-}
-
-fn digest_hex(value: String, take: usize) -> String {
-    digest_bytes(value.as_bytes()).chars().take(take).collect()
 }
 
 fn normalize_label(value: &str) -> String {
@@ -562,4 +814,71 @@ fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Millis, false)
 }
 
-use std::io::Write;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity::project_id_for_path;
+    use crate::operation::SupportedAdapter;
+    use std::env;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn valid_signature_with_forged_operation_id_is_rejected() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let machine_home = temp.path().join("machine-home");
+        fs::create_dir_all(&repo).unwrap();
+        let previous_home = env::var_os("BARON_HOME");
+        let previous_vault = env::var_os("BARON_VAULT");
+        env::set_var("BARON_HOME", &machine_home);
+        env::remove_var("BARON_VAULT");
+
+        let project_id = project_id_for_path(&repo).unwrap();
+        let identity = AuthoritativeLifecycleIdentity::resolve(
+            &project_id,
+            "canonical operation fixture",
+            SupportedAdapter::Codex,
+            Some("session-forged-operation"),
+            Some("request-forged-operation"),
+        )
+        .unwrap();
+        let request = ExecutionRequest {
+            capability: "security-review".to_string(),
+            provider: "trusted-runner".to_string(),
+            executable: if cfg!(windows) {
+                "cmd".to_string()
+            } else {
+                "sh".to_string()
+            },
+            arguments: if cfg!(windows) {
+                vec!["/C".to_string(), "exit 0".to_string()]
+            } else {
+                vec!["-c".to_string(), "exit 0".to_string()]
+            },
+            working_directory: repo.clone(),
+            timeout: Duration::from_secs(5),
+        };
+        let receipt = execute_command_for_identity(request, &identity, "proof").unwrap();
+        let authority = ReceiptAuthority::load_existing_for_project(&repo, None).unwrap();
+        let mut forged = receipt;
+        forged.operation_id = Some("operation-forged-but-signed".to_string());
+        forged.authority_signature =
+            Some(authority.sign(&canonical_receipt_bytes(&forged).unwrap()));
+        forged.integrity_digest = receipt_integrity(&forged).unwrap();
+
+        let error = verify_receipt_authority(&repo, &forged)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("canonical operation ID"), "{error}");
+
+        match previous_home {
+            Some(value) => env::set_var("BARON_HOME", value),
+            None => env::remove_var("BARON_HOME"),
+        }
+        match previous_vault {
+            Some(value) => env::set_var("BARON_VAULT", value),
+            None => env::remove_var("BARON_VAULT"),
+        }
+    }
+}

@@ -9,6 +9,7 @@ use baron_core::continuity::record_continuity_checkpoint;
 use baron_core::continuity::{record_recovery, RecoveryInput, RecoveryOutcome};
 use baron_core::intent::{record_intent, IntentBriefInput};
 use baron_core::plan::start_or_resume_plan;
+use baron_core::safe_io::acquire_project_lock;
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
@@ -160,6 +161,56 @@ fn status_surfaces_resume_and_observed_automation_without_guessing() {
     assert!(status.contains("PlanStarted"));
     assert!(status.contains("network loss before tests"));
     assert!(status.contains("Do not infer completion"));
+}
+
+#[test]
+fn autopilot_status_waits_for_the_shared_vault_journal_lock() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    record_lifecycle_event(
+        &context,
+        HookAdapter::Codex,
+        AutomationEvent::ContextCompiled,
+    )
+    .unwrap();
+
+    let shared_vault_lock = acquire_project_lock(&context.project_root).unwrap();
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (result_tx, result_rx) = std::sync::mpsc::channel();
+    let worker_repo = repo.clone();
+    let worker_context = context.clone();
+    let worker = std::thread::spawn(move || {
+        started_tx.send(()).unwrap();
+        result_tx
+            .send(autopilot_status(&worker_repo, &worker_context))
+            .unwrap();
+    });
+    started_rx.recv().unwrap();
+    let early_result = match result_rx.recv_timeout(std::time::Duration::from_millis(200)) {
+        Ok(result) => Some(result),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+        Err(error) => panic!("status worker disconnected unexpectedly: {error}"),
+    };
+    let completed_while_locked = early_result.is_some();
+    drop(shared_vault_lock);
+    let status = match early_result {
+        Some(result) => result.unwrap(),
+        None => result_rx
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("status read should resume after the shared lock is released")
+            .unwrap(),
+    };
+    worker.join().unwrap();
+
+    assert!(
+        !completed_while_locked,
+        "Autopilot status read the shared journal without the capsule lock"
+    );
+    assert!(status.contains("ContextCompiled"));
 }
 
 trait ReadToStringLossy {

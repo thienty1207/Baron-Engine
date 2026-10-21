@@ -47,8 +47,8 @@ use baron_core::config::{
 };
 use baron_core::context::{compile_context_for_operation, compile_context_why, ContextTarget};
 use baron_core::continuity::{
-    continuity_status, record_continuity_checkpoint_for_operation, record_recovery, RecoveryInput,
-    RecoveryOutcome,
+    continuity_status, record_continuity_checkpoint_for_operation, record_recovery,
+    record_recovery_for_operation, RecoveryInput, RecoveryOutcome,
 };
 use baron_core::control_plane::{
     gate_evidence_status_strict, record_gate_evidence, record_gate_evidence_with_receipt_bound,
@@ -59,7 +59,7 @@ use baron_core::evaluation42::{
     freeze_contract42, run_acceptance42, run_benchmark42, run_holdout42, write_phase88_audit,
 };
 use baron_core::execution_receipt::{
-    execute_command, ExecutionRequest, ExecutionResult, ReceiptContext,
+    execute_command_for_identity, ExecutionRequest, ExecutionResult, ReceiptContext,
 };
 use baron_core::firewall::{compact_memory_brief, render_recall, trusted_recall_current};
 use baron_core::graphify::{GraphifyProvider, SUPPORTED_GRAPHIFY_VERSION};
@@ -72,6 +72,7 @@ use baron_core::harness_improvement::{
     audit_harness, propose_improvements, record_improvement_outcome, record_intervention,
     verify_open_stories,
 };
+use baron_core::identity::project_id_for_path;
 use baron_core::intelligence::{
     experimental_generation_enabled, next_generation_enabled, route_security_task,
     run_integrated_acceptance, run_local_benchmark, run_security_regression,
@@ -81,7 +82,9 @@ use baron_core::intelligence::{
 use baron_core::intelligence41::{
     analyze_graph_impact, refresh_temporal_ledger, rollback_temporal_ledger,
 };
-use baron_core::intent::{intent_status, record_intent, IntentBriefInput};
+use baron_core::intent::{
+    intent_status, record_intent, record_intent_for_operation, IntentBriefInput,
+};
 use baron_core::knowledge::{
     benchmark_resume, build_local_code_graph, index_wiki, load_wiki_index, render_resume_brief,
     search_local_code_graph, search_local_code_graph_v5, search_local_code_graph_v6,
@@ -90,18 +93,26 @@ use baron_core::knowledge::{
 use baron_core::memory::{analyze_memory_consolidation, stage_memory_consolidation};
 use baron_core::memory::{build_memory_index, load_memory_records};
 use baron_core::migration::{
-    execute_agent_bootstrap_migration, inventory_agent_bootstrap, migration_status,
-    render_migration_inventory, rollback_migration,
+    execute_agent_bootstrap_migration_with_outputs, inventory_agent_bootstrap, migration_status,
+    render_migration_inventory, rollback_migration, MigrationInstallOutputs,
 };
-use baron_core::operation::{OperationContext, SupportedAdapter};
+use baron_core::operation::{
+    AuthoritativeLifecycleIdentity, LifecycleIdentity, OperationContext, SupportedAdapter,
+};
 use baron_core::plan::{
-    complete_plan, interrupt_plan, plan_status, start_or_resume_plan, update_plan,
+    active_plan_operation_binding, complete_plan, complete_plan_for_identity,
+    indexed_active_plan_authority_for_binding, interrupt_plan, interrupt_plan_for_identity,
+    plan_status, start_or_resume_plan_for_identity, update_plan, update_plan_for_identity,
+    PlanOperationBinding,
 };
 use baron_core::platform::{ensure_platform_intelligence, platform_name as core_platform_name};
 use baron_core::prepare::{
     decode_request, prepare, PrepareError, PreparePacketV1, PREPARE_MAX_INPUT_BYTES,
 };
-use baron_core::proof::{proof_status, record_proof, record_proof_from_receipt_bound};
+use baron_core::proof::{
+    proof_for_operation, proof_status, record_proof, record_proof_for_operation,
+    record_proof_from_receipt_bound,
+};
 use baron_core::release::{
     load_and_verify_release_metadata, verify_release_identity, write_release_metadata,
 };
@@ -112,7 +123,10 @@ use baron_core::session_replay::{
 };
 use baron_core::state_guard::require_coherent_execution_state;
 use baron_core::survey::{render_project_atlas, survey_repository};
-use baron_core::trace::{record_trace, score_trace, TraceOutcome};
+use baron_core::trace::{
+    record_trace, record_trace_for_operation, score_trace, trace_for_operation,
+    TraceOperationBinding, TraceOutcome,
+};
 use baron_core::vault::{ensure_vault, resolve_vault_path, vault_context_without_create};
 use baron_core::work_shape::decide_work_shape;
 use baron_core::{phase, product_name};
@@ -543,22 +557,55 @@ enum PlanCommands {
     },
     Start {
         title: String,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
     Update {
         note: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
     Interrupt {
         state: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
     Complete {
         verification: String,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         repo_path: Option<PathBuf>,
     },
 }
 
+// Clap owns this short-lived parsed command value; keep the argument model
+// direct rather than boxing every large flag solely to reduce enum size.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 enum HarnessCommands {
     Status {
@@ -570,6 +617,14 @@ enum HarnessCommands {
     Intent {
         title: String,
         repo_path: Option<PathBuf>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         #[arg(long = "current")]
         current_behavior: String,
         #[arg(long = "target")]
@@ -661,6 +716,8 @@ enum ProofCommands {
     Record {
         summary: String,
         repo_path: Option<PathBuf>,
+        #[arg(long, conflicts_with = "receipt")]
+        task: Option<String>,
         #[arg(long, value_enum)]
         adapter: Option<AdapterArg>,
         #[arg(long = "capability-evidence")]
@@ -671,9 +728,9 @@ enum ProofCommands {
         task_id: Option<String>,
         #[arg(long, requires = "receipt")]
         operation_id: Option<String>,
-        #[arg(long, requires = "receipt")]
+        #[arg(long)]
         session_id: Option<String>,
-        #[arg(long, requires = "receipt")]
+        #[arg(long)]
         request_id: Option<String>,
         #[arg(long, requires = "receipt")]
         gate_kind: Option<String>,
@@ -683,9 +740,18 @@ enum ProofCommands {
         capability: String,
         #[arg(long)]
         provider: String,
+        #[arg(long)]
         repo_path: Option<PathBuf>,
         #[arg(long, default_value_t = 120)]
         timeout_seconds: u64,
+        #[arg(long)]
+        task: String,
+        #[arg(long, value_enum)]
+        adapter: AdapterArg,
+        #[arg(long)]
+        session_id: String,
+        #[arg(long)]
+        request_id: String,
         command: String,
         #[arg(last = true)]
         arguments: Vec<String>,
@@ -699,11 +765,27 @@ enum TraceCommands {
         repo_path: Option<PathBuf>,
         #[arg(long, value_enum, default_value_t = OutcomeArg::Completed)]
         outcome: OutcomeArg,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
     },
     Score {
         repo_path: Option<PathBuf>,
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["task", "adapter", "session_id", "request_id"])]
         id: Option<String>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
     },
 }
 
@@ -987,6 +1069,14 @@ enum ContinuityCommands {
     Recover {
         root_cause: String,
         repo_path: Option<PathBuf>,
+        #[arg(long)]
+        task: Option<String>,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
         #[arg(long, value_enum)]
         outcome: RecoveryOutcomeArg,
         #[arg(long = "last-success")]
@@ -2592,10 +2682,54 @@ fn run() -> Result<()> {
                 let repo_root = configured_repo(repo_path)?;
                 print!("{}", plan_status(repo_root)?);
             }
-            PlanCommands::Start { title, repo_path } => {
+            PlanCommands::Start {
+                title,
+                adapter,
+                session_id,
+                request_id,
+                repo_path,
+            } => {
+                let supplied_identity_fields = [
+                    adapter.is_some(),
+                    session_id.is_some(),
+                    request_id.is_some(),
+                ];
+                if supplied_identity_fields
+                    .iter()
+                    .filter(|field| **field)
+                    .count()
+                    != 3
+                {
+                    bail!("plan start requires --adapter, --session-id, and --request-id together");
+                }
+                let adapter = adapter.expect("validated complete plan adapter");
+                let session_id = session_id.expect("validated complete plan session ID");
+                let request_id = request_id.expect("validated complete plan request ID");
+                if session_id.trim().is_empty() || request_id.trim().is_empty() {
+                    bail!("plan start identity values must not be empty");
+                }
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let plan = start_or_resume_plan(&repo_root, &vault, &title)?;
-                record_lifecycle_event_neutral(&vault, AutomationEvent::PlanStarted)?;
+                let config = load_project_config(&repo_root)?;
+                let supported_adapter = match adapter {
+                    AdapterArg::Codex => SupportedAdapter::Codex,
+                    AdapterArg::Claude => SupportedAdapter::Claude,
+                };
+                let identity = LifecycleIdentity::resolve(
+                    &config.project_id,
+                    &title,
+                    supported_adapter,
+                    Some(&session_id),
+                    Some(&request_id),
+                )
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                let operation = OperationContext::from_identity(&identity);
+                let plan =
+                    start_or_resume_plan_for_identity(&repo_root, &vault, &title, &identity)?;
+                record_lifecycle_event_for_operation(
+                    &vault,
+                    &operation,
+                    AutomationEvent::PlanStarted,
+                )?;
                 println!("# Baron Plan Start\n");
                 println!("- Title: {}", plan.title);
                 println!("- Risk: `{}`", plan.risk.as_str());
@@ -2605,22 +2739,58 @@ fn run() -> Result<()> {
                 );
                 println!("- Plan: `{}`", plan.repo_path.display());
             }
-            PlanCommands::Update { note, repo_path } => {
+            PlanCommands::Update {
+                note,
+                task,
+                adapter,
+                session_id,
+                request_id,
+                repo_path,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                update_plan(&repo_root, &vault, &note)?;
+                if let Some(identity) = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )? {
+                    update_plan_for_identity(&repo_root, &vault, &note, &identity)?;
+                } else {
+                    update_plan(&repo_root, &vault, &note)?;
+                }
                 println!("# Baron Plan Update\n\n- Progress recorded.");
             }
-            PlanCommands::Interrupt { state, repo_path } => {
+            PlanCommands::Interrupt {
+                state,
+                task,
+                adapter,
+                session_id,
+                request_id,
+                repo_path,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                interrupt_plan(&repo_root, &vault, &state)?;
+                if let Some(identity) = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )? {
+                    interrupt_plan_for_identity(&repo_root, &vault, &state, &identity)?;
+                } else {
+                    interrupt_plan(&repo_root, &vault, &state)?;
+                }
                 println!("# Baron Plan Interrupt\n\n- Last known state recorded.");
             }
             PlanCommands::Complete {
                 verification,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 repo_path,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                complete_plan(&repo_root, &vault, &verification)?;
+                if let Some(identity) = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )? {
+                    complete_plan_for_identity(&repo_root, &vault, &verification, &identity)?;
+                } else {
+                    complete_plan(&repo_root, &vault, &verification)?;
+                }
                 println!("# Baron Plan Complete\n\n- Completion gate passed.");
             }
         },
@@ -2636,6 +2806,10 @@ fn run() -> Result<()> {
             HarnessCommands::Intent {
                 title,
                 repo_path,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 current_behavior,
                 target_behavior,
                 scope,
@@ -2647,22 +2821,39 @@ fn run() -> Result<()> {
                 confirmed,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let brief = record_intent(
+                let identity = resolve_plan_identity_selector(
                     &repo_root,
-                    &vault,
-                    IntentBriefInput {
-                        title,
-                        current_behavior,
-                        target_behavior,
-                        scope,
-                        non_goals,
-                        constraints: constraint,
-                        decisions: decision,
-                        required_proof,
-                        unknowns,
-                        confirmed,
-                    },
+                    task.clone(),
+                    adapter,
+                    session_id,
+                    request_id,
                 )?;
+                let input = IntentBriefInput {
+                    title,
+                    current_behavior,
+                    target_behavior,
+                    scope,
+                    non_goals,
+                    constraints: constraint,
+                    decisions: decision,
+                    required_proof,
+                    unknowns,
+                    confirmed,
+                };
+                let brief = if let Some(identity) = identity {
+                    let canonical_task = task
+                        .as_deref()
+                        .context("--task is required for operation-scoped intent")?;
+                    record_intent_for_operation(
+                        &repo_root,
+                        &vault,
+                        canonical_task,
+                        &identity,
+                        input,
+                    )?
+                } else {
+                    record_intent(&repo_root, &vault, input)?
+                };
                 println!("# Baron Harness Intent\n");
                 println!("- Intent ID: `{}`", brief.id);
                 println!("- Title: {}", brief.title);
@@ -2801,6 +2992,7 @@ fn run() -> Result<()> {
             ProofCommands::Record {
                 summary,
                 repo_path,
+                task,
                 adapter,
                 capability_evidence,
                 receipt,
@@ -2811,7 +3003,8 @@ fn run() -> Result<()> {
                 gate_kind,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let operation = operation_context_from_arg(adapter)?;
+                let explicit_operation = operation_context_from_arg(adapter)?;
+                let operation;
                 let proof = if let Some(receipt_id) = receipt {
                     if !capability_evidence.is_empty() {
                         bail!("Use either --receipt or --capability-evidence, not both");
@@ -2824,16 +3017,60 @@ fn run() -> Result<()> {
                         request_id.context("--request-id is required with --receipt")?,
                         gate_kind.context("--gate-kind is required with --receipt")?,
                     );
+                    // The receipt's complete tuple is the explicit selector.
+                    // Never compare its adapter to a singleton presentation.
+                    let identity = LifecycleIdentity::from_parts_checked(
+                        &vault.project_id,
+                        &binding.task_id,
+                        &binding.operation_id,
+                        binding.adapter.parse()?,
+                        &binding.session_id,
+                        &binding.request_id,
+                    )?;
+                    let plan_binding = PlanOperationBinding::from_identity(&identity);
+                    indexed_active_plan_authority_for_binding(&repo_root, &plan_binding)?
+                        .context("no validated active plan matches the receipt operation")?;
+                    operation = Some(OperationContext::from_identity(&identity));
                     record_proof_from_receipt_bound(&repo_root, &vault, &receipt_id, &binding)?
                 } else {
+                    // Adapter-only legacy capability recording remains supported;
+                    // any task/session/request selector requires the full tuple.
+                    let identity = if task.is_some() || session_id.is_some() || request_id.is_some()
+                    {
+                        resolve_plan_identity_selector(
+                            &repo_root, task, adapter, session_id, request_id,
+                        )?
+                    } else {
+                        None
+                    };
+                    let active_operation =
+                        resolve_evidence_plan_binding(&repo_root, identity.as_ref())?
+                            .as_ref()
+                            .map(PlanOperationBinding::to_operation_context)
+                            .transpose()?;
+                    if let (Some(explicit), Some(active)) =
+                        (explicit_operation.as_ref(), active_operation.as_ref())
+                    {
+                        if explicit.adapter != active.adapter {
+                            bail!("explicit adapter identity does not match the selected plan operation");
+                        }
+                    }
+                    operation = active_operation.clone().or(explicit_operation.clone());
                     let capability_evidence = capability_evidence
                         .iter()
                         .map(|value| parse_capability_evidence(value))
                         .collect::<Result<Vec<_>>>()?;
                     if capability_evidence.is_empty() {
-                        record_proof(&repo_root, &vault, &summary)?
+                        if let Some(operation) = active_operation.as_ref() {
+                            record_proof_for_operation(&repo_root, &vault, operation, &summary)?
+                        } else {
+                            record_proof(&repo_root, &vault, &summary)?
+                        }
                     } else {
-                        let operation = operation.as_ref().context(
+                        let operation = active_operation
+                            .as_ref()
+                            .or(explicit_operation.as_ref())
+                            .context(
                             "explicit adapter identity is required for capability evidence",
                         )?;
                         baron_core::proof::record_proof_with_capabilities_for_operation(
@@ -2873,20 +3110,50 @@ fn run() -> Result<()> {
                 provider,
                 repo_path,
                 timeout_seconds,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 command,
                 arguments,
             } => {
                 let repo_root = configured_repo(repo_path)?;
-                let receipt = execute_command(ExecutionRequest {
-                    capability,
-                    provider,
-                    executable: command,
-                    arguments,
-                    working_directory: repo_root,
-                    timeout: std::time::Duration::from_secs(timeout_seconds),
-                })?;
+                if session_id.trim().is_empty() || request_id.trim().is_empty() {
+                    bail!("proof execute identity values must not be blank");
+                }
+                let supported_adapter = match adapter {
+                    AdapterArg::Codex => SupportedAdapter::Codex,
+                    AdapterArg::Claude => SupportedAdapter::Claude,
+                };
+                let project_id = project_id_for_path(&repo_root)?;
+                let identity = AuthoritativeLifecycleIdentity::resolve(
+                    &project_id,
+                    &task,
+                    supported_adapter,
+                    Some(&session_id),
+                    Some(&request_id),
+                )
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                let receipt = execute_command_for_identity(
+                    ExecutionRequest {
+                        capability,
+                        provider,
+                        executable: command,
+                        arguments,
+                        working_directory: repo_root,
+                        timeout: std::time::Duration::from_secs(timeout_seconds),
+                    },
+                    &identity,
+                    "proof",
+                )?;
                 println!("# Baron Trusted Execution\n");
                 println!("- Receipt: `{}`", receipt.receipt_id);
+                println!("- Task ID: `{}`", identity.task_id());
+                println!("- Operation ID: `{}`", identity.operation_id());
+                println!("- Adapter: `{}`", identity.adapter().as_str());
+                println!("- Session ID: `{}`", identity.session_id());
+                println!("- Request ID: `{}`", identity.request_id());
+                println!("- Gate kind: `proof`");
                 println!("- Result: `{}`", receipt.result.as_str());
                 println!(
                     "- Exit code: `{}`",
@@ -2909,16 +3176,71 @@ fn run() -> Result<()> {
                 summary,
                 repo_path,
                 outcome,
+                task,
+                adapter,
+                session_id,
+                request_id,
             } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let trace = record_trace(&repo_root, &vault, &summary, outcome.into())?;
+                let identity = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )?;
+                let trace = if let Some(plan_binding) =
+                    resolve_evidence_plan_binding(&repo_root, identity.as_ref())?
+                {
+                    let operation = plan_binding.to_operation_context()?;
+                    let proof = proof_for_operation(&repo_root, &plan_binding.proof_binding())?
+                        .context("operation-bound trace proof is missing")?;
+                    let trace_binding =
+                        TraceOperationBinding::from_operation(&operation, &proof.id)?;
+                    record_trace_for_operation(
+                        &repo_root,
+                        &vault,
+                        &summary,
+                        outcome.into(),
+                        &trace_binding,
+                    )?
+                } else {
+                    record_trace(&repo_root, &vault, &summary, outcome.into())?
+                };
                 println!("# Baron Trace Record\n");
                 println!("- Trace ID: `{}`", trace.id);
                 println!("- Score status: `unscored`");
             }
-            TraceCommands::Score { repo_path, id } => {
+            TraceCommands::Score {
+                repo_path,
+                id,
+                task,
+                adapter,
+                session_id,
+                request_id,
+            } => {
                 let (repo_root, vault) = execution_context(repo_path)?;
-                let score = score_trace(&repo_root, &vault, id.as_deref())?;
+                let identity = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
+                )?;
+                let scoped_id = if id.is_none() {
+                    if let Some(plan_binding) =
+                        resolve_evidence_plan_binding(&repo_root, identity.as_ref())?
+                    {
+                        let operation = plan_binding.to_operation_context()?;
+                        let proof = proof_for_operation(&repo_root, &plan_binding.proof_binding())?
+                            .context("operation-bound trace proof is missing")?;
+                        let trace_binding =
+                            TraceOperationBinding::from_operation(&operation, &proof.id)?;
+                        Some(
+                            trace_for_operation(&repo_root, &trace_binding)?
+                                .context("operation-bound trace is missing")?
+                                .id,
+                        )
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let selected_id = id.as_deref().or(scoped_id.as_deref());
+                let score = score_trace(&repo_root, &vault, selected_id)?;
                 record_lifecycle_event_neutral(&vault, AutomationEvent::TraceScored)?;
                 println!("# Baron Trace Score\n");
                 println!("- Achieved: `{}`", score.achieved.as_str());
@@ -2989,60 +3311,111 @@ fn run() -> Result<()> {
                 println!("- Status: `closed`");
             }
         },
-        Some(Commands::Migrate { command }) => match command {
-            MigrationCommands::AgentBootstrap {
-                repo_path,
-                dry_run,
-                vault,
-            } => {
-                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
-                if dry_run {
-                    let inventory = inventory_agent_bootstrap(&repo_path, vault.as_deref())?;
-                    print!("{}", render_migration_inventory(&inventory));
-                } else {
-                    let receipt = execute_agent_bootstrap_migration(
-                        &repo_path,
-                        vault.as_deref(),
-                        |repo_root, vault_root| {
-                            initialize_project(repo_root, AdapterKind::Codex, vault_root)?;
-                            install_adapter(repo_root, AgentAdapter::Codex)?;
-                            let context = ensure_vault(vault_root, repo_root)?;
-                            build_memory_index(&context)?;
-                            Ok(())
-                        },
-                    )?;
-                    println!("# Baron Agent Bootstrap Migration\n");
-                    println!("- Migration ID: `{}`", receipt.migration_id);
-                    println!("- Status: `{}`", receipt.status);
-                    println!("- Imported: {}", receipt.imported_count);
-                    println!("- Quarantined: {}", receipt.quarantined_count);
-                    println!("- Removed: {}", receipt.removed_count);
-                    println!("- Backup: `{}`", receipt.backup_root.display());
-                    println!("- Runtime dependency on Agent Bootstrap: none");
+        Some(Commands::Migrate { command }) => {
+            match command {
+                MigrationCommands::AgentBootstrap {
+                    repo_path,
+                    dry_run,
+                    vault,
+                } => {
+                    let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                    if dry_run {
+                        let inventory = inventory_agent_bootstrap(&repo_path, vault.as_deref())?;
+                        print!("{}", render_migration_inventory(&inventory));
+                    } else {
+                        let receipt =
+                            execute_agent_bootstrap_migration_with_outputs(
+                                &repo_path,
+                                vault.as_deref(),
+                                |repo_root, vault_root| {
+                                    initialize_project(repo_root, AdapterKind::Codex, vault_root)?;
+                                    let install = install_adapter(repo_root, AgentAdapter::Codex)?;
+                                    let context = ensure_vault(vault_root, repo_root)?;
+                                    build_memory_index(&context)?;
+
+                                    let tracked_repo_outputs = [
+                                        "AGENTS.md",
+                                        ".codex/INDEX.md",
+                                        ".codex/agents/INDEX.md",
+                                        ".codex/agents/code-reviewer.toml",
+                                        ".codex/agents/security-auditor.toml",
+                                        ".codex/agents/test-engineer.toml",
+                                    ];
+                                    // Project/local config remains user-owned;
+                                    // callback-time snapshots cannot safely
+                                    // attribute concurrent edits to the installer.
+                                    let mut repo_paths = vec![".baron/.gitignore".to_string()];
+                                    repo_paths.extend(install.managed_files.into_iter().filter(
+                                        |path| tracked_repo_outputs.contains(&path.as_str()),
+                                    ));
+                                    let capsule = context
+                                        .project_root
+                                        .strip_prefix(vault_root)?
+                                        .to_string_lossy()
+                                        .replace('\\', "/");
+                                    let mut vault_paths = [
+                                        "README.md",
+                                        "Facts.md",
+                                        "Decisions.md",
+                                        "Tasks.md",
+                                        ".baron-project.json",
+                                    ]
+                                    .into_iter()
+                                    .map(|file| format!("{capsule}/{file}"))
+                                    .collect::<Vec<_>>();
+                                    for path in [
+                                        &context.approved_global_path,
+                                        &context.global_candidates_path,
+                                        &context.state_path,
+                                        &context.index_path,
+                                    ] {
+                                        vault_paths.push(
+                                            path.strip_prefix(vault_root)?
+                                                .to_string_lossy()
+                                                .replace('\\', "/"),
+                                        );
+                                    }
+                                    MigrationInstallOutputs::capture(
+                                        repo_root,
+                                        vault_root,
+                                        repo_paths,
+                                        vault_paths,
+                                    )
+                                },
+                            )?;
+                        println!("# Baron Agent Bootstrap Migration\n");
+                        println!("- Migration ID: `{}`", receipt.migration_id);
+                        println!("- Status: `{}`", receipt.status);
+                        println!("- Imported: {}", receipt.imported_count);
+                        println!("- Quarantined: {}", receipt.quarantined_count);
+                        println!("- Removed: {}", receipt.removed_count);
+                        println!("- Backup: `{}`", receipt.backup_root.display());
+                        println!("- Runtime dependency on Agent Bootstrap: none");
+                    }
+                }
+                MigrationCommands::Status { repo_path } => {
+                    let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                    print!("{}", migration_status(repo_path)?);
+                }
+                MigrationCommands::Rollback {
+                    id,
+                    repo_path,
+                    vault,
+                } => {
+                    let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
+                    let vault = if let Some(vault) = vault {
+                        vault
+                    } else {
+                        resolve_vault_path_for_repo(None, &repo_path)?
+                    };
+                    let report = rollback_migration(&repo_path, &vault, &id)?;
+                    println!("# Baron Migration Rollback\n");
+                    println!("- Migration ID: `{}`", report.migration_id);
+                    println!("- Status: `{}`", report.status);
+                    println!("- Restored paths: {}", report.restored_count);
                 }
             }
-            MigrationCommands::Status { repo_path } => {
-                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
-                print!("{}", migration_status(repo_path)?);
-            }
-            MigrationCommands::Rollback {
-                id,
-                repo_path,
-                vault,
-            } => {
-                let repo_path = repo_path.unwrap_or(std::env::current_dir()?);
-                let vault = if let Some(vault) = vault {
-                    vault
-                } else {
-                    resolve_vault_path_for_repo(None, &repo_path)?
-                };
-                let report = rollback_migration(&repo_path, &vault, &id)?;
-                println!("# Baron Migration Rollback\n");
-                println!("- Migration ID: `{}`", report.migration_id);
-                println!("- Status: `{}`", report.status);
-                println!("- Restored paths: {}", report.restored_count);
-            }
-        },
+        }
         Some(Commands::Capability { command }) => match command {
             CapabilityCommands::Register {
                 capability,
@@ -3689,6 +4062,10 @@ fn run() -> Result<()> {
             ContinuityCommands::Recover {
                 root_cause,
                 repo_path,
+                task,
+                adapter,
+                session_id,
+                request_id,
                 outcome,
                 last_successful_step,
                 evidence,
@@ -3702,19 +4079,24 @@ fn run() -> Result<()> {
                     RecoveryOutcomeArg::Blocked => RecoveryOutcome::Blocked,
                     RecoveryOutcomeArg::Interrupted => RecoveryOutcome::Interrupted,
                 };
-                let packet = record_recovery(
-                    &repo_root,
-                    &vault,
-                    RecoveryInput {
-                        outcome,
-                        root_cause,
-                        last_successful_step,
-                        evidence,
-                        affected_files,
-                        next_action,
-                        retry_conditions,
-                    },
+                let identity = resolve_plan_identity_selector(
+                    &repo_root, task, adapter, session_id, request_id,
                 )?;
+                let input = RecoveryInput {
+                    outcome,
+                    root_cause,
+                    last_successful_step,
+                    evidence,
+                    affected_files,
+                    next_action,
+                    retry_conditions,
+                };
+                let packet = match identity {
+                    Some(identity) => {
+                        record_recovery_for_operation(&repo_root, &vault, input, &identity)?
+                    }
+                    None => record_recovery(&repo_root, &vault, input)?,
+                };
                 println!("# Baron Actionable Recovery\n");
                 println!("- Recovery ID: `{}`", packet.id);
                 println!("- Outcome: `{}`", packet.outcome.as_str());
@@ -4413,6 +4795,66 @@ fn execution_context(
     let vault_path = resolve_vault_path_for_repo(None, &repo_root)?;
     let vault = require_coherent_execution_state(&repo_root, vault_path)?;
     Ok((repo_root, vault))
+}
+
+fn resolve_plan_identity_selector(
+    repo_root: &Path,
+    task: Option<String>,
+    adapter: Option<AdapterArg>,
+    session_id: Option<String>,
+    request_id: Option<String>,
+) -> Result<Option<LifecycleIdentity>> {
+    let supplied = [
+        task.is_some(),
+        adapter.is_some(),
+        session_id.is_some(),
+        request_id.is_some(),
+    ];
+    let count = supplied.iter().filter(|field| **field).count();
+    if count == 0 {
+        return Ok(None);
+    }
+    if count != supplied.len() {
+        bail!(
+            "operation-scoped selection requires --task, --adapter, --session-id, and --request-id together"
+        );
+    }
+    let task = task.expect("validated complete plan task");
+    let adapter = adapter.expect("validated complete plan adapter");
+    let session_id = session_id.expect("validated complete plan session ID");
+    let request_id = request_id.expect("validated complete plan request ID");
+    if task.trim().is_empty() || session_id.trim().is_empty() || request_id.trim().is_empty() {
+        bail!("operation-scoped plan identity values must not be empty");
+    }
+    let supported_adapter = match adapter {
+        AdapterArg::Codex => SupportedAdapter::Codex,
+        AdapterArg::Claude => SupportedAdapter::Claude,
+    };
+    let config = load_project_config(repo_root)?;
+    LifecycleIdentity::resolve(
+        &config.project_id,
+        &task,
+        supported_adapter,
+        Some(&session_id),
+        Some(&request_id),
+    )
+    .map(Some)
+    .map_err(|error| anyhow::anyhow!(error.to_string()))
+}
+
+fn resolve_evidence_plan_binding(
+    repo_root: &Path,
+    identity: Option<&LifecycleIdentity>,
+) -> Result<Option<PlanOperationBinding>> {
+    if let Some(identity) = identity {
+        let binding = PlanOperationBinding::from_identity(identity);
+        indexed_active_plan_authority_for_binding(repo_root, &binding)?
+            .context("no validated active plan matches the explicit operation selector")?;
+        Ok(Some(binding))
+    } else {
+        // Core validates the entire managed set and rejects concurrent ambiguity.
+        active_plan_operation_binding(repo_root)
+    }
 }
 
 #[derive(Debug, serde::Serialize)]

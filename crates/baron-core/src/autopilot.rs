@@ -185,7 +185,7 @@ fn review_after_task_inner(
     } else {
         summary
     };
-    let observed_automation = observed_automation(vault);
+    let observed_automation = observed_automation(repo_root, vault)?;
     let resume_sources = resume_sources(repo_root);
     let scope = project_scope(vault);
     let correlation = correlation(operation, &summary, vault);
@@ -553,7 +553,7 @@ pub fn autopilot_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Re
         .iter()
         .filter(|candidate| approval_required(candidate))
         .count();
-    let observed = observed_automation(vault);
+    let observed = observed_automation(repo_root, vault)?;
     let continuity = fs::read_to_string(repo_root.join("docs/baron/continuity/CURRENT.md"))
         .unwrap_or_else(|_| {
             "# Baron Continuity Resume\n\n- Status: no checkpoint recorded\n- Next action: inspect current context before editing\n".to_string()
@@ -1664,7 +1664,9 @@ fn status_rank(status: &str) -> u8 {
     }
 }
 
-fn observed_automation(vault: &VaultContext) -> Vec<String> {
+fn observed_automation(repo_root: &Path, vault: &VaultContext) -> Result<Vec<String>> {
+    let _repo_lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let path = vault
         .project_root
         .join("Artifacts/automation-journal.jsonl");
@@ -1682,7 +1684,7 @@ fn observed_automation(vault: &VaultContext) -> Vec<String> {
         .collect::<Vec<_>>();
     events.sort();
     events.dedup();
-    events
+    Ok(events)
 }
 
 fn pretty_event(event: &str) -> String {

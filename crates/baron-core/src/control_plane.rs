@@ -8,14 +8,19 @@ use serde::Deserialize;
 
 use crate::capability::load_capability_state;
 use crate::config::{load_project_config, AdapterKind, ProjectPlatform};
+use crate::continuity::{operation_checkpoint_path, operation_recovery_path};
 use crate::execution_receipt::{
-    load_receipts, receipt_is_current, receipt_matches_context, ReceiptContext,
+    load_verified_receipt, load_verified_receipts_strict, receipt_matches_verified_context,
+    ReceiptContext,
 };
-use crate::operation::OperationContext;
+use crate::intent::operation_intent_for_identity;
+use crate::operation::{LifecycleIdentity, OperationContext};
+use crate::plan::{indexed_active_plan_authority_for_binding_locked, PlanOperationBinding};
 use crate::platform::platform_name;
 use crate::risk::RiskLane;
-use crate::safe_io::replace_text;
+use crate::safe_io::{acquire_project_lock, append_text, read_text, replace_text};
 use crate::survey::survey_repository;
+use crate::task_state::operation_scoped_source;
 use crate::vault::VaultContext;
 use crate::work_shape::decide_work_shape;
 
@@ -156,30 +161,71 @@ pub fn validate_control_plane(repo_root: impl AsRef<Path>) -> Result<ControlPlan
 }
 
 pub fn route_task(repo_root: impl AsRef<Path>, task: &str, risk: RiskLane) -> Result<RouteReport> {
-    route_task_internal(repo_root, task, risk, None)
+    route_task_internal(repo_root, task, risk, None, None, true)
 }
 
 /// Route one explicitly identified operation without consulting the project's
-/// serialized `active_adapter` convenience field.
+/// serialized `active_adapter` convenience field. Supplying any lifecycle
+/// fields requires a complete canonical identity; an adapter-only compatibility
+/// call remains advisory and never reads shared CURRENT projections.
 pub fn route_task_for_operation(
     repo_root: impl AsRef<Path>,
     task: &str,
     risk: RiskLane,
     operation: &OperationContext,
 ) -> Result<RouteReport> {
-    route_task_internal(repo_root, task, risk, Some(operation.adapter_kind()))
+    let has_lifecycle_fields = operation.session_id.is_some()
+        || operation.request_id.is_some()
+        || operation.task_id.is_some()
+        || operation.operation_id.is_some();
+    if !has_lifecycle_fields {
+        return route_task_internal(
+            repo_root,
+            task,
+            risk,
+            None,
+            Some(operation.adapter_kind()),
+            false,
+        );
+    }
+
+    let repo_root = repo_root.as_ref();
+    let config = load_project_config(repo_root)?;
+    let identity = operation
+        .lifecycle_identity(&config.project_id)
+        .context("identified routing requires a complete canonical operation identity")?;
+    identity
+        .validate_task(task)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    route_task_internal(
+        repo_root,
+        task,
+        risk,
+        Some(&identity),
+        Some(operation.adapter_kind()),
+        false,
+    )
 }
 
 fn route_task_internal(
     repo_root: impl AsRef<Path>,
     task: &str,
     risk: RiskLane,
+    operation: Option<&LifecycleIdentity>,
     operation_adapter: Option<AdapterKind>,
+    use_current_projection: bool,
 ) -> Result<RouteReport> {
     let repo_root = repo_root.as_ref();
     let report = validate_control_plane(repo_root)?;
     let normalized_task = normalize_task(task);
-    let context = collect_route_context(repo_root, &normalized_task, risk, operation_adapter);
+    let context = collect_route_context(
+        repo_root,
+        &normalized_task,
+        risk,
+        operation,
+        operation_adapter,
+        use_current_projection,
+    )?;
     let contracts = load_skills(repo_root)?;
 
     let reverse_analysis = contains_any(
@@ -722,8 +768,10 @@ fn collect_route_context(
     repo_root: &Path,
     task: &str,
     risk: RiskLane,
+    operation: Option<&LifecycleIdentity>,
     operation_adapter: Option<AdapterKind>,
-) -> RouteContext {
+    use_current_projection: bool,
+) -> Result<RouteContext> {
     let config = load_project_config(repo_root).ok();
     let profile = config.as_ref().and_then(|value| value.platform);
     let mut profiles = Vec::new();
@@ -765,17 +813,51 @@ fn collect_route_context(
         }
     }
 
-    let mut state_signals = Vec::new();
-    for relative in [
-        "docs/baron/harness/CURRENT_INTENT.md",
-        "docs/baron/plans/CURRENT.md",
-        "docs/baron/continuity/CURRENT.md",
-        "docs/baron/continuity/CURRENT_RECOVERY.md",
-    ] {
-        if repo_root.join(relative).is_file() {
-            state_signals.push(relative.to_string());
+    let (state_signals, state_sources) = if let Some(identity) = operation {
+        // CURRENT files are presentation projections shared by every live
+        // operation. Identified routing must use only exact, validated
+        // operation-owned state; unavailable sources contribute no signal.
+        let mut signals = Vec::new();
+        let mut sources = Vec::new();
+        if let Some(intent) = operation_intent_for_identity(repo_root, identity, 3_600)? {
+            signals.push("operation intent".to_string());
+            sources.push(intent);
         }
-    }
+        for (label, path) in [
+            (
+                "operation continuity",
+                operation_checkpoint_path(repo_root, identity),
+            ),
+            (
+                "operation recovery",
+                operation_recovery_path(repo_root, identity),
+            ),
+        ] {
+            let source = operation_scoped_source(&path, identity, 12_000);
+            if !source.is_empty() {
+                signals.push(label.to_string());
+                sources.push(source);
+            }
+        }
+        (signals, sources)
+    } else if use_current_projection {
+        let mut signals = Vec::new();
+        let mut sources = Vec::new();
+        for relative in [
+            "docs/baron/harness/CURRENT_INTENT.md",
+            "docs/baron/plans/CURRENT.md",
+            "docs/baron/continuity/CURRENT.md",
+            "docs/baron/continuity/CURRENT_RECOVERY.md",
+        ] {
+            if repo_root.join(relative).is_file() {
+                signals.push(relative.to_string());
+                sources.push(read_bounded_text(&repo_root.join(relative), 12_000));
+            }
+        }
+        (signals, sources)
+    } else {
+        (Vec::new(), Vec::new())
+    };
     let capabilities_available = load_capability_state(repo_root)
         .ok()
         .flatten()
@@ -785,10 +867,10 @@ fn collect_route_context(
                 .unwrap_or(true)
         })
         .unwrap_or(false);
-    let affected_paths = state_signals
+    let affected_paths = state_sources
         .iter()
-        .flat_map(|relative| {
-            read_bounded_text(&repo_root.join(relative), 12_000)
+        .flat_map(|source| {
+            source
                 .lines()
                 .filter_map(|line| line.strip_prefix("- Changed files: "))
                 .flat_map(|line| line.split(',').map(|value| value.trim().to_lowercase()))
@@ -796,7 +878,7 @@ fn collect_route_context(
         })
         .take(16)
         .collect();
-    RouteContext {
+    Ok(RouteContext {
         profile,
         profiles,
         repository_signals,
@@ -806,7 +888,7 @@ fn collect_route_context(
         state_signals,
         capabilities_available,
         affected_paths,
-    }
+    })
 }
 
 fn profile_matches(metadata: &SkillMetadata, profiles: &[String]) -> bool {
@@ -1366,7 +1448,10 @@ pub fn record_gate_evidence(
     agent: &str,
     summary: &str,
 ) -> Result<GateEvidence> {
-    let repo_path = repo_root.as_ref().join("docs/baron/control-plane/GATES.md");
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
     let vault_path = vault.project_root.join("ControlPlane/GATES.md");
     let item = format!("- {} - `{}` - {}", now(), agent.trim(), summary.trim());
     append(&repo_path, "# Baron Quality Gate Evidence\n\n", &item)?;
@@ -1407,19 +1492,37 @@ pub fn record_gate_evidence_with_receipt_bound(
             agent.trim()
         );
     }
-    let receipt = load_receipts(repo_root)?
-        .into_iter()
-        .find(|receipt| receipt.receipt_id == receipt_id.trim())
-        .with_context(|| format!("Trusted execution receipt not found: {}", receipt_id.trim()))?;
-    if !receipt_matches_context(repo_root, &receipt, binding)? {
+    let initial_receipt = load_verified_receipt(repo_root, receipt_id)?;
+    if !receipt_matches_verified_context(&initial_receipt, binding)? {
         bail!(
             "Gate receipt `{}` is stale, failed, mismatched, replayed, or not current-operation evidence",
-            receipt.receipt_id
+            initial_receipt.receipt_id
         );
     }
     let repo_path = repo_root.join("docs/baron/control-plane/GATES.md");
     let vault_path = vault.project_root.join("ControlPlane/GATES.md");
-    let existing = fs::read_to_string(&repo_path).unwrap_or_default();
+    let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    let receipt = load_verified_receipt(repo_root, receipt_id)?;
+    if receipt.as_receipt() != initial_receipt.as_receipt()
+        || !receipt_matches_verified_context(&receipt, binding)?
+    {
+        bail!(
+            "Gate receipt `{}` became stale during validation; refusing gate publication",
+            receipt.receipt_id
+        );
+    }
+    let plan_binding = PlanOperationBinding {
+        task_id: binding.task_id.clone(),
+        operation_id: binding.operation_id.clone(),
+        adapter: binding.adapter.clone(),
+        session_id: binding.session_id.clone(),
+        request_id: binding.request_id.clone(),
+    };
+    let plan_authority =
+        indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+            .context("receipt-bound gate publication requires validated ACTIVE plan authority")?;
+    let existing = read_text(&repo_path)?.unwrap_or_default();
     if existing.lines().any(|line| {
         line.contains(&format!("`{}`", agent.trim()))
             && line.contains(&format!("trusted_receipt=`{}`", receipt.receipt_id))
@@ -1430,7 +1533,7 @@ pub fn record_gate_evidence_with_receipt_bound(
             agent.trim()
         );
     }
-    let item = format!(
+    let mut item = format!(
         "- {} - `{}` - {} - trusted_receipt=`{}` gate_kind=`{}` task_id=`{}` operation_id=`{}` adapter=`{}` session_id=`{}` request_id=`{}`",
         now(),
         agent.trim(),
@@ -1443,6 +1546,9 @@ pub fn record_gate_evidence_with_receipt_bound(
         binding.session_id.trim(),
         binding.request_id.trim(),
     );
+    if let Some(generation) = plan_authority.authority_generation.as_deref() {
+        item.push_str(&format!(" authority_generation=`{generation}`"));
+    }
     append(&repo_path, "# Baron Quality Gate Evidence\n\n", &item)?;
     append(&vault_path, "# Baron Quality Gate Evidence\n\n", &item)?;
     Ok(GateEvidence {
@@ -1488,6 +1594,7 @@ pub fn gate_evidence_status_strict_for_scope(
         Some((task_id.trim(), adapter.trim())),
         None,
         None,
+        None,
     )
 }
 
@@ -1520,6 +1627,7 @@ pub fn gate_evidence_status_strict_for_request(
             request_id.trim(),
         )),
         None,
+        None,
     )
 }
 
@@ -1548,6 +1656,23 @@ pub fn gate_evidence_status_strict_for_operation(
             missing_agents: required_agents.to_vec(),
         });
     }
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let plan_binding = PlanOperationBinding {
+        task_id: task_id.trim().to_string(),
+        operation_id: operation_id.trim().to_string(),
+        adapter: adapter.trim().to_string(),
+        session_id: session_id.trim().to_string(),
+        request_id: request_id.trim().to_string(),
+    };
+    let Some(authority) =
+        indexed_active_plan_authority_for_binding_locked(repo_root, &plan_binding)?
+    else {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    };
     gate_evidence_status_strict_for_context_and_scope(
         repo_root,
         required_agents,
@@ -1561,6 +1686,7 @@ pub fn gate_evidence_status_strict_for_operation(
             request_id.trim(),
             operation_id.trim(),
         )),
+        Some(authority.authority_generation.as_deref()),
     )
 }
 
@@ -1576,6 +1702,47 @@ pub fn gate_evidence_status_strict_for_context(
         None,
         None,
         None,
+        None,
+    )
+}
+
+pub(crate) fn gate_evidence_status_strict_for_operation_in_generation(
+    repo_root: impl AsRef<Path>,
+    required_agents: &[String],
+    operation: &OperationContext,
+    authority_generation: Option<&str>,
+) -> Result<GateEvidenceStatus> {
+    let (Some(task_id), Some(operation_id), Some(session_id), Some(request_id)) = (
+        operation.task_id.as_deref(),
+        operation.operation_id.as_deref(),
+        operation.session_id.as_deref(),
+        operation.request_id.as_deref(),
+    ) else {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    };
+    if operation_id.trim().is_empty() {
+        return Ok(GateEvidenceStatus {
+            passed: required_agents.is_empty(),
+            missing_agents: required_agents.to_vec(),
+        });
+    }
+    gate_evidence_status_strict_for_context_and_scope(
+        repo_root,
+        required_agents,
+        None,
+        None,
+        None,
+        Some((
+            task_id.trim(),
+            operation.adapter.as_str(),
+            session_id.trim(),
+            request_id.trim(),
+            operation_id.trim(),
+        )),
+        Some(authority_generation),
     )
 }
 
@@ -1586,16 +1753,22 @@ fn gate_evidence_status_strict_for_context_and_scope(
     expected_scope: Option<(&str, &str)>,
     expected_request: Option<(&str, &str, &str, &str)>,
     expected_operation: Option<(&str, &str, &str, &str, &str)>,
+    expected_authority_generation: Option<Option<&str>>,
 ) -> Result<GateEvidenceStatus> {
     let repo_root = repo_root.as_ref();
     let content =
         fs::read_to_string(repo_root.join("docs/baron/control-plane/GATES.md")).unwrap_or_default();
-    let receipts = load_receipts(repo_root)?;
+    let receipts = load_verified_receipts_strict(repo_root)?;
     let mut missing_agents = Vec::new();
     for agent in required_agents {
         let needle = format!("`{}`", agent.trim());
         let satisfied = content.lines().any(|line| {
             if !line.contains(&needle) {
+                return false;
+            }
+            if expected_authority_generation.is_some_and(|expected| {
+                parse_gate_authority_generation(line).as_deref() != expected
+            }) {
                 return false;
             }
             let Some((_, value)) = line.split_once("trusted_receipt=`") else {
@@ -1608,15 +1781,10 @@ fn gate_evidence_status_strict_for_context_and_scope(
                 .iter()
                 .find(|receipt| receipt.receipt_id == receipt_id.trim())
                 .map(|receipt| {
-                    let current = receipt_is_current(repo_root, receipt).unwrap_or(false)
-                        && receipt.provenance
-                            == crate::execution_receipt::ReceiptProvenance::TrustedCurrentOperation;
                     let binding_matches = if let Some(expected) = expected_context {
-                        receipt_matches_context(repo_root, receipt, expected).unwrap_or(false)
+                        receipt_matches_verified_context(receipt, expected).unwrap_or(false)
                     } else if let Some((expected_task, expected_adapter)) = expected_scope {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
-                            && receipt.task_id.as_deref() == Some(expected_task)
+                        receipt.task_id.as_deref() == Some(expected_task)
                             && receipt.adapter.as_deref() == Some(expected_adapter)
                     } else if let Some((
                         expected_task,
@@ -1625,9 +1793,7 @@ fn gate_evidence_status_strict_for_context_and_scope(
                         expected_request,
                     )) = expected_request
                     {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
-                            && receipt.task_id.as_deref() == Some(expected_task)
+                        receipt.task_id.as_deref() == Some(expected_task)
                             && receipt.adapter.as_deref() == Some(expected_adapter)
                             && receipt.session_id.as_deref() == Some(expected_session)
                             && receipt.request_id.as_deref() == Some(expected_request)
@@ -1639,16 +1805,13 @@ fn gate_evidence_status_strict_for_context_and_scope(
                         expected_operation,
                     )) = expected_operation
                     {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
-                            && receipt.task_id.as_deref() == Some(expected_task)
+                        receipt.task_id.as_deref() == Some(expected_task)
                             && receipt.adapter.as_deref() == Some(expected_adapter)
                             && receipt.session_id.as_deref() == Some(expected_session)
                             && receipt.request_id.as_deref() == Some(expected_request)
                             && receipt.operation_id.as_deref() == Some(expected_operation)
                     } else {
-                        crate::execution_receipt::receipt_is_current_authority(repo_root, receipt)
-                            .unwrap_or(false)
+                        true
                     };
                     let line_matches = parse_gate_binding(line)
                         .map(|binding| {
@@ -1665,7 +1828,7 @@ fn gate_evidence_status_strict_for_context_and_scope(
                                     == receipt.request_id.clone().unwrap_or_default()
                         })
                         .unwrap_or(false);
-                    current && binding_matches && line_matches
+                    binding_matches && line_matches
                 })
                 .unwrap_or(false)
         });
@@ -1702,6 +1865,14 @@ fn parse_gate_binding(line: &str) -> Option<GateReceiptBinding> {
         session_id: value("session_id")?,
         request_id: value("request_id")?,
     })
+}
+
+fn parse_gate_authority_generation(line: &str) -> Option<String> {
+    let marker = "authority_generation=`";
+    let start = line.find(marker)? + marker.len();
+    let rest = &line[start..];
+    let end = rest.find('`')?;
+    Some(rest[..end].to_string())
 }
 
 fn gate_kind_for_agent(agent: &str) -> String {
@@ -1750,17 +1921,19 @@ fn contains_any(value: &str, needles: &[&str]) -> bool {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
-}
-
-fn write(path: &Path, content: &str) -> Result<()> {
-    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn now() -> String {

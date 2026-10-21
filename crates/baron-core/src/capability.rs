@@ -8,15 +8,23 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::config::{load_project_config, AdapterKind, ConfiguredAdapter};
-use crate::execution_receipt::{load_receipts, receipt_matches_context, ReceiptContext};
+use crate::execution_receipt::{
+    load_verified_receipts_strict, receipt_matches_verified_context, ReceiptContext,
+    VerifiedExecutionReceipt,
+};
 use crate::operation::OperationContext;
-use crate::safe_io::{ensure_directory_chain, read_text, replace_text};
+use crate::safe_io::{acquire_project_lock, append_text, ensure_directory_chain, replace_text};
 
 const REGISTRY_PATH: &str = ".baron/capabilities.toml";
 const STATE_PATH: &str = ".baron/cache/capability-state.json";
 const RUNTIME_EVIDENCE_PATH: &str = ".baron/cache/runtime-execution.jsonl";
+// Keep the public `ProviderObservation` source shape stable. The fingerprint
+// is diagnostic cache metadata, so encode it in the opaque evidence string
+// instead of adding a required public struct-literal field.
+const PROVIDER_FINGERPRINT_MARKER: &str = "\n[baron-provider-fingerprint=";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -222,6 +230,7 @@ pub fn register_provider(
     provider.description = provider.description.trim().to_string();
     validate_provider(&provider)?;
 
+    let _lock = acquire_project_lock(repo_root)?;
     let mut registry = load_registry(repo_root)?;
     if registry
         .providers
@@ -251,6 +260,7 @@ pub fn remove_provider(
         .context("Capability id must contain letters or numbers")?;
     let provider_name = normalize_identifier(provider_name)
         .context("Provider name must contain letters or numbers")?;
+    let _lock = acquire_project_lock(repo_root)?;
     let mut registry = load_registry(repo_root)?;
     let before = registry.providers.len();
     registry
@@ -298,7 +308,7 @@ pub fn check_capabilities(
             presence,
             compatible,
             checked_at: checked_at.clone(),
-            evidence,
+            evidence: evidence_with_provider_fingerprint(evidence, &provider_fingerprint(provider)),
         });
     }
     observations.sort_by(|left, right| {
@@ -315,6 +325,10 @@ pub fn check_capabilities(
         required_gaps,
         optional_gaps,
     };
+    // Probes intentionally run before this lock. The cache is a replace-only
+    // snapshot of the last completed probe and is never authority for a
+    // concurrent registry mutation or operation gate.
+    let _lock = acquire_project_lock(repo_root)?;
     save_state(repo_root, &state)?;
     Ok(state)
 }
@@ -362,7 +376,7 @@ pub fn render_capability_summary(
             state
                 .observations
                 .iter()
-                .find(|observation| observation.provider == provider.name)
+                .find(|observation| observation_matches_provider(observation, provider))
         });
         let presence = observation
             .map(|observation| presence_name(observation.presence))
@@ -441,19 +455,27 @@ fn evaluate_execution_evidence_internal(
         .filter(|provider| provider.requirement == Requirement::Required)
         .map(|provider| provider.capability.clone())
         .collect::<BTreeSet<_>>();
-    let receipts = load_receipts(repo_root)?;
+    let receipts = load_verified_receipts_strict(repo_root)?;
     let mut gaps = Vec::new();
     for capability in required_capabilities {
+        let required_providers = registry
+            .providers
+            .iter()
+            .filter(|provider| {
+                provider.capability == capability && provider.requirement == Requirement::Required
+            })
+            .collect::<Vec<_>>();
         let present_providers = matching_state
             .map(|state| {
                 state
                     .observations
                     .iter()
                     .filter(|observation| {
-                        observation.capability == capability
-                            && observation.requirement == Requirement::Required
-                            && observation.compatible
+                        observation.compatible
                             && observation.presence == Presence::Present
+                            && required_providers
+                                .iter()
+                                .any(|provider| observation_matches_provider(observation, provider))
                     })
                     .map(|observation| observation.provider.as_str())
                     .collect::<BTreeSet<_>>()
@@ -502,7 +524,7 @@ fn evaluate_execution_evidence_internal(
                         .iter()
                         .find(|receipt| receipt.receipt_id == receipt_id.trim())
                         .map(|receipt| {
-                            receipt_matches_context(repo_root, receipt, &binding).unwrap_or(false)
+                            receipt_matches_verified_context(receipt, &binding).unwrap_or(false)
                                 && receipt.capability
                                     == normalize_identifier(&item.capability).unwrap_or_default()
                                 && receipt.provider
@@ -541,12 +563,7 @@ pub fn record_runtime_execution(
     evidence: &[CapabilityExecutionEvidence],
 ) -> Result<usize> {
     let repo_root = repo_root.as_ref();
-    let path = repo_root.join(RUNTIME_EVIDENCE_PATH);
-    if let Some(parent) = path.parent() {
-        ensure_directory_chain(parent)?;
-    }
-    let mut content = read_text(&path)?.unwrap_or_default();
-    let mut written = 0;
+    let mut entries = Vec::new();
     for item in evidence {
         let Some(capability) = normalize_identifier(&item.capability) else {
             continue;
@@ -565,12 +582,20 @@ pub fn record_runtime_execution(
             receipt_id: item.receipt_id.clone(),
             authority: "diagnostic_attachment".to_string(),
         };
-        content.push_str(&serde_json::to_string(&entry)?);
-        content.push('\n');
-        written += 1;
+        entries.push(serde_json::to_string(&entry)?);
     }
-    replace_text(path, &content)?;
-    Ok(written)
+    if entries.is_empty() {
+        return Ok(0);
+    }
+    let _lock = acquire_project_lock(repo_root)?;
+    let path = repo_root.join(RUNTIME_EVIDENCE_PATH);
+    if let Some(parent) = path.parent() {
+        ensure_directory_chain(parent)?;
+    }
+    for entry in &entries {
+        append_text(&path, &format!("{entry}\n"))?;
+    }
+    Ok(entries.len())
 }
 
 pub fn runtime_backend_report(
@@ -606,7 +631,7 @@ fn runtime_backend_report_internal(
         .as_ref()
         .filter(|state| state.adapter.supported() == Some(adapter));
     let _runtime_evidence = load_runtime_execution(repo_root)?;
-    let receipts = load_receipts(repo_root)?;
+    let receipts = load_verified_receipts_strict(repo_root)?;
     let mut providers = Vec::new();
     let mut blocking_gaps = Vec::new();
     let mut warnings = Vec::new();
@@ -616,17 +641,16 @@ fn runtime_backend_report_internal(
             state
                 .observations
                 .iter()
-                .find(|observation| observation.provider == provider.name)
+                .find(|observation| observation_matches_provider(observation, provider))
         });
         let presence = observation
             .map(|observation| observation.presence)
             .unwrap_or(Presence::Unknown);
         let evidence = observation
-            .map(|observation| observation.evidence.clone())
+            .map(|observation| evidence_without_provider_fingerprint(&observation.evidence))
             .unwrap_or_else(|| "presence check has not been run for this adapter".to_string());
         let safety = backend_safety(provider);
         let execution_evidence = if has_authoritative_execution_evidence(
-            repo_root,
             &receipts,
             &provider.capability,
             &provider.name,
@@ -840,8 +864,7 @@ fn load_runtime_execution(repo_root: &Path) -> Result<Vec<RuntimeExecutionEntry>
 }
 
 fn has_authoritative_execution_evidence(
-    repo_root: &Path,
-    receipts: &[crate::execution_receipt::ExecutionReceipt],
+    receipts: &[VerifiedExecutionReceipt],
     capability: &str,
     provider: &str,
     operation: Option<&OperationContext>,
@@ -870,7 +893,7 @@ fn has_authoritative_execution_evidence(
         "capability_execution",
     );
     receipts.iter().any(|receipt| {
-        receipt_matches_context(repo_root, receipt, &context).unwrap_or(false)
+        receipt_matches_verified_context(receipt, &context).unwrap_or(false)
             && capability.as_deref() == Some(receipt.capability.as_str())
             && provider.as_deref() == Some(receipt.provider.as_str())
             && receipt.result == crate::execution_receipt::ExecutionResult::Passed
@@ -1164,6 +1187,44 @@ fn http_socket_address(target: &str) -> Option<SocketAddr> {
         format!("{}:{}", authority, without_scheme.1)
     };
     host_port.to_socket_addrs().ok()?.next()
+}
+
+fn provider_fingerprint(provider: &CapabilityProvider) -> String {
+    let bytes = serde_json::to_vec(provider).expect("capability provider is serializable");
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn evidence_with_provider_fingerprint(mut evidence: String, fingerprint: &str) -> String {
+    evidence.push_str(PROVIDER_FINGERPRINT_MARKER);
+    evidence.push_str(fingerprint);
+    evidence.push(']');
+    evidence
+}
+
+fn provider_fingerprint_from_evidence(evidence: &str) -> Option<&str> {
+    evidence
+        .rsplit_once(PROVIDER_FINGERPRINT_MARKER)
+        .and_then(|(_, suffix)| suffix.strip_suffix(']'))
+        .filter(|fingerprint| !fingerprint.is_empty())
+}
+
+fn evidence_without_provider_fingerprint(evidence: &str) -> String {
+    evidence
+        .rsplit_once(PROVIDER_FINGERPRINT_MARKER)
+        .map(|(base, _)| base.to_string())
+        .unwrap_or_else(|| evidence.to_string())
+}
+
+fn observation_matches_provider(
+    observation: &ProviderObservation,
+    provider: &CapabilityProvider,
+) -> bool {
+    observation.provider == provider.name
+        && observation.capability == provider.capability
+        && observation.kind == provider.kind
+        && observation.requirement == provider.requirement
+        && provider_fingerprint_from_evidence(&observation.evidence)
+            == Some(provider_fingerprint(provider).as_str())
 }
 
 fn capability_gaps(observations: &[ProviderObservation]) -> (Vec<String>, Vec<String>) {

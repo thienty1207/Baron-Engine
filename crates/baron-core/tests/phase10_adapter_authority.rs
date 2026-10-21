@@ -22,8 +22,8 @@ use baron_core::continuity::{
     record_continuity_checkpoint_for_operation, record_recovery, RecoveryInput, RecoveryOutcome,
 };
 use baron_core::control_plane::route_task_for_operation;
-use baron_core::operation::{OperationContext, SupportedAdapter};
-use baron_core::plan::{interrupt_plan, start_or_resume_plan};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+use baron_core::plan::{interrupt_plan_for_identity, start_or_resume_plan_for_identity};
 use baron_core::prepare::{prepare, PrepareRequestV1};
 use baron_core::proof::{record_proof_with_capabilities_for_operation, ProofRecord};
 use baron_core::risk::RiskLane;
@@ -61,9 +61,16 @@ fn runtime_adapter_type_accepts_only_supported_adapters() {
 #[test]
 fn explicit_route_and_context_ignore_serialized_active_adapter() {
     let (_temp, repo, vault) = project();
-    let operation = OperationContext::new(SupportedAdapter::Codex)
-        .with_session_id("codex-session")
-        .with_request_id("codex-request");
+    let vault_context = ensure_vault(&vault, &repo).unwrap();
+    let identity = LifecycleIdentity::resolve(
+        &vault_context.project_id,
+        "review the API contract",
+        SupportedAdapter::Codex,
+        Some("codex-session"),
+        Some("codex-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
 
     let route_with_active_claude = route_task_for_operation(
         &repo,
@@ -94,7 +101,7 @@ fn explicit_route_and_context_ignore_serialized_active_adapter() {
 }
 
 #[test]
-fn route_capability_state_matches_operation_identity_not_project_active_value() {
+fn adapter_only_route_capability_state_matches_explicit_adapter_not_project_active_value() {
     let (_temp, repo, _vault) = project();
     fs::create_dir_all(repo.join(".baron/cache")).unwrap();
     fs::write(
@@ -112,6 +119,21 @@ fn route_capability_state_matches_operation_identity_not_project_active_value() 
             .unwrap();
     assert!(codex_route.explanation.contains("capabilities=unknown"));
     assert!(claude_route.explanation.contains("capabilities=available"));
+}
+
+#[test]
+fn identified_route_rejects_partial_lifecycle_identity() {
+    let (_temp, repo, _vault) = project();
+    let partial = OperationContext::new(SupportedAdapter::Codex)
+        .with_session_id("partial-session")
+        .with_request_id("partial-request");
+
+    let error = route_task_for_operation(&repo, "inspect the shared task", RiskLane::Low, &partial)
+        .expect_err("routing must not infer an operation from partial host identifiers");
+
+    assert!(error
+        .to_string()
+        .contains("complete canonical operation identity"));
 }
 
 #[test]
@@ -142,7 +164,15 @@ fn explicit_operation_does_not_rewrite_legacy_active_adapter_or_schema() {
     let (_temp, repo, _vault) = project();
     set_active_adapter(&repo, AdapterKind::Codex).unwrap();
     let before = load_project_config(&repo).unwrap();
-    let operation = OperationContext::new(SupportedAdapter::Claude);
+    let identity = LifecycleIdentity::resolve(
+        &before.project_id,
+        "inspect the shared task",
+        SupportedAdapter::Claude,
+        Some("explicit-claude-session"),
+        Some("explicit-claude-request"),
+    )
+    .unwrap();
+    let operation = OperationContext::from_identity(&identity);
     let _ = route_task_for_operation(&repo, "inspect the shared task", RiskLane::Low, &operation)
         .unwrap();
     let after = load_project_config(&repo).unwrap();
@@ -187,12 +217,27 @@ fn codex_and_claude_prepare_share_semantic_route_and_task_identity() {
 }
 
 #[test]
-fn interrupted_codex_task_resumes_in_claude_and_returns_to_codex_without_global_switching() {
+fn interrupted_codex_task_resumes_only_for_its_exact_operation_identity() {
     let (_temp, repo, vault_path) = project();
     let vault = ensure_vault(&vault_path, &repo).unwrap();
+    let task = "resume the shared API task";
     set_active_adapter(&repo, AdapterKind::Codex).unwrap();
-    start_or_resume_plan(&repo, &vault, "resume the shared API task").unwrap();
-    interrupt_plan(&repo, &vault, "Codex session ended before verification").unwrap();
+    let codex_identity = LifecycleIdentity::resolve(
+        &vault.project_id,
+        task,
+        SupportedAdapter::Codex,
+        Some("codex-session-1"),
+        Some("codex-request-1"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &vault, task, &codex_identity).unwrap();
+    interrupt_plan_for_identity(
+        &repo,
+        &vault,
+        "Codex session ended before verification",
+        &codex_identity,
+    )
+    .unwrap();
     record_recovery(
         &repo,
         &vault,
@@ -207,9 +252,7 @@ fn interrupted_codex_task_resumes_in_claude_and_returns_to_codex_without_global_
         },
     )
     .unwrap();
-    let codex_operation = OperationContext::new(SupportedAdapter::Codex)
-        .with_session_id("codex-session-1")
-        .with_request_id("codex-request-1");
+    let codex_operation = OperationContext::from_identity(&codex_identity);
     record_continuity_checkpoint_for_operation(
         &repo,
         &vault,
@@ -221,7 +264,7 @@ fn interrupted_codex_task_resumes_in_claude_and_returns_to_codex_without_global_
     let claude = prepare(
         PrepareRequestV1 {
             schema_version: 1,
-            task: "resume the shared API task".to_string(),
+            task: task.to_string(),
             session_id: Some("claude-session-2".to_string()),
             request_id: Some("claude-request-2".to_string()),
         },
@@ -231,32 +274,17 @@ fn interrupted_codex_task_resumes_in_claude_and_returns_to_codex_without_global_
     )
     .unwrap();
     assert_eq!(claude.adapter, "claude");
-    assert!(claude.task.resumed);
-    assert!(claude.continuity.resumed);
-    assert_eq!(
-        claude.continuity.safe_next_action.as_deref(),
-        Some("resume API verification from the shared checkpoint")
-    );
-    assert!(claude.continuity.summary.contains("Adapter: `codex`"));
+    assert!(!claude.task.resumed);
+    assert!(!claude.continuity.resumed);
+    assert!(!claude.continuity.summary.contains("Adapter: `codex`"));
     assert!(claude.context.text.contains("- Adapter target: `claude`"));
 
-    let claude_operation = OperationContext::new(SupportedAdapter::Claude)
-        .with_session_id("claude-session-2")
-        .with_request_id("claude-request-2");
-    record_continuity_checkpoint_for_operation(
-        &repo,
-        &vault,
-        "Claude continued the shared API verification",
-        &claude_operation,
-    )
-    .unwrap();
-    set_active_adapter(&repo, AdapterKind::Claude).unwrap();
     let codex = prepare(
         PrepareRequestV1 {
             schema_version: 1,
-            task: "resume the shared API task".to_string(),
-            session_id: Some("codex-session-3".to_string()),
-            request_id: Some("codex-request-3".to_string()),
+            task: task.to_string(),
+            session_id: Some("codex-session-1".to_string()),
+            request_id: Some("codex-request-1".to_string()),
         },
         "codex",
         &repo,
@@ -266,7 +294,7 @@ fn interrupted_codex_task_resumes_in_claude_and_returns_to_codex_without_global_
     assert_eq!(codex.adapter, "codex");
     assert!(codex.task.resumed);
     assert!(codex.continuity.resumed);
-    assert!(codex.continuity.summary.contains("Adapter: `claude`"));
+    assert!(codex.continuity.summary.contains("Adapter: `codex`"));
     assert!(codex.context.text.contains("- Adapter target: `codex`"));
 }
 
@@ -372,15 +400,31 @@ fn assert_operation_identity_in_proof(proof: &ProofRecord, operation: &Operation
 }
 
 #[test]
-fn continuity_and_journal_are_shared_but_keep_explicit_provenance() {
+fn operation_continuity_and_journal_are_shared_with_exact_provenance() {
     let (_temp, repo, vault_path) = project();
     let vault = ensure_vault(&vault_path, &repo).unwrap();
-    let codex = OperationContext::new(SupportedAdapter::Codex)
-        .with_session_id("session-codex")
-        .with_request_id("request-codex");
-    let claude = OperationContext::new(SupportedAdapter::Claude)
-        .with_session_id("session-claude")
-        .with_request_id("request-claude");
+    let codex_task = "Codex continuity task";
+    let claude_task = "Claude continuity task";
+    let codex_identity = LifecycleIdentity::resolve(
+        &vault.project_id,
+        codex_task,
+        SupportedAdapter::Codex,
+        Some("session-codex"),
+        Some("request-codex"),
+    )
+    .unwrap();
+    let claude_identity = LifecycleIdentity::resolve(
+        &vault.project_id,
+        claude_task,
+        SupportedAdapter::Claude,
+        Some("session-claude"),
+        Some("request-claude"),
+    )
+    .unwrap();
+    start_or_resume_plan_for_identity(&repo, &vault, codex_task, &codex_identity).unwrap();
+    start_or_resume_plan_for_identity(&repo, &vault, claude_task, &claude_identity).unwrap();
+    let codex = OperationContext::from_identity(&codex_identity);
+    let claude = OperationContext::from_identity(&claude_identity);
 
     let first = record_continuity_checkpoint_for_operation(
         &repo,
@@ -396,12 +440,28 @@ fn continuity_and_journal_are_shared_but_keep_explicit_provenance() {
         &claude,
     )
     .unwrap();
-    assert_eq!(first.repo_path, second.repo_path);
-    assert_eq!(first.vault_path, second.vault_path);
-    let continuity = fs::read_to_string(first.repo_path).unwrap();
-    assert!(continuity.contains("- Adapter: `claude`"));
-    assert!(continuity.contains("- Session ID: `session-claude`"));
-    assert!(continuity.contains("- Request ID: `request-claude`"));
+    assert_ne!(first.repo_path, second.repo_path);
+    assert_ne!(first.vault_path, second.vault_path);
+    let codex_continuity = fs::read_to_string(&first.repo_path).unwrap();
+    let claude_continuity = fs::read_to_string(&second.repo_path).unwrap();
+    assert!(codex_continuity.contains("- Adapter: `codex`"));
+    assert!(codex_continuity.contains("- Session ID: `session-codex`"));
+    assert!(codex_continuity.contains("- Request ID: `request-codex`"));
+    assert!(codex_continuity.contains("Codex completed the shared step"));
+    assert!(claude_continuity.contains("- Adapter: `claude`"));
+    assert!(claude_continuity.contains("- Session ID: `session-claude`"));
+    assert!(claude_continuity.contains("- Request ID: `request-claude`"));
+    assert!(claude_continuity.contains("Claude resumed the shared step"));
+    assert_eq!(
+        codex_continuity,
+        fs::read_to_string(&first.vault_path).unwrap()
+    );
+    assert_eq!(
+        claude_continuity,
+        fs::read_to_string(&second.vault_path).unwrap()
+    );
+    let current = fs::read_to_string(repo.join("docs/baron/continuity/CURRENT.md")).unwrap();
+    assert_eq!(current, claude_continuity);
 
     record_lifecycle_event_for_operation(&vault, &codex, AutomationEvent::Prompt).unwrap();
     record_lifecycle_event_for_operation(&vault, &claude, AutomationEvent::Prompt).unwrap();
@@ -450,12 +510,25 @@ fn deterministic_parallel_operations_keep_their_own_identity() {
     let claude_repo = repo.clone();
     let codex_barrier = Arc::clone(&barrier);
     let claude_barrier = Arc::clone(&barrier);
-    let codex = OperationContext::new(SupportedAdapter::Codex)
-        .with_session_id("parallel-codex")
-        .with_request_id("parallel-request-codex");
-    let claude = OperationContext::new(SupportedAdapter::Claude)
-        .with_session_id("parallel-claude")
-        .with_request_id("parallel-request-claude");
+    let project_id = load_project_config(&repo).unwrap().project_id;
+    let codex_identity = LifecycleIdentity::resolve(
+        &project_id,
+        "inspect shared task state",
+        SupportedAdapter::Codex,
+        Some("parallel-codex"),
+        Some("parallel-request-codex"),
+    )
+    .unwrap();
+    let claude_identity = LifecycleIdentity::resolve(
+        &project_id,
+        "inspect shared task state",
+        SupportedAdapter::Claude,
+        Some("parallel-claude"),
+        Some("parallel-request-claude"),
+    )
+    .unwrap();
+    let codex = OperationContext::from_identity(&codex_identity);
+    let claude = OperationContext::from_identity(&claude_identity);
 
     let codex_thread = thread::spawn(move || {
         codex_barrier.wait();

@@ -3,7 +3,6 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::authority::classify_request;
 use crate::autopilot::pending_approval_warning;
@@ -11,19 +10,22 @@ use crate::capability::runtime_backend_report_for_operation;
 use crate::config::{
     find_project_root, load_project_config, resolve_vault_path_for_repo, ProjectPlatform,
 };
-use crate::context::compile_context_for_operation;
-use crate::continuity::continuity_status;
+use crate::context::compile_context_for_lifecycle_identity;
 use crate::control_plane::{
     gate_evidence_status_strict_for_operation, route_task_for_operation, validate_control_plane,
 };
-use crate::harness::harness_status;
-use crate::intent::intent_status;
-use crate::operation::{OperationContext, SupportedAdapter};
-use crate::plan::plan_status;
+use crate::execution_receipt::ReceiptContext;
+use crate::intent::operation_intent_for_identity;
+use crate::operation::{
+    canonical_task_text, task_id_for_task, LifecycleIdentity, OperationContext,
+    OperationIdentityError, SupportedAdapter,
+};
+use crate::plan::indexed_plan_status_for_identity;
 use crate::platform::{platform_name, render_platform_context};
-use crate::proof::latest_proof;
+use crate::proof::proof_for_operation;
 use crate::risk::RiskLane;
-use crate::trace::latest_trace_score;
+use crate::task_state::{canonical_plan_next, operation_scoped_source};
+use crate::trace::{latest_trace_score_for_operation_in_vault, TraceOperationBinding};
 use crate::vault::ensure_vault;
 use crate::work_shape::{decide_work_shape, DurabilityNeed, JudgmentNeed, LifecycleDepth};
 
@@ -343,15 +345,19 @@ pub fn prepare(
             "Baron project state does not contain a project identity",
         ));
     }
-    let task_id = task_id_for_request(&config.project_id, &request);
-    let operation_id = operation_id_for_request(&config.project_id, adapter, &request);
-    let operation = OperationContext {
+    let identity = LifecycleIdentity::resolve(
+        &config.project_id,
+        &request.task,
         adapter,
-        session_id: request.session_id.clone(),
-        request_id: request.request_id.clone(),
-        task_id: Some(task_id.clone()),
-        operation_id: Some(operation_id.clone()),
-    };
+        request.session_id.as_deref(),
+        request.request_id.as_deref(),
+    )
+    .map_err(prepare_identity_error)?;
+    request.session_id = Some(identity.session_id().to_string());
+    request.request_id = Some(identity.request_id().to_string());
+    let task_id = identity.task_id().to_string();
+    let operation_id = identity.operation_id().to_string();
+    let operation = OperationContext::from_identity(&identity);
     let vault_path =
         resolve_vault_path_for_repo(vault_override, &repo_root).map_err(project_error)?;
     let vault = ensure_vault(&vault_path, &repo_root).map_err(project_error)?;
@@ -362,17 +368,32 @@ pub fn prepare(
     let route = route_task_for_operation(&repo_root, &request.task, work_shape.risk, &operation)
         .map_err(project_error)?;
 
-    let intent_source = intent_status(&repo_root).map_err(project_error)?;
-    let plan_source = plan_status(&repo_root).map_err(project_error)?;
-    let harness_source = harness_status(&repo_root).map_err(project_error)?;
-    let continuity_source = continuity_status(&repo_root, &vault).map_err(project_error)?;
+    let intent_source = operation_intent_for_identity(&repo_root, &identity, MAX_STATUS_CHARS)
+        .map_err(project_error)?
+        .unwrap_or_default();
+    let plan_source =
+        indexed_plan_status_for_identity(&repo_root, &identity).map_err(project_error)?;
+    let continuity_source = operation_scoped_source(
+        &crate::continuity::operation_checkpoint_path(&repo_root, &identity),
+        &identity,
+        MAX_STATUS_CHARS,
+    );
+    let recovery_source = operation_scoped_source(
+        &crate::continuity::operation_recovery_path(&repo_root, &identity),
+        &identity,
+        MAX_STATUS_CHARS,
+    );
     let intent = project_intent(&intent_source);
-    let continuity = project_continuity(&plan_source, &continuity_source);
+    let continuity = project_continuity(&plan_source, &continuity_source, &recovery_source);
     let profile_context = render_platform_context(&repo_root, Some(&request.task));
     let profile = project_profile(&config, profile_context);
-    let context_text =
-        compile_context_for_operation(&repo_root, &vault_path, &operation, Some(&request.task))
-            .map_err(project_error)?;
+    let context_text = compile_context_for_lifecycle_identity(
+        &repo_root,
+        &vault_path,
+        &identity,
+        Some(&request.task),
+    )
+    .map_err(project_error)?;
     let (context_text, context_truncated) =
         bounded(&context_text, PREPARE_MAX_OUTPUT_CONTEXT_CHARS);
 
@@ -382,12 +403,22 @@ pub fn prepare(
         &task_id,
         &operation_id,
         adapter.as_str(),
-        request.session_id.as_deref(),
-        request.request_id.as_deref(),
+        Some(identity.session_id()),
+        Some(identity.request_id()),
     )
     .map_err(project_error)?;
-    let proof = latest_proof(&repo_root).map_err(project_error)?;
-    let trace = latest_trace_score(&repo_root).map_err(project_error)?;
+    let proof_binding = ReceiptContext::for_identity(&identity, "proof").map_err(project_error)?;
+    let proof = proof_for_operation(&repo_root, &proof_binding).map_err(project_error)?;
+    let trace = proof
+        .as_ref()
+        .map(|proof| {
+            let binding = TraceOperationBinding::from_operation(&operation, &proof.id)
+                .map_err(project_error)?;
+            latest_trace_score_for_operation_in_vault(&repo_root, &vault, &binding)
+                .map_err(project_error)
+        })
+        .transpose()?
+        .flatten();
     let runtime =
         runtime_backend_report_for_operation(&repo_root, &operation).map_err(project_error)?;
 
@@ -447,9 +478,7 @@ pub fn prepare(
             message: warning.clone(),
         }));
     }
-    if !harness_source.contains("- Title: ") {
-        unknowns.push("no current Product Harness story is recorded".to_string());
-    }
+    unknowns.push("operation-bound Product Harness story is unknown".to_string());
     if let Some(message) = pending_approval_warning(&repo_root, &vault) {
         warnings.push(PrepareIssue {
             code: "autopilot_approval_pending".to_string(),
@@ -489,10 +518,10 @@ pub fn prepare(
     Ok(PreparePacketV1 {
         schema_version: PREPARE_SCHEMA_VERSION,
         ok: true,
-        project_id: config.project_id,
+        project_id: identity.project_id().to_string(),
         adapter: adapter.as_str().to_string(),
-        session_id: request.session_id,
-        request_id: request.request_id,
+        session_id: Some(identity.session_id().to_string()),
+        request_id: Some(identity.request_id().to_string()),
         operation_id: Some(operation_id),
         task: PrepareTask {
             id: task_id,
@@ -568,9 +597,8 @@ fn validate_request(request: &mut PrepareRequestV1) -> Result<(), PrepareError> 
             PREPARE_SCHEMA_VERSION.to_string(),
         ));
     }
-    if request.task.trim().is_empty() {
-        return Err(PrepareError::invalid_input("task must not be empty"));
-    }
+    request.task = canonical_task_text(&request.task)
+        .map_err(|error| PrepareError::invalid_input(error.to_string()))?;
     if request.task.chars().count() > PREPARE_MAX_TASK_CHARS {
         return Err(PrepareError::invalid_input(format!(
             "task exceeds the {} character limit",
@@ -594,6 +622,10 @@ fn normalize_identifier(name: &str, value: &mut Option<String>) -> Result<(), Pr
         return Err(PrepareError::invalid_input(format!(
             "{name} exceeds the {MAX_IDENTIFIER_CHARS} character limit"
         )));
+    } else if trimmed.chars().any(char::is_control) {
+        return Err(PrepareError::invalid_input(format!(
+            "{name} must not contain control characters"
+        )));
     } else {
         *value = Some(trimmed);
     }
@@ -608,29 +640,22 @@ fn internal_error(error: impl fmt::Display) -> PrepareError {
     PrepareError::internal(error.to_string())
 }
 
+fn prepare_identity_error(error: OperationIdentityError) -> PrepareError {
+    match error {
+        OperationIdentityError::RandomIdentifier(_) => PrepareError::internal(error.to_string()),
+        OperationIdentityError::InvalidField { ref field, .. } if field == "project_id" => {
+            PrepareError::project_state(error.to_string())
+        }
+        _ => PrepareError::invalid_input(error.to_string()),
+    }
+}
+
 /// Computes the stable task identity used by both the control-plane prepare
 /// command and native hook preparation. Keeping this helper public prevents
 /// the hook bridge from inventing a second task identity algorithm.
 pub fn task_id_for_request(project_id: &str, request: &PrepareRequestV1) -> String {
-    let mut digest = Sha256::new();
-    digest.update(project_id.as_bytes());
-    digest.update([0]);
-    digest.update(request.task.as_bytes());
-    digest.update([0]);
-    if let Some(session_id) = &request.session_id {
-        digest.update(session_id.as_bytes());
-    }
-    digest.update([0]);
-    if let Some(request_id) = &request.request_id {
-        digest.update(request_id.as_bytes());
-    }
-    let digest = digest.finalize();
-    let prefix = digest
-        .iter()
-        .take(10)
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    format!("task-{prefix}")
+    task_id_for_task(project_id, &request.task)
+        .expect("task_id_for_request requires a validated project and task")
 }
 
 /// Computes the stable operation identity shared by Prepare and native hook
@@ -640,30 +665,36 @@ pub fn operation_id_for_request(
     project_id: &str,
     adapter: SupportedAdapter,
     request: &PrepareRequestV1,
-) -> String {
-    let mut digest = Sha256::new();
-    digest.update(b"baron-operation-v1");
-    digest.update([0]);
-    digest.update(project_id.as_bytes());
-    digest.update([0]);
-    digest.update(adapter.as_str().as_bytes());
-    digest.update([0]);
-    digest.update(request.task.as_bytes());
-    digest.update([0]);
-    if let Some(session_id) = &request.session_id {
-        digest.update(session_id.as_bytes());
+) -> Result<String, OperationIdentityError> {
+    let session_id = request
+        .session_id
+        .as_deref()
+        .ok_or_else(|| invalid_request_identity("session_id"))?;
+    let request_id = request
+        .request_id
+        .as_deref()
+        .ok_or_else(|| invalid_request_identity("request_id"))?;
+    if session_id.trim().is_empty() {
+        return Err(invalid_request_identity("session_id"));
     }
-    digest.update([0]);
-    if let Some(request_id) = &request.request_id {
-        digest.update(request_id.as_bytes());
+    if request_id.trim().is_empty() {
+        return Err(invalid_request_identity("request_id"));
     }
-    let digest = digest.finalize();
-    let prefix = digest
-        .iter()
-        .take(12)
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    format!("operation-{prefix}")
+    let identity = LifecycleIdentity::resolve(
+        project_id,
+        &request.task,
+        adapter,
+        Some(session_id),
+        Some(request_id),
+    )?;
+    Ok(identity.operation_id().to_string())
+}
+
+fn invalid_request_identity(field: &str) -> OperationIdentityError {
+    OperationIdentityError::InvalidField {
+        field: field.to_string(),
+        reason: "is required for operation identity derivation".to_string(),
+    }
 }
 
 fn task_summary(task: &str) -> String {
@@ -745,11 +776,20 @@ fn project_intent(source: &str) -> PrepareIntent {
     }
 }
 
-fn project_continuity(plan_source: &str, continuity_source: &str) -> PrepareContinuity {
+fn project_continuity(
+    plan_source: &str,
+    continuity_source: &str,
+    recovery_source: &str,
+) -> PrepareContinuity {
     let plan_status = bullet_value(plan_source, "- Status: ");
-    let plan_next_action = bullet_value(plan_source, "- Next action: ");
-    let recovery_outcome = bullet_value(continuity_source, "- Outcome: ");
-    let safe_next_action = section_value(continuity_source, "## Safe Next Action");
+    let plan_next_action = canonical_plan_next(plan_source);
+    let recovery_outcome = bullet_value(recovery_source, "- Outcome: ");
+    let safe_next_action = section_value(recovery_source, "## Safe Next Action")
+        .or_else(|| {
+            bullet_value(continuity_source, "- Next action: ")
+                .filter(|action| !action.starts_with("unknown"))
+        })
+        .or_else(|| plan_next_action.clone());
     let plan_interrupted = matches!(plan_status.as_deref(), Some("interrupted" | "in_progress"));
     let recovery_interrupted = matches!(
         recovery_outcome.as_deref(),
@@ -769,7 +809,11 @@ fn project_continuity(plan_source: &str, continuity_source: &str) -> PrepareCont
         plan_next_action,
         recovery_outcome,
         safe_next_action,
-        summary: bounded(continuity_source, MAX_STATUS_CHARS).0,
+        summary: bounded(
+            &format!("{plan_source}\n{continuity_source}\n{recovery_source}"),
+            MAX_STATUS_CHARS,
+        )
+        .0,
     }
 }
 

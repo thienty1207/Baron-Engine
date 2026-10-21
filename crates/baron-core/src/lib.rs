@@ -33,6 +33,7 @@ pub mod plan;
 pub mod platform;
 pub mod prepare;
 pub mod proof;
+pub mod receipt_authority;
 pub mod release;
 pub mod review_gate;
 pub mod risk;

@@ -8,7 +8,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+use getrandom::getrandom;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::config::AdapterKind;
 
@@ -68,6 +70,8 @@ impl TryFrom<AdapterKind> for SupportedAdapter {
 pub enum OperationIdentityError {
     MissingAdapter,
     UnsupportedAdapter(String),
+    InvalidField { field: String, reason: String },
+    RandomIdentifier(String),
 }
 
 impl fmt::Display for OperationIdentityError {
@@ -78,11 +82,329 @@ impl fmt::Display for OperationIdentityError {
                 formatter,
                 "unsupported runtime adapter `{value}`; supported adapters are codex and claude"
             ),
+            Self::InvalidField { field, reason } => write!(formatter, "invalid {field}: {reason}"),
+            Self::RandomIdentifier(error) => {
+                write!(
+                    formatter,
+                    "could not synthesize a lifecycle identifier: {error}"
+                )
+            }
         }
     }
 }
 
 impl std::error::Error for OperationIdentityError {}
+
+pub const MAX_IDENTIFIER_CHARS: usize = 256;
+const RANDOM_IDENTIFIER_BYTES: usize = 16;
+
+/// Complete identity for one correctness-sensitive Baron lifecycle operation.
+///
+/// Fields are private so callers can only create this value through the
+/// validating constructors below. `OperationContext` remains as a compatible
+/// optional diagnostic view for older read-only paths.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LifecycleIdentity {
+    project_id: String,
+    task_id: String,
+    operation_id: String,
+    adapter: SupportedAdapter,
+    session_id: String,
+    request_id: String,
+}
+
+impl LifecycleIdentity {
+    /// Reconstruct a lifecycle identity from persisted or compatibility parts.
+    ///
+    /// This validates the complete operation tuple, but parts alone cannot
+    /// prove that `task_id` was derived from the original task text. Callers
+    /// that have the canonical task text must also call [`Self::validate_task`]
+    /// before using the identity for authority-bearing writes. The schema-v2
+    /// execution API instead requires [`AuthoritativeLifecycleIdentity`], so this
+    /// compatibility value cannot mint signed authority by itself.
+    pub fn new(
+        project_id: impl Into<String>,
+        task_id: impl Into<String>,
+        operation_id: impl Into<String>,
+        adapter: SupportedAdapter,
+        session_id: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> Result<Self, OperationIdentityError> {
+        Self::from_parts_checked(
+            project_id,
+            task_id,
+            operation_id,
+            adapter,
+            session_id,
+            request_id,
+        )
+    }
+
+    /// Reconstruct a lifecycle identity only when its operation ID matches
+    /// the canonical operation tuple. This is the checked compatibility path
+    /// for serialized or externally supplied identity parts.
+    pub fn from_parts_checked(
+        project_id: impl Into<String>,
+        task_id: impl Into<String>,
+        operation_id: impl Into<String>,
+        adapter: SupportedAdapter,
+        session_id: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> Result<Self, OperationIdentityError> {
+        let project_id = validate_identifier("project_id", project_id.into())?;
+        let task_id = validate_identifier("task_id", task_id.into())?;
+        let operation_id = validate_identifier("operation_id", operation_id.into())?;
+        let session_id = validate_identifier("session_id", session_id.into())?;
+        let request_id = validate_identifier("request_id", request_id.into())?;
+        let expected_operation_id =
+            operation_id_for_parts(&project_id, &task_id, adapter, &session_id, &request_id);
+        if operation_id != expected_operation_id {
+            return Err(invalid_field(
+                "operation_id",
+                "does not match the canonical operation tuple",
+            ));
+        }
+        Ok(Self {
+            project_id,
+            task_id,
+            operation_id,
+            adapter,
+            session_id,
+            request_id,
+        })
+    }
+
+    /// Resolve external optional identity fragments exactly once at ingress.
+    /// Supplied non-blank values are preserved after normalization; missing or
+    /// blank values receive independent random identifiers.
+    pub fn resolve(
+        project_id: &str,
+        task: &str,
+        adapter: SupportedAdapter,
+        session_id: Option<&str>,
+        request_id: Option<&str>,
+    ) -> Result<Self, OperationIdentityError> {
+        let project_id = validate_identifier("project_id", project_id.trim().to_string())?;
+        let task_id = task_id_for_task(&project_id, task)?;
+        let session_id = resolve_optional_identifier("session_id", session_id)?;
+        let request_id = resolve_optional_identifier("request_id", request_id)?;
+        let operation_id =
+            operation_id_for_parts(&project_id, &task_id, adapter, &session_id, &request_id);
+        Self::from_parts_checked(
+            project_id,
+            task_id,
+            operation_id,
+            adapter,
+            session_id,
+            request_id,
+        )
+    }
+
+    /// Verify that this identity's task ID was derived from the supplied
+    /// canonical task text. Parts-only reconstruction cannot perform this
+    /// check because the original task text is not persisted in the identity.
+    pub fn validate_task(&self, task: &str) -> Result<(), OperationIdentityError> {
+        let expected_task_id = task_id_for_task(&self.project_id, task)?;
+        if self.task_id != expected_task_id {
+            return Err(invalid_field(
+                "task_id",
+                "does not match the canonical task text",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn project_id(&self) -> &str {
+        &self.project_id
+    }
+
+    pub fn task_id(&self) -> &str {
+        &self.task_id
+    }
+
+    pub fn operation_id(&self) -> &str {
+        &self.operation_id
+    }
+
+    pub const fn adapter(&self) -> SupportedAdapter {
+        self.adapter
+    }
+
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    pub fn request_id(&self) -> &str {
+        &self.request_id
+    }
+}
+
+/// An identity that has been proven against canonical task text and may cross
+/// the trusted execution authority boundary.
+///
+/// `LifecycleIdentity::from_parts_checked` intentionally remains available for
+/// persisted reconstruction and comparison, but it only proves an internally
+/// consistent operation tuple. This wrapper cannot be built from those parts
+/// alone: its constructors require the canonical task text and therefore
+/// validate the task-ID derivation before returning an authority-capable value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoritativeLifecycleIdentity {
+    inner: LifecycleIdentity,
+}
+
+impl AuthoritativeLifecycleIdentity {
+    /// Resolve a fresh authority identity from the canonical task text.
+    pub fn resolve(
+        project_id: &str,
+        task: &str,
+        adapter: SupportedAdapter,
+        session_id: Option<&str>,
+        request_id: Option<&str>,
+    ) -> Result<Self, OperationIdentityError> {
+        Ok(Self {
+            inner: LifecycleIdentity::resolve(project_id, task, adapter, session_id, request_id)?,
+        })
+    }
+
+    /// Upgrade a checked identity only when the caller supplies the canonical
+    /// task text that proves its task-ID derivation. A parts-only reconstructed
+    /// identity therefore remains comparison-only unless that proof succeeds.
+    pub fn from_identity_checked(
+        identity: &LifecycleIdentity,
+        canonical_task: &str,
+    ) -> Result<Self, OperationIdentityError> {
+        identity.validate_task(canonical_task)?;
+        Ok(Self {
+            inner: identity.clone(),
+        })
+    }
+
+    pub fn as_lifecycle_identity(&self) -> &LifecycleIdentity {
+        &self.inner
+    }
+}
+
+impl AsRef<LifecycleIdentity> for AuthoritativeLifecycleIdentity {
+    fn as_ref(&self) -> &LifecycleIdentity {
+        self.as_lifecycle_identity()
+    }
+}
+
+impl std::ops::Deref for AuthoritativeLifecycleIdentity {
+    type Target = LifecycleIdentity;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_lifecycle_identity()
+    }
+}
+
+/// Derive the one task identity for a project and canonical task text.
+pub fn task_id_for_task(project_id: &str, task: &str) -> Result<String, OperationIdentityError> {
+    let project_id = validate_identifier("project_id", project_id.trim().to_string())?;
+    let task = canonical_task_text(task)?;
+    Ok(format!(
+        "task-{}",
+        digest_prefix(
+            b"baron-task-v2",
+            &[project_id.as_bytes(), task.as_bytes()],
+            10,
+        )
+    ))
+}
+
+/// Derive an operation identity from the complete operation tuple.
+pub fn operation_id_for_parts(
+    project_id: &str,
+    task_id: &str,
+    adapter: SupportedAdapter,
+    session_id: &str,
+    request_id: &str,
+) -> String {
+    format!(
+        "operation-{}",
+        digest_prefix(
+            b"baron-operation-v2",
+            &[
+                project_id.as_bytes(),
+                task_id.as_bytes(),
+                adapter.as_str().as_bytes(),
+                session_id.as_bytes(),
+                request_id.as_bytes(),
+            ],
+            12,
+        )
+    )
+}
+
+pub fn canonical_task_text(task: &str) -> Result<String, OperationIdentityError> {
+    let canonical = task.trim().replace("\r\n", "\n").replace('\r', "\n");
+    if canonical.is_empty() {
+        return Err(invalid_field("task", "must not be empty"));
+    }
+    Ok(canonical)
+}
+
+fn validate_identifier(field: &str, value: String) -> Result<String, OperationIdentityError> {
+    let value = value.trim().to_string();
+    if value.is_empty() {
+        return Err(invalid_field(field, "must not be empty"));
+    }
+    if value.chars().count() > MAX_IDENTIFIER_CHARS {
+        return Err(invalid_field(
+            field,
+            &format!("exceeds the {MAX_IDENTIFIER_CHARS} character limit"),
+        ));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(invalid_field(field, "must not contain control characters"));
+    }
+    Ok(value)
+}
+
+fn resolve_optional_identifier(
+    field: &str,
+    value: Option<&str>,
+) -> Result<String, OperationIdentityError> {
+    let value = value.map(str::trim).filter(|value| !value.is_empty());
+    match value {
+        Some(value) => validate_identifier(field, value.to_string()),
+        None => synthesize_identifier(field),
+    }
+}
+
+fn synthesize_identifier(field: &str) -> Result<String, OperationIdentityError> {
+    let mut bytes = [0u8; RANDOM_IDENTIFIER_BYTES];
+    getrandom(&mut bytes)
+        .map_err(|error| OperationIdentityError::RandomIdentifier(error.to_string()))?;
+    let suffix = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    validate_identifier(field, format!("baron-{field}-{suffix}"))
+}
+
+fn digest_prefix(domain: &[u8], values: &[&[u8]], bytes: usize) -> String {
+    let mut digest = Sha256::new();
+    digest.update(domain);
+    digest.update([0]);
+    for value in values {
+        digest.update(value);
+        digest.update([0]);
+    }
+    digest
+        .finalize()
+        .iter()
+        .take(bytes)
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn invalid_field(field: &str, reason: &str) -> OperationIdentityError {
+    OperationIdentityError::InvalidField {
+        field: field.to_string(),
+        reason: reason.to_string(),
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationContext {
@@ -130,5 +452,55 @@ impl OperationContext {
 
     pub fn adapter_kind(&self) -> AdapterKind {
         self.adapter.as_adapter_kind()
+    }
+
+    pub fn from_identity(identity: &LifecycleIdentity) -> Self {
+        Self {
+            adapter: identity.adapter,
+            session_id: Some(identity.session_id.clone()),
+            request_id: Some(identity.request_id.clone()),
+            task_id: Some(identity.task_id.clone()),
+            operation_id: Some(identity.operation_id.clone()),
+        }
+    }
+
+    pub fn lifecycle_identity(
+        &self,
+        project_id: &str,
+    ) -> Result<LifecycleIdentity, OperationIdentityError> {
+        let session_id = self
+            .session_id
+            .as_deref()
+            .ok_or_else(|| invalid_field("session_id", "is required"))?;
+        let request_id = self
+            .request_id
+            .as_deref()
+            .ok_or_else(|| invalid_field("request_id", "is required"))?;
+        let task_id = self
+            .task_id
+            .as_deref()
+            .ok_or_else(|| invalid_field("task_id", "is required"))?;
+        let operation_id = self
+            .operation_id
+            .as_deref()
+            .ok_or_else(|| invalid_field("operation_id", "is required"))?;
+        LifecycleIdentity::from_parts_checked(
+            project_id,
+            task_id,
+            operation_id,
+            self.adapter,
+            session_id,
+            request_id,
+        )
+    }
+
+    pub fn lifecycle_identity_for_task(
+        &self,
+        project_id: &str,
+        task: &str,
+    ) -> Result<LifecycleIdentity, OperationIdentityError> {
+        let identity = self.lifecycle_identity(project_id)?;
+        identity.validate_task(task)?;
+        Ok(identity)
     }
 }

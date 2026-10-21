@@ -1,8 +1,11 @@
 use std::fs;
 use std::path::Path;
 
-use baron_core::config::{initialize_project_with_options, AdapterKind, ProjectPlatform};
-use baron_core::control_plane::route_task;
+use baron_core::config::{
+    initialize_project_with_options, load_project_config, AdapterKind, ProjectPlatform,
+};
+use baron_core::control_plane::{route_task, route_task_for_operation};
+use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
 use baron_core::risk::RiskLane;
 use tempfile::tempdir;
 
@@ -396,6 +399,82 @@ fn routing_consumes_work_shape_state_capabilities_and_affected_area() {
     assert!(explanation.contains("state=evidence"));
     assert!(explanation.contains("capabilities=available"));
     assert!(explanation.contains("affected=db/migrations/001_add_users.sql"));
+}
+
+#[test]
+fn identified_routing_does_not_consume_another_operations_current_paths() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("identified-route");
+    fs::create_dir_all(&repo).unwrap();
+    install_contract(&repo, ProjectPlatform::Backend);
+    let project_id = load_project_config(&repo).unwrap().project_id;
+    let operation_a = LifecycleIdentity::resolve(
+        &project_id,
+        "review the changed boundary",
+        SupportedAdapter::Codex,
+        Some("session-a"),
+        Some("turn-a"),
+    )
+    .unwrap();
+    let operation_b = LifecycleIdentity::resolve(
+        &project_id,
+        "migrate the database schema",
+        SupportedAdapter::Claude,
+        Some("session-b"),
+        Some("turn-b"),
+    )
+    .unwrap();
+    assert_ne!(operation_a.operation_id(), operation_b.operation_id());
+    write(
+        &repo.join("docs/baron/plans/CURRENT.md"),
+        &format!(
+            "# Current Plan\n\n- Project ID: `{}`\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `claude`\n- Session ID: `session-b`\n- Request ID: `turn-b`\n- Changed files: frontend/src/routes/+page.svelte\n",
+            operation_b.project_id(),
+            operation_b.task_id(),
+            operation_b.operation_id(),
+        ),
+    );
+    write(
+        &repo
+            .join("docs/baron/continuity/operations")
+            .join(operation_a.operation_id())
+            .join("CHECKPOINT.md"),
+        &format!(
+            "# Baron Continuity Resume\n\n- Project ID: `{}`\n- Task ID: `{}`\n- Operation ID: `{}`\n- Adapter: `codex`\n- Session ID: `session-a`\n- Request ID: `turn-a`\n- Changed files: db/migrations/001_add_users.sql\n",
+            operation_a.project_id(),
+            operation_a.task_id(),
+            operation_a.operation_id(),
+        ),
+    );
+
+    let route = route_task_for_operation(
+        &repo,
+        "review the changed boundary",
+        RiskLane::Low,
+        &OperationContext::from_identity(&operation_a),
+    )
+    .unwrap();
+
+    assert!(
+        names(&route).contains(&"database-engineering".to_string()),
+        "operation A's exact checkpoint should influence its route: {route:?}"
+    );
+    assert!(
+        !route
+            .explanation
+            .contains("frontend/src/routes/+page.svelte"),
+        "operation A's route explanation must not consume operation B's changed paths"
+    );
+    assert!(
+        route
+            .explanation
+            .contains("db/migrations/001_add_users.sql"),
+        "operation A's exact changed paths should be reported"
+    );
+    assert!(
+        !names(&route).contains(&"frontend-design".to_string()),
+        "operation B's CURRENT projection must not change operation A's skill route: {route:?}"
+    );
 }
 
 #[test]

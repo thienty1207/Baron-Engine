@@ -557,6 +557,24 @@ pub fn select_resume_brief_runtime(
     }
 }
 
+/// Operation views retain the selected runtime generation, but resume facts
+/// are projected from exact Task State rather than shared diagnostic briefs.
+pub fn select_resume_brief_runtime_for_task_state(
+    context: &VaultContext,
+    state: &crate::task_state::TaskStateProjection,
+    max_chars: usize,
+) -> Result<(EngineGeneration, ResumeBrief)> {
+    let generation = if experimental_generation_enabled() {
+        EngineGeneration::Candidate42
+    } else {
+        EngineGeneration::Candidate41
+    };
+    Ok((
+        generation,
+        crate::knowledge::build_resume_brief_for_task_state(context, state, max_chars)?,
+    ))
+}
+
 /// Selects the runtime Resume Brief without making the candidate a one-way
 /// switch. The candidate is allowed only when it remains project-isolated,
 /// bounded, and structurally complete; any build or guard failure returns the

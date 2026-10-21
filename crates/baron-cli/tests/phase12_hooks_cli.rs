@@ -25,6 +25,10 @@ fn init_repo() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
 }
 
 fn run_hook(repo: &std::path::Path, event: &str, payload: &str) -> Value {
+    run_hook_adapter(repo, event, payload, "codex")
+}
+
+fn run_hook_adapter(repo: &std::path::Path, event: &str, payload: &str, adapter: &str) -> Value {
     let output = Command::cargo_bin("baron")
         .unwrap()
         .args([
@@ -33,7 +37,7 @@ fn run_hook(repo: &std::path::Path, event: &str, payload: &str) -> Value {
             event,
             repo.to_str().unwrap(),
             "--adapter",
-            "codex",
+            adapter,
         ])
         .write_stdin(payload)
         .output()
@@ -44,6 +48,103 @@ fn run_hook(repo: &std::path::Path, event: &str, payload: &str) -> Value {
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).unwrap()
+}
+
+#[test]
+fn cli_native_taskless_stop_recovers_prompt_identity_across_processes_and_current_b() {
+    use baron_core::operation::{LifecycleIdentity, OperationContext, SupportedAdapter};
+    use baron_core::plan::start_or_resume_plan_for_identity;
+    use baron_core::proof::record_proof_for_operation;
+    use baron_core::trace::{
+        record_trace_for_operation, score_trace, TraceOperationBinding, TraceOutcome,
+    };
+    use baron_core::vault::ensure_vault;
+
+    for (adapter, supported, turn_field) in [
+        ("codex", SupportedAdapter::Codex, "turn_id"),
+        ("claude", SupportedAdapter::Claude, "prompt_id"),
+    ] {
+        let (_temp, repo, vault) = init_repo();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let turn = "550e8400-e29b-41d4-a716-446655440000";
+        let mut prompt = serde_json::json!({"session_id":"native-session","hook_event_name":"UserPromptSubmit","transcript_path":"/workspace/transcript.jsonl","cwd":repo,"prompt":"fix README alpha typo"});
+        prompt[turn_field] = serde_json::json!(turn);
+        let started = run_hook_adapter(&repo, "user-prompt-submit", &prompt.to_string(), adapter);
+        assert_eq!(started["baron"]["request_id"], turn);
+        let a = LifecycleIdentity::resolve(
+            &context.project_id,
+            "fix README alpha typo",
+            supported,
+            Some("native-session"),
+            Some(turn),
+        )
+        .unwrap();
+        assert_eq!(started["baron"]["operation_id"], a.operation_id());
+        start_or_resume_plan_for_identity(&repo, &context, "fix README alpha typo", &a).unwrap();
+        let operation = OperationContext::from_identity(&a);
+        let proof =
+            record_proof_for_operation(&repo, &context, &operation, "README verification passed")
+                .unwrap();
+        let trace = record_trace_for_operation(
+            &repo,
+            &context,
+            "README task completed",
+            TraceOutcome::Completed,
+            &TraceOperationBinding::from_operation(&operation, &proof.id).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            score_trace(&repo, &context, Some(&trace.id))
+                .unwrap()
+                .passed
+        );
+        let b = LifecycleIdentity::resolve(
+            &context.project_id,
+            "backend login security",
+            if supported == SupportedAdapter::Codex {
+                SupportedAdapter::Claude
+            } else {
+                SupportedAdapter::Codex
+            },
+            Some("other"),
+            Some("other"),
+        )
+        .unwrap();
+        start_or_resume_plan_for_identity(&repo, &context, "backend login security", &b).unwrap();
+        let mut stop = serde_json::json!({"session_id":"native-session","hook_event_name":"Stop","transcript_path":"/workspace/transcript.jsonl","cwd":repo,"stop_hook_active":false,"last_assistant_message":"Ready to verify"});
+        stop[turn_field] = serde_json::json!(turn);
+        let first = run_hook_adapter(&repo, "stop", &stop.to_string(), adapter);
+        assert_eq!(first["baron"]["operation_id"], a.operation_id());
+        assert_eq!(first["baron"]["reconciliation_passed"], true);
+        assert_eq!(first["completed"], false);
+        assert_ne!(first["decision"], "block");
+        assert_eq!(
+            first,
+            run_hook_adapter(&repo, "stop", &stop.to_string(), adapter)
+        );
+        fs::write(
+            repo.join(".baron/state/hook-correlations.json"),
+            "{malformed",
+        )
+        .unwrap();
+        let corrupted = run_hook_adapter(&repo, "stop", &stop.to_string(), adapter);
+        assert_eq!(corrupted["decision"], "block");
+        assert_eq!(corrupted["baron"]["hook_failure"], "hard");
+    }
+}
+
+#[test]
+fn cli_unknown_turn_fails_closed_without_publishing_lifecycle_state() {
+    let (_temp, repo, _vault) = init_repo();
+    let stop = run_hook(
+        &repo,
+        "stop",
+        r#"{"session_id":"unknown-session","turn_id":"unknown-turn","stop_hook_active":false}"#,
+    );
+    assert_eq!(stop["decision"], "block");
+    assert_eq!(stop["baron"]["hook_failure"], "hard");
+    assert!(!repo.join(".baron/cache/automation-dedup.json").exists());
+    assert!(!repo.join(".baron/state/hook-correlations.json").exists());
 }
 
 #[test]

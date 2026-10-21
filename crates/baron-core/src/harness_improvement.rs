@@ -1,11 +1,14 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
-use crate::proof::latest_proof;
-use crate::trace::latest_trace_score;
+use crate::plan::active_plan_completion_evidence_status;
+use crate::safe_io::{
+    acquire_project_lock, append_text, ensure_directory_chain, read_text, replace_text,
+};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,12 +40,16 @@ pub struct ImprovementProposal {
 
 pub fn audit_harness(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Result<HarnessAudit> {
     let repo_root = repo_root.as_ref();
-    let journal = fs::read_to_string(
-        vault
-            .project_root
-            .join("Artifacts/automation-journal.jsonl"),
-    )
-    .unwrap_or_default();
+    let journal = {
+        let _repo_lock = acquire_project_lock(repo_root)?;
+        let _vault_lock = acquire_project_lock(&vault.project_root)?;
+        fs::read_to_string(
+            vault
+                .project_root
+                .join("Artifacts/automation-journal.jsonl"),
+        )
+        .unwrap_or_default()
+    };
     let context_observed = journal.contains("context_compiled");
     let plan_observed =
         journal.contains("plan_started") || repo_root.join("docs/baron/plans/CURRENT.md").exists();
@@ -64,14 +71,13 @@ pub fn audit_harness(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Resul
     if !context_observed {
         diagnostics.push("context was not observed in the automation journal".to_string());
     }
-    if repo_root.join("docs/baron/plans/CURRENT.md").exists() && latest_proof(repo_root)?.is_none()
-    {
-        diagnostics.push("active work proof is missing".to_string());
-    }
-    if repo_root.join("docs/baron/plans/CURRENT.md").exists()
-        && latest_trace_score(repo_root)?.is_none()
-    {
-        diagnostics.push("passing trace score is missing".to_string());
+    if let Some(evidence) = active_plan_completion_evidence_status(repo_root)? {
+        diagnostics.extend(
+            evidence
+                .issues
+                .into_iter()
+                .map(|issue| format!("active plan evidence: {issue}")),
+        );
     }
 
     let friction =
@@ -99,18 +105,19 @@ pub fn record_intervention(
     vault: &VaultContext,
     summary: &str,
 ) -> Result<InterventionRecord> {
-    let repo_path = repo_root
-        .as_ref()
-        .join("docs/baron/harness/INTERVENTIONS.md");
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    let repo_path = repo_root.join("docs/baron/harness/INTERVENTIONS.md");
     let vault_path = vault.project_root.join("ProductHarness/INTERVENTIONS.md");
     let item = format!("- {} - {}", now(), summary.trim());
     append(
-        &repo_path,
+        &vault_path,
         "# Baron Harness Interventions\n\nHuman, reviewer, CI, and agent corrections are recorded here for later improvement analysis.\n\n",
         &item,
     )?;
     append(
-        &vault_path,
+        &repo_path,
         "# Baron Harness Interventions\n\nHuman, reviewer, CI, and agent corrections are recorded here for later improvement analysis.\n\n",
         &item,
     )?;
@@ -162,6 +169,10 @@ pub fn propose_improvements(
     vault: &VaultContext,
 ) -> Result<ImprovementProposal> {
     let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    // Match harness writers: checkout first, then the shared project capsule.
+    // A checkout projection may be stale even after taking its own lock.
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let friction =
         fs::read_to_string(repo_root.join("docs/baron/harness/FRICTION.md")).unwrap_or_default();
     let mut categories = Vec::new();
@@ -195,24 +206,25 @@ pub fn propose_improvements(
     }
     let repo_path = repo_root.join("docs/baron/harness/IMPROVEMENTS.md");
     let vault_path = vault.project_root.join("ProductHarness/IMPROVEMENTS.md");
-    let mut content = fs::read_to_string(&repo_path).unwrap_or_else(|_| {
-        "# Baron Harness Improvement Proposals\n\nCore policy and architecture changes require human approval before implementation.\n\n".to_string()
-    });
+    let mut content = merge_improvement_documents(&repo_path, &vault_path)?;
     let mut ids = Vec::new();
     for (id, label, count) in categories {
         ids.push(id.to_string());
-        if !content.contains(&format!("## {id}")) {
-            content.push_str(&format!(
-                "## {id}\n\n\
+        if !content.lines().any(|line| line == format!("## {id}")) {
+            append_improvement_text(
+                &mut content,
+                &format!(
+                    "## {id}\n\n\
 - Status: `proposed`\n\
 - Human approval: human approval required before core policy or architecture changes\n\
 - Expected improvement: {label} based on {count} repeated friction signals.\n\
 - Actual outcome: `pending`\n\n"
-            ));
+                ),
+            );
         }
     }
-    write(&repo_path, &content)?;
     write(&vault_path, &content)?;
+    write(&repo_path, &content)?;
     Ok(ImprovementProposal {
         proposal_count: ids.len(),
         proposal_ids: ids,
@@ -230,22 +242,105 @@ pub fn record_improvement_outcome(
     let repo_path = repo_root
         .as_ref()
         .join("docs/baron/harness/IMPROVEMENTS.md");
+    let _lock = acquire_project_lock(repo_root.as_ref())?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let vault_path = vault.project_root.join("ProductHarness/IMPROVEMENTS.md");
-    let mut content = fs::read_to_string(&repo_path).unwrap_or_else(|_| {
-        "# Baron Harness Improvement Proposals\n\nCore policy and architecture changes require human approval before implementation.\n\n".to_string()
-    });
-    if !content.contains(&format!("## {proposal_id}")) {
-        content.push_str(&format!(
+    let content = merge_improvement_documents(&repo_path, &vault_path)?;
+    let mut sections = improvement_sections(&content);
+    let heading = format!("## {proposal_id}");
+    let section_index = match sections.iter().position(|(key, _)| key == &heading) {
+        Some(index) => index,
+        None => {
+            sections.push((heading, format!(
             "## {proposal_id}\n\n- Status: `proposed`\n- Human approval: human approval required before core policy or architecture changes\n"
-        ));
+            )));
+            sections.len() - 1
+        }
+    };
+    append_improvement_text(
+        &mut sections[section_index].1,
+        &format!("- Actual outcome: {} - {}\n", now(), outcome.trim()),
+    );
+    let content = render_improvement_sections(sections);
+    write(&vault_path, &content)?;
+    write(&repo_path, &content)
+}
+
+fn merge_improvement_documents(repo_path: &Path, vault_path: &Path) -> Result<String> {
+    // Only absence permits a default. Unreadable or unsafe documents must not
+    // turn into an empty snapshot that overwrites durable/user-owned records.
+    let shared = read_text(vault_path)?;
+    let local = read_text(repo_path)?;
+    let Some(shared) = shared else {
+        return Ok(local.unwrap_or_else(|| {
+            "# Baron Harness Improvement Proposals\n\nCore policy and architecture changes require human approval before implementation.\n\n".to_string()
+        }));
+    };
+    let Some(local) = local else {
+        return Ok(shared);
+    };
+    let mut sections = improvement_sections(&shared);
+    for (heading, local_section) in improvement_sections(&local) {
+        if let Some((_, shared_section)) = sections.iter_mut().find(|(key, _)| key == &heading) {
+            // This is an additive two-way merge, not an authority to resolve
+            // edits/deletions. Preserve shared bytes and unmatched local lines,
+            // including user notes and outcomes, under the same exact heading.
+            // Match occurrences so repeated prose is not silently collapsed.
+            let mut remaining = HashMap::<&str, usize>::new();
+            for line in shared_section.lines() {
+                *remaining.entry(line).or_default() += 1;
+            }
+            let mut additions = String::new();
+            for line in local_section.split_inclusive('\n') {
+                let key = line.trim_end_matches(['\r', '\n']);
+                if let Some(count) = remaining.get_mut(key).filter(|count| **count > 0) {
+                    *count -= 1;
+                } else {
+                    append_improvement_text(&mut additions, line);
+                }
+            }
+            append_improvement_text(shared_section, &additions);
+        } else {
+            sections.push((heading, local_section));
+        }
     }
-    content.push_str(&format!(
-        "- Actual outcome: {} - {}\n",
-        now(),
-        outcome.trim()
-    ));
-    write(&repo_path, &content)?;
-    write(&vault_path, &content)
+    Ok(render_improvement_sections(sections))
+}
+
+fn improvement_sections(content: &str) -> Vec<(String, String)> {
+    let mut sections = vec![(String::new(), String::new())];
+    for line in content.split_inclusive('\n') {
+        if line.starts_with("## ") {
+            sections.push((
+                line.trim_end_matches(['\r', '\n']).to_string(),
+                String::new(),
+            ));
+        }
+        sections
+            .last_mut()
+            .expect("preamble always exists")
+            .1
+            .push_str(line);
+    }
+    sections
+}
+
+fn render_improvement_sections(sections: Vec<(String, String)>) -> String {
+    let mut content = String::new();
+    for (_, section) in sections {
+        append_improvement_text(&mut content, &section);
+    }
+    content
+}
+
+fn append_improvement_text(content: &mut String, addition: &str) {
+    if addition.is_empty() {
+        return;
+    }
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str(addition);
 }
 
 fn documentation_drift(repo_root: &Path) -> bool {
@@ -257,20 +352,26 @@ fn documentation_drift(repo_root: &Path) -> bool {
 }
 
 fn append(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
-    if !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(item);
-    content.push('\n');
-    write(path, &content)
+    let content = match read_text(path)? {
+        Some(content) => content,
+        None => {
+            replace_text(path, header)?;
+            header.to_string()
+        }
+    };
+    let separator = if content.is_empty() || content.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    append_text(path, &format!("{separator}{item}\n"))
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_chain(parent)?;
     }
-    fs::write(path, content).with_context(|| format!("Could not write {}", path.display()))
+    replace_text(path, content).with_context(|| format!("Could not write {}", path.display()))
 }
 
 fn now() -> String {

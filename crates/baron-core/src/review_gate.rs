@@ -6,7 +6,7 @@ use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::safe_io::{read_bytes, read_text_required, replace_text};
+use crate::safe_io::{acquire_project_lock, read_bytes, read_text_required, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -29,13 +29,15 @@ pub fn record_finding(
     vault: &VaultContext,
     mut input: ReviewFindingInput,
 ) -> Result<ReviewFinding> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let _capsule_lock = acquire_project_lock(&vault.project_root)?;
     normalize(&mut input);
     if input.severity.is_empty() || input.summary.is_empty() || input.evidence.is_empty() {
         bail!("Review finding requires severity, summary, and concrete evidence.");
     }
     let id = finding_id(&input)?;
     let repo_path = repo_root
-        .as_ref()
         .join("docs/baron/reviews/findings")
         .join(format!("{id}.md"));
     let vault_path = vault
@@ -53,7 +55,7 @@ pub fn record_finding(
     write_if_missing(&repo_path, &content)?;
     write_if_missing(&vault_path, &content)?;
     append_index(
-        &repo_root.as_ref().join("docs/baron/reviews/INDEX.md"),
+        &repo_root.join("docs/baron/reviews/INDEX.md"),
         &id,
         &input.summary,
     )?;
@@ -76,6 +78,9 @@ pub fn close_finding(
     fix_evidence: &str,
     verification: &str,
 ) -> Result<()> {
+    let repo_root = repo_root.as_ref();
+    let _lock = acquire_project_lock(repo_root)?;
+    let _capsule_lock = acquire_project_lock(&vault.project_root)?;
     let id = safe_component(id, "review finding ID")?;
     let fix_evidence = one_line(fix_evidence);
     let verification = one_line(verification);
@@ -86,17 +91,35 @@ pub fn close_finding(
         bail!("Review finding closure requires verification evidence.");
     }
     let repo_path = repo_root
-        .as_ref()
         .join("docs/baron/reviews/findings")
         .join(format!("{id}.md"));
     let vault_path = vault
         .project_root
         .join("Reviews/Findings")
         .join(format!("{id}.md"));
-    let mut content = read_text_required(&repo_path)
+    let mut content = read_text_required(&vault_path)
         .with_context(|| format!("Review finding not found: {id}"))?;
     if content.contains("- Status: `closed`") {
+        let repo_content = read_text_required(&repo_path)
+            .with_context(|| format!("Review finding projection not found: {id}"))?;
+        if repo_content != content {
+            let mut open_version = content
+                .split("\n## Closure Evidence\n\n")
+                .next()
+                .unwrap_or(&content)
+                .to_string();
+            open_version = open_version.replacen("- Status: `closed`", "- Status: `open`", 1);
+            if repo_content != open_version {
+                bail!("Review finding `{id}` differs between checkout and shared Vault; refusing to overwrite either version");
+            }
+            write(&repo_path, &content)?;
+        }
         return Ok(());
+    }
+    let repo_content = read_text_required(&repo_path)
+        .with_context(|| format!("Review finding projection not found: {id}"))?;
+    if repo_content != content {
+        bail!("Review finding `{id}` differs between checkout and shared Vault; refusing closure until the conflict is reconciled");
     }
     content = content.replacen("- Status: `open`", "- Status: `closed`", 1);
     content.push_str(&format!(
@@ -105,8 +128,8 @@ pub fn close_finding(
         fix_evidence,
         verification
     ));
-    write(&repo_path, &content)?;
     write(&vault_path, &content)?;
+    write(&repo_path, &content)?;
     Ok(())
 }
 

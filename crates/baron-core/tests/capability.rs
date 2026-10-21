@@ -3,8 +3,8 @@ use std::net::TcpListener;
 
 use baron_core::capability::{
     check_capabilities, load_capability_state, load_registry, normalize_identifier,
-    register_provider, remove_provider, CapabilityProvider, CheckOptions, Presence, ProviderKind,
-    Requirement,
+    register_provider, remove_provider, render_capability_summary, CapabilityProvider,
+    CheckOptions, Presence, ProviderKind, Requirement,
 };
 use baron_core::code_graph::ensure_code_map_capability;
 use baron_core::config::{initialize_project, AdapterKind};
@@ -166,6 +166,49 @@ fn remove_targets_one_capability_provider_without_touching_others() {
     let registry = load_registry(&repo).unwrap();
     assert_eq!(registry.providers.len(), 1);
     assert_eq!(registry.providers[0].name, "security-skill");
+}
+
+#[test]
+fn capability_cache_does_not_attach_old_observation_to_re_registered_provider() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+
+    let mut original = provider(
+        "shared-provider",
+        "old-capability",
+        ProviderKind::Cli,
+        Requirement::Optional,
+    );
+    original.command = Some("git".to_string());
+    register_provider(&repo, original).unwrap();
+    check_capabilities(
+        &repo,
+        CheckOptions {
+            adapter: AdapterKind::Codex,
+            capability: None,
+            allow_network: false,
+        },
+    )
+    .unwrap();
+
+    assert!(remove_provider(&repo, "old-capability", "shared-provider").unwrap());
+    let mut replacement = provider(
+        "shared-provider",
+        "new-capability",
+        ProviderKind::Cli,
+        Requirement::Optional,
+    );
+    replacement.command = Some("definitely-not-the-old-command".to_string());
+    register_provider(&repo, replacement).unwrap();
+
+    let summary = render_capability_summary(&repo, AdapterKind::Codex, 20).unwrap();
+    assert!(summary.contains("`new-capability` via `shared-provider`"));
+    assert!(
+        summary.contains("`new-capability` via `shared-provider` - optional - Presence: `unknown`")
+    );
 }
 
 #[test]

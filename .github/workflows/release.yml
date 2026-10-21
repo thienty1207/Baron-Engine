@@ -111,9 +111,39 @@ jobs:
           path: clippy.log
           if-no-files-found: warn
 
+  graphify-certification:
+    name: Certify Graphify 0.9.25
+    needs: verify-candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ needs.verify-candidate.outputs.source_sha }}
+          fetch-depth: 1
+      - name: Provision exact Graphify provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/graphify-venv"
+          "$RUNNER_TEMP/graphify-venv/bin/python" -m pip install \
+            --disable-pip-version-check \
+            --no-cache-dir \
+            "graphifyy==0.9.25"
+          test "$("$RUNNER_TEMP/graphify-venv/bin/graphify" --version)" = "graphify 0.9.25"
+      - name: Run mandatory real Graphify certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/graphify-venv/bin:$PATH"
+          export BARON_REAL_GRAPHIFY=1
+          test "$(graphify --version)" = "graphify 0.9.25"
+          cargo test -p baron-core --test graphify_real -- --nocapture
+
   build-native:
     name: Build ${{ matrix.target }}
-    needs: verify-candidate
+    needs:
+      - verify-candidate
+      - graphify-certification
     strategy:
       fail-fast: false
       matrix:
@@ -253,6 +283,7 @@ jobs:
     needs:
       - verify-candidate
       - sign-release
+      - graphify-certification
     runs-on: ubuntu-latest
     permissions:
       contents: write
