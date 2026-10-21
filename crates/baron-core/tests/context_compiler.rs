@@ -87,6 +87,37 @@ fn why_output_explains_loaded_and_skipped_context() {
 }
 
 #[test]
+fn context_surfaces_unavailable_review_gate_for_corrupt_finding() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    let findings = repo.join("docs/baron/reviews/findings");
+    fs::create_dir_all(&findings).unwrap();
+    fs::write(findings.join("corrupt.md"), b"# Finding\n\xff").unwrap();
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Reviewer Closure"));
+    assert!(bundle.contains("- unavailable:"));
+    assert!(!bundle.contains("Open findings: 0"));
+}
+
+#[test]
+fn context_surfaces_unavailable_review_gate_for_invalid_reviews_directory() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(repo.join("docs/baron")).unwrap();
+    fs::write(repo.join("docs/baron/reviews"), "not a directory").unwrap();
+
+    let bundle = compile_context(&repo, &vault, ContextTarget::Codex).unwrap();
+
+    assert!(bundle.contains("## Reviewer Closure"));
+    assert!(bundle.contains("- unavailable:"));
+    assert!(!bundle.contains("Open findings: 0"));
+}
+
+#[test]
 fn adapter_context_headings_are_distinct() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

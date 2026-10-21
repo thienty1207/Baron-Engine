@@ -95,6 +95,12 @@ pub fn ensure_directory_chain(path: impl AsRef<Path>) -> Result<()> {
     Ok(())
 }
 
+/// Confirms that an existing directory chain contains no symlink or reparse
+/// point. Returns `false` only when some component is missing.
+pub(crate) fn existing_directory_chain(path: impl AsRef<Path>) -> Result<bool> {
+    inspect_directory_chain(path.as_ref(), false)
+}
+
 /// Computes the project-scoped mutation lock path after resolving the project
 /// root. This is also used by diagnostics and deterministic lock fixtures.
 pub fn project_lock_path(repo_root: impl AsRef<Path>) -> Result<PathBuf> {
@@ -662,7 +668,7 @@ fn sync_parent_directory(parent: &Path) -> Result<()> {
     Ok(())
 }
 
-fn is_reparse_point(metadata: &fs::Metadata) -> bool {
+pub(crate) fn is_reparse_point(metadata: &fs::Metadata) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;

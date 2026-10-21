@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::fs::{self, File};
 use std::fmt;
+use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
@@ -298,7 +298,10 @@ fn handle_hook_inner(
         serde_json::from_str(payload_text)
             .context("Could not parse native hook payload")
             .map_err(|error| {
-                if matches!(event, AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt) {
+                if matches!(
+                    event,
+                    AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt
+                ) {
                     error.context(HookFailureKind::Advisory)
                 } else {
                     error

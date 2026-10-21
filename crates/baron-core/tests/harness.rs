@@ -83,7 +83,10 @@ fn intake_preserves_unreadable_story_index_bytes() {
 
     let result = start_or_resume_intake(&repo, &context, "fix README spelling");
 
-    assert!(result.is_err(), "invalid UTF-8 story index must be rejected");
+    assert!(
+        result.is_err(),
+        "invalid UTF-8 story index must be rejected"
+    );
     assert_eq!(fs::read(index).unwrap(), corrupt);
 }
 

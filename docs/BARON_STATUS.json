@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "After GitHub PR write access is available, open a PR from the pushed branch and verify required checks on the exact PR head. Stop before merge pending user approval.",
+  "nextAction": "Complete Maintenance 01 LOG-01..LOG-06 and G-01 regressions and local verification; then submit a scoped PR and stop before merge pending user approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -39,6 +39,27 @@
     "persistedStateBoundary": "Tracked changes are in the managed worktree; regression repos, Vaults, and fresh test runs use temporary fixtures and BARON_HOME. An earlier invocation used the host machine home; a separate receipt-authority seed was observed, but its prior provenance is uncertain. Its value was not read or changed, and no machine data was staged. No original-project proof or trace was produced.",
     "plan": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md",
     "evidenceLedger": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md"
+  },
+  "maintenance01": {
+    "status": "IN_PROGRESS",
+    "started": "2026-10-21",
+    "spec": "SPEC-05-MAINTENANCE-01-LOGIC-INTEGRITY-HARDENING",
+    "baselineSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
+    "branch": "codex/spec-05-maintenance-01-logic-integrity",
+    "findings": {
+      "LOG-01": "CONFIRMED BUG; malformed Stop JSON and corrupt Stop journal were RED at the CLI boundary; typed failure disposition fixed the downgrade, and all 8 phase12_hooks_cli tests pass including the preserved soft UserPromptSubmit fallback",
+      "LOG-02": "CONFIRMED BUG; six public-mutator invalid-UTF-8 regressions were observed RED for plan indexes, trace indexes, architecture/platform managed docs, and sibling harness story index; safe missing-only reads and trace-index preflight now pass all six",
+      "LOG-03": "CONFIRMED BUG; unreadable Rust source was represented as empty content, causing a successful graph rebuild and changed cache; read errors now propagate before publication, and the RED/GREEN cache-preservation test plus intentional-deletion tombstone test pass",
+      "LOG-04": "CONFIRMED BUG; malformed state was hidden as empty and overwritten, and barrier-synchronized importers lost one of two disjoint source entries (1/2 RED); strict missing-only state loading, checkout-then-Vault locking, and reload-before-publication now pass corruption, union, retry, and session integration tests",
+      "LOG-05": "CONFIRMED BUG; invalid UTF-8, missing/unknown/duplicate statuses, and malformed findings paths were RED as false-green or omitted context; strict path/type/UTF-8/status validation now returns explicit errors and context reports unavailable (review_gate 9/9, context 2/2 focused tests pass)",
+      "LOG-06": "pending RED reproduction",
+      "G-01": "coverage gap; post-CURRENT recovery regression pending"
+    },
+    "proofStatus": "LOG-01 CLI, LOG-02 managed-file, LOG-03 graph-cache, LOG-04 state/concurrency, and LOG-05 review-status/context RED/GREEN evidence recorded; full proof and verification pending",
+    "traceStatus": "No implementation trace recorded yet",
+    "persistedStateBoundary": "Isolated worktree and temporary fixtures; original project, Vault, session roots, and machine state are outside the mutation boundary",
+    "plan": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md",
+    "verificationLedger": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md"
   },
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",

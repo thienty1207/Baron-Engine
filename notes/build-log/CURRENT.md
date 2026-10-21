@@ -1,5 +1,34 @@
 # Current Build Note
 
+## SPEC-05 Maintenance 01 logic integrity — 2026-10-21 (IN PROGRESS)
+
+Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
+`codex/spec-05-maintenance-01-logic-integrity`. Work is isolated in a managed
+worktree. This is separate from the historical SPEC-05 `CLOSED` record.
+
+Current task: LOG-06, validate bounded automation journal snapshots.
+LOG-01 has typed default-fail-closed CLI handling and 8 passing
+`phase12_hooks_cli` tests. LOG-02's six plan/trace/architecture/platform/
+session state JSON is now strict and byte-preserving. A barrier test forced
+two importers to read the same initial state and was RED with 1/2 disjoint
+sources; checkout-then-Vault revalidation now preserves 2/2 and retries
+deduplicate. Full phase proof and trace remain pending. Tests use temporary
+repositories, Vaults, session roots, and BARON_HOME; the user's primary
+checkout, untracked inputs, original project/Vault, and machine state remain
+untouched.
+
+LOG-05 was RED for invalid UTF-8 (reported one open despite two files), missing,
+unknown, and duplicate status fields, a findings path that was a regular file,
+and context that omitted unavailable state. Strict directory-chain, entry,
+UTF-8, and status validation now propagates errors; focused review-gate tests
+pass 9/9 and context unavailable tests pass 2/2.
+
+Safe next action: add bounded journal snapshot tests for malformed rows,
+missing versus empty files, oversized rows, exact latest-event semantics, and
+lock availability during scanning.
+
+Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
+
 ## SPEC-05 post-closure hardening follow-up — 2026-10-18 (IN PROGRESS)
 
 This follow-up does not change the accepted SPEC-05 source range or its

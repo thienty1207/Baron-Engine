@@ -122,7 +122,10 @@ fn unreadable_source_does_not_change_code_graph_cache() {
 
     let result = build_local_code_graph(&repo);
 
-    assert!(result.is_err(), "unreadable source must fail graph construction");
+    assert!(
+        result.is_err(),
+        "unreadable source must fail graph construction"
+    );
     assert_eq!(fs::read(cache).unwrap(), cache_before);
 }
 

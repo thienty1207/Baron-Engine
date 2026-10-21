@@ -1,5 +1,32 @@
 # Current Baron Build Plan
 
+## Current maintenance — SPEC-05 Maintenance 01 logic integrity (IN PROGRESS — 2026-10-21)
+
+- Baseline: `main` / `origin/main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
+- Branch: `codex/spec-05-maintenance-01-logic-integrity`; isolated worktree.
+- Scope: reproduce/fix LOG-01..LOG-06, close the G-01 post-CURRENT recovery
+  coverage gap, and classify sibling production callers from the user-provided
+  Maintenance 01 spec and audit.
+- Checkpoint: LOG-01 is fixed with typed default-fail-closed CLI projection.
+  LOG-02 is fixed with six RED/GREEN invalid-UTF-8 regressions across plan,
+  trace, architecture, platform, and sibling harness writers. LOG-03 also
+  passes an unreadable-source/cache-preservation regression, while intentional
+  source-deletion tombstones remain green. LOG-04 rejects malformed import
+  state and fixes a deterministic concurrent lost update (1/2 RED to 2/2
+  union plus idempotent retries). LOG-05 rejects malformed and unreadable
+  findings and projects unavailable status (review gate 9/9, context 2/2).
+  LOG-06 is next.
+- Proof and trace: focused CLI, managed-file, CodeGraph, and session
+  state/concurrency proof is recorded; full phase proof and trace remain
+  pending.
+- Persisted-state boundary: use temp repositories, Vaults, session roots, and
+  BARON_HOME only. Preserve the user's original checkout and machine state.
+- Safe next action: add bounded journal snapshot tests for malformed rows,
+  missing/empty distinctions, oversized rows, concurrent appends, and lock
+  availability during scanning.
+
+Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
+
 ## Current follow-up — SPEC-05 post-closure hardening (IN PROGRESS — 2026-10-18)
 
 This follow-up is separate from the original SPEC-05 closure. The accepted

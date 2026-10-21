@@ -179,9 +179,15 @@ fn plan_progress_preserves_unreadable_index_and_leaves_recovery_journal() {
 
     let result = update_plan(&repo, &context, "implementation checkpoint");
 
-    assert!(result.is_err(), "invalid UTF-8 index must block the transition");
+    assert!(
+        result.is_err(),
+        "invalid UTF-8 index must block the transition"
+    );
     assert_eq!(fs::read(&index).unwrap(), corrupt);
-    assert_eq!(fs::read(&plan.repo_path).unwrap(), fs::read(&plan.vault_path).unwrap());
+    assert_eq!(
+        fs::read(&plan.repo_path).unwrap(),
+        fs::read(&plan.vault_path).unwrap()
+    );
     assert!(repo.join(".baron/plan-transition.json").is_file());
 }
 

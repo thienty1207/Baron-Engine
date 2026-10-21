@@ -1,5 +1,25 @@
 # Baron Build Status
 
+## SPEC-05 Maintenance 01 — logic integrity hardening (IN PROGRESS — 2026-10-21)
+
+- Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
+  based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
+- Branch: `codex/spec-05-maintenance-01-logic-integrity`.
+- Current task: LOG-06, validating bounded journal snapshots for automation
+  status and Autopilot. LOG-01 through LOG-05 have focused RED/GREEN evidence.
+- Proof and trace: CLI, managed-file, CodeGraph cache, and session-state/race
+  regressions are recorded; broader proof/trace and full verification remain
+  pending. Tests use temporary project, Vault, session-root, and BARON_HOME
+  data.
+- Persisted-state boundary: isolated worktree only; the user's primary
+  checkout, untracked inputs, original project/Vault, and machine state remain
+  outside the mutation boundary.
+- Safe next action: add journal regressions for corrupt rows, missing versus
+  empty files, oversized rows, exact latest-event semantics, and lock release
+  during scanning.
+
+Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md).
+
 ## SPEC-05 post-closure hardening follow-up (IN PROGRESS — 2026-10-18)
 
 This follow-up records additional maintenance after the original SPEC-05

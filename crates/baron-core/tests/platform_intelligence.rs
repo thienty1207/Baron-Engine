@@ -100,7 +100,10 @@ fn platform_update_preserves_invalid_utf8_managed_file() {
 
     let result = ensure_platform_intelligence(&repo, &config);
 
-    assert!(result.is_err(), "invalid UTF-8 managed content must be rejected");
+    assert!(
+        result.is_err(),
+        "invalid UTF-8 managed content must be rejected"
+    );
     assert_eq!(fs::read(managed).unwrap(), corrupt);
 }
 
