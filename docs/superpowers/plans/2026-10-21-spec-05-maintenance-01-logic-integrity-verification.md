@@ -1,11 +1,11 @@
 # Baron Maintenance 01 — implementation verification
 
-**State:** READY_FOR_REVIEW; not merged or released  
-**Date:** 2026-10-21  
-**Baseline:** main and origin/main at 9038afa9f840e3a62acc0f97c6aaa31849247525  
-**Branch:** codex/spec-05-maintenance-01-logic-integrity  
-**Worktree:** C:/Users/tytyb/.codex/worktrees/spec-05-maintenance-01-logic-integrity/Baron-Engine  
-**Source snapshot after code fixes:** 6333ec23e084b9b2d5a6f23c3d31be9c31aba99a  
+**State:** READY_FOR_REVIEW; not merged or released
+**Date:** 2026-10-21
+**Baseline:** main and origin/main at 9038afa9f840e3a62acc0f97c6aaa31849247525
+**Branch:** codex/spec-05-maintenance-01-logic-integrity
+**Worktree:** C:/Users/tytyb/.codex/worktrees/spec-05-maintenance-01-logic-integrity/Baron-Engine
+**Source snapshot after code fixes:** 6333ec23e084b9b2d5a6f23c3d31be9c31aba99a
 **Version:** 5.0.0
 
 This maintenance is separate from the historical SPEC-05 closure. The source
@@ -135,7 +135,7 @@ untracked user-provided inputs were preserved.
 Independent review: pending. PR URL/state: not created. Hosted PR checks:
 unavailable until a PR exists. Merge approval: no. Merged main SHA: none.
 
-**Verdict:** READY_FOR_REVIEW  
+**Verdict:** READY_FOR_REVIEW
 **Next action:** obtain independent read-only review of the complete
 9038afa9-to-branch range; then push/open a scoped PR and check its exact head
 if repository permissions allow. Stop before merge.
