@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "Finish independent whole-lineage review and run the four Windows-blocked adapter targets in a supported host or CI; then push, open a PR, verify exact-head checks, and require user approval before merging the 91-commit/102-path integration scope.",
+  "nextAction": "Finish independent whole-lineage review and run the four Windows-blocked adapter targets in a supported host or CI; then push, open a PR, verify exact-head checks, and require user approval before merging the complete reviewed integration scope.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",

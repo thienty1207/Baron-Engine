@@ -35,10 +35,12 @@ provenance is uncertain. No machine data was staged. The original project
 Project ID were not recovered; no replacement identity was created. No
 original-project proof or trace was produced.
 
-HEAD is 91 commits/102 paths ahead of origin/main, including the
-82-commit/98-path SPEC-05 lineage plus nine follow-up commits. Independent
-whole-lineage review and PR-head CI remain pending. Merge remains stopped
-until the user approves the reviewed integration scope.
+At tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7, the
+range was 91 commits/102 paths ahead of origin/main, including the
+82-commit/98-path SPEC-05 lineage plus nine follow-up commits. Later commits
+only update evidence. Independent whole-lineage review and PR-head CI remain
+pending. Merge remains stopped until the user approves the reviewed
+integration scope.
 
 Plan: [post-closure hardening](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence: [verification ledger](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

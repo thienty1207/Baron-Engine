@@ -31,9 +31,10 @@ fix/spec-05-post-closure-hardening tests checkpoint
   test command used the host default machine home; possible per-user test state
   is recorded in the verification ledger. No original-project proof or trace
   was produced.
-- HEAD is 91 commits/102 paths ahead of origin/main, including the
-  82-commit/98-path SPEC-05 lineage. Whole-lineage review and hosted PR checks
-  remain pending.
+- Tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7 was 91
+  commits/102 paths ahead of origin/main, including the 82-commit/98-path
+  SPEC-05 lineage. Later commits only update evidence. Whole-lineage review
+  and hosted PR checks remain pending.
 
 Plan: [SPEC-05 post-closure hardening](2026-10-18-spec-05-post-closure-hardening.md); verification: [evidence ledger](2026-10-18-spec-05-post-closure-hardening-verification.md).
 

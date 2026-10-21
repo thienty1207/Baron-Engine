@@ -40,9 +40,11 @@ CLOSED status remain unchanged.
   used the default machine home, so possible per-user test state is recorded in
   the evidence ledger. No original-project proof or trace was produced.
 - Integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446;
-  HEAD is 91 commits ahead and changes 102 paths. This contains the accepted
-  82-commit/98-path SPEC-05 lineage plus nine follow-up commits. Independent
-  whole-lineage review and PR-head CI are pending.
+  tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7 was 91
+  commits ahead and changed 102 paths, containing the accepted 82-commit/
+  98-path SPEC-05 lineage plus nine follow-up commits. Later commits only
+  record verification evidence. Independent whole-lineage review and PR-head
+  CI are pending.
 - Persisted-state boundary: source and tracked evidence changes are in the
   managed worktree. Regression repos and Vaults use temporary fixtures. The
   original checkout and its user-owned untracked files remain untouched.

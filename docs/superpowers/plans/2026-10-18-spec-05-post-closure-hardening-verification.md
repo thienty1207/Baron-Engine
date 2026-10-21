@@ -7,7 +7,7 @@
 - Tested source checkpoint: 06efdf69ea5d41d58044b3738ef6bfef45e33cb7.
 - SPEC-05 source tip used as the base: 1772124d7e49adf99775c4df62d706b7311a4a3f.
 - Original accepted SPEC-05 closure remains ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad; this follow-up does not reopen or rewrite that closure record.
-- Current range from origin/main is 91 commits and 102 paths: the accepted 82-commit/98-path lineage plus nine follow-up commits. The branch is 0 commits behind origin/main.
+- At tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7, the range from origin/main was 91 commits and 102 paths: the accepted 82-commit/98-path lineage plus nine follow-up commits. Subsequent commits only update verification evidence. The branch remains 0 commits behind origin/main.
 - Public version remains 5.0.0. No release, tag, version bump, history rewrite, push, PR, or merge has occurred.
 
 ## Hardening findings
@@ -38,7 +38,7 @@ Evidence: the pre-fix regressions demonstrated live-claim eviction, accepting a 
 
 Read and compared relevant files in the requested Core, CLI, and adapter areas, with focused tracing of the changed call paths and their callers. Directly inspected the plan transition/recovery path and safe_io contract; config, identity, Vault context, operation identity, proof/trace authority, automation hook claim/replay, receipt authority, CLI command dispatch, adapter installation, matching Core/CLI/adapter integration tests, repository AGENTS.md, status/plans, Cargo manifests, and CI/release workflows. This is scoped implementation and integration review, not a claim that every line in every source file was exhaustively read. The first independent reviewer found the H-01 entry-point gap but its run stopped at the account usage limit; a fresh exact-range independent review remains pending.
 
-Observed integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446; origin/codex/spec-05-multi-agent-concurrency-durable-state is 1772124d7e49adf99775c4df62d706b7311a4a3f. HEAD is 91 commits and 102 changed paths from origin/main. No Cargo.toml or Cargo.lock path differs from origin/main. Tracked path inspection found no .env, Baron project/local config, Vault/capsule data, user handoff document, or supplied untracked spec in the branch. The primary checkout remains on main with its user-owned untracked handoff and spec preserved.
+Observed integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446; origin/codex/spec-05-multi-agent-concurrency-durable-state is 1772124d7e49adf99775c4df62d706b7311a4a3f. The tested source checkpoint was 91 commits and 102 changed paths from origin/main; later commits only update verification evidence. No Cargo.toml or Cargo.lock path differs from origin/main. Tracked path inspection found no .env, Baron project/local config, Vault/capsule data, user handoff document, or supplied untracked spec in the branch. The primary checkout remains on main with its user-owned untracked handoff and spec preserved.
 
 ## Local verification
 
