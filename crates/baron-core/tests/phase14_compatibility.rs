@@ -121,10 +121,9 @@ fn future_dedup_state_blocks_hook_before_any_lifecycle_write() {
         AutomationEvent::UserPromptSubmit,
         r#"{"task":"future dedup fixture","session_id":"phase14","request_id":"one"}"#,
     )
-    .unwrap_err()
-    .to_string();
+    .unwrap_err();
 
-    assert!(error.contains("Unsupported hook dedup schema"));
+    assert!(format!("{error:#}").contains("Unsupported hook dedup schema"));
     assert_eq!(fs::read(&dedup_path).unwrap(), before);
     assert_eq!(fs::read(&journal).unwrap_or_default(), journal_before);
 }

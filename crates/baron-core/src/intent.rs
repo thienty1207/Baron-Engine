@@ -256,8 +256,8 @@ pub fn intent_status(repo_root: impl AsRef<Path>) -> Result<String> {
     let path = repo_root
         .as_ref()
         .join("docs/baron/harness/CURRENT_INTENT.md");
-    let body = fs::read_to_string(&path)
-        .unwrap_or_else(|_| "- Status: no intent brief recorded\n".to_string());
+    let body =
+        read_text(&path)?.unwrap_or_else(|| "- Status: no intent brief recorded\n".to_string());
     Ok(format!(
         "# Baron Intent Status\n\n- Current intent: `{}`\n\n{}",
         path.display(),

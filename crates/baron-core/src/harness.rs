@@ -181,8 +181,12 @@ pub fn harness_status(repo_root: impl AsRef<Path>) -> Result<String> {
 }
 
 pub fn current_harness_risk(repo_root: impl AsRef<Path>) -> RiskLane {
-    let content = fs::read_to_string(repo_root.as_ref().join("docs/baron/harness/CURRENT.md"))
-        .unwrap_or_default();
+    let path = repo_root.as_ref().join("docs/baron/harness/CURRENT.md");
+    let content = match read_text(&path) {
+        Ok(Some(content)) => content,
+        Ok(None) => return RiskLane::Medium,
+        Err(_) => return RiskLane::High,
+    };
     if content.contains("Risk: `high`") {
         RiskLane::High
     } else if content.contains("Risk: `low`") {

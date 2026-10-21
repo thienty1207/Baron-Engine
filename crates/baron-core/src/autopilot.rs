@@ -274,7 +274,7 @@ fn review_after_task_inner(
         state.candidates.len() - 1
     };
 
-    let intent_changed = apply_explicit_intent_authority(repo_root, &mut state.candidates[index]);
+    let intent_changed = apply_explicit_intent_authority(repo_root, &mut state.candidates[index])?;
     changed |= intent_changed;
     changed |= refresh_conflicts(&mut state.candidates);
     update_readiness(&mut state.candidates);
@@ -1064,7 +1064,7 @@ fn approve_state_candidate(
     if candidate.status == "superseded" {
         bail!("Candidate was superseded by a correction or explicit intent")
     }
-    if explicit_intent_conflicts(repo_root, candidate) {
+    if explicit_intent_conflicts(repo_root, candidate)? {
         candidate.status = "superseded".to_string();
         candidate.contradiction = Some("current explicit intent is authoritative".to_string());
         candidate.updated_at = now();
@@ -1275,31 +1275,31 @@ fn correlation_matches(candidate: &AutopilotCorrelation, operation: &OperationCo
     session_matches && request_matches
 }
 
-fn apply_explicit_intent_authority(repo_root: &Path, candidate: &mut AutopilotCandidate) -> bool {
-    if explicit_intent_conflicts(repo_root, candidate) && candidate.status != "approved" {
+fn apply_explicit_intent_authority(
+    repo_root: &Path,
+    candidate: &mut AutopilotCandidate,
+) -> Result<bool> {
+    if explicit_intent_conflicts(repo_root, candidate)? && candidate.status != "approved" {
         candidate.status = "superseded".to_string();
         candidate.contradiction = Some("current explicit intent is authoritative".to_string());
         candidate.suppressed_until = Some("never".to_string());
         candidate.updated_at = now();
-        return true;
+        return Ok(true);
     }
-    false
+    Ok(false)
 }
 
-fn explicit_intent_conflicts(repo_root: &Path, candidate: &AutopilotCandidate) -> bool {
-    let source = match intent_status(repo_root) {
-        Ok(source) => source,
-        Err(_) => return false,
-    };
+fn explicit_intent_conflicts(repo_root: &Path, candidate: &AutopilotCandidate) -> Result<bool> {
+    let source = intent_status(repo_root)?;
     let intent = normalize_proposal(&source);
     if intent.is_empty() || !intent.contains(&candidate.semantic_key) {
-        return false;
+        return Ok(false);
     }
     let candidate_positive = positive_polarity(&candidate.proposal_key);
     let intent_positive = positive_polarity(&intent);
-    candidate_positive.is_some()
+    Ok(candidate_positive.is_some()
         && intent_positive.is_some()
-        && candidate_positive != intent_positive
+        && candidate_positive != intent_positive)
 }
 
 fn positive_polarity(value: &str) -> Option<bool> {

@@ -293,7 +293,7 @@ fn prompts_without_stable_retry_identity_fail_closed_before_state_writes() {
             )
             .expect_err("an id-less prompt must not create retry-unstable operation authority");
             assert!(
-                error.to_string().contains("stable prompt identity"),
+                format!("{error:#}").contains("stable prompt identity"),
                 "{error:#}"
             );
         }

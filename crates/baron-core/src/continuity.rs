@@ -7,6 +7,7 @@ use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use crate::automation::scan_automation_journal;
 use crate::execution_receipt::ReceiptContext;
 use crate::operation::{LifecycleIdentity, OperationContext};
 use crate::plan::{
@@ -487,7 +488,7 @@ fn render_resume_packet(
     let harness = read_optional(&repo_root.join("docs/baron/harness/CURRENT.md"));
     let proof = latest_proof(repo_root)?.filter(|proof| proof.binding.is_none());
     let trace = latest_trace_score(repo_root)?.filter(|trace| trace.binding.is_none());
-    let latest_event = latest_automation_event(vault);
+    let latest_event = latest_automation_event(repo_root, vault)?;
     let recovery = read_optional(&repo_root.join("docs/baron/continuity/CURRENT_RECOVERY.md"));
 
     let plan_title = field(&plan, "- Title: ").unwrap_or("unknown");
@@ -891,21 +892,11 @@ fn field<'a>(content: &'a str, prefix: &str) -> Option<&'a str> {
     content.lines().find_map(|line| line.strip_prefix(prefix))
 }
 
-fn latest_automation_event(vault: &VaultContext) -> Option<String> {
-    let path = vault
-        .project_root
-        .join("Artifacts/automation-journal.jsonl");
-    fs::read_to_string(path)
-        .ok()?
-        .lines()
-        .rev()
-        .find_map(|line| {
-            let value = serde_json::from_str::<serde_json::Value>(line).ok()?;
-            value
-                .get("event")
-                .and_then(|event| event.as_str())
-                .map(pretty_event)
-        })
+fn latest_automation_event(repo_root: &Path, vault: &VaultContext) -> Result<Option<String>> {
+    Ok(scan_automation_journal(repo_root, vault)?
+        .latest_event
+        .as_deref()
+        .map(pretty_event))
 }
 
 fn pretty_event(event: &str) -> String {

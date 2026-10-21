@@ -60,6 +60,51 @@ fn audit_scores_context_reads_and_reports_harness_gaps() {
 }
 
 #[test]
+fn harness_audit_rejects_a_corrupt_automation_journal() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    write(&journal, "context_compiled\n{malformed\n");
+
+    let result = audit_harness(&repo, &context);
+
+    assert!(
+        result.is_err(),
+        "corrupt journal must not be treated as a healthy context observation"
+    );
+}
+
+#[test]
+fn harness_audit_distinguishes_missing_from_empty_automation_journal() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+
+    let missing = audit_harness(&repo, &context).unwrap();
+    assert!(missing
+        .diagnostics
+        .iter()
+        .any(|item| item.contains("automation journal is missing")));
+
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    write(&journal, "");
+    let empty = audit_harness(&repo, &context).unwrap();
+    assert!(empty
+        .diagnostics
+        .iter()
+        .any(|item| item.contains("automation journal is empty")));
+}
+
+#[test]
 fn harness_audit_waits_for_the_shared_vault_journal_lock() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
