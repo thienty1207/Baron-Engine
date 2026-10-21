@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use baron_core::context::{compile_context, ContextTarget};
 use baron_core::firewall::recall;
 use baron_core::memory::build_memory_index;
-use baron_core::session::import_sessions;
+use baron_core::session::{import_sessions, import_state_summary};
 use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
@@ -91,6 +91,44 @@ fn imports_matched_codex_and_claude_sessions_with_redaction_and_deduplication() 
         .results
         .iter()
         .any(|hit| hit.record.kind.as_str() == "session"));
+}
+
+#[test]
+fn corrupt_session_import_state_is_preserved_and_reported() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    let codex = temp.path().join("empty-codex-sessions");
+    let claude = temp.path().join("empty-claude-sessions");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&codex).unwrap();
+    fs::create_dir_all(&claude).unwrap();
+    std::env::set_var("BARON_CODEX_SESSIONS_ROOT", &codex);
+    std::env::set_var("BARON_CLAUDE_SESSIONS_ROOT", &claude);
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let state = context
+        .project_root
+        .join("Artifacts/session-import-state.json");
+    fs::create_dir_all(state.parent().unwrap()).unwrap();
+    let corrupt = b"{malformed persisted import state";
+    fs::write(&state, corrupt).unwrap();
+
+    let summary = import_state_summary(&context);
+    let imported = import_sessions(&repo, &context, 20);
+
+    std::env::remove_var("BARON_CODEX_SESSIONS_ROOT");
+    std::env::remove_var("BARON_CLAUDE_SESSIONS_ROOT");
+
+    assert!(
+        summary.is_err(),
+        "summary must expose corrupt persisted state"
+    );
+    assert!(
+        imported.is_err(),
+        "import must reject corrupt persisted state"
+    );
+    assert_eq!(fs::read(state).unwrap(), corrupt);
 }
 
 #[test]

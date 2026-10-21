@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::safe_io::replace_text;
+use crate::safe_io::{acquire_project_lock, read_text, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -63,26 +63,70 @@ struct SessionSource {
     modified: std::time::SystemTime,
 }
 
+enum PreparedImportAction {
+    Unmatched,
+    Noise,
+    Imported { note_path: PathBuf, note: String },
+}
+
+struct PreparedSessionImport {
+    source_key: String,
+    content_hash: String,
+    action: PreparedImportAction,
+}
+
 pub fn import_sessions(
     repo_root: impl AsRef<Path>,
     vault: &VaultContext,
     import_limit: usize,
 ) -> Result<SessionImportReport> {
-    let repo_root = repo_root.as_ref().canonicalize().with_context(|| {
+    let roots = discover_roots();
+    let mut report =
+        import_sessions_from_roots(repo_root.as_ref(), vault, import_limit, roots, || {})?;
+    match crate::intelligence41::learn_session_candidates(vault) {
+        Ok(learning) => report.learning_candidates = learning.candidates.len(),
+        Err(error) => report.learning_error = Some(error.to_string()),
+    }
+    match crate::intelligence42::learn_session_candidates_v42(vault) {
+        Ok(learning) => {
+            report.learning_v42_candidates = learning.candidates.len();
+            report.learning_v42_quarantined = learning.quarantined;
+            report.learning_v42_path = Some(PathBuf::from(learning.output_path));
+        }
+        Err(error) => report.learning_v42_error = Some(error.to_string()),
+    }
+    Ok(report)
+}
+
+fn import_sessions_from_roots<F>(
+    repo_root: &Path,
+    vault: &VaultContext,
+    import_limit: usize,
+    roots: Vec<(PathBuf, &'static str)>,
+    before_state_publish: F,
+) -> Result<SessionImportReport>
+where
+    F: FnOnce(),
+{
+    let repo_root = repo_root.canonicalize().with_context(|| {
         format!(
             "Could not resolve repo path for session import: {}",
-            repo_root.as_ref().display()
+            repo_root.display()
         )
     })?;
-    let roots = discover_roots();
+    let mut sources = discover_sources(&roots);
+    sources.sort_by_key(|source| Reverse(source.modified));
+    let roots_checked = roots.len();
     let state_path = vault
         .project_root
         .join("Artifacts/session-import-state.json");
-    let mut state = load_state(&state_path);
-    let mut sources = discover_sources(&roots);
-    sources.sort_by_key(|source| Reverse(source.modified));
+    let initial_state = {
+        let _repo_lock = acquire_project_lock(&repo_root)?;
+        let _vault_lock = acquire_project_lock(&vault.project_root)?;
+        load_state(&state_path)?
+    };
     let mut report = SessionImportReport {
-        roots_checked: roots.len(),
+        roots_checked,
         files_discovered: sources.len(),
         files_checked: 0,
         imported: 0,
@@ -100,9 +144,11 @@ pub fn import_sessions(
         omissions: Vec::new(),
         state_path: state_path.clone(),
     };
+    let mut prepared = Vec::new();
+    let mut prepared_imports = 0usize;
 
     for source in sources {
-        if report.imported >= import_limit {
+        if prepared_imports >= import_limit {
             break;
         }
         report.files_checked += 1;
@@ -120,7 +166,7 @@ pub fn import_sessions(
         };
         let content_hash = hash(&content);
         let source_key = normalize_path(&source.path);
-        if state
+        if initial_state
             .sources
             .get(&source_key)
             .is_some_and(|item| item.content_hash == content_hash)
@@ -147,64 +193,82 @@ pub fn import_sessions(
                 matching_records.push(record.clone());
             }
         }
-        if matching_records.is_empty() {
-            report.skipped_unmatched += 1;
-            state.sources.insert(
-                source_key,
+        let action = if matching_records.is_empty() {
+            PreparedImportAction::Unmatched
+        } else {
+            let messages = extract_messages(&matching_records);
+            if messages.is_empty() {
+                PreparedImportAction::Noise
+            } else {
+                prepared_imports += 1;
+                let note_path = imported_note_path(vault, &source, &content_hash);
+                let note = render_note(source.adapter, &source.path, &content_hash, &messages);
+                PreparedImportAction::Imported { note_path, note }
+            }
+        };
+        prepared.push(PreparedSessionImport {
+            source_key,
+            content_hash,
+            action,
+        });
+    }
+
+    // The test synchronizes here to force both callers to prepare from the
+    // same earlier state snapshot. Production passes a no-op, and this hook is
+    // outside the mutation locks so it cannot extend their critical section.
+    before_state_publish();
+
+    let _repo_lock = acquire_project_lock(&repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    let mut state = load_state(&state_path)?;
+    for item in prepared {
+        if report.imported >= import_limit {
+            break;
+        }
+        if state
+            .sources
+            .get(&item.source_key)
+            .is_some_and(|existing| existing.content_hash == item.content_hash)
+        {
+            report.deduplicated += 1;
+            continue;
+        }
+        let source_state = match item.action {
+            PreparedImportAction::Unmatched => {
+                report.skipped_unmatched += 1;
                 ImportedSource {
-                    content_hash,
+                    content_hash: item.content_hash,
                     status: "unmatched".to_string(),
                     note_path: None,
-                },
-            );
-            continue;
-        }
-        let messages = extract_messages(&matching_records);
-        if messages.is_empty() {
-            report.skipped_noise += 1;
-            state.sources.insert(
-                source_key,
+                }
+            }
+            PreparedImportAction::Noise => {
+                report.skipped_noise += 1;
                 ImportedSource {
-                    content_hash,
+                    content_hash: item.content_hash,
                     status: "noise".to_string(),
                     note_path: None,
-                },
-            );
-            continue;
-        }
-
-        let note_path = imported_note_path(vault, &source, &content_hash);
-        let note = render_note(source.adapter, &source.path, &content_hash, &messages);
-        write(&note_path, &note)?;
-        report.imported += 1;
-        state.sources.insert(
-            source_key,
-            ImportedSource {
-                content_hash,
-                status: "imported".to_string(),
-                note_path: Some(normalize_relative(&note_path, &vault.project_root)),
-            },
-        );
+                }
+            }
+            PreparedImportAction::Imported { note_path, note } => {
+                write(&note_path, &note)?;
+                report.imported += 1;
+                ImportedSource {
+                    content_hash: item.content_hash,
+                    status: "imported".to_string(),
+                    note_path: Some(normalize_relative(&note_path, &vault.project_root)),
+                }
+            }
+        };
+        state.sources.insert(item.source_key, source_state);
     }
     state.last_import = Some(now());
     write(
         &state_path,
         &format!("{}\n", serde_json::to_string_pretty(&state)?),
     )?;
-    match crate::intelligence41::learn_session_candidates(vault) {
-        Ok(learning) => report.learning_candidates = learning.candidates.len(),
-        Err(error) => report.learning_error = Some(error.to_string()),
-    }
     report.omissions.sort();
     report.omissions.dedup();
-    match crate::intelligence42::learn_session_candidates_v42(vault) {
-        Ok(learning) => {
-            report.learning_v42_candidates = learning.candidates.len();
-            report.learning_v42_quarantined = learning.quarantined;
-            report.learning_v42_path = Some(PathBuf::from(learning.output_path));
-        }
-        Err(error) => report.learning_v42_error = Some(error.to_string()),
-    }
     Ok(report)
 }
 
@@ -212,7 +276,9 @@ pub fn import_state_summary(vault: &VaultContext) -> Result<(usize, usize, Optio
     let path = vault
         .project_root
         .join("Artifacts/session-import-state.json");
-    let state = load_state(&path);
+    let _repo_lock = acquire_project_lock(&vault.repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    let state = load_state(&path)?;
     let imported = state
         .sources
         .values()
@@ -539,11 +605,12 @@ imported: {}\n\
     output
 }
 
-fn load_state(path: &Path) -> ImportState {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|content| serde_json::from_str(&content).ok())
-        .unwrap_or_default()
+fn load_state(path: &Path) -> Result<ImportState> {
+    let Some(content) = read_text(path)? else {
+        return Ok(ImportState::default());
+    };
+    serde_json::from_str(&content)
+        .with_context(|| format!("Could not parse session import state: {}", path.display()))
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
@@ -609,4 +676,84 @@ fn title_case(value: &str) -> &str {
 
 fn now() -> String {
     Local::now().to_rfc3339_opts(SecondsFormat::Secs, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+
+    use super::{import_sessions_from_roots, load_state};
+    use crate::vault::ensure_vault;
+    use tempfile::tempdir;
+
+    #[test]
+    fn concurrent_imports_preserve_disjoint_source_union() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("Vault");
+        let root_a = temp.path().join("source-a");
+        let root_b = temp.path().join("source-b");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&root_a).unwrap();
+        fs::create_dir_all(&root_b).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let repo_text = repo.canonicalize().unwrap().to_string_lossy().to_string();
+        for (root, name, message) in [
+            (&root_a, "a.jsonl", "Remember source A decision"),
+            (&root_b, "b.jsonl", "Remember source B decision"),
+        ] {
+            fs::write(
+                root.join(name),
+                format!(
+                    "{}\n{}\n",
+                    serde_json::json!({"type":"session_meta","payload":{"cwd":repo_text}}),
+                    serde_json::json!({"type":"response_item","payload":{"role":"user","content":message}})
+                ),
+            )
+            .unwrap();
+        }
+        let barrier = Arc::new(Barrier::new(2));
+        let handles = [root_a.clone(), root_b.clone()]
+            .into_iter()
+            .map(|root| {
+                let repo = repo.clone();
+                let context = context.clone();
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    import_sessions_from_roots(
+                        &repo,
+                        &context,
+                        20,
+                        vec![(root, "codex")],
+                        move || {
+                            barrier.wait();
+                        },
+                    )
+                    .unwrap()
+                })
+            })
+            .collect::<Vec<_>>();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let state_path = context
+            .project_root
+            .join("Artifacts/session-import-state.json");
+        let state = load_state(&state_path).unwrap();
+        assert_eq!(state.sources.len(), 2);
+        assert!(state
+            .sources
+            .values()
+            .all(|source| source.status == "imported"));
+        for root in [root_a, root_b] {
+            let retry =
+                import_sessions_from_roots(&repo, &context, 20, vec![(root, "codex")], || {})
+                    .unwrap();
+            assert_eq!(retry.imported, 0);
+            assert_eq!(retry.deduplicated, 1);
+        }
+    }
 }
