@@ -426,24 +426,28 @@ pub fn score_trace(
             .map(|generation| generation.as_deref()),
     )?;
     let updated = replace_score(&content, &score);
-    write(&repo_path, &updated)?;
-    write(&vault_path, &updated)?;
     let outcome = trace_field(&content, "- Outcome: `").unwrap_or_else(|| "unknown".to_string());
     let summary = trace_summary(&content);
-    update_trace_index(
-        &repo_root.join("docs/baron/traces/INDEX.md"),
+    let repo_index_path = repo_root.join("docs/baron/traces/INDEX.md");
+    let vault_index_path = vault.project_root.join("Traces/INDEX.md");
+    let repo_index = updated_trace_index_content(
+        read_text(&repo_index_path)?,
         &score.trace_id,
         &outcome,
         &summary,
         &score,
-    )?;
-    update_trace_index(
-        &vault.project_root.join("Traces/INDEX.md"),
+    );
+    let vault_index = updated_trace_index_content(
+        read_text(&vault_index_path)?,
         &score.trace_id,
         &outcome,
         &summary,
         &score,
-    )?;
+    );
+    write(&repo_path, &updated)?;
+    write(&vault_path, &updated)?;
+    write(&repo_index_path, &repo_index)?;
+    write(&vault_index_path, &vault_index)?;
     Ok(score)
 }
 
@@ -1205,21 +1209,20 @@ fn trace_summary(content: &str) -> String {
         .replace(['\r', '\n'], " ")
 }
 
-fn update_trace_index(
-    path: &Path,
+fn updated_trace_index_content(
+    existing: Option<String>,
     id: &str,
     outcome: &str,
     summary: &str,
     score: &TraceScore,
-) -> Result<()> {
+) -> String {
     let row = format!(
         "- `{id}` - {outcome} - score: `{}/{}` - passed: `{}` - {summary}",
         score.achieved.as_str(),
         score.required.as_str(),
         if score.passed { "yes" } else { "no" }
     );
-    let mut content =
-        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Trace Index\n\n".to_string());
+    let mut content = existing.unwrap_or_else(|| "# Baron Trace Index\n\n".to_string());
     let prefix = format!("- `{id}` -");
     let mut replaced = false;
     let mut lines = content
@@ -1238,7 +1241,7 @@ fn update_trace_index(
     }
     content = lines.join("\n");
     content.push('\n');
-    write(path, &content)
+    content
 }
 
 fn parse_score(content: &str) -> Result<TraceScore> {

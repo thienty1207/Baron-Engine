@@ -1152,6 +1152,38 @@ fn scoring_updates_repo_and_vault_trace() {
     }
 }
 
+#[test]
+fn trace_score_preserves_unreadable_indexes_and_trace_mirrors() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    start_or_resume_intake(&repo, &context, "fix docs copy").unwrap();
+    let trace = record_trace(
+        &repo,
+        &context,
+        "Updated documentation copy",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let repo_trace_before = fs::read(&trace.repo_path).unwrap();
+    let vault_trace_before = fs::read(&trace.vault_path).unwrap();
+    let repo_index = repo.join("docs/baron/traces/INDEX.md");
+    let vault_index = context.project_root.join("Traces/INDEX.md");
+    let corrupt = b"\xffprior trace row\n";
+    fs::write(&repo_index, corrupt).unwrap();
+    fs::write(&vault_index, corrupt).unwrap();
+
+    let result = score_trace(&repo, &context, Some(&trace.id));
+
+    assert!(result.is_err(), "invalid UTF-8 indexes must block scoring");
+    assert_eq!(fs::read(&repo_index).unwrap(), corrupt);
+    assert_eq!(fs::read(&vault_index).unwrap(), corrupt);
+    assert_eq!(fs::read(&trace.repo_path).unwrap(), repo_trace_before);
+    assert_eq!(fs::read(&trace.vault_path).unwrap(), vault_trace_before);
+}
+
 fn register_required_git(repo: &std::path::Path, vault: &std::path::Path) {
     initialize_project(repo, AdapterKind::Codex, vault).unwrap();
     register_provider(

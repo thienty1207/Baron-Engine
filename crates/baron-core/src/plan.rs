@@ -3024,7 +3024,7 @@ fn required_tier(risk: RiskLane) -> TraceTier {
 }
 
 fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
+    let mut content = read_text(path)?.unwrap_or_else(|| header.to_string());
     if content.contains(item) {
         return Ok(());
     }
@@ -3072,8 +3072,7 @@ fn replace_plan_index_row(
         "- [{title}]({relative_path}) - status: `{status}` - risk: `{}`",
         risk.as_str()
     );
-    let mut content =
-        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Plan Index\n\n".to_string());
+    let mut content = read_text(path)?.unwrap_or_else(|| "# Baron Plan Index\n\n".to_string());
     let mut replaced = false;
     let mut lines = content
         .lines()

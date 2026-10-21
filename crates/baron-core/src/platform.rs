@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::config::{ProjectConfig, ProjectPlatform};
-use crate::safe_io::replace_text;
+use crate::safe_io::{read_text, replace_text};
 use crate::survey::survey_repository;
 
 const START: &str = "<!-- baron:platform:start -->";
@@ -669,7 +669,7 @@ fn render_quality_gates(platforms: &[ProjectPlatform]) -> String {
 }
 
 fn upsert_managed(path: &Path, body: &str) -> Result<()> {
-    let existing = fs::read_to_string(path).unwrap_or_default();
+    let existing = read_text(path)?.unwrap_or_default();
     let block = format!("{START}\n{}{END}", body.trim_end().to_string() + "\n");
     let content = match (existing.find(START), existing.find(END)) {
         (Some(start), Some(end)) if start < end => {

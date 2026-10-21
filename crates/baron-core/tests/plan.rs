@@ -148,6 +148,44 @@ fn start_creates_dated_plan_current_index_and_vault_mirror() {
 }
 
 #[test]
+fn plan_start_preserves_unreadable_index_bytes() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let index = repo.join("docs/baron/plans/INDEX.md");
+    fs::create_dir_all(index.parent().unwrap()).unwrap();
+    let corrupt = b"\xffprior plan row\n";
+    fs::write(&index, corrupt).unwrap();
+
+    let result = start_or_resume_plan(&repo, &context, "frontend HomePage");
+
+    assert!(result.is_err(), "invalid UTF-8 index must be an error");
+    assert_eq!(fs::read(index).unwrap(), corrupt);
+}
+
+#[test]
+fn plan_progress_preserves_unreadable_index_and_leaves_recovery_journal() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let plan = start_or_resume_plan(&repo, &context, "frontend HomePage").unwrap();
+    let index = repo.join("docs/baron/plans/INDEX.md");
+    let corrupt = b"\xffprior plan row\n";
+    fs::write(&index, corrupt).unwrap();
+
+    let result = update_plan(&repo, &context, "implementation checkpoint");
+
+    assert!(result.is_err(), "invalid UTF-8 index must block the transition");
+    assert_eq!(fs::read(&index).unwrap(), corrupt);
+    assert_eq!(fs::read(&plan.repo_path).unwrap(), fs::read(&plan.vault_path).unwrap());
+    assert!(repo.join(".baron/plan-transition.json").is_file());
+}
+
+#[test]
 fn repeated_start_resumes_matching_plan() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

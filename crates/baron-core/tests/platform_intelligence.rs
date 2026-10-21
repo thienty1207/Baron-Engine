@@ -81,6 +81,30 @@ fn data_pipeline_task_lens_does_not_match_database_orm_substrings() {
 }
 
 #[test]
+fn platform_update_preserves_invalid_utf8_managed_file() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let config = initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Codex),
+        &vault,
+        Some(ProjectPlatform::Fullstack),
+    )
+    .unwrap();
+    let managed = repo.join("docs/baron/platform/PROJECT_PROFILE.md");
+    fs::create_dir_all(managed.parent().unwrap()).unwrap();
+    let corrupt = b"\xffuser-authored profile marker\n";
+    fs::write(&managed, corrupt).unwrap();
+
+    let result = ensure_platform_intelligence(&repo, &config);
+
+    assert!(result.is_err(), "invalid UTF-8 managed content must be rejected");
+    assert_eq!(fs::read(managed).unwrap(), corrupt);
+}
+
+#[test]
 fn generated_profile_uses_repo_evidence_and_preserves_unknowns() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("app");

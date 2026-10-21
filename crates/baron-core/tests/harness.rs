@@ -70,6 +70,24 @@ fn high_risk_intake_creates_repo_and_vault_story() {
 }
 
 #[test]
+fn intake_preserves_unreadable_story_index_bytes() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    start_or_resume_intake(&repo, &context, "fix README typo").unwrap();
+    let index = repo.join("docs/baron/harness/STORIES.md");
+    let corrupt = b"\xffprior story row\n";
+    fs::write(&index, corrupt).unwrap();
+
+    let result = start_or_resume_intake(&repo, &context, "fix README spelling");
+
+    assert!(result.is_err(), "invalid UTF-8 story index must be rejected");
+    assert_eq!(fs::read(index).unwrap(), corrupt);
+}
+
+#[test]
 fn duplicate_intake_resumes_without_duplicate_story() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

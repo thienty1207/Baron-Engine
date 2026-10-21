@@ -483,7 +483,7 @@ fn append(path: &Path, header: &str, item: &str) -> Result<()> {
 }
 
 fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
-    let content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
+    let content = read_text(path)?.unwrap_or_else(|| header.to_string());
     if content.contains(item) {
         return Ok(());
     }

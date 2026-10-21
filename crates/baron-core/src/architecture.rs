@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 
 use crate::config::{ProjectConfig, ProjectPlatform};
 use crate::platform::platform_name;
-use crate::safe_io::replace_text;
+use crate::safe_io::{read_text, replace_text};
 
 const START: &str = "<!-- baron:architecture:start -->";
 const END: &str = "<!-- baron:architecture:end -->";
@@ -221,7 +221,7 @@ fn markdown_list(values: &[String]) -> String {
 }
 
 fn upsert(path: &Path, body: &str) -> Result<()> {
-    let existing = fs::read_to_string(path).unwrap_or_default();
+    let existing = read_text(path)?.unwrap_or_default();
     let block = format!("{START}\n{}{END}", body.trim_end().to_string() + "\n");
     let content = match (existing.find(START), existing.find(END)) {
         (Some(start), Some(end)) if start < end => format!(
