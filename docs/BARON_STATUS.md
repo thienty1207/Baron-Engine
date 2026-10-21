@@ -7,50 +7,59 @@ closure. The accepted closure range
 ecaf362c..af2e1db020355af4fe0f621e8de3f8f780fbd2ad and its historical
 CLOSED status remain unchanged.
 
-- Work branch: fix/spec-05-post-closure-hardening; tested source checkpoint:
-  06efdf69ea5d41d58044b3738ef6bfef45e33cb7.
+- Work branch: fix/spec-05-post-closure-hardening; verified source checkpoint:
+  e452b62a4aac08def36e51af1d559679d73bd1b3.
 - H-01: **CONFIRMED BUG — fixed.** Identified plan-progress publication now
   records recoverable intent and resumes idempotently at four tested
   subprocess interruption boundaries. A follow-up regression exposed that
   start/resume validated the local/Vault mirror before replaying an interrupted
   `after_local` transition. Recovery now runs first under the existing locks;
   the `after_local` start/resume regression was observed RED then GREEN.
-- H-02: **ALREADY FIXED — verified.** A moved checkout retaining the same
-  fixture identity is rejected by the canonical owner fence with no local or
-  shared Vault authority mutation. Restore the original canonical path;
-  automatic owner reassignment remains unsupported.
+- H-02: **CONFIRMED BUG — fixed.** Windows owner identity preserves case when
+  a checkout is beneath a case-sensitive directory, using a domain-separated
+  v2 hash. Ordinary case-insensitive Windows paths retain their prior owner
+  IDs. RED/GREEN tests cover distinct `Repo` and `repo` roots, case-insensitive
+  aliases, and legacy hash stability. Moved checkouts remain fail-closed;
+  automatic owner reassignment is unsupported.
 - H-03: **CONFIRMED BUG — fixed.** Live claims survive cache trimming, an
-  all-live cache fails closed, and malformed rows in the inspected journal tail
-  block hook correlation/publication. Replay evidence is explicitly finite:
-  256 cache entries and 512 journal lines. Added Stop-after-expiry authority
-  recheck and concurrent distinct-checkout/shared-Vault publication regressions.
-- Local verification: formatting, warnings-denied Clippy, locked release
-  build, release CLI version, and the H-01 regression passed. In the fresh
-  workspace all-target run, every Core and CLI target and the adapter targets
-  that started passed. Four adapter executables were blocked before test
-  startup by Windows Application Control (OS error 4551), so the workspace
-  command exited 1 and the full gate is partial. This run used a temporary
-  BARON_HOME and bundled PowerShell 7. Status JSON parsing, relative links in
-  the five changed Markdown files, and the tracked retired-adapter gate passed
-  afterward.
+  all-live cache fails closed, and malformed rows in the inspected journal
+  tail block hook correlation/publication. Replay remains finite at 256 cache
+  entries and 512 journal lines. Reverse tail reads are capped at 4 MiB and
+  decode only selected rows; inability to find the boundary fails closed.
+  Append boundary detection reads one byte. RED/GREEN tests cover an 8 MiB
+  malformed prefix outside the selected rows and bounded reader/append I/O.
+- The first independent review of the 93-commit/102-path history found no
+  Critical issues and two Important findings (H-02 path collision and H-03
+  unbounded journal I/O); both are fixed at this checkpoint. It was a scoped
+  review, not a line-by-line scan of every changed line. Exact final-range
+  review is pending.
+- Local verification: `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --no-fail-fast -j 1`,
+  `cargo clippy --workspace --all-targets -- -D warnings`, and
+  `cargo build --workspace --release --locked` passed. The workspace test run
+  used a temporary BARON_HOME and bundled PowerShell 7. The release CLI printed
+  `baron 5.0.0`. The status JSON, relative-link, retired-adapter, and diff
+  gates also pass. These are local results, not hosted CI.
 - Recovery: .env, project/local TOML, machine config.toml, original Vault
   root, capsule, and Project ID were not found in checked locations. No
-  replacement identity or Vault was created. Local authority state is separate
-  from project identity and was not staged; the full-workspace test invocation
-  used the default machine home, so possible per-user test state is recorded in
-  the evidence ledger. No original-project proof or trace was produced.
-- Integration scope: origin/main is afc0b1b1137c0684c33e7e45a4c9b0e56d012446;
-  tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7 was 91
-  commits ahead and changed 102 paths, containing the accepted 82-commit/
-  98-path SPEC-05 lineage plus nine follow-up commits. Later commits only
-  record verification evidence. Independent whole-lineage review and PR-head
-  CI are pending.
+  replacement identity or Vault was created. A separate machine-level receipt
+  authority seed was observed; its value was not read or changed, and its
+  provenance before an earlier test run is uncertain. No original-project
+  proof or trace was produced.
+- Integration scope: `origin/main` is
+  afc0b1b1137c0684c33e7e45a4c9b0e56d012446. This source checkpoint is 94
+  commits ahead, 0 behind, and changes 102 paths. The first independent review
+  covered the full lineage and path manifest, with detailed H-01/H-02/H-03 and
+  related authority/migration/CI review; it did not inspect every changed
+  line. Exact final-range review, push, PR, and PR-head CI remain pending.
 - Persisted-state boundary: source and tracked evidence changes are in the
   managed worktree. Regression repos and Vaults use temporary fixtures. The
   original checkout and its user-owned untracked files remain untouched.
-- Safe next action: finish verification and independent review, push the
-  reviewed branch, open a PR to main, and verify checks on its exact head. Stop
-  before merge until the user approves the reviewed integration scope.
+- Proof/trace status: hardening has targeted regression evidence; no proof or
+  trace was produced against the unrecovered original Project ID.
+- Safe next action: commit the verified evidence, obtain an exact final-range
+  review, then push and open a PR for hosted checks. Stop before merge pending
+  user approval of the reviewed integration scope.
 
 Plan: [post-closure hardening plan](superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence ledger: [verification record](superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

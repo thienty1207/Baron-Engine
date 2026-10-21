@@ -98,9 +98,9 @@
 **Files:**
 - No source changes unless a test or review finding requires a separately tested fix.
 
-- [ ] **Step 1: Run required local gates.** Formatting, warnings-denied Clippy, locked release build, release version smoke, H-01 regression, all Core targets, all CLI targets, and adapter targets that started passed. The fresh `cargo test --workspace --all-targets --no-fail-fast -j 1` run exited 1 because Windows Application Control blocked adapter_lifecycle, phase12_hooks, phase15_docs, and phase1_current before execution (OS error 4551). Retry those targets in a supported host/CI; do not claim the workspace gate passed.
-- [ ] **Step 2: Verify product constraints.** Confirm `baron --version` is `5.0.0`; no secrets, machine config, `.env`, Vault data, generated artifacts, or `docs/current/current.md` are staged; compare the entire hardening head to `origin/main` and inspect all 82 pre-existing commits / 98 paths and any added files.
-- [ ] **Step 3: Obtain an independent whole-branch review.** Review the exact source range and this plan/spec; resolve Critical/Important findings with RED→GREEN tests, record deferred Minor findings, and rerun the affected suites.
+- [x] **Step 1: Run required local gates.** `cargo fmt --all -- --check`, `cargo test --workspace --all-targets --no-fail-fast -j 1`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo build --workspace --release --locked` pass at source checkpoint `e452b62`; release CLI reports `baron 5.0.0`. The full workspace test used a temporary `BARON_HOME` and bundled PowerShell 7.
+- [x] **Step 2: Verify product constraints.** Release CLI reports `baron 5.0.0`; the branch diff has no `.env`, `.baron` project/local config, Vault/capsule data, or user handoff/spec paths; exactly six maintained status/plan/log files are staged. `origin/main` is `afc0b1b1137c0684c33e7e45a4c9b0e56d012446`; the integration manifest is 102 paths, with no manifest or lockfile changes. The primary checkout remains on `main` with both user-provided files untracked and preserved.
+- [ ] **Step 3: Obtain an independent whole-branch review.** Review the exact final source/evidence range and this plan/spec; resolve Critical/Important findings with RED→GREEN tests, record deferred Minor findings, and rerun the affected suites.
 
 ### Task 6: Prepare PR integration into `main`
 
@@ -109,5 +109,5 @@
 
 - [ ] **Step 1: Commit and push the reviewed hardening branch** after checking exact diff, clean staging, credentials, and remote refs.
 - [ ] **Step 2: Open a PR** from `fix/spec-05-post-closure-hardening` to `main`, including the accepted SPEC-05 source boundary, hardening classifications, full integration scope, local evidence, identity recovery status, and hosted checks.
-- [ ] **Step 3: Verify PR-head CI and mergeability.** Wait for Format/Clippy, Windows, Linux, release-build, and version-smoke checks on the actual candidate SHA. Stop before merge until the user approves the reviewed 82-commit / 98-path integration scope.
+- [ ] **Step 3: Verify PR-head CI and mergeability.** Wait for Format/Clippy, Windows, Linux, release-build, and version-smoke checks on the actual candidate SHA. Stop before merge until the user approves the reviewed 95-commit / 102-path integration scope (or the exact scope observed at PR creation).
 - [ ] **Step 4: After approval, merge through the supported PR mechanism and verify push-to-main CI on the exact merge SHA.** Update final docs only with observed PR, review, merge, and CI evidence.

@@ -4,7 +4,7 @@
 
 This follow-up does not change the accepted SPEC-05 source range or its
 historical CLOSED status. Branch fix/spec-05-post-closure-hardening has
-tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7.
+verified source checkpoint e452b62a4aac08def36e51af1d559679d73bd1b3.
 
 H-01 was confirmed and fixed: ordinary identified-plan progress writes now
 use the existing recoverable transition journal; four child-process
@@ -12,35 +12,53 @@ interruption boundaries recover idempotently. A follow-up regression showed
 that identified start/resume checked local/Vault equality before replaying an
 `after_local` journal. Recovery now runs before that mirror check while keeping
 the existing checkout-then-Vault locks and journal validation; the regression
-was observed RED then GREEN. H-02 is already fail-closed:
-moving a checkout with the same persisted fixture identity is rejected
-without changing local or Vault plan authority; restore the original
+was observed RED then GREEN. Review reproduced an H-02 authority collision on
+Windows when case-sensitive directories contain paths differing only in case.
+A case-preserving, domain-separated owner hash now distinguishes those roots;
+case-insensitive paths retain the existing owner ID. RED/GREEN tests cover
+both forms and aliases. Relocation remains fail-closed; restore the original
 canonical path. H-03 was confirmed and fixed: cache trimming preserves live
 claims, all-live capacity fails closed, and malformed non-empty rows in the
 inspected journal tail fail before correlation/publication. Replay is bounded
-to 256 cache entries and 512 journal lines. Added tests cover Stop replay after
-both evidence windows expire and simultaneous same-event delivery from two
-checkouts sharing one Vault.
+to 256 cache entries and 512 journal lines. Reverse reads stop at 4 MiB and
+fail closed if the selected tail boundary cannot be found; append boundary
+detection reads one byte. Tests cover a malformed large prefix and bounded
+reads, Stop replay after both evidence windows expire, and simultaneous
+same-event delivery from two checkouts sharing one Vault.
 
-Local verification passed: format; warnings-denied Clippy; locked release
-build; release CLI version; the H-01 regression; and all Core/CLI targets and
-adapter targets that started in the workspace run. That workspace command
-exited 1 because Windows Application Control blocked four adapter test
-executables before startup (OS error 4551). Those targets remain unverified in
-this host. Fresh Cargo tests used bundled PowerShell 7 and temporary
+The first independent range review covered the 93-commit/102-path history,
+with detailed H-path and authority review; it was not a line-by-line scan of
+every changed line. It found no Critical issues and two Important findings:
+Windows path lowercasing could conflate distinct case-sensitive checkout
+roots, and hook replay/append paths read the full growing journal. Both now
+have RED/GREEN regressions and fixes. Exact final-range review is pending.
+
+Local verification passed: `cargo fmt --all -- --check`,
+`cargo test --workspace --all-targets --no-fail-fast -j 1`,
+`cargo clippy --workspace --all-targets -- -D warnings`, and
+`cargo build --workspace --release --locked`; release CLI reports
+`baron 5.0.0`. The workspace run used bundled PowerShell 7 and temporary
 BARON_HOME. The earlier full-workspace invocation used the host default
 machine home; receipt-authority tests can create per-user state there, and its
-provenance is uncertain. No machine data was staged. The original project
-.env, project/local TOML, machine config.toml, Vault root, capsule and
-Project ID were not recovered; no replacement identity was created. No
-original-project proof or trace was produced.
+provenance is uncertain. A separate 32-byte authority seed was later
+observed; its value was not read or changed, and it was not staged. The
+original project .env, project/local TOML, machine config.toml, Vault root,
+capsule and Project ID were not recovered; no replacement identity was
+created. No original-project proof or trace was produced.
 
-At tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7, the
-range was 91 commits/102 paths ahead of origin/main, including the
-82-commit/98-path SPEC-05 lineage plus nine follow-up commits. Later commits
-only update evidence. Independent whole-lineage review and PR-head CI remain
-pending. Merge remains stopped until the user approves the reviewed
-integration scope.
+At source checkpoint e452b62a4aac08def36e51af1d559679d73bd1b3, the branch is
+94 commits ahead, 0 behind, and changes 102 paths from origin/main. The first
+independent review was scoped, not line-by-line. Exact final-range review,
+push, PR, and PR-head CI remain pending. Merge remains stopped until the user
+approves the reviewed integration scope.
+
+Checkpoint: H-01/H-02/H-03 fixes and local gates are verified at source
+checkpoint `e452b62`. Exact-range review remains pending. Trace/proof against
+the unrecovered original project identity remains
+absent. Persisted state remains bounded to the managed worktree and temporary
+fixtures; original checkout, Vault, and machine authority seed remain
+untouched. Safe next action: commit verified evidence, review the final range,
+and open a PR; stop before merge for user approval.
 
 Plan: [post-closure hardening](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence: [verification ledger](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

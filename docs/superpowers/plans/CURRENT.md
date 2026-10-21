@@ -4,41 +4,61 @@
 
 This follow-up is separate from the original SPEC-05 closure. The accepted
 historical range and CLOSED status remain intact. Branch
-fix/spec-05-post-closure-hardening tests checkpoint
-06efdf69ea5d41d58044b3738ef6bfef45e33cb7.
+fix/spec-05-post-closure-hardening source checkpoint is
+e452b62a4aac08def36e51af1d559679d73bd1b3.
 
 - H-01 is a confirmed progress-publication bug, fixed with recoverable intent
   and four subprocess interruption regressions. A follow-up test exposed
   start/resume rejecting the local/Vault divergence before journal replay
   after an `after_local` interruption; recovery now runs before mirror
   validation, and that regression passed RED/GREEN.
-- H-02 relocation is already fail-closed under the canonical owner fence;
-  the moved-checkout regression confirms local and shared Vault authority
-  bytes remain unchanged. Restore the original canonical path to resume.
+- H-02 is a confirmed Windows case-sensitive path-collision bug, fixed with a
+  case-preserving, domain-separated owner hash only when an ancestor enables
+  case sensitivity. Case-insensitive paths retain legacy owner IDs. RED/GREEN
+  tests cover `Repo` versus `repo`, aliases, and legacy hash stability.
+  Relocation remains fail-closed; restore the original canonical path to resume.
 - H-03 live hook claims are retained, all-live capacity fails closed, and
   malformed journal rows in the inspected tail fail before hook publication.
   Replay evidence remains bounded to 256 cache entries and 512 journal lines.
   Stop replay after expiry and concurrent shared-Vault publication have
-  additional integration coverage.
-- Format, warnings-denied Clippy, locked release build, CLI version smoke,
-  H-01 regression, all Core targets, all CLI targets, and adapter targets that
-  started passed. The workspace command exited 1 because Windows Application
-  Control blocked four adapter test executables before startup (OS error
-  4551); workspace verification is partial. Fresh Cargo tests used a temporary
-  BARON_HOME. JSON/link and retirement gates need a fresh post-fix rerun.
+  additional integration coverage. A review found unbounded reads of the
+  growing journal; reverse reads are now limited to 4 MiB and the selected
+  512-line window, while append boundary detection reads one byte. Oversized
+  unresolved tails fail closed. Malformed-prefix and bounded-I/O regressions
+  were observed RED then GREEN.
+- Independent review completed for the 93-commit/102-path history and detailed
+  H-01/H-02/H-03 and authority paths. It found no Critical findings and two
+  Important findings (H-02 path collision and H-03 unbounded journal reads).
+  Both findings have RED/GREEN fixes. The first review was scoped, not
+  line-by-line; exact final-range review remains pending.
+- `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --no-fail-fast -j 1`,
+  `cargo clippy --workspace --all-targets -- -D warnings`, and
+  `cargo build --workspace --release --locked` pass at source checkpoint
+  `e452b62`; release CLI reports `baron 5.0.0`. Workspace tests used a
+  temporary BARON_HOME and bundled PowerShell 7. Hosted CI remains pending.
 - The original project identity, project/local TOML, machine config, Vault and
-  capsule were not recovered; no replacement was created. The full-workspace
-  test command used the host default machine home; possible per-user test state
-  is recorded in the verification ledger. No original-project proof or trace
-  was produced.
-- Tested source checkpoint 06efdf69ea5d41d58044b3738ef6bfef45e33cb7 was 91
-  commits/102 paths ahead of origin/main, including the 82-commit/98-path
-  SPEC-05 lineage. Later commits only update evidence. Whole-lineage review
-  and hosted PR checks remain pending.
+  capsule were not recovered; no replacement was created. An earlier
+  workspace test invocation used the host default machine home; possible
+  per-user test state is recorded in the verification ledger. The latest full
+  workspace run used a temporary BARON_HOME. No original-project proof or
+  trace was produced.
+- Tested source checkpoint `e452b62a4aac08def36e51af1d559679d73bd1b3` is 94
+  commits ahead, 0 behind, and 102 paths from origin/main. The first review
+  covered the full history/path manifest with focused H-path and authority
+  tracing; it did not read every changed line. Exact final-range review and
+  hosted PR checks remain pending.
 
 Plan: [SPEC-05 post-closure hardening](2026-10-18-spec-05-post-closure-hardening.md); verification: [evidence ledger](2026-10-18-spec-05-post-closure-hardening-verification.md).
 
-Safe next action: complete verification and independent review of the complete integration range, push it, open a PR and verify its exact-head checks; stop before merge pending user approval.
+Checkpoint: H-01/H-02/H-03 fixes and local verification are complete at
+`e452b62`. The first review's two Important findings have RED/GREEN regressions
+and fixes; exact final-range review and hosted PR checks remain outstanding.
+Trace/proof against the unrecovered original project identity remains absent.
+Changes are limited to the managed worktree and temporary fixtures; original
+checkout, Vault, and per-user authority seed remain untouched. Safe next
+action: commit the verified evidence, review the final range, then push and
+open a PR. Wait for user approval before merge.
 
 ## SPEC-05 final closure (CLOSED — 2026-10-10)
 
