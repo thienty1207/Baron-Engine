@@ -1,6 +1,6 @@
 # Current Baron Build Plan
 
-## Current maintenance — SPEC-05 Maintenance 01 logic integrity (READY FOR REVIEW — 2026-10-21)
+## Current maintenance — SPEC-05 Maintenance 01 logic integrity (REVIEW ACCEPTED — PR PENDING — 2026-10-21)
 
 - Baseline: `main` / `origin/main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`; isolated worktree.
@@ -40,11 +40,13 @@
   ledger.
 - Proof and trace: RED/GREEN test evidence is recorded. No project-scoped
   Baron proof or trace was created for the user's unrecovered identity.
+- Independent review: ACCEPT on the complete range
+  `9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`;
+  no Critical or Important findings. Review was read-only and did not run tests.
 - Persisted-state boundary: use temp repositories, Vaults, session roots, and
   BARON_HOME only. Preserve the user's original checkout and machine state.
-- Safe next action: request updated independent read-only review of the complete
-  baseline-to-branch range. Then push/open a scoped PR and verify exact-head CI
-  if access permits; stop before merge pending owner approval.
+- Safe next action: push the reviewed branch, open a scoped PR, and verify
+  hosted CI on its exact head; stop before merge pending owner approval.
 
 Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification: [evidence ledger](2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 

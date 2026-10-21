@@ -1,6 +1,6 @@
 # Baron Maintenance 01 — implementation verification
 
-**State:** READY_FOR_REVIEW; first review was FIX REQUIRED; both findings fixed; re-review pending
+**State:** REVIEW_ACCEPTED; PR and exact-head hosted CI pending
 **Date:** 2026-10-21
 **Baseline:** main and origin/main at 9038afa9f840e3a62acc0f97c6aaa31849247525
 **Branch:** codex/spec-05-maintenance-01-logic-integrity
@@ -153,11 +153,12 @@ recovery identity was created or modified. The primary checkout and its
 untracked user-provided inputs were preserved.
 
 Initial independent review: FIX REQUIRED; two Important findings fixed.
-Updated independent review: pending. PR URL/state: not created. Hosted PR
-checks: unavailable until a PR exists. Merge approval: no. Merged main SHA:
-none.
+Updated independent review: ACCEPT for the complete range
+`9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`;
+no Critical or Important findings. The reviewer made no edits and did not run
+tests. PR URL/state: not created. Hosted PR checks: unavailable until a PR
+exists. Merge approval: no. Merged main SHA: none.
 
-**Verdict:** READY_FOR_REVIEW
-**Next action:** obtain updated independent read-only review of the complete
-9038afa9-to-current-branch range; then push/open a scoped PR and check its
-exact-head CI if repository permissions allow. Stop before merge.
+**Verdict:** REVIEW_ACCEPTED; PR PENDING
+**Next action:** push the reviewed branch, open a scoped PR, and check its
+exact-head hosted CI. Stop before merge.

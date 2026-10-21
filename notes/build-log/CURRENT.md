@@ -1,6 +1,6 @@
 # Current Build Note
 
-## SPEC-05 Maintenance 01 logic integrity — 2026-10-21 (READY FOR REVIEW)
+## SPEC-05 Maintenance 01 logic integrity — 2026-10-21 (REVIEW ACCEPTED — PR PENDING)
 
 Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
 `codex/spec-05-maintenance-01-logic-integrity`. Work is isolated in a managed
@@ -28,12 +28,12 @@ See the verification ledger for commands, outcomes, scope, and remaining
 diagnostic-only/contract-limited observations. The source audit was a
 production-tree lexical sweep plus targeted semantic tracing, not a line-by-line
 review of every match. No project-scoped Baron trace/proof was created; evidence
-is test-based.
+is test-based. Updated independent read-only review ACCEPTED
+`9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`
+with no Critical or Important findings; the reviewer did not run tests.
 
-Safe next action: updated independent read-only review of the complete
-9038afa9..branch HEAD range, followed by a scoped push/PR and exact-head CI
-verification if repository access permits. Stop before merge pending owner
-approval.
+Safe next action: push the reviewed branch, open a scoped PR, and verify
+hosted CI on its exact head. Stop before merge pending owner approval.
 
 Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); [verification ledger](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 

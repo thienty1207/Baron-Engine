@@ -1,6 +1,6 @@
 # Baron Build Status
 
-## SPEC-05 Maintenance 01 — logic integrity hardening (READY FOR REVIEW — 2026-10-21)
+## SPEC-05 Maintenance 01 — logic integrity hardening (REVIEW ACCEPTED — PR PENDING — 2026-10-21)
 
 - Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
   based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
@@ -23,7 +23,11 @@
   ledger.
 - Initial independent review returned FIX REQUIRED with two Important
   findings; both fixes and RED/GREEN regressions are recorded. Updated
-  independent review is pending.
+  independent review ACCEPTED the complete range
+  `9038afa9..3005f5f67a352d62bf60aa1ddb166eead90b5222` with no Critical or
+  Important findings. The reviewer confirmed the final status documentation,
+  parsed status JSON, and clean diff; the review was read-only and did not run
+  tests. Local test evidence is recorded separately in the verification ledger.
 - Test fixtures used temporary project, Vault, session-root, and BARON_HOME
   data. The user's primary checkout, untracked inputs, original project/Vault,
   and machine state remained outside the mutation boundary. No project
@@ -31,10 +35,9 @@
 - Persisted-state boundary: isolated worktree only; the user's primary
   checkout, untracked inputs, original project/Vault, and machine state remain
   outside the mutation boundary.
-- Safe next action: obtain updated independent review of the complete
-  `9038afa9..final branch HEAD` range, then push/open a scoped PR and verify
-  CI on its exact head if repository access permits. Stop before merge pending
-  the repository owner's explicit approval.
+- Safe next action: push the reviewed branch, open a scoped PR, and verify
+  hosted CI on its exact head. Stop before merge pending the repository owner's
+  explicit approval.
 
 Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification ledger: [Maintenance 01 verification](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
