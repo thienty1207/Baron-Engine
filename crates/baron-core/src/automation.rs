@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::fs::{self, File};
+use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
@@ -76,6 +77,25 @@ pub enum HookAdapter {
     Claude,
     Neutral,
 }
+
+/// Explicit disposition for an error crossing the native hook boundary.
+/// Untyped errors are treated as fail-closed by adapters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HookFailureKind {
+    Advisory,
+    FailClosed,
+}
+
+impl fmt::Display for HookFailureKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Advisory => "advisory native hook failure",
+            Self::FailClosed => "fail-closed native hook failure",
+        })
+    }
+}
+
+impl std::error::Error for HookFailureKind {}
 
 /// Stable identity for one logical lifecycle delivery. The serialized digest
 /// is used only for bounded deduplication; the fields remain available in the
@@ -249,6 +269,22 @@ pub fn handle_hook(
     event: AutomationEvent,
     payload_text: &str,
 ) -> Result<String> {
+    handle_hook_inner(repo_root, vault, adapter, event, payload_text).map_err(|error| {
+        if error.downcast_ref::<HookFailureKind>().is_some() {
+            error
+        } else {
+            error.context(HookFailureKind::FailClosed)
+        }
+    })
+}
+
+fn handle_hook_inner(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    adapter: HookAdapter,
+    event: AutomationEvent,
+    payload_text: &str,
+) -> Result<String> {
     let repo_root = repo_root.as_ref();
     if payload_text.len() > PREPARE_MAX_INPUT_BYTES {
         bail!(
@@ -259,7 +295,15 @@ pub fn handle_hook(
     let payload: Value = if payload_text.trim().is_empty() {
         json!({})
     } else {
-        serde_json::from_str(payload_text).context("Could not parse native hook payload")?
+        serde_json::from_str(payload_text)
+            .context("Could not parse native hook payload")
+            .map_err(|error| {
+                if matches!(event, AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt) {
+                    error.context(HookFailureKind::Advisory)
+                } else {
+                    error
+                }
+            })?
     };
     let ingress = match hook_correlation::Ingress::parse(&payload, adapter) {
         Ok(ingress) => ingress,

@@ -229,6 +229,52 @@ fn cli_hook_failure_is_soft_and_fallback_command_remains_available() {
 }
 
 #[test]
+fn cli_stop_malformed_json_is_blocking() {
+    let (_temp, repo, _vault) = init_repo();
+
+    let response = run_hook(&repo, "stop", "{malformed");
+
+    assert_eq!(response["decision"], "block");
+    assert_eq!(response["completed"], false);
+    assert_ne!(response["continue"], true);
+    assert_eq!(response["baron"]["hook_failure"], "hard");
+    assert!(!repo.join(".baron/cache/automation-dedup.json").exists());
+    assert!(!repo.join(".baron/state/hook-correlations.json").exists());
+}
+
+#[test]
+fn cli_stop_corrupt_journal_is_blocking_without_publication() {
+    use baron_core::vault::ensure_vault;
+
+    let (_temp, repo, vault) = init_repo();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    let corrupt = b"{not-valid-json}\n";
+    fs::write(&journal, corrupt).unwrap();
+    let stop = serde_json::json!({
+        "session_id": "valid-stop-session",
+        "request_id": "valid-stop-request",
+        "stop_hook_active": false
+    })
+    .to_string();
+
+    let response = run_hook(&repo, "stop", &stop);
+
+    assert_eq!(response["decision"], "block");
+    assert_eq!(response["completed"], false);
+    assert_ne!(response["continue"], true);
+    assert_eq!(response["baron"]["hook_failure"], "hard");
+    assert_eq!(fs::read(&journal).unwrap(), corrupt);
+    assert!(!repo.join(".baron/cache/automation-dedup.json").exists());
+    assert!(!repo.join(".baron/state/hook-correlations.json").exists());
+    assert!(!repo.join("docs/baron/proofs").exists());
+    assert!(!repo.join("docs/baron/traces").exists());
+}
+
+#[test]
 fn cli_corrupt_dedup_state_is_a_hard_hook_failure_with_blocking_response() {
     let (_temp, repo, _vault) = init_repo();
     fs::create_dir_all(repo.join(".baron/cache")).unwrap();
