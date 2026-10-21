@@ -3,14 +3,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::{Local, SecondsFormat};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::safe_io::{acquire_project_lock, read_text, replace_text};
+use crate::safe_io::{acquire_project_lock, create_new_text, read_text, replace_text};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,7 +66,11 @@ struct SessionSource {
 enum PreparedImportAction {
     Unmatched,
     Noise,
-    Imported { note_path: PathBuf, note: String },
+    Imported {
+        note_path: PathBuf,
+        note: String,
+        adapter: &'static str,
+    },
 }
 
 struct PreparedSessionImport {
@@ -81,8 +85,14 @@ pub fn import_sessions(
     import_limit: usize,
 ) -> Result<SessionImportReport> {
     let roots = discover_roots();
-    let mut report =
-        import_sessions_from_roots(repo_root.as_ref(), vault, import_limit, roots, || {})?;
+    let mut report = import_sessions_from_roots(
+        repo_root.as_ref(),
+        vault,
+        import_limit,
+        roots,
+        || {},
+        |_| Ok(()),
+    )?;
     match crate::intelligence41::learn_session_candidates(vault) {
         Ok(learning) => report.learning_candidates = learning.candidates.len(),
         Err(error) => report.learning_error = Some(error.to_string()),
@@ -98,15 +108,17 @@ pub fn import_sessions(
     Ok(report)
 }
 
-fn import_sessions_from_roots<F>(
+fn import_sessions_from_roots<F, G>(
     repo_root: &Path,
     vault: &VaultContext,
     import_limit: usize,
     roots: Vec<(PathBuf, &'static str)>,
     before_state_publish: F,
+    mut after_note_publish: G,
 ) -> Result<SessionImportReport>
 where
     F: FnOnce(),
+    G: FnMut(&Path) -> Result<()>,
 {
     let repo_root = repo_root.canonicalize().with_context(|| {
         format!(
@@ -203,7 +215,11 @@ where
                 prepared_imports += 1;
                 let note_path = imported_note_path(vault, &source, &content_hash);
                 let note = render_note(source.adapter, &source.path, &content_hash, &messages);
-                PreparedImportAction::Imported { note_path, note }
+                PreparedImportAction::Imported {
+                    note_path,
+                    note,
+                    adapter: source.adapter,
+                }
             }
         };
         prepared.push(PreparedSessionImport {
@@ -250,8 +266,13 @@ where
                     note_path: None,
                 }
             }
-            PreparedImportAction::Imported { note_path, note } => {
-                write(&note_path, &note)?;
+            PreparedImportAction::Imported {
+                note_path,
+                note,
+                adapter,
+            } => {
+                publish_imported_note(&note_path, &note, adapter, &item.content_hash)?;
+                after_note_publish(&note_path)?;
                 report.imported += 1;
                 ImportedSource {
                     content_hash: item.content_hash,
@@ -605,6 +626,49 @@ imported: {}\n\
     output
 }
 
+fn publish_imported_note(path: &Path, note: &str, adapter: &str, source_hash: &str) -> Result<()> {
+    match read_text(path)? {
+        Some(existing) => {
+            if !imported_note_matches(&existing, adapter, source_hash) {
+                bail!(
+                    "Existing session import note has conflicting identity; refusing to overwrite: {}",
+                    path.display()
+                );
+            }
+        }
+        None => create_new_text(path, note).with_context(|| {
+            format!(
+                "Could not publish imported session note: {}",
+                path.display()
+            )
+        })?,
+    }
+    Ok(())
+}
+
+fn imported_note_matches(content: &str, adapter: &str, source_hash: &str) -> bool {
+    let Some(front_matter) = content
+        .strip_prefix("---\n")
+        .and_then(|content| content.split_once("\n---\n"))
+        .map(|(front_matter, _)| front_matter)
+    else {
+        return false;
+    };
+    let mut identity = BTreeMap::new();
+    for line in front_matter.lines() {
+        let Some((key @ ("type" | "adapter" | "source_hash"), value)) = line.split_once(": ")
+        else {
+            continue;
+        };
+        if identity.insert(key, value).is_some() {
+            return false;
+        }
+    }
+    identity.get("type") == Some(&"baron-imported-session")
+        && identity.get("adapter") == Some(&adapter)
+        && identity.get("source_hash") == Some(&source_hash)
+}
+
 fn load_state(path: &Path) -> Result<ImportState> {
     let Some(content) = read_text(path)? else {
         return Ok(ImportState::default());
@@ -730,6 +794,7 @@ mod tests {
                         move || {
                             barrier.wait();
                         },
+                        |_| Ok(()),
                     )
                     .unwrap()
                 })
@@ -749,11 +814,83 @@ mod tests {
             .values()
             .all(|source| source.status == "imported"));
         for root in [root_a, root_b] {
-            let retry =
-                import_sessions_from_roots(&repo, &context, 20, vec![(root, "codex")], || {})
-                    .unwrap();
+            let retry = import_sessions_from_roots(
+                &repo,
+                &context,
+                20,
+                vec![(root, "codex")],
+                || {},
+                |_| Ok(()),
+            )
+            .unwrap();
             assert_eq!(retry.imported, 0);
             assert_eq!(retry.deduplicated, 1);
         }
+    }
+
+    #[test]
+    fn retry_after_interruption_preserves_an_edited_imported_note() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("Vault");
+        let root = temp.path().join("sessions");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&root).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let repo_text = repo.canonicalize().unwrap().to_string_lossy().to_string();
+        fs::write(
+            root.join("interrupted.jsonl"),
+            format!(
+                "{}\n{}\n",
+                serde_json::json!({"type":"session_meta","payload":{"cwd":repo_text}}),
+                serde_json::json!({"type":"response_item","payload":{"role":"user","content":"Remember the imported decision"}})
+            ),
+        )
+        .unwrap();
+
+        let state_path = context
+            .project_root
+            .join("Artifacts/session-import-state.json");
+        let interrupted = import_sessions_from_roots(
+            &repo,
+            &context,
+            20,
+            vec![(root.clone(), "codex")],
+            || {},
+            |note_path| {
+                let mut edited = fs::read_to_string(note_path).unwrap();
+                edited.push_str("\nUser addition before retry.\n");
+                fs::write(note_path, edited).unwrap();
+                Err(anyhow::anyhow!(
+                    "simulated interruption after note publication"
+                ))
+            },
+        );
+        assert!(interrupted.is_err());
+        assert!(!state_path.exists(), "interrupted state was published");
+
+        let notes_dir = context.project_root.join("Sessions/Imported");
+        let note_path = fs::read_dir(&notes_dir)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let edited_note = fs::read(&note_path).unwrap();
+        assert!(String::from_utf8_lossy(&edited_note).contains("User addition before retry."));
+
+        let retry = import_sessions_from_roots(
+            &repo,
+            &context,
+            20,
+            vec![(root, "codex")],
+            || {},
+            |_| Ok(()),
+        )
+        .unwrap();
+
+        assert_eq!(retry.imported, 1);
+        assert_eq!(fs::read(&note_path).unwrap(), edited_note);
+        assert_eq!(load_state(&state_path).unwrap().sources.len(), 1);
     }
 }
