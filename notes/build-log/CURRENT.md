@@ -56,16 +56,19 @@ created. No original-project proof or trace was produced.
 At tested source checkpoint e452b62a4aac08def36e51af1d559679d73bd1b3, the
 branch was 94 commits ahead and 102 paths from origin/main. Final reviewed HEAD
 74c231269d2042e5bf0dc3d3a97f2ff9af04b972 is 95 commits ahead, 0 behind, and
-changes the same 102 paths. Push, PR, and PR-head CI remain pending. Merge
-remains stopped until the user approves the reviewed integration scope.
+changes the same 102 paths. The reviewed branch push completed. PR creation is
+blocked because the GitHub connector returned 403 and the in-app browser is
+signed out; no PR-head CI has run. Merge remains stopped until the user
+approves the reviewed integration scope.
 
 Checkpoint: H-01/H-02/H-03 fixes and local gates are verified at source
 checkpoint `e452b62`. Final review found no Critical or Important findings.
 Trace/proof against the unrecovered original project identity remains
 absent. Persisted state remains bounded to the managed worktree and temporary
 fixtures; original checkout, Vault, and machine authority seed remain
-untouched. Safe next action: push the reviewed branch, open a PR, and verify
-required checks on its exact head; stop before merge for user approval.
+untouched. Safe next action: after GitHub PR write access is available, open a
+PR and verify required checks on its exact head; stop before merge for user
+approval.
 
 Plan: [post-closure hardening](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence: [verification ledger](../../docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

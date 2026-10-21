@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-- Status: in progress; H-01/H-02/H-03 source fixes and independent final-range review are complete. The full local workspace all-target suite, formatting, warnings-denied Clippy, locked release build, and release version smoke pass at source checkpoint `e452b62`. Final review found no Critical or Important findings and recorded two Minor notes. The review was scoped, not line-by-line; push, PR, and hosted checks remain pending.
+- Status: in progress; H-01/H-02/H-03 source fixes and independent final-range review are complete. The full local workspace all-target suite, formatting, warnings-denied Clippy, locked release build, and release version smoke pass at source checkpoint `e452b62`. Final review found no Critical or Important findings and recorded two Minor notes. The review was scoped, not line-by-line. The reviewed branch push completed with matching remote SHA. PR creation is blocked: the GitHub connector returned 403 Resource not accessible by integration and the in-app browser is signed out; no PR-head CI has run.
 - Branch: fix/spec-05-post-closure-hardening.
 - Tested source checkpoint: e452b62a4aac08def36e51af1d559679d73bd1b3.
 - SPEC-05 source tip used as the base: 1772124d7e49adf99775c4df62d706b7311a4a3f.
@@ -15,7 +15,7 @@
   compatibility, and next-action updates. The reviewer verified the reviewed
   commit list and changed-path manifest and performed detailed H-path and
   related authority review; this was not a line-by-line review.
-- Public version remains 5.0.0. No release, tag, version bump, history rewrite, push, PR, or merge has occurred.
+- Public version remains 5.0.0. No release, tag, version bump, history rewrite, PR, or merge has occurred. The reviewed branch push succeeded and its remote SHA matched the local branch at that checkpoint.
 
 ## Hardening findings
 
@@ -74,5 +74,6 @@ The managed worktree and temporary fixtures contain the project changes. The ear
 
 ## Remaining work
 
-- Push the independently reviewed branch, create a PR into main, and verify required CI on the actual PR head SHA.
+- Create a PR into main after GitHub PR write access is available. The GitHub connector returned 403 Resource not accessible by integration and the in-app browser is signed out; no PR was created.
+- Verify required CI on the actual PR head SHA.
 - Stop before merge until the user approves the reviewed integration scope. No merge or post-merge CI has occurred.

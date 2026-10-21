@@ -58,15 +58,17 @@ CLOSED status remain unchanged.
   74c231269d2042e5bf0dc3d3a97f2ff9af04b972 is 95 commits ahead, 0 behind,
   and changes 102 paths. Independent review covered the final commit/path
   manifest and detailed H-01/H-02/H-03 and related authority areas, but was not
-  line-by-line. Push, PR, and PR-head CI remain pending.
+  line-by-line. The reviewed branch push completed; PR creation is blocked
+  because the GitHub connector returned 403 and the in-app browser is signed
+  out. No PR-head CI has run.
 - Persisted-state boundary: source and tracked evidence changes are in the
   managed worktree. Regression repos and Vaults use temporary fixtures. The
   original checkout and its user-owned untracked files remain untouched.
 - Proof/trace status: hardening has targeted regression evidence; no proof or
   trace was produced against the unrecovered original Project ID.
-- Safe next action: push the reviewed branch, open a PR, and verify required
-  checks on the exact PR head. Stop before merge pending user approval of the
-  reviewed integration scope.
+- Safe next action: after GitHub PR write access is available, open a PR from
+  the pushed branch and verify required checks on the exact PR head. Stop
+  before merge pending user approval of the reviewed integration scope.
 
 Plan: [post-closure hardening plan](superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md); evidence ledger: [verification record](superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md).
 

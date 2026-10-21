@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "Push the independently reviewed branch, open a PR, and verify required checks on the exact PR head. Stop before merge pending user approval.",
+  "nextAction": "After GitHub PR write access is available, open a PR from the pushed branch and verify required checks on the exact PR head. Stop before merge pending user approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -34,7 +34,7 @@
     "focusedVerification": "PASS: H-01 exact recovery regression; Core unit and integration targets in fresh workspace run had 0 failed assertions, including plan 65/65 and phase12_hooks 16/16; H-02 moved-checkout regression 1; H-03 targeted suites and replay regressions passed.",
     "fullWorkspaceGates": "PASS locally at source checkpoint e452b62: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1; cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --release --locked; release CLI reports baron 5.0.0. Tests used isolated temporary BARON_HOME and bundled PowerShell 7. Hosted CI pending.",
     "independentWholeLineageReview": "Final review verified HEAD 74c231269d2042e5bf0dc3d3a97f2ff9af04b972 and the 95-commit/102-path range. No Critical or Important findings remain. Minor notes: automation_status reads its full diagnostic journal; pre-fix plans under case-sensitive Windows ancestors retain an ambiguous folded v1 owner and need a future explicit audited migration. Review was scoped, not line-by-line; reviewer did not run tests.",
-    "pullRequestHostedChecks": "pending",
+    "pullRequestHostedChecks": "pending: no PR was created. The GitHub connector returned 403 Resource not accessible by integration; the in-app GitHub browser is signed out. No PR-head CI has run.",
     "identityRecovery": "Original project and machine-local configuration, Vault root, capsule, and Project ID were not found in checked locations; no replacement was created. Tests use temporary identities and Vaults.",
     "persistedStateBoundary": "Tracked changes are in the managed worktree; regression repos, Vaults, and fresh test runs use temporary fixtures and BARON_HOME. An earlier invocation used the host machine home; a separate receipt-authority seed was observed, but its prior provenance is uncertain. Its value was not read or changed, and no machine data was staged. No original-project proof or trace was produced.",
     "plan": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md",

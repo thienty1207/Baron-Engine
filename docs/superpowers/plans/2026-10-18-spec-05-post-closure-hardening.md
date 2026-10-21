@@ -107,7 +107,7 @@
 **Files:**
 - No additional source changes after final review unless a PR-head failure requires a new verified fix.
 
-- [ ] **Step 1: Commit and push the reviewed hardening branch** after checking exact diff, clean staging, credentials, and remote refs.
-- [ ] **Step 2: Open a PR** from `fix/spec-05-post-closure-hardening` to `main`, including the accepted SPEC-05 source boundary, hardening classifications, full integration scope, local evidence, identity recovery status, and hosted checks.
+- [x] **Step 1: Commit and push the reviewed hardening branch** after checking exact diff, clean staging, credentials, and remote refs. The clean 98-commit/102-path branch was pushed; remote SHA `fdb016f08837dd080085bd56184c1f32341ecdc4` matched the local checkpoint.
+- [ ] **Step 2: Open a PR** from `fix/spec-05-post-closure-hardening` to `main`, including the accepted SPEC-05 source boundary, hardening classifications, full integration scope, local evidence, identity recovery status, and hosted checks. The GitHub connector returned 403 Resource not accessible by integration; the in-app browser is signed out, so no PR has been created.
 - [ ] **Step 3: Verify PR-head CI and mergeability.** Wait for Format/Clippy, Windows, Linux, release-build, and version-smoke checks on the actual candidate SHA. Stop before merge until the user approves the reviewed 95-commit / 102-path integration scope (or the exact scope observed at PR creation).
 - [ ] **Step 4: After approval, merge through the supported PR mechanism and verify push-to-main CI on the exact merge SHA.** Update final docs only with observed PR, review, merge, and CI evidence.

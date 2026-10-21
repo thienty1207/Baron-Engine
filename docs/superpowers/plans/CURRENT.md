@@ -50,20 +50,22 @@ e452b62a4aac08def36e51af1d559679d73bd1b3.
 - Tested source checkpoint `e452b62a4aac08def36e51af1d559679d73bd1b3` is 94
   commits ahead, 0 behind, and 102 paths from origin/main. Final reviewed HEAD
   `74c231269d2042e5bf0dc3d3a97f2ff9af04b972` includes the documentation evidence
-  commit and is 95 commits ahead with the same 102 paths. Hosted PR checks remain
-  pending.
+  commit and is 95 commits ahead with the same 102 paths. The reviewed branch
+  push completed. PR creation is blocked by GitHub connector 403 and a
+  signed-out in-app browser; no hosted PR checks have run.
 
 Plan: [SPEC-05 post-closure hardening](2026-10-18-spec-05-post-closure-hardening.md); verification: [evidence ledger](2026-10-18-spec-05-post-closure-hardening-verification.md).
 
 Checkpoint: H-01/H-02/H-03 fixes and local verification are complete at
 `e452b62`. The first review's two Important findings have RED/GREEN regressions
 and fixes; final review found no Critical or Important findings and documented
-two Minor notes. Push, PR, and hosted PR checks remain outstanding.
+two Minor notes. PR creation and hosted PR checks remain outstanding; the GitHub
+connector lacks write access and the in-app browser is signed out.
 Trace/proof against the unrecovered original project identity remains absent.
 Changes are limited to the managed worktree and temporary fixtures; original
 checkout, Vault, and per-user authority seed remain untouched. Safe next
-action: push the reviewed branch, open a PR, and verify required checks on its
-exact head. Wait for user approval before merge.
+action: after GitHub PR write access is available, open the PR and verify
+required checks on its exact head. Wait for user approval before merge.
 
 ## SPEC-05 final closure (CLOSED — 2026-10-10)
 
