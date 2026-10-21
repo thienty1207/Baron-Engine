@@ -636,10 +636,10 @@ fn start_or_resume_plan_internal(
     let title = title.trim();
     let _lock = acquire_project_lock(repo_root)?;
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     if let Some(binding) = binding {
         validate_shared_operation_plan_ownership(repo_root, vault, binding)?;
     }
-    ensure_active_plan_vault_index_consistent(repo_root, vault)?;
     let matching_active = match binding {
         Some(requested) => active_plan_for_new_operation(repo_root, requested)?,
         None => resolve_legacy_active_plan(repo_root)?,
@@ -3272,8 +3272,21 @@ mod tests {
             );
 
             let reopened_vault = vault_context_without_create(&vault_root, &repo).unwrap();
-            update_plan_for_identity(&repo, &reopened_vault, PROGRESS_NOTE, &identity_a).unwrap();
-            update_plan_for_identity(&repo, &reopened_vault, PROGRESS_NOTE, &identity_a).unwrap();
+            if stage == "after_local" {
+                let resumed = start_or_resume_plan_for_identity(
+                    &repo,
+                    &reopened_vault,
+                    PLAN_A_TITLE,
+                    &identity_a,
+                )
+                .unwrap();
+                assert!(resumed.resumed, "stage: {stage}");
+            } else {
+                update_plan_for_identity(&repo, &reopened_vault, PROGRESS_NOTE, &identity_a)
+                    .unwrap();
+                update_plan_for_identity(&repo, &reopened_vault, PROGRESS_NOTE, &identity_a)
+                    .unwrap();
+            }
 
             let local_a = fs::read_to_string(&plan_a.repo_path).unwrap();
             let vault_a = fs::read_to_string(&plan_a.vault_path).unwrap();
