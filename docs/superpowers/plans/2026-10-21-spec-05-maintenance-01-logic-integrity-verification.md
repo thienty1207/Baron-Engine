@@ -121,9 +121,11 @@ baron-maintenance01-verify-20261021. No secret environment values were printed.
 | cargo build --workspace --release --locked | PASS, RELEASE_BUILD_EXIT_CODE=0 |
 | target/release/baron.exe --version | PASS, output: baron 5.0.0 |
 
-These are local checks, not GitHub Actions results. Status JSON, relative
-links, diff checks, retired-adapter search, and final scope inventory are
-checked after the documentation commit. No PR exists yet, so exact-head hosted
+These are local checks, not GitHub Actions results. After the status
+documentation commit, `docs/BARON_STATUS.json` parsed successfully, all 26
+repository-relative Markdown links checked had valid targets, and
+`git diff --check` passed. The documentation delta contains only the six
+status/evidence files; no source changed. No PR exists yet, so exact-head hosted
 CI is not available.
 
 ## Source history and handoff
@@ -144,19 +146,25 @@ Implementation commits from baseline:
 The initial independent review returned FIX REQUIRED with two Important
 findings: readable malformed Harness CURRENT risk and session-note overwrite
 on retry. Both are addressed by the commits above and the added regressions.
-No unresolved Critical or Important finding is known in the tested scope;
-updated independent review remains pending. Known diagnostic and advisory
-limitations are listed above. This is not a repository-wide bug-free claim.
+The updated independent review ACCEPTED the complete range
+`9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`
+with no Critical or Important findings. A subsequent read-only review of the
+documentation-only commit `b6f09de56fb8cc48dab7cb1d2b3117b576ffdfd8` found two
+stale statements in this ledger; this update corrects them. The source snapshot
+remains unchanged. Known diagnostic and advisory limitations are listed above.
+This is not a repository-wide bug-free claim.
 
 Version, release, tag, and lockfiles were not changed. No project/Vault
 recovery identity was created or modified. The primary checkout and its
 untracked user-provided inputs were preserved.
 
 Initial independent review: FIX REQUIRED; two Important findings fixed.
-Updated independent review: ACCEPT for the complete range
+Updated independent review: ACCEPT for the complete source/evidence range
 `9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`;
 no Critical or Important findings. The reviewer made no edits and did not run
-tests. PR URL/state: not created. Hosted PR checks: unavailable until a PR
+tests. Follow-up review of the docs-only `b6f09de` commit found only the stale
+statements corrected above; the source snapshot and test evidence did not
+change. PR URL/state: not created. Hosted PR checks: unavailable until a PR
 exists. Merge approval: no. Merged main SHA: none.
 
 **Verdict:** REVIEW_ACCEPTED; PR PENDING
