@@ -103,6 +103,39 @@ fn closure_uses_the_header_status_when_summary_mentions_a_closed_status_marker()
 }
 
 #[test]
+fn status_shaped_evidence_and_affected_files_do_not_confuse_header_status() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let mut input = finding();
+    input.evidence = vec!["Status: `closed`".to_string(), "Status: `open`".to_string()];
+    input.affected_files = vec!["Status: `open`".to_string()];
+    let record = record_finding(&repo, &context, input).unwrap();
+
+    let recorded = fs::read_to_string(&record.repo_path).unwrap();
+    assert!(recorded.contains("## Evidence\n\n- Status: `closed`\n- Status: `open`"));
+    assert!(recorded.contains("## Affected Files\n\n- Status: `open`"));
+    assert!(review_status(&repo).unwrap().contains("Open findings: 1"));
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Corrected the reviewed issue",
+        "Focused regression passed",
+    )
+    .unwrap();
+
+    let closed = fs::read_to_string(&record.repo_path).unwrap();
+    let header = closed.split("## Summary").next().unwrap();
+    assert!(header.lines().any(|line| line == "- Status: `closed`"));
+    assert!(closed.contains("## Evidence\n\n- Status: `closed`\n- Status: `open`"));
+    assert!(closed.contains("## Affected Files\n\n- Status: `open`"));
+    assert!(review_status(&repo).unwrap().contains("Open findings: 0"));
+}
+
+#[test]
 fn close_finding_recovers_when_vault_closed_before_repo_projection() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("app");
@@ -155,11 +188,21 @@ fn review_status_rejects_corrupt_finding_status() {
 #[test]
 fn review_status_rejects_missing_unknown_and_duplicate_status_lines() {
     for (name, content) in [
-        ("missing.md", "# Finding\n"),
-        ("unknown.md", "# Finding\n- Status: `pending`\n"),
+        (
+            "missing.md",
+            "# Finding\n\n## Summary\n\nA finding without a status.\n",
+        ),
+        (
+            "unknown.md",
+            "# Finding\n- Status: `pending`\n\n## Summary\n\nUnknown status.\n",
+        ),
+        (
+            "missing-summary.md",
+            "# Finding\n- Status: `open`\n",
+        ),
         (
             "duplicate.md",
-            "# Finding\n- Status: `open`\n- Status: `closed`\n",
+            "# Finding\n- Status: `open`\n- Status: `closed`\n\n## Summary\n\nDuplicate header status.\n",
         ),
     ] {
         let temp = tempdir().unwrap();
@@ -168,10 +211,9 @@ fn review_status_rejects_missing_unknown_and_duplicate_status_lines() {
         write_review_entry(&repo, name, content.as_bytes());
 
         let error = review_status(&repo).unwrap_err().to_string();
-        assert!(
-            error.contains("status"),
-            "{name} produced an unclear error: {error}"
-        );
+        let error = error.to_lowercase();
+        assert!(error.contains("status") || error.contains("summary"),
+            "{name} produced an unclear error: {error}");
     }
 }
 

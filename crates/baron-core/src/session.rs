@@ -126,6 +126,7 @@ where
             repo_root.display()
         )
     })?;
+    let repo_workspace_root = effective_git_workspace_root(&repo_root)?;
     let mut sources = discover_sources(&roots);
     sources.sort_by_key(|source| Reverse(source.modified));
     let roots_checked = roots.len();
@@ -195,7 +196,7 @@ where
         let mut active_repo_segment = false;
         let mut matching_records = Vec::new();
         for record in &records {
-            if value_matches_repo(record, &repo_root) {
+            if value_matches_repo(record, &repo_root, repo_workspace_root.as_deref())? {
                 active_repo_segment = true;
                 matching_records.push(record.clone());
             } else if is_session_context_record(record) {
@@ -436,9 +437,13 @@ fn parse_records(content: &str) -> (Vec<Value>, usize) {
     (records, invalid)
 }
 
-fn value_matches_repo(value: &Value, repo_root: &Path) -> bool {
+fn value_matches_repo(
+    value: &Value,
+    repo_root: &Path,
+    repo_workspace_root: Option<&Path>,
+) -> Result<bool> {
     if !is_session_context_record(value) {
-        return false;
+        return Ok(false);
     }
 
     let record_type = value
@@ -461,11 +466,15 @@ fn value_matches_repo(value: &Value, repo_root: &Path) -> bool {
         }
     }
 
-    !malformed
-        && !paths.is_empty()
-        && paths
-            .into_iter()
-            .all(|path| path_matches_repo(path, repo_root))
+    if malformed || paths.is_empty() {
+        return Ok(false);
+    }
+    for path in paths {
+        if !path_matches_repo(path, repo_root, repo_workspace_root)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn is_session_context_record(value: &Value) -> bool {
@@ -516,15 +525,88 @@ fn collect_project_path_field<'a>(
     }
 }
 
-fn path_matches_repo(value: &str, repo_root: &Path) -> bool {
+fn path_matches_repo(
+    value: &str,
+    repo_root: &Path,
+    repo_workspace_root: Option<&Path>,
+) -> Result<bool> {
     let candidate = Path::new(value);
     if !candidate.is_absolute() {
-        return false;
+        return Ok(false);
     }
-    candidate
-        .canonicalize()
-        .ok()
-        .is_some_and(|candidate| candidate == repo_root || candidate.starts_with(repo_root))
+    let candidate = candidate.canonicalize().with_context(|| {
+        format!("Could not resolve session cwd and establish workspace ownership: {value}")
+    })?;
+    if candidate != repo_root && !candidate.starts_with(repo_root) {
+        return Ok(false);
+    }
+    let candidate_workspace_root = effective_git_workspace_root(&candidate)?;
+    Ok(
+        match (repo_workspace_root, candidate_workspace_root.as_deref()) {
+            (Some(repo), Some(candidate)) => candidate == repo,
+            (None, None) => true,
+            _ => false,
+        },
+    )
+}
+
+fn effective_git_workspace_root(path: &Path) -> Result<Option<PathBuf>> {
+    let mut current = Some(path);
+    while let Some(directory) = current {
+        let marker = directory.join(".git");
+        match fs::symlink_metadata(&marker) {
+            Ok(metadata) if metadata.file_type().is_dir() => {
+                return Ok(Some(directory.to_path_buf()));
+            }
+            Ok(metadata) if metadata.file_type().is_file() => {
+                let content = fs::read_to_string(&marker).with_context(|| {
+                    format!("Could not read Git workspace marker: {}", marker.display())
+                })?;
+                let git_dir = content
+                    .trim()
+                    .strip_prefix("gitdir:")
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .with_context(|| {
+                        format!("Git workspace marker is malformed: {}", marker.display())
+                    })?;
+                let git_dir = Path::new(git_dir);
+                let git_dir = if git_dir.is_absolute() {
+                    git_dir.to_path_buf()
+                } else {
+                    directory.join(git_dir)
+                };
+                let git_dir = git_dir.canonicalize().with_context(|| {
+                    format!(
+                        "Could not resolve Git worktree metadata: {}",
+                        marker.display()
+                    )
+                })?;
+                if !git_dir.is_dir() {
+                    bail!(
+                        "Git worktree metadata is not a directory: {}",
+                        marker.display()
+                    );
+                }
+                return Ok(Some(directory.to_path_buf()));
+            }
+            Ok(_) => bail!(
+                "Git workspace marker is not a regular file or directory: {}",
+                marker.display()
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "Could not inspect Git workspace marker: {}",
+                        marker.display()
+                    )
+                });
+            }
+        }
+        current = directory.parent();
+    }
+    Ok(None)
 }
 
 fn extract_messages(records: &[Value]) -> Vec<(String, String)> {
@@ -817,6 +899,7 @@ fn now() -> String {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::process::Command;
     use std::sync::{Arc, Barrier};
     use std::thread;
 
@@ -841,6 +924,238 @@ mod tests {
             let _ = path;
             true
         }
+    }
+
+    fn init_git_repository(path: &std::path::Path) {
+        let output = Command::new("git")
+            .args(["init", "--quiet"])
+            .arg(path)
+            .output()
+            .expect("git must be available for repository ownership regressions");
+        assert!(
+            output.status.success(),
+            "git init failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn write_session(root: &std::path::Path, name: &str, cwd: &std::path::Path, message: &str) {
+        let cwd = cwd.canonicalize().unwrap().to_string_lossy().to_string();
+        fs::write(
+            root.join(name),
+            format!(
+                "{}\n{}\n",
+                serde_json::json!({"type":"session_meta","payload":{"cwd":cwd}}),
+                serde_json::json!({"type":"response_item","payload":{"role":"user","content":message}})
+            ),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn session_import_rejects_nested_git_repository_but_accepts_plain_subdirectory() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("parent");
+        let nested_repo = repo.join("other-service");
+        let plain_subdirectory = repo.join("packages/library");
+        let vault = temp.path().join("Vault");
+        let sessions = temp.path().join("sessions");
+        fs::create_dir_all(&nested_repo).unwrap();
+        fs::create_dir_all(&plain_subdirectory).unwrap();
+        fs::create_dir_all(&sessions).unwrap();
+        init_git_repository(&repo);
+        init_git_repository(&nested_repo);
+        let context = ensure_vault(&vault, &repo).unwrap();
+        write_session(
+            &sessions,
+            "nested.jsonl",
+            &nested_repo,
+            "Nested project secret must not enter the parent Vault",
+        );
+        write_session(
+            &sessions,
+            "plain-subdirectory.jsonl",
+            &plain_subdirectory,
+            "Parent project decision from a normal subdirectory",
+        );
+
+        let report = import_sessions_from_roots(
+            &repo,
+            &context,
+            20,
+            vec![(sessions, "codex")],
+            || {},
+            |_| Ok(()),
+        )
+        .unwrap();
+
+        assert_eq!(report.imported, 1);
+        let imported_dir = context.project_root.join("Sessions/Imported");
+        let imported = fs::read_dir(imported_dir)
+            .unwrap()
+            .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect::<Vec<_>>();
+        assert!(imported
+            .iter()
+            .any(|note| { note.contains("Parent project decision from a normal subdirectory") }));
+        assert!(!imported.iter().any(|note| {
+            note.contains("Nested project secret must not enter the parent Vault")
+        }));
+    }
+
+    #[test]
+    fn session_import_rejects_linked_git_worktree_context() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("parent");
+        let linked_worktree = repo.join("linked-service");
+        let vault = temp.path().join("Vault");
+        let sessions = temp.path().join("sessions");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&sessions).unwrap();
+        init_git_repository(&repo);
+        for (key, value) in [
+            ("user.name", "Baron Test"),
+            ("user.email", "baron-test@example.invalid"),
+        ] {
+            let output = Command::new("git")
+                .arg("-C")
+                .arg(&repo)
+                .args(["config", key, value])
+                .output()
+                .unwrap();
+            assert!(output.status.success());
+        }
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["commit", "--quiet", "--allow-empty", "-m", "seed"])
+            .env("GIT_AUTHOR_NAME", "Baron Test")
+            .env("GIT_AUTHOR_EMAIL", "baron-test@example.invalid")
+            .env("GIT_COMMITTER_NAME", "Baron Test")
+            .env("GIT_COMMITTER_EMAIL", "baron-test@example.invalid")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git commit failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["worktree", "add", "--quiet", "--detach"])
+            .arg(&linked_worktree)
+            .arg("HEAD")
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            eprintln!(
+                "Skipping nested linked-worktree import assertion because this Git environment does not support creating it: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        assert!(linked_worktree.join(".git").is_file());
+        let context = ensure_vault(&vault, &repo).unwrap();
+        write_session(
+            &sessions,
+            "linked-worktree.jsonl",
+            &linked_worktree,
+            "Linked worktree session must not enter the parent Vault",
+        );
+
+        let report = import_sessions_from_roots(
+            &repo,
+            &context,
+            20,
+            vec![(sessions, "codex")],
+            || {},
+            |_| Ok(()),
+        )
+        .unwrap();
+
+        assert_eq!(report.imported, 0);
+        assert!(!context.project_root.join("Sessions/Imported").exists());
+    }
+
+    #[test]
+    fn session_import_rejects_symlink_escape_from_project_root() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("parent");
+        let outside = temp.path().join("outside");
+        let escape = repo.join("escape");
+        let vault = temp.path().join("Vault");
+        let sessions = temp.path().join("sessions");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::create_dir_all(&sessions).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside, &escape).unwrap();
+        #[cfg(windows)]
+        if let Err(error) = std::os::windows::fs::symlink_dir(&outside, &escape) {
+            eprintln!("Skipping symlink escape assertion because Windows denied symlink creation: {error}");
+            return;
+        }
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let cwd = escape.to_string_lossy().to_string();
+        fs::write(
+            sessions.join("escape.jsonl"),
+            format!(
+                "{}\n{}\n",
+                serde_json::json!({"type":"session_meta","payload":{"cwd":cwd}}),
+                serde_json::json!({"type":"response_item","payload":{"role":"user","content":"Symlink escape must not be imported"}})
+            ),
+        )
+        .unwrap();
+
+        let report = import_sessions_from_roots(
+            &repo,
+            &context,
+            20,
+            vec![(sessions, "codex")],
+            || {},
+            |_| Ok(()),
+        )
+        .unwrap();
+
+        assert_eq!(report.imported, 0);
+        assert!(!context.project_root.join("Sessions/Imported").exists());
+    }
+
+    #[test]
+    fn session_import_reports_unresolvable_context_ownership() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("parent");
+        let missing_cwd = repo.join("removed-checkout");
+        let vault = temp.path().join("Vault");
+        let sessions = temp.path().join("sessions");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&sessions).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let cwd = missing_cwd.to_string_lossy().to_string();
+        fs::write(
+            sessions.join("missing-cwd.jsonl"),
+            format!(
+                "{}\n{}\n",
+                serde_json::json!({"type":"session_meta","payload":{"cwd":cwd}}),
+                serde_json::json!({"type":"response_item","payload":{"role":"user","content":"Unresolved cwd must not be imported"}})
+            ),
+        )
+        .unwrap();
+
+        let error = import_sessions_from_roots(
+            &repo,
+            &context,
+            20,
+            vec![(sessions, "codex")],
+            || {},
+            |_| Ok(()),
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("Could not resolve session cwd"));
+        assert!(!context.project_root.join("Sessions/Imported").exists());
     }
 
     #[test]

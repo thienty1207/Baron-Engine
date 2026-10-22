@@ -214,11 +214,18 @@ fn finding_status_field(content: &str, path: &Path) -> Result<(FindingStatus, Ra
         let canonical = line_content.strip_suffix('\r').unwrap_or(line_content);
         if canonical == "## Summary" && summary_start.is_none() {
             summary_start = Some(offset);
+            break;
         }
         if canonical.trim().starts_with("- Status:") {
             statuses.push((offset, canonical.to_string()));
         }
         offset += line.len();
+    }
+    if summary_start.is_none() {
+        bail!(
+            "Review finding Summary section is missing: {}",
+            path.display()
+        );
     }
     if statuses.len() != 1 {
         bail!(
