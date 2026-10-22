@@ -1,11 +1,10 @@
 # PR #2 Review Follow-up — Verification Ledger
 
-**Date:** 2026-10-22  
-**Reviewed HEAD:** `21eaa03b314d479d6524dba34d0c6bc34be8368a`  
-**Branch:** `codex/spec-05-maintenance-01-logic-integrity`  
-**Worktree:** `C:/Users/tytyb/.codex/worktrees/spec-05-maintenance-01-logic-integrity/Baron-Engine`
-**Source commits:** `61d111dff35a5586a490d496868309ca68557097`,
-`195bdf7a1ffae166e67e9fdb5436098598678da1`
+- **Date:** 2026-10-22
+- **Reviewed HEAD:** `21eaa03b314d479d6524dba34d0c6bc34be8368a`
+- **Branch:** `codex/spec-05-maintenance-01-logic-integrity`
+- **Worktree:** `C:/Users/tytyb/.codex/worktrees/spec-05-maintenance-01-logic-integrity/Baron-Engine`
+- **Source commits:** `61d111dff35a5586a490d496868309ca68557097`, `195bdf7a1ffae166e67e9fdb5436098598678da1`
 
 ## Review classification
 

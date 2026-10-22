@@ -1,9 +1,9 @@
 # PR #2 Review Follow-up — Implementation Plan
 
-**Date:** 2026-10-22  
-**Review head:** `21eaa03b314d479d6524dba34d0c6bc34be8368a`  
-**Branch:** `codex/spec-05-maintenance-01-logic-integrity`  
-**PR:** https://github.com/thienty1207/Baron-Engine/pull/2
+- **Date:** 2026-10-22
+- **Review head:** `21eaa03b314d479d6524dba34d0c6bc34be8368a`
+- **Branch:** `codex/spec-05-maintenance-01-logic-integrity`
+- **PR:** https://github.com/thienty1207/Baron-Engine/pull/2
 
 ## Scope
 
