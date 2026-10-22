@@ -1456,7 +1456,17 @@ fn replace_score(content: &str, score: &TraceScore) -> String {
     match (content.find(SCORE_START), content.find(SCORE_END)) {
         (Some(start), Some(end)) if end >= start => {
             let end = end + SCORE_END.len();
-            format!("{}{}{}", &content[..start], block, &content[end..])
+            let suffix = &content[end..];
+            let suffix = suffix
+                .strip_prefix("\r\n")
+                .or_else(|| suffix.strip_prefix('\n'))
+                .unwrap_or(suffix);
+            format!(
+                "{}{}\n{}",
+                &content[..start],
+                block.trim_end_matches('\n'),
+                suffix
+            )
         }
         _ => format!("{}\n\n{}", content.trim_end(), block),
     }
@@ -1802,6 +1812,29 @@ mod tests {
         assert!(vault_index_after
             .lines()
             .any(|line| line == vault_unrelated_row));
+    }
+
+    #[test]
+    fn repeated_trace_scoring_is_byte_idempotent() {
+        let (_temp, repo, vault, selected) = trace_score_fixture();
+        score_trace(&repo, &vault, Some(&selected.id)).unwrap();
+        let first_repo_trace = fs::read(&selected.repo_path).unwrap();
+        let first_vault_trace = fs::read(&selected.vault_path).unwrap();
+        let first_repo_index = fs::read(repo.join("docs/baron/traces/INDEX.md")).unwrap();
+        let first_vault_index = fs::read(vault.project_root.join("Traces/INDEX.md")).unwrap();
+
+        score_trace(&repo, &vault, Some(&selected.id)).unwrap();
+
+        assert_eq!(fs::read(&selected.repo_path).unwrap(), first_repo_trace);
+        assert_eq!(fs::read(&selected.vault_path).unwrap(), first_vault_trace);
+        assert_eq!(
+            fs::read(repo.join("docs/baron/traces/INDEX.md")).unwrap(),
+            first_repo_index
+        );
+        assert_eq!(
+            fs::read(vault.project_root.join("Traces/INDEX.md")).unwrap(),
+            first_vault_index
+        );
     }
 
     #[test]
