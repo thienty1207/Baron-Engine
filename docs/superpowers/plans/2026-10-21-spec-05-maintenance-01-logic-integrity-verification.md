@@ -1,6 +1,6 @@
 # Baron Maintenance 01 — implementation verification
 
-**State:** Source/evidence push complete; status-document checkpoint pending push; hosted CI and independent review pending
+**State:** Source/evidence and status-document updates pushed to PR #2; latest-head CI and independent review pending
 **Date:** 2026-10-22
 **Baseline:** main and origin/main at 9038afa9f840e3a62acc0f97c6aaa31849247525
 **Branch:** codex/spec-05-maintenance-01-logic-integrity
@@ -171,9 +171,8 @@ approval: no. Merged main SHA: none.
 
 **Earlier verdict:** REVIEW_ACCEPTED for the prior range above. It does not
 cover the R01-R03 follow-up.
-**Next action:** push this status-document checkpoint to PR #2, verify hosted
-checks on that exact head, and await independent review of R01-R03. Stop before
-merge.
+**Next action:** verify hosted checks on the latest PR #2 head and await
+independent review of R01-R03. Stop before merge.
 
 ## PR #2 independent-review follow-up — 2026-10-22
 
@@ -213,10 +212,11 @@ that cleanup, the exact case-sensitive session test was rerun; formatting,
 warnings-denied Clippy, and the locked release build also passed on the cleaned
 source.
 
-Source/evidence head `b9cbbecb0ede08516590ff0d784693936e5cb79d` was pushed to
-PR #2 and its Baron CI run `39703882406` was queued. The status-document update
-in this checkpoint must be pushed separately and checked on its exact final
-head. The workspace all-target run included Core (91 unit tests), `proof_trace`
+Source/evidence head `b9cbbecb0ede08516590ff0d784693936e5cb79d` and subsequent
+status-document head `7ceb9a3352660d38bb4d15784d5a2068bcb2e40d` were pushed to
+PR #2. Baron CI run `39704008984` was queued for the latter; the final
+status-document checkpoint still requires exact-head verification. The
+workspace all-target run included Core (91 unit tests), `proof_trace`
 (39), `review_gate` (11), `session` (6), and every remaining workspace target;
 each completed target reported zero failures. The R03 public interruption test
 ran on Windows. These are local checks. Exact-head GitHub Actions results and

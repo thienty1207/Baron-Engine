@@ -123,4 +123,5 @@
 - [x] Run full workspace all-target tests, formatting, warnings-denied Clippy, locked release build, CLI version smoke, and the focused session case-sensitivity test. All local gates passed; see the follow-up evidence ledger.
 - [x] Re-parse status JSON; check all 26 repository-relative links in the five changed Markdown files; run CLI help and tracked retired-adapter content/filename gates; run `git diff --check`.
 - [x] Push source and evidence head `b9cbbecb0ede08516590ff0d784693936e5cb79d` to existing PR #2; Baron CI run 39703882406 was queued.
-- [ ] Push this status-document checkpoint, verify hosted checks on the final exact head, and await independent review of R01-R03. Stop before merge pending owner approval.
+- [x] Push the status-document checkpoint to existing PR #2.
+- [ ] Verify hosted checks on the latest exact PR head and await independent review of R01-R03. Stop before merge pending owner approval.
