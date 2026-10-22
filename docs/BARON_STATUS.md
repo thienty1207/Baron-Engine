@@ -1,13 +1,11 @@
 # Baron Build Status
 
-## SPEC-05 Maintenance 01 — logic integrity hardening (REVIEW ACCEPTED — PR PENDING — 2026-10-21)
+## SPEC-05 Maintenance 01 — PR #2 review fixes (LOCAL VERIFIED — PUSH PENDING — 2026-10-22)
 
 - Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
   based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`.
-- Current source snapshot:
-  `c502fa7e21ffd79e429856d66a483760593b7a23`, following the two fixes
-  requested by the initial independent review.
+- PR #2 follow-up source commit: `8ea372bfc5e7ecef961fb9eefce92e2219445d1b`.
 - LOG-01..LOG-06 have RED/GREEN regressions; G-01 is closed as a test gap.
   Expanded sibling review found and fixed three additional bug groups across
   four call sites:
@@ -15,19 +13,28 @@
   current intent during Autopilot approval, and untrusted Harness CURRENT
   risk. The initial independent review also found an import-note retry window
   that could erase user edits; retry now preserves identity-matched note bytes.
-- Local verification passed: fmt, Core/CLI/adapter/workspace all-target tests,
-  warnings-denied Clippy, locked release build, and release CLI version
-  (`baron 5.0.0`). The whole-tree sweep was lexical plus targeted semantic
-  tracing, not a line-by-line review of every raw match. Remaining
-  diagnostic-only and contract-limited cases are recorded in the verification
-  ledger.
-- Initial independent review returned FIX REQUIRED with two Important
-  findings; both fixes and RED/GREEN regressions are recorded. Updated
-  independent review ACCEPTED the complete range
-  `9038afa9..3005f5f67a352d62bf60aa1ddb166eead90b5222` with no Critical or
-  Important findings. The reviewer confirmed the final status documentation,
-  parsed status JSON, and clean diff; the review was read-only and did not run
-  tests. Local test evidence is recorded separately in the verification ledger.
+- PR #2 review findings R01/R02/R03 are confirmed bugs and fixed with RED/GREEN
+  regressions. R01 now binds session imports only through trusted context
+  metadata, preserves canonical path case, and migrates only uniquely matched
+  legacy state keys. R02 parses the single authoritative header status and
+  retains interrupted Vault-to-checkout closure repair. R03 journals the full
+  four-file trace-score publication and completes it idempotently on retry;
+  Windows lock injection reproduced the interrupted mirror and retry failure
+  before the fix.
+- Local verification passed on Windows: `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --no-fail-fast -j 1`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo build --workspace --locked --release`, and
+  `target/release/baron.exe --version` (`baron 5.0.0`). The final test-helper
+  adjustment was limited to the case-sensitive test helper: that exact
+  regression, formatting, Clippy, and release build passed afterward. The full
+  workspace suite had passed before that helper-only cleanup.
+- The earlier independent review accepted the prior source range; it did not
+  review this follow-up commit. PR #2 needs a fresh review of the updated head.
+  Hosted checks for the final pushed head are pending.
+- The whole-tree sweep was lexical plus targeted semantic tracing, not a
+  line-by-line review of every raw match. Remaining diagnostic-only and
+  contract-limited cases are recorded in the verification ledger.
 - Test fixtures used temporary project, Vault, session-root, and BARON_HOME
   data. The user's primary checkout, untracked inputs, original project/Vault,
   and machine state remained outside the mutation boundary. No project
@@ -35,9 +42,9 @@
 - Persisted-state boundary: isolated worktree only; the user's primary
   checkout, untracked inputs, original project/Vault, and machine state remain
   outside the mutation boundary.
-- Safe next action: push the reviewed branch, open a scoped PR, and verify
-  hosted CI on its exact head. Stop before merge pending the repository owner's
-  explicit approval.
+- Safe next action: push the tested follow-up commit to existing PR #2, then
+  verify hosted checks on that exact head. Stop before merge pending the
+  repository owner's explicit approval.
 
 Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification ledger: [Maintenance 01 verification](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 

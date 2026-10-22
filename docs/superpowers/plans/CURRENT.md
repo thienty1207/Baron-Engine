@@ -1,52 +1,41 @@
 # Current Baron Build Plan
 
-## Current maintenance — SPEC-05 Maintenance 01 logic integrity (REVIEW ACCEPTED — PR PENDING — 2026-10-21)
+## Current maintenance — SPEC-05 Maintenance 01 PR #2 review fixes (LOCAL VERIFIED — PUSH PENDING — 2026-10-22)
 
 - Baseline: `main` / `origin/main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`; isolated worktree.
-- Scope: reproduce/fix LOG-01..LOG-06, close the G-01 post-CURRENT recovery
-  coverage gap, and classify sibling production callers from the user-provided
-  Maintenance 01 spec and audit.
-- Checkpoint: LOG-01 is fixed with typed default-fail-closed CLI projection.
-  LOG-02 is fixed with six RED/GREEN invalid-UTF-8 regressions across plan,
-  trace, architecture, platform, and sibling harness writers. LOG-03 also
-  passes an unreadable-source/cache-preservation regression, while intentional
-  source-deletion tombstones remain green. LOG-04 rejects malformed import
-  state and fixes a deterministic concurrent lost update (1/2 RED to 2/2
-  union plus idempotent retries). LOG-05 rejects malformed and unreadable
-  findings and projects unavailable status (review gate 9/9, context 2/2).
-  LOG-06 uses locked length snapshots and bounded strict streaming for both
-  automation status and Autopilot (automation 14/14, Autopilot 6/6, scanner
-  unit 4/4, phase12_hooks 16/16). G-01 is closed as a coverage gap: the
-  after-CURRENT crash/recovery test passes across two subprocess retries; plan
-  unit tests are 5/5 and integration tests are 67/67. Sibling tracing found and
-  fixed three additional bug groups across four call sites: harness audit and continuity packet
-  readers now reject corrupt journals through the bounded scanner; unreadable
-  CURRENT_INTENT blocks Autopilot approval; unreadable or malformed Harness
-  CURRENT cannot lower a high-risk trace. Initial independent review also
-  exposed the LOG-04 interruption window where retry could overwrite an edited
-  imported note; create-only publication now preserves identity-matched notes.
-- Verification: separate Core (CORE_EXIT_CODE=0), CLI (CLI_EXIT_CODE=0),
-  adapter (ADAPTERS_EXIT_CODE=0), and workspace (WORKSPACE_EXIT_CODE=0)
-  all-target runs passed. cargo fmt --all -- --check, warnings-denied workspace
-  Clippy, and cargo build --workspace --release --locked passed; the release
-  binary printed baron 5.0.0. Tests used temporary BARON_HOME/session roots and
-  bundled PowerShell 7.
-- Source snapshot after implementation fixes:
-  `c502fa7e21ffd79e429856d66a483760593b7a23`. The sibling audit combined a
-  lexical sweep of Core/CLI/adapter production sources with targeted semantic
-  tracing; it was not a line-by-line manual review of every match. Remaining
-  diagnostic-only/contract-limited observations are in the verification
-  ledger.
-- Proof and trace: RED/GREEN test evidence is recorded. No project-scoped
-  Baron proof or trace was created for the user's unrecovered identity.
-- Independent review: ACCEPT on the complete range
-  `9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`;
-  no Critical or Important findings. Review was read-only and did not run tests.
+- Scope completed: Maintenance 01 LOG-01..LOG-06, G-01 recovery coverage, and
+  the sibling audit are recorded in the implementation plan and evidence
+  ledger. This checkpoint addresses the new R01/R02/R03 findings in the
+  independent PR #2 review.
+- R01: session imports use exact context metadata fields, canonical path
+  identity with case preserved, and safe migration of a unique legacy folded
+  state key. RED/GREEN tests cover message-text false binding, case-distinct
+  sources, and an edited note during state-key migration.
+- R02: closure reads one valid `Status` field in the finding header before
+  `## Summary`, then replaces only that field. Interrupted closure publication
+  with the Vault closed and repository open remains repairable. RED/GREEN tests
+  cover summary spoofing and the interrupted projection.
+- R03: a bounded pending journal stores prior and target bytes for both trace
+  mirrors and both indexes. Recovery validates all targets before completing
+  missing writes, preserves unrelated rows, and runs before mirror preflight.
+  A private writer failpoint and a Windows file-lock injection reproduce the
+  interrupted publication; retry recovery passes.
+- Source commit: `8ea372bfc5e7ecef961fb9eefce92e2219445d1b`. Local checks passed:
+  fmt, all workspace all-target tests, warnings-denied Clippy, locked release
+  build, release CLI `baron 5.0.0`, and the exact case-sensitive session test
+  after the final helper cleanup. The workspace suite ran before the
+  test-helper-only lint cleanup; the affected test, fmt, Clippy, and release
+  build passed after it. Fixtures use temporary BARON_HOME and session roots.
+- The earlier ACCEPT review predates this source commit. The updated PR #2
+  head still needs hosted CI and independent review; push is pending. The
+  production-tree sweep remains lexical plus targeted semantic tracing, not a
+  line-by-line review of every match. No project-scoped Baron proof or trace
+  was created for the user's unrecovered identity.
 - Persisted-state boundary: use temp repositories, Vaults, session roots, and
   BARON_HOME only. Preserve the user's original checkout and machine state.
-- Safe next action: push the reviewed branch, open a scoped PR, and verify
-  hosted CI on its exact head; stop before merge pending owner approval.
+- Safe next action: push the tested follow-up commit to PR #2 and verify hosted
+  checks on that exact head; stop before merge pending owner approval.
 
 Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification: [evidence ledger](2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 

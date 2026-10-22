@@ -110,4 +110,16 @@
 - [x] Run fmt; separate Core, CLI, adapter, and workspace tests; Clippy with warnings denied; locked release build; `baron 5.0.0` smoke; status JSON, relative links, diff, and scope checks. No retired-adapter identifier is specified by this maintenance scope. All tests used temporary BARON_HOME/session roots.
 - [x] Address the initial read-only review's two Important findings: malformed-readable Harness CURRENT risk and LOG-04 note/state interruption retry overwriting user edits. Both source fixes have RED/GREEN regressions and current workspace, Clippy, and release gates pass; see the updated evidence ledger.
 - [x] Obtain updated independent read-only review of the complete `9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222` range; reviewer ACCEPTED with no Critical or Important findings and did not run tests.
-- [ ] Push the reviewed branch, open a scoped PR, and verify hosted checks on the exact PR head. Stop before merge.
+- [x] Push the reviewed branch and open scoped PR #2. A later review found three new issues; their follow-up work and remaining push/CI gate are recorded below. Stop before merge.
+
+## PR #2 independent-review follow-up — 2026-10-22
+
+**Source commit:** `8ea372bfc5e7ecef961fb9eefce92e2219445d1b`.
+**Review input:** `docs/specs/BARON-PR2-INDEPENDENT-REVIEW-2026-10-22.md` in the primary checkout; preserved there as user-provided input.
+
+- [x] R01 RED: exact repo-path message text caused an unrelated session to be imported. Fix: bind only exact trusted context metadata fields; canonicalize filesystem paths and retain case; migrate a legacy lowercased state key only when the current source, content hash, and destination note identity uniquely match. Add RED/GREEN tests for message spoofing, case-distinct Windows paths, and preservation of edited notes during migration.
+- [x] R02 RED: a closed-status marker in Summary returned closure success while the header remained open. Fix: require one exact status field in the header before Summary, replace only that field, and retain recovery when Vault closure published before the repository projection. Add summary-spoof and interrupted-projection tests.
+- [x] R03 RED: Windows file-lock injection failed between repository and Vault trace writes; retry then failed on divergent mirrors. Fix: persist a bounded transaction journal with prior/target bytes for both trace mirrors and indexes; validate all targets before recovery writes; recover before mirror preflight; fail closed on third-party changes and preserve unrelated rows. Add a deterministic writer failpoint and public API interruption/retry regression.
+- [x] Run full workspace all-target tests, formatting, warnings-denied Clippy, locked release build, CLI version smoke, and the focused session case-sensitivity test. All local gates passed; see the follow-up evidence ledger.
+- [x] Re-parse status JSON; check all 26 repository-relative links in the five changed Markdown files; run CLI help and tracked retired-adapter content/filename gates; run `git diff --check`.
+- [ ] Push the tested follow-up and status evidence to PR #2, verify hosted checks on the final exact head, and request independent review of R01-R03. Stop before merge pending owner approval.

@@ -1,11 +1,11 @@
 # Baron Maintenance 01 — implementation verification
 
-**State:** REVIEW_ACCEPTED; PR and exact-head hosted CI pending
-**Date:** 2026-10-21
+**State:** PR #2 review fixes locally verified; updated head push, hosted CI, and independent review pending
+**Date:** 2026-10-22
 **Baseline:** main and origin/main at 9038afa9f840e3a62acc0f97c6aaa31849247525
 **Branch:** codex/spec-05-maintenance-01-logic-integrity
 **Worktree:** C:/Users/tytyb/.codex/worktrees/spec-05-maintenance-01-logic-integrity/Baron-Engine
-**Source snapshot after code fixes:** c502fa7e21ffd79e429856d66a483760593b7a23
+**Source snapshot after PR #2 review fixes:** 8ea372bfc5e7ecef961fb9eefce92e2219445d1b
 **Version:** 5.0.0
 
 This maintenance is separate from the historical SPEC-05 closure. The source
@@ -125,8 +125,9 @@ These are local checks, not GitHub Actions results. After the status
 documentation commit, `docs/BARON_STATUS.json` parsed successfully, all 26
 repository-relative Markdown links checked had valid targets, and
 `git diff --check` passed. The documentation delta contains only the six
-status/evidence files; no source changed. No PR exists yet, so exact-head hosted
-CI is not available.
+status/evidence files; no source changed at that historical checkpoint. At
+that time the PR had not yet been created. Current PR #2 and the later R01-R03
+follow-up are recorded at the end of this ledger.
 
 ## Source history and handoff
 
@@ -159,14 +160,63 @@ recovery identity was created or modified. The primary checkout and its
 untracked user-provided inputs were preserved.
 
 Initial independent review: FIX REQUIRED; two Important findings fixed.
-Updated independent review: ACCEPT for the complete source/evidence range
+Updated independent review: ACCEPT for the complete prior source/evidence
+range
 `9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`;
 no Critical or Important findings. The reviewer made no edits and did not run
-tests. Follow-up review of the docs-only `b6f09de` commit found only the stale
-statements corrected above; the source snapshot and test evidence did not
-change. PR URL/state: not created. Hosted PR checks: unavailable until a PR
-exists. Merge approval: no. Merged main SHA: none.
+tests. Follow-up review of the docs-only `b6f09de` commit found only stale
+statements; that review predates the PR #2 R01-R03 follow-up recorded below.
+PR #2 URL: https://github.com/thienty1207/Baron-Engine/pull/2. Merge
+approval: no. Merged main SHA: none.
 
-**Verdict:** REVIEW_ACCEPTED; PR PENDING
-**Next action:** push the reviewed branch, open a scoped PR, and check its
-exact-head hosted CI. Stop before merge.
+**Earlier verdict:** REVIEW_ACCEPTED for the prior range above. It does not
+cover the R01-R03 follow-up.
+**Next action:** push the follow-up and status evidence to PR #2, verify hosted
+checks on the final exact head, and request independent review of R01-R03. Stop
+before merge.
+
+## PR #2 independent-review follow-up — 2026-10-22
+
+The user's review file is
+`docs/specs/BARON-PR2-INDEPENDENT-REVIEW-2026-10-22.md` in the primary checkout
+and remains untracked there. It described R01/R02 as confirmed bugs requiring
+regression evidence and R03 as a likely failure path that needed deterministic
+interruption before being classified. All three were reproduced in the
+isolated worktree, fixed, and covered by tests.
+
+| Finding | Classification | RED evidence | Fix and GREEN evidence |
+|---|---|---|---|
+| R01 — session source binding and path identity | CONFIRMED BUG | A user message exactly equal to the repository path caused the unrelated session to be imported; the regression expected one import and observed two. Case-folded source keys also merged distinct directories under an NTFS case-sensitive parent. | Import binding now reads explicit cwd/repo metadata in recognized context records and absolute project paths only; message text and project labels cannot bind a repo. Source identity uses canonical case-preserving paths. A legacy folded key migrates only when the single current source, content hash, and destination note identity match. RED/GREEN tests cover spoofing, case-distinct paths, edited-note preservation, and migration. |
+| R02 — review finding closure status | CONFIRMED BUG | A closed-status line in Summary made the old substring check return success while the authoritative header remained open. | Status parsing requires exactly one exact open/closed header field before `## Summary`, and closure updates replace only that field. A regression also verifies retry repairs a Vault-closed/repository-open interruption without replacing original closure evidence. |
+| R03 — trace score multi-file recovery | CONFIRMED BUG | A public Windows test held the Vault trace mirror with a sharing mode that allowed preflight read but denied replacement. The first call failed after the repository trace write; before the fix, retry failed because the mirrors diverged. | A bounded project/Vault-bound journal stores previous and target bytes for both trace mirrors and both indexes. Recovery validates all targets before writing, completes missing publications idempotently, and runs before mirror preflight. Private writer-failure injection and public Windows interruption/retry tests pass, clear the journal, preserve unrelated trace/index content, and refuse to overwrite changed targets. |
+
+### Follow-up verification
+
+Source/test commit: `8ea372bfc5e7ecef961fb9eefce92e2219445d1b`.
+
+| Command | Result |
+|---|---|
+| `cargo fmt --all -- --check` | PASS |
+| `cargo test --workspace --all-targets --no-fail-fast -j 1` | PASS, exit 0; no failed tests. Historical ignored tests remained ignored. Temporary BARON_HOME and Codex/Claude session roots were used. |
+| `cargo clippy --workspace --all-targets -- -D warnings` | PASS |
+| `cargo build --workspace --locked --release` | PASS |
+| `target/release/baron.exe --version` | PASS, `baron 5.0.0` |
+| `cargo test -p baron-core --lib session::tests::case_distinct_session_sources_keep_separate_import_state_keys -- --exact` | PASS, 1/1 after final test-helper cleanup |
+| `git diff --check` | PASS after source, tests, and status documentation updates |
+| `docs/BARON_STATUS.json` parsing | PASS |
+| Repository-relative links in the five changed Markdown files | PASS, 26 checked and none broken |
+| `target/release/baron.exe --help` | PASS; normal user commands and adapter-specific shortcuts display |
+| Tracked retired-adapter content and filename searches | PASS, zero references or filenames |
+
+The workspace suite ran before the final test-helper-only lint cleanup. After
+that cleanup, the exact case-sensitive session test was rerun; formatting,
+warnings-denied Clippy, and the locked release build also passed on the cleaned
+source.
+
+The workspace all-target run included Core (91 unit tests), `proof_trace`
+(39), `review_gate` (11), `session` (6), and every remaining workspace target;
+each completed target reported zero failures. The R03 public interruption test
+ran on Windows. These are local checks. The follow-up branch update had not
+yet been pushed at this checkpoint, so exact-head GitHub Actions results and
+independent review of the updated PR head remain pending. No release, version
+bump, tag, merge, or project/Vault mutation was performed.

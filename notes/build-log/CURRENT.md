@@ -1,39 +1,41 @@
 # Current Build Note
 
-## SPEC-05 Maintenance 01 logic integrity — 2026-10-21 (REVIEW ACCEPTED — PR PENDING)
+## SPEC-05 Maintenance 01 PR #2 review fixes — 2026-10-22 (LOCAL VERIFIED — PUSH PENDING)
 
 Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
 `codex/spec-05-maintenance-01-logic-integrity`. Work is isolated in a managed
 worktree. This is separate from the historical SPEC-05 `CLOSED` record.
 
-Implementation and local gates are complete on the isolated worktree. The
-source snapshot is `c502fa7e21ffd79e429856d66a483760593b7a23`, based on
-`9038afa9f840e3a62acc0f97c6aaa31849247525`.
+Source/test commit `8ea372bfc5e7ecef961fb9eefce92e2219445d1b` fixes all three
+findings from the PR #2 independent review:
 
-LOG-01 through LOG-06 have RED/GREEN regression evidence; G-01 is a closed
-test gap, with post-CURRENT recovery and repeated subprocess retries passing.
-Expanded sibling tracing confirmed and fixed three further bug groups across
-four call sites: full journal read/error suppression in harness audit,
-malformed-row skipping in continuity packet generation, ignored unreadable
-intent during Autopilot approval, and untrusted Harness CURRENT risk
-downgrading high-risk trace evaluation. An initial independent review also
-found the LOG-04 note/state interruption window could erase a user edit on
-retry; create-only publication now preserves matching note identity and a
-deterministic retry regression covers recovery.
+- R01 was reproduced: arbitrary session message text could bind an unrelated
+  session; canonical path case-folding also merged distinct case-sensitive
+  sources. Import now uses explicit context metadata, canonical case-preserving
+  identity, and only migrates a unique matching legacy state key.
+- R02 was reproduced: a closed-status marker in summary text could short-circuit
+  closure while the authoritative header remained open. Closure now validates
+  the unique header field; interrupted Vault-to-repository closure repair
+  remains idempotent.
+- R03 was reproduced on Windows with a locked Vault trace mirror: failure
+  between repo and Vault writes left divergent mirrors and retry failed. A
+  pending transaction journal now validates and completes both traces and
+  indexes on retry, preserving unrelated rows and refusing changed targets.
 
-Local verification passed with explicit exit codes: Core, CLI, adapters, and
-workspace all-target tests; cargo fmt --all -- --check; workspace Clippy with
-warnings denied; locked workspace release build; and release CLI baron 5.0.0.
-See the verification ledger for commands, outcomes, scope, and remaining
-diagnostic-only/contract-limited observations. The source audit was a
-production-tree lexical sweep plus targeted semantic tracing, not a line-by-line
-review of every match. No project-scoped Baron trace/proof was created; evidence
-is test-based. Updated independent read-only review ACCEPTED
-`9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222`
-with no Critical or Important findings; the reviewer did not run tests.
+Local verification passed on Windows: fmt; `cargo test --workspace --all-targets
+--no-fail-fast -j 1`; warnings-denied workspace Clippy; locked release build;
+release CLI `baron 5.0.0`; plus the exact case-sensitive session regression
+after final helper cleanup. The workspace suite ran before the helper-only
+lint cleanup; the affected test, fmt, Clippy, and release build passed after it.
+Test fixtures used temporary BARON_HOME and
+Codex/Claude session roots. See the verification ledger for RED/GREEN and gate
+evidence. The earlier ACCEPT review predates this commit; the existing PR #2
+needs fresh review and exact-head hosted CI after push. The broad source sweep
+remains lexical plus targeted semantic tracing, not a line-by-line review of
+every match. No project-scoped Baron proof/trace was produced.
 
-Safe next action: push the reviewed branch, open a scoped PR, and verify
-hosted CI on its exact head. Stop before merge pending owner approval.
+Safe next action: push this tested follow-up commit to PR #2 and verify hosted
+checks on its exact head. Stop before merge pending owner approval.
 
 Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); [verification ledger](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
