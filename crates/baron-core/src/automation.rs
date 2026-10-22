@@ -1,7 +1,10 @@
-use std::collections::HashSet;
-use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
+use std::collections::{BTreeSet, HashSet};
+use std::fmt;
+#[cfg(test)]
+use std::fs;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Take};
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 use anyhow::{bail, Context, Result};
@@ -22,7 +25,8 @@ use crate::plan::{
 };
 use crate::prepare::{prepare, PreparePacketV1, PrepareRequestV1, PREPARE_MAX_INPUT_BYTES};
 use crate::safe_io::{
-    acquire_project_lock, append_text, artifact_instance_id, read_text, replace_text,
+    acquire_project_lock, append_text, artifact_instance_id, open_regular_file_for_read, read_text,
+    replace_text,
 };
 use crate::vault::VaultContext;
 
@@ -34,6 +38,9 @@ const MAX_DEDUP_ENTRIES: usize = 256;
 const MAX_JOURNAL_SCAN_LINES: usize = 512;
 const MAX_JOURNAL_SCAN_BYTES: usize = 4 * 1024 * 1024;
 const JOURNAL_READ_CHUNK_BYTES: usize = 8 * 1024;
+const MAX_DIAGNOSTIC_JOURNAL_ROW_BYTES: usize = 1024 * 1024;
+const MAX_DIAGNOSTIC_EVENT_KIND_BYTES: usize = 256;
+const MAX_DIAGNOSTIC_EVENT_KINDS: usize = 64;
 const DEDUP_SCHEMA_VERSION: u32 = 1;
 const DEDUP_CLAIM_TTL_SECONDS: i64 = 300;
 const DEDUP_PATH: &str = ".baron/cache/automation-dedup.json";
@@ -76,6 +83,25 @@ pub enum HookAdapter {
     Claude,
     Neutral,
 }
+
+/// Explicit disposition for an error crossing the native hook boundary.
+/// Untyped errors are treated as fail-closed by adapters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HookFailureKind {
+    Advisory,
+    FailClosed,
+}
+
+impl fmt::Display for HookFailureKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Advisory => "advisory native hook failure",
+            Self::FailClosed => "fail-closed native hook failure",
+        })
+    }
+}
+
+impl std::error::Error for HookFailureKind {}
 
 /// Stable identity for one logical lifecycle delivery. The serialized digest
 /// is used only for bounded deduplication; the fields remain available in the
@@ -185,6 +211,36 @@ struct JournalEntry {
     response: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum JournalPresence {
+    Missing,
+    Empty,
+    Present,
+}
+
+impl JournalPresence {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::Empty => "empty",
+            Self::Present => "present",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct JournalDiagnostics {
+    pub(crate) presence: JournalPresence,
+    pub(crate) event_count: u64,
+    pub(crate) latest_event: Option<String>,
+    pub(crate) observed_event_kinds: Vec<String>,
+}
+
+struct JournalSnapshot {
+    reader: BufReader<Take<File>>,
+    path: PathBuf,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DedupState {
     #[serde(default = "dedup_schema_version")]
@@ -249,6 +305,22 @@ pub fn handle_hook(
     event: AutomationEvent,
     payload_text: &str,
 ) -> Result<String> {
+    handle_hook_inner(repo_root, vault, adapter, event, payload_text).map_err(|error| {
+        if error.downcast_ref::<HookFailureKind>().is_some() {
+            error
+        } else {
+            error.context(HookFailureKind::FailClosed)
+        }
+    })
+}
+
+fn handle_hook_inner(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    adapter: HookAdapter,
+    event: AutomationEvent,
+    payload_text: &str,
+) -> Result<String> {
     let repo_root = repo_root.as_ref();
     if payload_text.len() > PREPARE_MAX_INPUT_BYTES {
         bail!(
@@ -259,7 +331,18 @@ pub fn handle_hook(
     let payload: Value = if payload_text.trim().is_empty() {
         json!({})
     } else {
-        serde_json::from_str(payload_text).context("Could not parse native hook payload")?
+        serde_json::from_str(payload_text)
+            .context("Could not parse native hook payload")
+            .map_err(|error| {
+                if matches!(
+                    event,
+                    AutomationEvent::UserPromptSubmit | AutomationEvent::Prompt
+                ) {
+                    error.context(HookFailureKind::Advisory)
+                } else {
+                    error
+                }
+            })?
     };
     let ingress = match hook_correlation::Ingress::parse(&payload, adapter) {
         Ok(ingress) => ingress,
@@ -971,41 +1054,20 @@ fn finalize_stop_response_locked(
 pub fn automation_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Result<String> {
     let repo_root = repo_root.as_ref();
     let journal_path = journal_path(vault);
-    let journal = {
-        // The shared Vault journal is read under the same global lock order as
-        // hook publication so status cannot observe a partial or cross-checkout
-        // read/append race.
-        let _repo_lock = acquire_project_lock(repo_root)?;
-        let _vault_lock = acquire_project_lock(&vault.project_root)?;
-        fs::read_to_string(&journal_path).unwrap_or_default()
-    };
-    let event_count = journal
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .count();
-    let latest = journal
-        .lines()
-        .rev()
-        .find_map(|line| serde_json::from_str::<JournalEntry>(line).ok());
+    let journal = scan_automation_journal(repo_root, vault)?;
     let reconciliation = reconcile(repo_root)?;
     Ok(format!(
         "# Baron Automation Status\n\n\
 - Journal: `{}`\n\
+- Journal state: `{}`\n\
 - Events recorded: {}\n\
 - Latest event: `{}`\n\
 - Reconciliation: `{}`\n\
 - Gaps: {}\n",
         journal_path.display(),
-        event_count,
-        latest
-            .map(|entry| {
-                if entry.event_kind.is_empty() {
-                    event_name(entry.event).to_string()
-                } else {
-                    entry.event_kind
-                }
-            })
-            .unwrap_or_else(|| "none".to_string()),
+        journal.presence.as_str(),
+        journal.event_count,
+        journal.latest_event.unwrap_or_else(|| "none".to_string()),
         if reconciliation.passed {
             "passed"
         } else {
@@ -1017,6 +1079,145 @@ pub fn automation_status(repo_root: impl AsRef<Path>, vault: &VaultContext) -> R
             reconciliation.gaps.join("; ")
         }
     ))
+}
+
+pub(crate) fn scan_automation_journal(
+    repo_root: &Path,
+    vault: &VaultContext,
+) -> Result<JournalDiagnostics> {
+    match open_automation_journal_snapshot(repo_root, vault)? {
+        Some(snapshot) => scan_journal_snapshot(snapshot),
+        None => Ok(JournalDiagnostics {
+            presence: JournalPresence::Missing,
+            event_count: 0,
+            latest_event: None,
+            observed_event_kinds: Vec::new(),
+        }),
+    }
+}
+
+fn open_automation_journal_snapshot(
+    repo_root: &Path,
+    vault: &VaultContext,
+) -> Result<Option<JournalSnapshot>> {
+    let _repo_lock = acquire_project_lock(repo_root)?;
+    let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    let path = journal_path(vault);
+    let Some(file) = open_regular_file_for_read(&path)? else {
+        return Ok(None);
+    };
+    let length = file
+        .metadata()
+        .with_context(|| format!("Could not inspect automation journal: {}", path.display()))?
+        .len();
+    Ok(Some(JournalSnapshot {
+        reader: BufReader::with_capacity(JOURNAL_READ_CHUNK_BYTES, file.take(length)),
+        path,
+    }))
+}
+
+fn scan_journal_snapshot(snapshot: JournalSnapshot) -> Result<JournalDiagnostics> {
+    scan_journal_reader(snapshot.reader, &snapshot.path)
+}
+
+fn scan_journal_reader<R: BufRead>(mut reader: R, path: &Path) -> Result<JournalDiagnostics> {
+    let mut offset = 0u64;
+    let mut event_count = 0u64;
+    let mut latest_event = None;
+    let mut observed_event_kinds = BTreeSet::new();
+    loop {
+        let row_offset = offset;
+        let Some((mut row, consumed)) = read_bounded_journal_row(&mut reader, path, offset)? else {
+            break;
+        };
+        offset = offset.saturating_add(consumed as u64);
+        if row.last() == Some(&b'\r') {
+            row.pop();
+        }
+        if row.iter().all(u8::is_ascii_whitespace) {
+            continue;
+        }
+        let line = std::str::from_utf8(&row).with_context(|| {
+            format!(
+                "Automation journal row at byte {row_offset} is not valid UTF-8: {}",
+                path.display()
+            )
+        })?;
+        let entry = serde_json::from_str::<JournalEntry>(line).with_context(|| {
+            format!(
+                "Malformed automation journal JSONL row at byte {row_offset}: {}",
+                path.display()
+            )
+        })?;
+        let event_kind = if entry.event_kind.is_empty() {
+            event_name(entry.event).to_string()
+        } else {
+            entry.event_kind
+        };
+        if event_kind.len() > MAX_DIAGNOSTIC_EVENT_KIND_BYTES {
+            bail!(
+                "Automation journal event kind exceeds the {MAX_DIAGNOSTIC_EVENT_KIND_BYTES} byte diagnostic limit at byte {row_offset}: {}",
+                path.display()
+            );
+        }
+        latest_event = Some(event_kind.clone());
+        observed_event_kinds.insert(event_kind);
+        if observed_event_kinds.len() > MAX_DIAGNOSTIC_EVENT_KINDS {
+            bail!(
+                "Automation journal exceeds the {MAX_DIAGNOSTIC_EVENT_KINDS} unique event-kind diagnostic limit: {}",
+                path.display()
+            );
+        }
+        event_count = event_count
+            .checked_add(1)
+            .context("Automation journal event count overflowed")?;
+    }
+    Ok(JournalDiagnostics {
+        presence: if event_count == 0 {
+            JournalPresence::Empty
+        } else {
+            JournalPresence::Present
+        },
+        event_count,
+        latest_event,
+        observed_event_kinds: observed_event_kinds.into_iter().collect(),
+    })
+}
+
+fn read_bounded_journal_row<R: BufRead>(
+    reader: &mut R,
+    path: &Path,
+    offset: u64,
+) -> Result<Option<(Vec<u8>, usize)>> {
+    let mut row = Vec::new();
+    let mut consumed = 0usize;
+    loop {
+        let available = reader
+            .fill_buf()
+            .with_context(|| format!("Could not read automation journal: {}", path.display()))?;
+        if available.is_empty() {
+            return if row.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some((row, consumed)))
+            };
+        }
+        let newline = available.iter().position(|byte| *byte == b'\n');
+        let row_bytes = newline.unwrap_or(available.len());
+        if row.len().saturating_add(row_bytes) > MAX_DIAGNOSTIC_JOURNAL_ROW_BYTES {
+            bail!(
+                "Automation journal row exceeds the {MAX_DIAGNOSTIC_JOURNAL_ROW_BYTES} byte diagnostic limit at byte {offset}: {}",
+                path.display()
+            );
+        }
+        row.extend_from_slice(&available[..row_bytes]);
+        let used = row_bytes + usize::from(newline.is_some());
+        reader.consume(used);
+        consumed = consumed.saturating_add(used);
+        if newline.is_some() {
+            return Ok(Some((row, consumed)));
+        }
+    }
 }
 
 fn append_journal(vault: &VaultContext, entry: JournalEntry) -> Result<()> {
@@ -1669,6 +1870,136 @@ mod tests {
     use crate::config::{initialize_project, AdapterKind};
     use crate::vault::ensure_vault;
     use tempfile::tempdir;
+
+    fn diagnostic_test_entry(event: AutomationEvent, event_kind: &str) -> JournalEntry {
+        JournalEntry {
+            timestamp: now(),
+            event,
+            adapter: JournalAdapter::Supported(HookAdapter::Codex),
+            session_id: Some("diagnostic-session".to_string()),
+            request_id: None,
+            event_key: None,
+            event_kind: event_kind.to_string(),
+            task_id: None,
+            child_id: None,
+            parent_task_id: None,
+            parent_session_id: None,
+            child: false,
+            evidence: None,
+            response: None,
+        }
+    }
+
+    #[test]
+    fn journal_diagnostic_snapshot_excludes_appends_after_capture() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault_root = temp.path().join("vault");
+        fs::create_dir_all(&repo).unwrap();
+        initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
+        let vault = ensure_vault(&vault_root, &repo).unwrap();
+        let journal = journal_path(&vault);
+        fs::create_dir_all(journal.parent().unwrap()).unwrap();
+        let first = serde_json::to_vec(&diagnostic_test_entry(
+            AutomationEvent::ContextCompiled,
+            "context_compiled",
+        ))
+        .unwrap();
+        fs::write(&journal, [first.as_slice(), b"\n"].concat()).unwrap();
+
+        let snapshot = open_automation_journal_snapshot(&repo, &vault)
+            .unwrap()
+            .unwrap();
+        record_lifecycle_event(&vault, HookAdapter::Codex, AutomationEvent::PlanStarted).unwrap();
+
+        let diagnostics = scan_journal_snapshot(snapshot).unwrap();
+        assert_eq!(diagnostics.presence, JournalPresence::Present);
+        assert_eq!(diagnostics.event_count, 1);
+        assert_eq!(
+            diagnostics.latest_event.as_deref(),
+            Some("context_compiled")
+        );
+    }
+
+    #[test]
+    fn journal_diagnostic_snapshot_scans_while_mutation_locks_are_held() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault_root = temp.path().join("vault");
+        fs::create_dir_all(&repo).unwrap();
+        initialize_project(&repo, AdapterKind::Codex, &vault_root).unwrap();
+        let vault = ensure_vault(&vault_root, &repo).unwrap();
+        let journal = journal_path(&vault);
+        fs::create_dir_all(journal.parent().unwrap()).unwrap();
+        let row = serde_json::to_vec(&diagnostic_test_entry(
+            AutomationEvent::ContextCompiled,
+            "context_compiled",
+        ))
+        .unwrap();
+        fs::write(&journal, [row.as_slice(), b"\n"].concat()).unwrap();
+        let snapshot = open_automation_journal_snapshot(&repo, &vault)
+            .unwrap()
+            .unwrap();
+
+        let repo_lock = acquire_project_lock(&repo).unwrap();
+        let vault_lock = acquire_project_lock(&vault.project_root).unwrap();
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            result_tx.send(scan_journal_snapshot(snapshot)).unwrap();
+        });
+        let result_while_locked = result_rx.recv_timeout(std::time::Duration::from_secs(2));
+        drop(vault_lock);
+        drop(repo_lock);
+
+        let diagnostics = result_while_locked
+            .expect("snapshot scan should not wait for mutation locks")
+            .unwrap();
+        worker.join().unwrap();
+        assert_eq!(diagnostics.event_count, 1);
+    }
+
+    #[test]
+    fn journal_diagnostic_scanner_stops_at_the_bounded_row_limit() {
+        let content = vec![b'x'; MAX_DIAGNOSTIC_JOURNAL_ROW_BYTES + JOURNAL_READ_CHUNK_BYTES * 8];
+        let file_len = content.len();
+        let reader = CountingReader {
+            inner: std::io::Cursor::new(content),
+            bytes_read: 0,
+        };
+        let mut reader = BufReader::with_capacity(JOURNAL_READ_CHUNK_BYTES, reader);
+
+        let error =
+            scan_journal_reader(&mut reader, Path::new("automation-journal.jsonl")).unwrap_err();
+
+        assert!(error.to_string().contains("row exceeds"));
+        assert!(
+            reader.get_ref().bytes_read
+                <= MAX_DIAGNOSTIC_JOURNAL_ROW_BYTES + JOURNAL_READ_CHUNK_BYTES
+        );
+        assert!(reader.get_ref().bytes_read < file_len);
+    }
+
+    #[test]
+    fn journal_diagnostic_scanner_caps_retained_event_kinds() {
+        let mut content = Vec::new();
+        for index in 0..=MAX_DIAGNOSTIC_EVENT_KINDS {
+            let row = serde_json::to_vec(&diagnostic_test_entry(
+                AutomationEvent::ContextCompiled,
+                &format!("event-kind-{index}"),
+            ))
+            .unwrap();
+            content.extend_from_slice(&row);
+            content.push(b'\n');
+        }
+        let reader =
+            BufReader::with_capacity(JOURNAL_READ_CHUNK_BYTES, std::io::Cursor::new(content));
+
+        let error = scan_journal_reader(reader, Path::new("automation-journal.jsonl")).unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("unique event-kind diagnostic limit"));
+    }
 
     fn seed_stop_correlation(
         repo: &Path,

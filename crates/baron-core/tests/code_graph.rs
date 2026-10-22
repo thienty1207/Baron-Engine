@@ -9,6 +9,7 @@ use baron_core::code_graph::{
     GraphFreshness, QueryLimits,
 };
 use baron_core::config::{initialize_project, AdapterKind};
+use baron_core::knowledge::{build_local_code_graph, local_graph_cache_path};
 use tempfile::tempdir;
 
 fn write(path: &Path, content: &str) {
@@ -99,6 +100,33 @@ fn graph_hits_keep_confidence_explicit_and_enforce_safe_bounded_output() {
         QueryLimits::default(),
     );
     assert!(unsafe_hit.is_err());
+}
+
+#[test]
+fn unreadable_source_does_not_change_code_graph_cache() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let source = repo.join("src/lib.rs");
+    write(&source, "pub fn current_symbol() {}\n");
+    let graph = build_local_code_graph(&repo).unwrap();
+    let cache = local_graph_cache_path(&repo);
+    let cache_before = fs::read(&cache).unwrap();
+    assert!(graph
+        .symbols
+        .iter()
+        .any(|symbol| symbol.name == "current_symbol"));
+    fs::write(&source, [0xff, 0xfe, 0xfd]).unwrap();
+
+    let result = build_local_code_graph(&repo);
+
+    assert!(
+        result.is_err(),
+        "unreadable source must fail graph construction"
+    );
+    assert_eq!(fs::read(cache).unwrap(), cache_before);
 }
 
 #[test]

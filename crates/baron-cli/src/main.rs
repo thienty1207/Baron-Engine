@@ -20,7 +20,7 @@ use baron_core::asset_lifecycle::{
 use baron_core::authority::classify_request;
 use baron_core::automation::{
     automation_status, handle_hook, reconcile, record_lifecycle_event_for_operation,
-    record_lifecycle_event_neutral, AutomationEvent, HookAdapter,
+    record_lifecycle_event_neutral, AutomationEvent, HookAdapter, HookFailureKind,
 };
 use baron_core::autopilot::{
     approve_candidate, autopilot_status, reject_candidate, respond_to_pending_approval,
@@ -5080,22 +5080,9 @@ impl From<AutomationEventArg> for AutomationEvent {
 }
 
 fn render_hook_failure(error: &anyhow::Error) -> String {
-    let message = error.to_string();
-    let lower = message.to_ascii_lowercase();
-    let hard = [
-        "mutation lock",
-        "symlink",
-        "junction",
-        "reparse",
-        "path escapes",
-        "unsafe",
-        "dedup schema",
-        "dedup state",
-        "not a regular file",
-    ]
-    .iter()
-    .any(|marker| lower.contains(marker));
-    if hard {
+    let message = format!("{error:#}");
+    let advisory = error.downcast_ref::<HookFailureKind>() == Some(&HookFailureKind::Advisory);
+    if !advisory {
         serde_json::to_string(&serde_json::json!({
             "decision": "block",
             "completed": false,

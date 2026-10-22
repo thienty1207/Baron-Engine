@@ -181,14 +181,27 @@ pub fn harness_status(repo_root: impl AsRef<Path>) -> Result<String> {
 }
 
 pub fn current_harness_risk(repo_root: impl AsRef<Path>) -> RiskLane {
-    let content = fs::read_to_string(repo_root.as_ref().join("docs/baron/harness/CURRENT.md"))
-        .unwrap_or_default();
-    if content.contains("Risk: `high`") {
-        RiskLane::High
-    } else if content.contains("Risk: `low`") {
-        RiskLane::Low
-    } else {
-        RiskLane::Medium
+    let path = repo_root.as_ref().join("docs/baron/harness/CURRENT.md");
+    let content = match read_text(&path) {
+        Ok(Some(content)) => content,
+        Ok(None) => return RiskLane::Medium,
+        Err(_) => return RiskLane::High,
+    };
+    let mut risk_fields = content.lines().filter(|line| line.starts_with("- Risk:"));
+    let Some(field) = risk_fields.next() else {
+        return RiskLane::High;
+    };
+    if risk_fields.next().is_some() {
+        return RiskLane::High;
+    }
+    match field
+        .strip_prefix("- Risk: `")
+        .and_then(|value| value.strip_suffix('`'))
+    {
+        Some("high") => RiskLane::High,
+        Some("medium") => RiskLane::Medium,
+        Some("low") => RiskLane::Low,
+        _ => RiskLane::High,
     }
 }
 
@@ -483,7 +496,7 @@ fn append(path: &Path, header: &str, item: &str) -> Result<()> {
 }
 
 fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
-    let content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
+    let content = read_text(path)?.unwrap_or_else(|| header.to_string());
     if content.contains(item) {
         return Ok(());
     }

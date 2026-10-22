@@ -1144,6 +1144,7 @@ fn recover_pending_plan_transition(repo_root: &Path, vault: &VaultContext) -> Re
             task_id: Some(&journal.task_id),
         },
     )?;
+    plan_progress_checkpoint!("after_current_before_journal_cleanup");
 
     if read_text_required(&journal_path)? != serialized {
         bail!("Pending plan transition journal changed during recovery");
@@ -3024,7 +3025,7 @@ fn required_tier(risk: RiskLane) -> TraceTier {
 }
 
 fn append_unique(path: &Path, header: &str, item: &str) -> Result<()> {
-    let mut content = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
+    let mut content = read_text(path)?.unwrap_or_else(|| header.to_string());
     if content.contains(item) {
         return Ok(());
     }
@@ -3072,8 +3073,7 @@ fn replace_plan_index_row(
         "- [{title}]({relative_path}) - status: `{status}` - risk: `{}`",
         risk.as_str()
     );
-    let mut content =
-        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Plan Index\n\n".to_string());
+    let mut content = read_text(path)?.unwrap_or_else(|| "# Baron Plan Index\n\n".to_string());
     let mut replaced = false;
     let mut lines = content
         .lines()
@@ -3249,6 +3249,10 @@ mod tests {
         let vault_root = PathBuf::from(vault_root);
         let vault = vault_context_without_create(&vault_root, &repo).unwrap();
         let identity = progress_test_identity(&vault, PLAN_A_TITLE, "progress-session-a");
+        if stage == "recover" {
+            update_plan_for_identity(&repo, &vault, PROGRESS_NOTE, &identity).unwrap();
+            return;
+        }
         set_plan_progress_failpoint(&stage);
 
         let error = update_plan_for_identity(&repo, &vault, PROGRESS_NOTE, &identity).unwrap_err();
@@ -3260,7 +3264,13 @@ mod tests {
 
     #[test]
     fn identified_progress_update_recovers_idempotently_at_all_publication_boundaries() {
-        for stage in ["before_local", "after_local", "after_vault", "after_active"] {
+        for stage in [
+            "before_local",
+            "after_local",
+            "after_vault",
+            "after_active",
+            "after_current_before_journal_cleanup",
+        ] {
             let temp = tempdir().unwrap();
             let repo = temp.path().join("repo");
             let vault_root = temp.path().join("vault");
@@ -3310,10 +3320,13 @@ mod tests {
             );
 
             let current_after_interruption = fs::read_to_string(&current_path).unwrap();
-            assert!(
-                current_after_interruption.contains(&normalize(&plan_b.repo_path, &repo)),
-                "CURRENT must remain on B when A is interrupted at {stage}"
-            );
+            let interrupted_current = if stage == "after_current_before_journal_cleanup" {
+                &plan_a.repo_path
+            } else {
+                &plan_b.repo_path
+            };
+            assert!(current_after_interruption.contains(&normalize(interrupted_current, &repo)),
+                "CURRENT must reflect the last published projection when A is interrupted at {stage}");
             assert_eq!(fs::read(&plan_b.repo_path).unwrap(), plan_b_local_before);
             assert_eq!(fs::read(&plan_b.vault_path).unwrap(), plan_b_vault_before);
             let local_active_after_interruption =
@@ -3339,6 +3352,30 @@ mod tests {
                 )
                 .unwrap();
                 assert!(resumed.resumed, "stage: {stage}");
+            } else if stage == "after_current_before_journal_cleanup" {
+                for retry in 0..2 {
+                    let output = Command::new(std::env::current_exe().unwrap())
+                        .args([
+                            "--exact",
+                            "plan::tests::identified_progress_update_child_interrupts_at_requested_publication_boundary",
+                            "--nocapture",
+                        ])
+                        .env(PROGRESS_CRASH_REPO, &repo)
+                        .env(PROGRESS_CRASH_VAULT, &vault_root)
+                        .env(PROGRESS_CRASH_STAGE, "recover")
+                        .output()
+                        .unwrap();
+                    assert!(
+                        output.status.success(),
+                        "recovery process {retry} failed after {stage}: {}\n{}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                    assert!(
+                        !repo.join(PLAN_TRANSITION_JOURNAL).exists(),
+                        "recovery process {retry} must clear the journal after {stage}"
+                    );
+                }
             } else {
                 update_plan_for_identity(&repo, &reopened_vault, PROGRESS_NOTE, &identity_a)
                     .unwrap();
@@ -3360,9 +3397,32 @@ mod tests {
             assert!(local_a.contains("status: in_progress"));
             assert!(!local_a.contains("verification: passed"));
 
+            let current_local = fs::read_to_string(&current_path).unwrap();
+            let current_vault =
+                fs::read_to_string(reopened_vault.project_root.join("Plans/CURRENT.md")).unwrap();
+            assert!(current_local.contains(&normalize(&plan_a.repo_path, &repo)));
+            assert_eq!(current_local, current_vault);
+            assert!(!repo.join(PLAN_TRANSITION_JOURNAL).exists());
+            let local_plan_index =
+                fs::read_to_string(repo.join(MANAGED_PLAN_ROOT).join("INDEX.md")).unwrap();
+            let vault_plan_index =
+                fs::read_to_string(reopened_vault.project_root.join("Plans/INDEX.md")).unwrap();
+            assert!(local_plan_index.contains(&format!(
+                "- [{PLAN_A_TITLE}]({}) - status: `in_progress`",
+                normalize(&plan_a.repo_path, &repo)
+            )));
+            assert!(vault_plan_index.contains(&format!(
+                "- [{PLAN_A_TITLE}]({}) - status: `in_progress`",
+                normalize(&plan_a.vault_path, &reopened_vault.project_root)
+            )));
+
             let local_active_after = fs::read_to_string(active_plan_index_path(&repo)).unwrap();
             let vault_active_after =
                 fs::read_to_string(active_plan_vault_index_path(&reopened_vault)).unwrap();
+            assert!(active_entry(&local_active_after, identity_a.operation_id())
+                .contains("\"status\":\"in_progress\""));
+            assert!(active_entry(&vault_active_after, identity_a.operation_id())
+                .contains("\"status\":\"in_progress\""));
             assert_eq!(
                 active_entry(&local_active_after, identity_b.operation_id()),
                 active_b_local_before

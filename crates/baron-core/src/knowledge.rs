@@ -987,7 +987,8 @@ pub fn build_local_code_graph(repo_root: impl AsRef<Path>) -> Result<LocalCodeGr
     let mut contents = BTreeMap::<String, String>::new();
     for path in source_paths {
         let relative = safe_relative(&repo_root, &path)?;
-        let content = fs::read_to_string(&path).unwrap_or_default();
+        let content = fs::read_to_string(&path)
+            .with_context(|| format!("Could not read CodeGraph source: {}", path.display()))?;
         let language = language_for(&path).to_string();
         files.push(LocalGraphFile {
             path: relative.clone(),

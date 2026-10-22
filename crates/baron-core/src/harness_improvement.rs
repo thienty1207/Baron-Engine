@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::{Local, SecondsFormat};
 
+use crate::automation::{scan_automation_journal, JournalPresence};
 use crate::plan::active_plan_completion_evidence_status;
 use crate::safe_io::{
     acquire_project_lock, append_text, ensure_directory_chain, read_text, replace_text,
@@ -40,21 +41,18 @@ pub struct ImprovementProposal {
 
 pub fn audit_harness(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Result<HarnessAudit> {
     let repo_root = repo_root.as_ref();
-    let journal = {
-        let _repo_lock = acquire_project_lock(repo_root)?;
-        let _vault_lock = acquire_project_lock(&vault.project_root)?;
-        fs::read_to_string(
-            vault
-                .project_root
-                .join("Artifacts/automation-journal.jsonl"),
-        )
-        .unwrap_or_default()
+    let journal = scan_automation_journal(repo_root, vault)?;
+    let observed = |event: &str| {
+        journal
+            .observed_event_kinds
+            .iter()
+            .any(|kind| kind == event)
     };
-    let context_observed = journal.contains("context_compiled");
+    let context_observed = observed("context_compiled");
     let plan_observed =
-        journal.contains("plan_started") || repo_root.join("docs/baron/plans/CURRENT.md").exists();
-    let harness_observed = journal.contains("harness_started")
-        || repo_root.join("docs/baron/harness/CURRENT.md").exists();
+        observed("plan_started") || repo_root.join("docs/baron/plans/CURRENT.md").exists();
+    let harness_observed =
+        observed("harness_started") || repo_root.join("docs/baron/harness/CURRENT.md").exists();
 
     let mut score = 0;
     if context_observed {
@@ -68,6 +66,11 @@ pub fn audit_harness(repo_root: impl AsRef<Path>, vault: &VaultContext) -> Resul
     }
 
     let mut diagnostics = Vec::new();
+    match journal.presence {
+        JournalPresence::Missing => diagnostics.push("automation journal is missing".to_string()),
+        JournalPresence::Empty => diagnostics.push("automation journal is empty".to_string()),
+        JournalPresence::Present => {}
+    }
     if !context_observed {
         diagnostics.push("context was not observed in the automation journal".to_string());
     }

@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::UNIX_EPOCH;
@@ -24,13 +25,31 @@ use crate::proof::{
 };
 use crate::risk::RiskLane;
 use crate::safe_io::{
-    acquire_project_lock, append_text, artifact_instance_id, create_new_text, read_text,
-    replace_text,
+    acquire_project_lock, append_text, artifact_instance_id, create_new_text,
+    open_regular_file_for_read, read_text, replace_text,
 };
 use crate::vault::{vault_context_without_create, VaultContext};
 
 const SCORE_START: &str = "<!-- BARON:TRACE-SCORE:START -->";
 const SCORE_END: &str = "<!-- BARON:TRACE-SCORE:END -->";
+const TRACE_SCORE_TRANSACTION_RELATIVE: &str = ".baron/state/trace-score-transaction.json";
+const MAX_TRACE_SCORE_TRANSACTION_BYTES: u64 = 64 * 1024 * 1024;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PendingTraceScoreTransaction {
+    version: u32,
+    repo_root: PathBuf,
+    vault_root: PathBuf,
+    trace_relative_path: PathBuf,
+    trace_id: String,
+    previous_trace: String,
+    scored_trace: String,
+    previous_repo_index: Option<String>,
+    repo_index: String,
+    previous_vault_index: Option<String>,
+    vault_index: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -377,21 +396,39 @@ pub fn score_trace(
     vault: &VaultContext,
     trace_id: Option<&str>,
 ) -> Result<TraceScore> {
-    let repo_root = repo_root.as_ref();
-    let _lock = acquire_project_lock(repo_root)?;
+    score_trace_with_writer(repo_root, vault, trace_id, write)
+}
+
+fn score_trace_with_writer<F>(
+    repo_root: impl AsRef<Path>,
+    vault: &VaultContext,
+    trace_id: Option<&str>,
+    mut write_target: F,
+) -> Result<TraceScore>
+where
+    F: FnMut(&Path, &str) -> Result<()>,
+{
+    let repo_root = repo_root.as_ref().canonicalize().with_context(|| {
+        format!(
+            "Could not resolve repository root for trace scoring: {}",
+            repo_root.as_ref().display()
+        )
+    })?;
+    let _lock = acquire_project_lock(&repo_root)?;
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
+    recover_pending_trace_score(&repo_root, vault)?;
     let auto_binding = if trace_id.is_none() {
-        active_plan_authority(repo_root)?.and_then(|plan| plan.binding)
+        active_plan_authority(&repo_root)?.and_then(|plan| plan.binding)
     } else {
         None
     };
     let mut expected_risk = None;
     let mut expected_authority_generation: Option<Option<String>> = None;
     let scoped_id = if let Some(binding) = auto_binding.as_ref() {
-        let authority = indexed_active_plan_authority_for_binding_locked(repo_root, binding)?
+        let authority = indexed_active_plan_authority_for_binding_locked(&repo_root, binding)?
             .context("operation-bound trace scoring requires validated ACTIVE plan authority")?;
         let proof = proof_for_operation_in_generation(
-            repo_root,
+            &repo_root,
             &binding.proof_binding(),
             authority.authority_generation.as_deref(),
         )?
@@ -402,7 +439,7 @@ pub fn score_trace(
         expected_authority_generation = Some(authority.authority_generation.clone());
         Some(
             trace_for_operation_locked_with_generation(
-                repo_root,
+                &repo_root,
                 vault,
                 &expected,
                 Some(authority.authority_generation.as_deref()),
@@ -413,12 +450,12 @@ pub fn score_trace(
     } else {
         None
     };
-    let repo_path = find_trace(repo_root, trace_id.or(scoped_id.as_deref()))?;
+    let repo_path = find_trace(&repo_root, trace_id.or(scoped_id.as_deref()))?;
     let content = fs::read_to_string(&repo_path)?;
-    let vault_path = verified_vault_trace_mirror(vault, repo_root, &repo_path, content.as_bytes())?
+    verified_vault_trace_mirror(vault, &repo_root, &repo_path, content.as_bytes())?
         .context("Trace Vault mirror is missing or differs from the repo trace")?;
     let score = evaluate_trace_score(
-        repo_root,
+        &repo_root,
         &content,
         expected_risk,
         expected_authority_generation
@@ -426,25 +463,278 @@ pub fn score_trace(
             .map(|generation| generation.as_deref()),
     )?;
     let updated = replace_score(&content, &score);
-    write(&repo_path, &updated)?;
-    write(&vault_path, &updated)?;
     let outcome = trace_field(&content, "- Outcome: `").unwrap_or_else(|| "unknown".to_string());
     let summary = trace_summary(&content);
-    update_trace_index(
-        &repo_root.join("docs/baron/traces/INDEX.md"),
+    let trace_root = repo_root.join("docs/baron/traces");
+    let trace_relative_path = repo_path
+        .strip_prefix(&trace_root)
+        .context("Trace path is outside the repository trace directory")?
+        .to_path_buf();
+    let repo_index_path = repo_root.join("docs/baron/traces/INDEX.md");
+    let vault_index_path = vault.project_root.join("Traces/INDEX.md");
+    let previous_repo_index = read_text(&repo_index_path)?;
+    let previous_vault_index = read_text(&vault_index_path)?;
+    let repo_index = updated_trace_index_content(
+        previous_repo_index.clone(),
         &score.trace_id,
         &outcome,
         &summary,
         &score,
-    )?;
-    update_trace_index(
-        &vault.project_root.join("Traces/INDEX.md"),
+    );
+    let vault_index = updated_trace_index_content(
+        previous_vault_index.clone(),
         &score.trace_id,
         &outcome,
         &summary,
         &score,
-    )?;
+    );
+    let transaction = PendingTraceScoreTransaction {
+        version: 1,
+        repo_root: repo_root.clone(),
+        vault_root: vault.project_root.canonicalize()?,
+        trace_relative_path,
+        trace_id: score.trace_id.clone(),
+        previous_trace: content,
+        scored_trace: updated,
+        previous_repo_index,
+        repo_index,
+        previous_vault_index,
+        vault_index,
+    };
+    persist_and_publish_trace_score(&repo_root, vault, transaction, &mut write_target)?;
     Ok(score)
+}
+
+fn recover_pending_trace_score(repo_root: &Path, vault: &VaultContext) -> Result<()> {
+    let journal_path = repo_root.join(TRACE_SCORE_TRANSACTION_RELATIVE);
+    let Some(file) = open_regular_file_for_read(&journal_path)? else {
+        return Ok(());
+    };
+    let mut bytes = Vec::new();
+    file.take(MAX_TRACE_SCORE_TRANSACTION_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .with_context(|| {
+            format!(
+                "Could not read pending trace-score transaction: {}",
+                journal_path.display()
+            )
+        })?;
+    if bytes.len() as u64 > MAX_TRACE_SCORE_TRANSACTION_BYTES {
+        bail!("Pending trace-score transaction exceeds the size limit");
+    }
+    let content =
+        String::from_utf8(bytes).context("Pending trace-score transaction is not valid UTF-8")?;
+    let transaction: PendingTraceScoreTransaction =
+        serde_json::from_str(&content).context("Pending trace-score transaction is malformed")?;
+    apply_trace_score_transaction(repo_root, vault, &transaction, &mut write)
+}
+
+fn persist_and_publish_trace_score<F>(
+    repo_root: &Path,
+    vault: &VaultContext,
+    transaction: PendingTraceScoreTransaction,
+    writer: &mut F,
+) -> Result<()>
+where
+    F: FnMut(&Path, &str) -> Result<()>,
+{
+    let journal_path = repo_root.join(TRACE_SCORE_TRANSACTION_RELATIVE);
+    if open_regular_file_for_read(&journal_path)?.is_some() {
+        bail!("A pending trace-score transaction must be recovered before scoring another trace");
+    }
+    validate_trace_score_transaction(repo_root, vault, &transaction)?;
+    let mut journal = serde_json::to_string(&transaction)?;
+    journal.push('\n');
+    if journal.len() as u64 > MAX_TRACE_SCORE_TRANSACTION_BYTES {
+        bail!("Trace-score transaction exceeds the size limit; no trace files were changed");
+    }
+    write(&journal_path, &journal)?;
+    apply_trace_score_transaction(repo_root, vault, &transaction, writer)
+}
+
+fn apply_trace_score_transaction<F>(
+    repo_root: &Path,
+    vault: &VaultContext,
+    transaction: &PendingTraceScoreTransaction,
+    writer: &mut F,
+) -> Result<()>
+where
+    F: FnMut(&Path, &str) -> Result<()>,
+{
+    validate_trace_score_transaction(repo_root, vault, transaction)?;
+    let repo_trace_path = repo_root
+        .join("docs/baron/traces")
+        .join(&transaction.trace_relative_path);
+    let vault_trace_path = vault
+        .project_root
+        .join("Traces")
+        .join(&transaction.trace_relative_path);
+    let repo_index_path = repo_root.join("docs/baron/traces/INDEX.md");
+    let vault_index_path = vault.project_root.join("Traces/INDEX.md");
+
+    // Validate every target before making another write. A third-party edit
+    // after interruption is preserved and requires explicit reconciliation.
+    let repo_trace = read_text(&repo_trace_path)?;
+    let vault_trace = read_text(&vault_trace_path)?;
+    let repo_index = read_text(&repo_index_path)?;
+    let vault_index = read_text(&vault_index_path)?;
+    ensure_recoverable_target(
+        &repo_trace_path,
+        &repo_trace,
+        Some(&transaction.previous_trace),
+        &transaction.scored_trace,
+    )?;
+    ensure_recoverable_target(
+        &vault_trace_path,
+        &vault_trace,
+        Some(&transaction.previous_trace),
+        &transaction.scored_trace,
+    )?;
+    ensure_recoverable_target(
+        &repo_index_path,
+        &repo_index,
+        transaction.previous_repo_index.as_deref(),
+        &transaction.repo_index,
+    )?;
+    ensure_recoverable_target(
+        &vault_index_path,
+        &vault_index,
+        transaction.previous_vault_index.as_deref(),
+        &transaction.vault_index,
+    )?;
+
+    for (path, current, next) in [
+        (
+            &repo_trace_path,
+            repo_trace,
+            transaction.scored_trace.as_str(),
+        ),
+        (
+            &vault_trace_path,
+            vault_trace,
+            transaction.scored_trace.as_str(),
+        ),
+        (
+            &repo_index_path,
+            repo_index,
+            transaction.repo_index.as_str(),
+        ),
+        (
+            &vault_index_path,
+            vault_index,
+            transaction.vault_index.as_str(),
+        ),
+    ] {
+        if current.as_deref() != Some(next) {
+            writer(path, next).with_context(|| {
+                format!(
+                    "Could not publish trace-score transaction target: {}",
+                    path.display()
+                )
+            })?;
+        }
+    }
+
+    let journal_path = repo_root.join(TRACE_SCORE_TRANSACTION_RELATIVE);
+    fs::remove_file(&journal_path).with_context(|| {
+        format!(
+            "Could not remove completed trace-score transaction: {}",
+            journal_path.display()
+        )
+    })?;
+    Ok(())
+}
+
+fn validate_trace_score_transaction(
+    repo_root: &Path,
+    vault: &VaultContext,
+    transaction: &PendingTraceScoreTransaction,
+) -> Result<()> {
+    if transaction.version != 1
+        || transaction.repo_root != repo_root.canonicalize()?
+        || transaction.vault_root != vault.project_root.canonicalize()?
+    {
+        bail!("Pending trace-score transaction belongs to a different project or Vault");
+    }
+    if transaction.trace_relative_path.as_os_str().is_empty()
+        || transaction.trace_relative_path.is_absolute()
+        || transaction
+            .trace_relative_path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        bail!("Pending trace-score transaction has an invalid trace path");
+    }
+    if trace_field(&transaction.previous_trace, "- Trace ID: `").as_deref()
+        != Some(transaction.trace_id.as_str())
+        || trace_field(&transaction.scored_trace, "- Trace ID: `").as_deref()
+            != Some(transaction.trace_id.as_str())
+        || trace_without_score(&transaction.previous_trace)?
+            != trace_without_score(&transaction.scored_trace)?
+    {
+        bail!("Pending trace-score transaction failed trace identity validation");
+    }
+    validate_trace_index_delta(
+        transaction.previous_repo_index.as_deref(),
+        &transaction.repo_index,
+        &transaction.trace_id,
+    )?;
+    validate_trace_index_delta(
+        transaction.previous_vault_index.as_deref(),
+        &transaction.vault_index,
+        &transaction.trace_id,
+    )?;
+    Ok(())
+}
+
+fn trace_without_score(content: &str) -> Result<String> {
+    let starts = content.match_indices(SCORE_START).collect::<Vec<_>>();
+    let ends = content.match_indices(SCORE_END).collect::<Vec<_>>();
+    match (starts.as_slice(), ends.as_slice()) {
+        ([], []) => Ok(content.trim_end().to_string()),
+        ([(start, _)], [(end, marker)]) if end >= start => {
+            let after = end + marker.len();
+            Ok(format!("{}{}", &content[..*start], &content[after..])
+                .trim_end()
+                .to_string())
+        }
+        _ => bail!("Trace score block is malformed; refusing transaction recovery"),
+    }
+}
+
+fn validate_trace_index_delta(previous: Option<&str>, updated: &str, trace_id: &str) -> Result<()> {
+    let previous = previous.unwrap_or("# Baron Trace Index\n\n");
+    let row_prefix = format!("- `{trace_id}` -");
+    let unrelated_rows = |content: &str| {
+        content
+            .split_inclusive('\n')
+            .filter(|line| {
+                !line
+                    .strip_suffix('\n')
+                    .unwrap_or(line)
+                    .starts_with(&row_prefix)
+            })
+            .collect::<String>()
+    };
+    if unrelated_rows(previous) != unrelated_rows(updated) {
+        bail!("Trace-score transaction changes unrelated trace index bytes");
+    }
+    Ok(())
+}
+
+fn ensure_recoverable_target(
+    path: &Path,
+    current: &Option<String>,
+    previous: Option<&str>,
+    next: &str,
+) -> Result<()> {
+    if current.as_deref() == previous || current.as_deref() == Some(next) {
+        return Ok(());
+    }
+    bail!(
+        "Trace-score transaction target changed after interruption; refusing to overwrite: {}",
+        path.display()
+    )
 }
 
 /// Recompute trace authority from the current trace, proof, receipt, gate, and
@@ -1166,7 +1456,17 @@ fn replace_score(content: &str, score: &TraceScore) -> String {
     match (content.find(SCORE_START), content.find(SCORE_END)) {
         (Some(start), Some(end)) if end >= start => {
             let end = end + SCORE_END.len();
-            format!("{}{}{}", &content[..start], block, &content[end..])
+            let suffix = &content[end..];
+            let suffix = suffix
+                .strip_prefix("\r\n")
+                .or_else(|| suffix.strip_prefix('\n'))
+                .unwrap_or(suffix);
+            format!(
+                "{}{}\n{}",
+                &content[..start],
+                block.trim_end_matches('\n'),
+                suffix
+            )
         }
         _ => format!("{}\n\n{}", content.trim_end(), block),
     }
@@ -1205,21 +1505,20 @@ fn trace_summary(content: &str) -> String {
         .replace(['\r', '\n'], " ")
 }
 
-fn update_trace_index(
-    path: &Path,
+fn updated_trace_index_content(
+    existing: Option<String>,
     id: &str,
     outcome: &str,
     summary: &str,
     score: &TraceScore,
-) -> Result<()> {
+) -> String {
     let row = format!(
         "- `{id}` - {outcome} - score: `{}/{}` - passed: `{}` - {summary}",
         score.achieved.as_str(),
         score.required.as_str(),
         if score.passed { "yes" } else { "no" }
     );
-    let mut content =
-        fs::read_to_string(path).unwrap_or_else(|_| "# Baron Trace Index\n\n".to_string());
+    let mut content = existing.unwrap_or_else(|| "# Baron Trace Index\n\n".to_string());
     let prefix = format!("- `{id}` -");
     let mut replaced = false;
     let mut lines = content
@@ -1238,7 +1537,7 @@ fn update_trace_index(
     }
     content = lines.join("\n");
     content.push('\n');
-    write(path, &content)
+    content
 }
 
 fn parse_score(content: &str) -> Result<TraceScore> {
@@ -1359,6 +1658,270 @@ impl TraceTier {
             "standard" => Self::Standard,
             "detailed" => Self::Detailed,
             _ => Self::Incomplete,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::{
+        record_trace, recover_pending_trace_score, score_trace, score_trace_with_writer,
+        TraceOutcome, TRACE_SCORE_TRANSACTION_RELATIVE,
+    };
+    use crate::vault::ensure_vault;
+
+    fn trace_score_fixture() -> (
+        tempfile::TempDir,
+        std::path::PathBuf,
+        crate::vault::VaultContext,
+        super::TraceRecord,
+    ) {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("demo");
+        let vault_root = temp.path().join("Vault");
+        fs::create_dir_all(&repo).unwrap();
+        let vault = ensure_vault(&vault_root, &repo).unwrap();
+        let selected = record_trace(
+            &repo,
+            &vault,
+            "Selected trace for transaction boundary coverage",
+            TraceOutcome::Completed,
+        )
+        .unwrap();
+        (temp, repo, vault, selected)
+    }
+
+    fn assert_trace_score_recovered(
+        repo: &std::path::Path,
+        vault: &crate::vault::VaultContext,
+        selected: &super::TraceRecord,
+    ) {
+        assert_eq!(
+            fs::read(&selected.repo_path).unwrap(),
+            fs::read(&selected.vault_path).unwrap()
+        );
+        for path in [selected.repo_path.clone(), selected.vault_path.clone()] {
+            let content = fs::read_to_string(path).unwrap();
+            assert!(content.contains("<!-- BARON:TRACE-SCORE:START -->"));
+            assert!(content.contains(&selected.id));
+        }
+        for path in [
+            repo.join("docs/baron/traces/INDEX.md"),
+            vault.project_root.join("Traces/INDEX.md"),
+        ] {
+            let content = fs::read_to_string(path).unwrap();
+            assert!(content
+                .lines()
+                .any(|line| line.contains(&format!("`{}`", selected.id))));
+        }
+        assert!(!repo.join(TRACE_SCORE_TRANSACTION_RELATIVE).exists());
+    }
+
+    #[test]
+    fn interrupted_score_publication_recovers_mirrors_and_preserves_other_trace() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("demo");
+        let vault_root = temp.path().join("Vault");
+        fs::create_dir_all(&repo).unwrap();
+        let vault = ensure_vault(&vault_root, &repo).unwrap();
+        let selected = record_trace(
+            &repo,
+            &vault,
+            "Selected trace for interrupted scoring",
+            TraceOutcome::Completed,
+        )
+        .unwrap();
+        let unrelated = record_trace(
+            &repo,
+            &vault,
+            "Unrelated operation trace must remain unchanged",
+            TraceOutcome::Partial,
+        )
+        .unwrap();
+        let repo_index = repo.join("docs/baron/traces/INDEX.md");
+        let vault_index = vault.project_root.join("Traces/INDEX.md");
+        let unrelated_repo_trace = fs::read(&unrelated.repo_path).unwrap();
+        let unrelated_vault_trace = fs::read(&unrelated.vault_path).unwrap();
+        let repo_unrelated_row = fs::read_to_string(&repo_index)
+            .unwrap()
+            .lines()
+            .find(|line| line.contains(&format!("`{}`", unrelated.id)))
+            .unwrap()
+            .to_string();
+        let vault_unrelated_row = fs::read_to_string(&vault_index)
+            .unwrap()
+            .lines()
+            .find(|line| line.contains(&format!("`{}`", unrelated.id)))
+            .unwrap()
+            .to_string();
+        let repo_index_before = fs::read(&repo_index).unwrap();
+        let vault_index_before = fs::read(&vault_index).unwrap();
+        let journal = repo.join(TRACE_SCORE_TRANSACTION_RELATIVE);
+        let mut writes = 0;
+
+        let interrupted =
+            score_trace_with_writer(&repo, &vault, Some(&selected.id), |path, content| {
+                writes += 1;
+                if writes == 2 {
+                    anyhow::bail!("injected failure before Vault trace publication");
+                }
+                super::write(path, content)
+            });
+
+        assert!(interrupted.is_err());
+        assert_eq!(
+            writes, 2,
+            "the repo mirror must publish before the injected failure"
+        );
+        assert!(
+            journal.is_file(),
+            "the pending transaction must survive the failure"
+        );
+        assert_ne!(
+            fs::read(&selected.repo_path).unwrap(),
+            fs::read(&selected.vault_path).unwrap(),
+            "the injected failure must reproduce divergent trace mirrors"
+        );
+        assert_eq!(fs::read(&repo_index).unwrap(), repo_index_before);
+        assert_eq!(fs::read(&vault_index).unwrap(), vault_index_before);
+
+        score_trace(&repo, &vault, Some(&selected.id)).unwrap();
+
+        assert!(!journal.exists(), "a completed transaction must be removed");
+        assert_eq!(
+            fs::read(&selected.repo_path).unwrap(),
+            fs::read(&selected.vault_path).unwrap()
+        );
+        assert_eq!(
+            fs::read(&unrelated.repo_path).unwrap(),
+            unrelated_repo_trace
+        );
+        assert_eq!(
+            fs::read(&unrelated.vault_path).unwrap(),
+            unrelated_vault_trace
+        );
+        let repo_index_after = fs::read_to_string(&repo_index).unwrap();
+        let vault_index_after = fs::read_to_string(&vault_index).unwrap();
+        assert!(repo_index_after
+            .lines()
+            .any(|line| line == repo_unrelated_row));
+        assert!(vault_index_after
+            .lines()
+            .any(|line| line == vault_unrelated_row));
+    }
+
+    #[test]
+    fn repeated_trace_scoring_is_byte_idempotent() {
+        let (_temp, repo, vault, selected) = trace_score_fixture();
+        score_trace(&repo, &vault, Some(&selected.id)).unwrap();
+        let first_repo_trace = fs::read(&selected.repo_path).unwrap();
+        let first_vault_trace = fs::read(&selected.vault_path).unwrap();
+        let first_repo_index = fs::read(repo.join("docs/baron/traces/INDEX.md")).unwrap();
+        let first_vault_index = fs::read(vault.project_root.join("Traces/INDEX.md")).unwrap();
+
+        score_trace(&repo, &vault, Some(&selected.id)).unwrap();
+
+        assert_eq!(fs::read(&selected.repo_path).unwrap(), first_repo_trace);
+        assert_eq!(fs::read(&selected.vault_path).unwrap(), first_vault_trace);
+        assert_eq!(
+            fs::read(repo.join("docs/baron/traces/INDEX.md")).unwrap(),
+            first_repo_index
+        );
+        assert_eq!(
+            fs::read(vault.project_root.join("Traces/INDEX.md")).unwrap(),
+            first_vault_index
+        );
+    }
+
+    #[test]
+    fn remaining_trace_score_publication_boundaries_recover_idempotently() {
+        // Fail before the repo index, before the Vault index, and after the
+        // Vault index has been written but before transaction cleanup.
+        for (fail_at, fail_after_write) in [(3, false), (4, false), (4, true)] {
+            let (_temp, repo, vault, selected) = trace_score_fixture();
+            let journal = repo.join(TRACE_SCORE_TRANSACTION_RELATIVE);
+            let mut writes = 0;
+            let interrupted =
+                score_trace_with_writer(&repo, &vault, Some(&selected.id), |path, content| {
+                    writes += 1;
+                    if writes == fail_at {
+                        if fail_after_write {
+                            super::write(path, content)?;
+                        }
+                        anyhow::bail!("injected trace-score boundary interruption");
+                    }
+                    super::write(path, content)
+                });
+
+            assert!(interrupted.is_err());
+            assert_eq!(writes, fail_at);
+            assert!(journal.is_file());
+
+            recover_pending_trace_score(&repo, &vault).unwrap();
+            assert_trace_score_recovered(&repo, &vault, &selected);
+            let published = [
+                fs::read(&selected.repo_path).unwrap(),
+                fs::read(&selected.vault_path).unwrap(),
+                fs::read(repo.join("docs/baron/traces/INDEX.md")).unwrap(),
+                fs::read(vault.project_root.join("Traces/INDEX.md")).unwrap(),
+            ];
+
+            recover_pending_trace_score(&repo, &vault).unwrap();
+            assert_trace_score_recovered(&repo, &vault, &selected);
+            assert_eq!(
+                published,
+                [
+                    fs::read(&selected.repo_path).unwrap(),
+                    fs::read(&selected.vault_path).unwrap(),
+                    fs::read(repo.join("docs/baron/traces/INDEX.md")).unwrap(),
+                    fs::read(vault.project_root.join("Traces/INDEX.md")).unwrap(),
+                ],
+                "retry must be idempotent after boundary {fail_at}"
+            );
+        }
+    }
+
+    #[test]
+    fn remaining_trace_score_boundaries_reject_external_target_edits() {
+        // Preserve a third-party edit when recovery sees it after each
+        // previously untested publication boundary.
+        for (fail_at, fail_after_write, edited_target) in [
+            (3, false, 0), // Both traces are scored; repo index is next.
+            (4, false, 2), // Repo index is scored; Vault index is next.
+            (4, true, 3),  // Both indexes are scored; cleanup is next.
+        ] {
+            let (_temp, repo, vault, selected) = trace_score_fixture();
+            let targets = [
+                selected.repo_path.clone(),
+                selected.vault_path.clone(),
+                repo.join("docs/baron/traces/INDEX.md"),
+                vault.project_root.join("Traces/INDEX.md"),
+            ];
+            let mut writes = 0;
+            let interrupted =
+                score_trace_with_writer(&repo, &vault, Some(&selected.id), |path, content| {
+                    writes += 1;
+                    if writes == fail_at {
+                        if fail_after_write {
+                            super::write(path, content)?;
+                        }
+                        anyhow::bail!("injected trace-score boundary interruption");
+                    }
+                    super::write(path, content)
+                });
+            assert!(interrupted.is_err());
+            let external_edit = b"User edit made after interrupted trace scoring\n";
+            fs::write(&targets[edited_target], external_edit).unwrap();
+
+            let recovery = score_trace(&repo, &vault, Some(&selected.id));
+
+            assert!(recovery.is_err(), "recovery must reject a changed target");
+            assert_eq!(fs::read(&targets[edited_target]).unwrap(), external_edit);
+            assert!(repo.join(TRACE_SCORE_TRANSACTION_RELATIVE).is_file());
         }
     }
 }

@@ -1,4 +1,5 @@
 use std::fs;
+use std::ops::Range;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -6,7 +7,10 @@ use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::safe_io::{acquire_project_lock, read_bytes, read_text_required, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, existing_directory_chain, is_reparse_point, read_bytes, read_text,
+    read_text_required, replace_text,
+};
 use crate::vault::VaultContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -99,16 +103,21 @@ pub fn close_finding(
         .join(format!("{id}.md"));
     let mut content = read_text_required(&vault_path)
         .with_context(|| format!("Review finding not found: {id}"))?;
-    if content.contains("- Status: `closed`") {
+    let status = finding_status(&content, &vault_path)?;
+    if status == FindingStatus::Closed {
         let repo_content = read_text_required(&repo_path)
             .with_context(|| format!("Review finding projection not found: {id}"))?;
         if repo_content != content {
-            let mut open_version = content
-                .split("\n## Closure Evidence\n\n")
-                .next()
-                .unwrap_or(&content)
-                .to_string();
-            open_version = open_version.replacen("- Status: `closed`", "- Status: `open`", 1);
+            let closure_marker = "\n## Closure Evidence\n\n";
+            let Some((open_source, _)) = content.split_once(closure_marker) else {
+                bail!("Closed review finding `{id}` has no closure evidence");
+            };
+            let open_version = replace_finding_status(
+                open_source,
+                &vault_path,
+                FindingStatus::Closed,
+                FindingStatus::Open,
+            )?;
             if repo_content != open_version {
                 bail!("Review finding `{id}` differs between checkout and shared Vault; refusing to overwrite either version");
             }
@@ -121,7 +130,12 @@ pub fn close_finding(
     if repo_content != content {
         bail!("Review finding `{id}` differs between checkout and shared Vault; refusing closure until the conflict is reconciled");
     }
-    content = content.replacen("- Status: `open`", "- Status: `closed`", 1);
+    content = replace_finding_status(
+        &content,
+        &vault_path,
+        FindingStatus::Open,
+        FindingStatus::Closed,
+    )?;
     content.push_str(&format!(
         "\n## Closure Evidence\n\n- Closed: {}\n- Fix evidence: {}\n- Verification: {}\n",
         now(),
@@ -137,23 +151,126 @@ pub fn review_status(repo_root: impl AsRef<Path>) -> Result<String> {
     let root = repo_root.as_ref().join("docs/baron/reviews/findings");
     let mut total = 0;
     let mut open = 0;
-    if root.is_dir() {
-        for entry in fs::read_dir(&root)?.filter_map(Result::ok) {
-            if !entry.path().is_file() {
-                continue;
-            }
-            total += 1;
-            if fs::read_to_string(entry.path())
-                .unwrap_or_default()
-                .contains("- Status: `open`")
-            {
-                open += 1;
-            }
-        }
+    if !existing_directory_chain(&root)? {
+        return Ok(render_review_status(total, open));
     }
-    Ok(format!(
+    for entry in fs::read_dir(&root)
+        .with_context(|| format!("Could not enumerate review findings: {}", root.display()))?
+    {
+        let entry = entry
+            .with_context(|| format!("Could not enumerate review finding in {}", root.display()))?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .with_context(|| format!("Could not inspect review finding: {}", path.display()))?;
+        if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+            bail!(
+                "Review finding cannot be a symlink or reparse point: {}",
+                path.display()
+            );
+        }
+        if !metadata.is_file() {
+            bail!(
+                "Review finding entry must be a regular file: {}",
+                path.display()
+            );
+        }
+        let content = read_text(&path)?.with_context(|| {
+            format!("Review finding disappeared during read: {}", path.display())
+        })?;
+        if finding_is_open(&content, &path)? {
+            open += 1;
+        }
+        total += 1;
+    }
+    Ok(render_review_status(total, open))
+}
+
+fn render_review_status(total: usize, open: usize) -> String {
+    format!(
         "# Baron Review Gate Status\n\n- Total findings: {total}\n- Open findings: {open}\n- Closure rule: fix evidence plus verification required\n"
-    ))
+    )
+}
+
+fn finding_is_open(content: &str, path: &Path) -> Result<bool> {
+    Ok(finding_status(content, path)? == FindingStatus::Open)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FindingStatus {
+    Open,
+    Closed,
+}
+
+fn finding_status(content: &str, path: &Path) -> Result<FindingStatus> {
+    finding_status_field(content, path).map(|(status, _)| status)
+}
+
+fn finding_status_field(content: &str, path: &Path) -> Result<(FindingStatus, Range<usize>)> {
+    let mut offset = 0;
+    let mut summary_start = None;
+    let mut statuses = Vec::new();
+    for line in content.split_inclusive('\n') {
+        let line_content = line.strip_suffix('\n').unwrap_or(line);
+        let canonical = line_content.strip_suffix('\r').unwrap_or(line_content);
+        if canonical == "## Summary" && summary_start.is_none() {
+            summary_start = Some(offset);
+            break;
+        }
+        if canonical.trim().starts_with("- Status:") {
+            statuses.push((offset, canonical.to_string()));
+        }
+        offset += line.len();
+    }
+    if summary_start.is_none() {
+        bail!(
+            "Review finding Summary section is missing: {}",
+            path.display()
+        );
+    }
+    if statuses.len() != 1 {
+        bail!(
+            "Review finding status is missing or ambiguous: {}",
+            path.display()
+        );
+    }
+    let (status_offset, status_line) = &statuses[0];
+    if *status_offset >= summary_start.unwrap_or(content.len()) {
+        bail!(
+            "Review finding status is outside its header: {}",
+            path.display()
+        );
+    }
+    let status = match status_line.as_str() {
+        "- Status: `open`" => FindingStatus::Open,
+        "- Status: `closed`" => FindingStatus::Closed,
+        _ => bail!(
+            "Review finding status is unknown or malformed: {}",
+            path.display()
+        ),
+    };
+    Ok((status, *status_offset..*status_offset + status_line.len()))
+}
+
+fn replace_finding_status(
+    content: &str,
+    path: &Path,
+    from: FindingStatus,
+    to: FindingStatus,
+) -> Result<String> {
+    let (actual, status_range) = finding_status_field(content, path)?;
+    if actual != from {
+        bail!(
+            "Review finding status changed before publication: {}",
+            path.display()
+        );
+    }
+    let to_line = match to {
+        FindingStatus::Open => "- Status: `open`",
+        FindingStatus::Closed => "- Status: `closed`",
+    };
+    let mut output = content.to_string();
+    output.replace_range(status_range, to_line);
+    Ok(output)
 }
 
 fn normalize(input: &mut ReviewFindingInput) {

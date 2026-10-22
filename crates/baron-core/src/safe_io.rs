@@ -80,6 +80,63 @@ pub fn read_text_required(path: impl AsRef<Path>) -> Result<String> {
     read_text(path)?.ok_or_else(|| anyhow::anyhow!("Required file is missing: {}", path.display()))
 }
 
+/// Opens an existing regular file for read-only streaming without following a
+/// symlink or reparse point. Missing parent directories or a missing file
+/// return `Ok(None)`; other inspection/open failures remain errors.
+pub(crate) fn open_regular_file_for_read(path: impl AsRef<Path>) -> Result<Option<File>> {
+    let path = path.as_ref();
+    let Some(parent_exists) = inspect_existing_parent_chain(path)? else {
+        return Ok(None);
+    };
+    if !parent_exists {
+        return Ok(None);
+    }
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("Could not inspect file: {}", path.display()))
+        }
+    };
+    if metadata.file_type().is_symlink() || is_reparse_point(&metadata) {
+        bail!(
+            "Refusing to open a symlink or reparse point as a managed regular file: {}",
+            path.display()
+        );
+    }
+    if !metadata.is_file() {
+        bail!(
+            "Expected a regular file but found another filesystem entry: {}",
+            path.display()
+        );
+    }
+
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    let file = options
+        .open(path)
+        .with_context(|| format!("Could not open file for streaming: {}", path.display()))?;
+    let opened_metadata = file
+        .metadata()
+        .with_context(|| format!("Could not inspect opened file: {}", path.display()))?;
+    if is_reparse_point(&opened_metadata) || !opened_metadata.is_file() {
+        bail!("Opened entry is not a regular file: {}", path.display());
+    }
+    Ok(Some(file))
+}
+
 /// Creates a directory and every missing ancestor after validating that every
 /// existing component is a real directory rather than a symlink or reparse
 /// point. Parent traversal is rejected.
@@ -93,6 +150,12 @@ pub fn ensure_directory_chain(path: impl AsRef<Path>) -> Result<()> {
         bail!("Directory path is unavailable: {}", path.display());
     }
     Ok(())
+}
+
+/// Confirms that an existing directory chain contains no symlink or reparse
+/// point. Returns `false` only when some component is missing.
+pub(crate) fn existing_directory_chain(path: impl AsRef<Path>) -> Result<bool> {
+    inspect_directory_chain(path.as_ref(), false)
 }
 
 /// Computes the project-scoped mutation lock path after resolving the project
@@ -662,7 +725,7 @@ fn sync_parent_directory(parent: &Path) -> Result<()> {
     Ok(())
 }
 
-fn is_reparse_point(metadata: &fs::Metadata) -> bool {
+pub(crate) fn is_reparse_point(metadata: &fs::Metadata) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;

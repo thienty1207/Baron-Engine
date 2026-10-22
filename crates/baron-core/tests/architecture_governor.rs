@@ -61,6 +61,33 @@ fn architecture_contract_uses_evidence_and_never_moves_existing_code() {
 }
 
 #[test]
+fn architecture_update_preserves_invalid_utf8_managed_file() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let config = initialize_project_with_options(
+        &repo,
+        Some(AdapterKind::Codex),
+        &vault,
+        Some(ProjectPlatform::Fullstack),
+    )
+    .unwrap();
+    let managed = repo.join("docs/baron/architecture/CURRENT_ARCHITECTURE.md");
+    fs::create_dir_all(managed.parent().unwrap()).unwrap();
+    let corrupt = b"\xffuser-authored architecture marker\n";
+    fs::write(&managed, corrupt).unwrap();
+
+    let result = ensure_architecture_governor(&repo, &config);
+
+    assert!(
+        result.is_err(),
+        "invalid UTF-8 managed content must be rejected"
+    );
+    assert_eq!(fs::read(managed).unwrap(), corrupt);
+}
+
+#[test]
 fn repeated_extension_is_idempotent() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("app");

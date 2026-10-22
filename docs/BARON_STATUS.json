@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-21",
+  "lastUpdated": "2026-10-22",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "After GitHub PR write access is available, open a PR from the pushed branch and verify required checks on the exact PR head. Stop before merge pending user approval.",
+  "nextAction": "Push the locally verified PR #2 follow-up source and evidence commits, verify exact-head CI including Linux symlink coverage, then request fresh independent review. Do not merge without owner approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -39,6 +39,53 @@
     "persistedStateBoundary": "Tracked changes are in the managed worktree; regression repos, Vaults, and fresh test runs use temporary fixtures and BARON_HOME. An earlier invocation used the host machine home; a separate receipt-authority seed was observed, but its prior provenance is uncertain. Its value was not read or changed, and no machine data was staged. No original-project proof or trace was produced.",
     "plan": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md",
     "evidenceLedger": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md"
+  },
+  "maintenance01": {
+    "status": "PR2_REVIEW_FOLLOWUP_LOCALLY_VERIFIED_PUSH_PENDING",
+    "started": "2026-10-21",
+    "spec": "SPEC-05-MAINTENANCE-01-LOGIC-INTEGRITY-HARDENING",
+    "baselineSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
+    "branch": "codex/spec-05-maintenance-01-logic-integrity",
+    "sourceSnapshotSha": "195bdf7a1ffae166e67e9fdb5436098598678da1",
+    "findings": {
+      "LOG-01": "CONFIRMED BUG; malformed Stop JSON and corrupt Stop journal were RED at the CLI boundary; typed failure disposition fixed the downgrade, and all 8 phase12_hooks_cli tests pass including the preserved soft UserPromptSubmit fallback",
+      "LOG-02": "CONFIRMED BUG; six public-mutator invalid-UTF-8 regressions were observed RED for plan indexes, trace indexes, architecture/platform managed docs, and sibling harness story index; safe missing-only reads and trace-index preflight now pass all six",
+      "LOG-03": "CONFIRMED BUG; unreadable Rust source was represented as empty content, causing a successful graph rebuild and changed cache; read errors now propagate before publication, and the RED/GREEN cache-preservation test plus intentional-deletion tombstone test pass",
+      "LOG-04": "CONFIRMED BUG; malformed state was hidden as empty and overwritten, barrier-synchronized importers lost one of two disjoint source entries (1/2 RED), and initial review found retry after note publication could overwrite a user edit. Strict missing-only state loading, checkout-then-Vault locking, reload-before-publication, create-only note publication, and exact note-identity validation now pass corruption, union, retry, interruption, and session integration tests",
+      "LOG-05": "CONFIRMED BUG; invalid UTF-8, missing/unknown/duplicate statuses, and malformed findings paths were RED as false-green or omitted context; strict path/type/UTF-8/status validation now returns explicit errors and context reports unavailable (review_gate 9/9, context 2/2 focused tests pass)",
+      "LOG-06": "CONFIRMED BUG; automation status and Autopilot read the whole journal under checkout/Vault locks, counted malformed rows as healthy partial data, and collapsed missing/empty/corrupt states. A locked regular-file length snapshot is now streamed after releasing both locks using 8 KiB buffers, strict JSON/UTF-8 validation, a 1 MiB row cap, exact counts/latest labels, a 64-kind/256-byte diagnostic bound, and explicit missing/empty/present states. RED/GREEN focused results: automation 14/14, Autopilot 6/6, scanner unit 4/4, phase12_hooks 16/16.",
+      "G-01": "TEST GAP CLOSED — NO SOURCE BUG: the test was RED because the after_current_before_journal_cleanup failpoint did not exist. The test-only boundary now interrupts after Repo/Vault/index/CURRENT publication while the journal remains, and two fresh recovery subprocesses plus retries apply A exactly once, clear the journal, keep all A projections coherent, and preserve B byte-for-byte. Plan unit tests 5/5 and plan integration tests 67/67 pass.",
+      "PR2-R01": "CONFIRMED BUG; arbitrary session message text could bind an unrelated repository when the text equaled its path, and lowercased source identity could merge case-distinct Windows paths. RED/GREEN regressions now require exact trusted context metadata, canonical case-preserving path identity, unique legacy-key migration, and preservation of edited notes.",
+      "PR2-R02": "CONFIRMED BUG; a closed-status marker in summary text could make close_finding return success while the header remained open. RED/GREEN regression now validates the unique authoritative header status before Summary and retains interrupted Vault-closed/repository-open projection recovery.",
+      "PR2-R03": "CONFIRMED BUG; Windows file-lock injection reproduced failure after the repo trace write but before the Vault trace write, and a retry failed on divergent mirrors. A bounded pending transaction journal now recovers both trace mirrors and indexes idempotently, validates all targets before writes, and preserves unrelated trace/index content. Private deterministic failpoint and public Windows retry regressions pass."
+    },
+    "siblingAudit": "Lexical sweep across Core, CLI, and adapter production Rust sources followed by targeted semantic tracing of authority, completion, proof, trace, plan, hook, capability, receipt, review, journal, and multi-file publication paths. Three additional confirmed sibling bugs were fixed with RED/GREEN regressions. This was not a line-by-line review of every lexical match; diagnostic-only and contract-limited observations are documented in the verification ledger.",
+    "additionalFindings": {
+      "LOG06-harness-audit": "CONFIRMED BUG; harness audit read and substring-matched the full shared journal under both locks and hid read errors; it now consumes the strict bounded scanner and distinguishes missing from empty.",
+      "LOG06-continuity": "CONFIRMED BUG; continuity packet generation skipped malformed journal rows and could use a stale event; it now propagates strict bounded scanner errors before publication.",
+      "autopilot-intent": "CONFIRMED BUG; unreadable CURRENT_INTENT was represented as no intent and approval could proceed; read failures now propagate and approval preserves candidate state.",
+      "trace-risk": "CONFIRMED BUG; unreadable or readable malformed Harness CURRENT risk could lower a high-risk legacy trace. Missing CURRENT retains the Medium compatibility default; unreadable, missing-risk, unknown-risk, duplicate-risk, or malformed present CURRENT selects High. The regression covers all four malformed/unreadable cases and requires the trace to fail.",
+      "session-import-recovery": "CONFIRMED BUG; interruption after note publication and before state publication left retry able to erase a user edit. Create-only note publication now adopts only an existing note whose frontmatter type, adapter, and source hash match. A deterministic interruption/edit/retry regression confirms byte preservation and state recovery."
+    },
+    "proofStatus": "Targeted RED/GREEN tests cover LOG-01..LOG-06, G-01 recovery after CURRENT publication, sibling audit fixes, R01-R03, F-01/F-02, three F-03 replay stages, and repeated trace score idempotency. Nested Git repo and linked-worktree imports are rejected while ordinary subdirectories remain accepted; body Status evidence is preserved and header parsing remains fail-closed. F-03 recovery and external-edit tests pass without changing transaction behavior. Repeated public trace scoring is byte-stable after a separate adjacent fix. No Baron proof/trace artifact was produced against the user's unrecovered project identity.",
+    "traceStatus": "Test evidence only. Existing trace transaction code passes replay and external-edit tests after Vault trace publication, between index writes, and after final index write before journal cleanup. Repeated scoring preserves byte-identical repo/Vault trace files and indexes. The prior public Windows lock retry remains covered. No project-scoped Baron trace was produced.",
+    "persistedStateBoundary": "Isolated worktree and temporary fixtures; original project, Vault, session roots, and machine state are outside the mutation boundary",
+    "localGates": "PASS on source commit 195bdf7a1ffae166e67e9fdb5436098598678da1: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1 (exit 0); cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --locked --release; release CLI reports baron 5.0.0; five CLI help smokes; status JSON parsing; 32 repository-relative links in five changed Markdown files; retired-adapter content/filename gate; and git diff --check. Targeted session import 4/4, review_gate 12/12, and trace transaction unit tests 4/4. Symlink escape test ran but skipped its assertion on Windows because the OS denied symlink creation; Linux CI must execute it.",
+    "reviewStatus": "The prior read-only review accepted the R01-R03 range before the 21eaa03b follow-up review. F-01 and F-02 were source-confirmed and fixed with RED/GREEN tests; F-03 was a test gap only and is covered without changing transaction behavior. A separate repeated-score formatting regression was fixed and verified. Fresh independent review of the pushed follow-up is pending.",
+    "pullRequestStatus": "Existing PR #2: https://github.com/thienty1207/Baron-Engine/pull/2. Source commits 61d111dff35a5586a490d496868309ca68557097 and 195bdf7a1ffae166e67e9fdb5436098598678da1 are locally committed; status/evidence checkpoint and push are pending. Verify hosted checks on the exact pushed head; do not merge.",
+    "knownLimitations": "The lexical source sweep is not a manual line-by-line review of every match. Optional diagnostic projections can represent unreadable CURRENT files as absent; CodeGraph source fingerprint/call-edge helpers may omit advisory cache/edge data on transient metadata or reread failure. These are classified and bounded in the verification ledger; no authoritative green path was found in the traced callers.",
+    "followupReview": {
+      "reviewedHead": "21eaa03b314d479d6524dba34d0c6bc34be8368a",
+      "status": "LOCAL_VERIFICATION_PASSED_PUSH_PENDING",
+      "F-01": "CONFIRMED BUG — FIXED in source commit 61d111dff35a5586a490d496868309ca68557097. Canonical effective Git/workspace roots are compared; nested repos and linked worktrees are excluded; normal subdirectories pass; unresolved cwd/markers fail explicitly. Windows denied symlink creation locally, so Linux CI must execute the symlink escape test.",
+      "F-02": "CONFIRMED BUG — FIXED in source commit 61d111dff35a5586a490d496868309ca68557097. Status is parsed only before required ## Summary; evidence and affected-file Status bullets are preserved; duplicate/malformed header fields fail closed.",
+      "F-03": "TEST GAP CLOSED — NO SOURCE BUG FOUND. Recovery and external edit rejection pass after Vault trace/before first index, after first index/before second, and after final index/before journal cleanup. No production code change was needed.",
+      "traceScoreIdempotency": "ADJACENT REGRESSION — FIXED in source commit 195bdf7a1ffae166e67e9fdb5436098598678da1. Repeated trace scoring now preserves byte-identical repo/Vault trace files and indexes.",
+      "plan": "docs/superpowers/plans/2026-10-22-pr2-review-followup-21eaa03b.md",
+      "verificationLedger": "docs/superpowers/plans/2026-10-22-pr2-review-followup-21eaa03b-verification.md"
+    },
+    "plan": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md",
+    "verificationLedger": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md"
   },
   "activeStabilization": {
     "program": "Baron 5.0.1 Stabilization",

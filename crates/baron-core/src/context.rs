@@ -308,8 +308,12 @@ pub fn compile_context_for_lifecycle_identity(
 
 fn render_review_gate(repo_path: &Path) -> String {
     let path = repo_path.join("docs/baron/reviews");
-    if !path.is_dir() {
-        return String::new();
+    match crate::safe_io::existing_directory_chain(&path) {
+        Ok(false) => return String::new(),
+        Ok(true) => {}
+        Err(error) => {
+            return format!("## Reviewer Closure\n\n- unavailable: {error}\n\n");
+        }
     }
     match review_status(repo_path) {
         Ok(status) => format!("## Reviewer Closure\n\n{}\n", status),

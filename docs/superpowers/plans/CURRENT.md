@@ -1,5 +1,78 @@
 # Current Baron Build Plan
 
+## Current follow-up — PR #2 review against HEAD 21eaa03b (LOCAL VERIFICATION PASSED — PUSH/CI/REVIEW PENDING — 2026-10-22)
+
+- Baseline under review: PR #2 head `21eaa03b314d479d6524dba34d0c6bc34be8368a`;
+  branch `codex/spec-05-maintenance-01-logic-integrity` in the managed worktree.
+- F-01: confirmed and fixed in source commit
+  `61d111dff35a5586a490d496868309ca68557097`. RED/GREEN tests cover an actual
+  nested Git repo, a linked worktree `.git` file, an ordinary subdirectory,
+  unresolved cwd, and symlink escape. Windows denied symlink creation locally;
+  that regression is expected to run on Linux CI.
+- F-02: confirmed and fixed in the same source commit. Parsing requires the
+  `## Summary` boundary and considers only header status; evidence and affected
+  file bullets remain unchanged. Duplicate header status remains an error.
+- F-03: test gap closed without production changes. Added successful replay and
+  external-edit rejection at all three missing journal boundaries; existing
+  transaction code passes the matrix.
+- Adjacent trace-score idempotency defect: repeated public scoring appended a
+  newline. A RED/GREEN byte-stability regression and fix are committed as
+  `195bdf7a1ffae166e67e9fdb5436098598678da1`; both trace copies and indexes
+  remain byte-identical after the second score.
+- Proof status: focused RED/GREEN regressions pass; the full workspace suite
+  passes. No project-scoped Baron proof/trace was created. Fixtures use
+  temporary repos, Vaults, sessions, and `BARON_HOME`.
+- Local gates pass: fmt; full workspace all-target tests; warnings-denied
+  Clippy; locked release build and CLI version; CLI help, JSON, 32
+  repository-relative links; retired-adapter and diff checks. Exact-head CI
+  and fresh independent review are pending after push.
+- Safe next action: push the source and evidence checkpoint to the existing
+  PR #2, verify CI on that exact head, and request fresh review. Stop before
+  merge or release.
+
+Plan: [PR #2 follow-up plan](2026-10-22-pr2-review-followup-21eaa03b.md); evidence: [follow-up verification ledger](2026-10-22-pr2-review-followup-21eaa03b-verification.md).
+
+## Previous checkpoint — SPEC-05 Maintenance 01 PR #2 R01-R03 review fixes (HEAD 21eaa03b — SUPERSEDED — 2026-10-22)
+
+- Baseline: `main` / `origin/main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
+- Branch: `codex/spec-05-maintenance-01-logic-integrity`; isolated worktree.
+- Scope completed: Maintenance 01 LOG-01..LOG-06, G-01 recovery coverage, and
+  the sibling audit are recorded in the implementation plan and evidence
+  ledger. This checkpoint addresses the new R01/R02/R03 findings in the
+  independent PR #2 review.
+- R01: session imports use exact context metadata fields, canonical path
+  identity with case preserved, and safe migration of a unique legacy folded
+  state key. RED/GREEN tests cover message-text false binding, case-distinct
+  sources, and an edited note during state-key migration.
+- R02: closure reads one valid `Status` field in the finding header before
+  `## Summary`, then replaces only that field. Interrupted closure publication
+  with the Vault closed and repository open remains repairable. RED/GREEN tests
+  cover summary spoofing and the interrupted projection.
+- R03: a bounded pending journal stores prior and target bytes for both trace
+  mirrors and both indexes. Recovery validates all targets before completing
+  missing writes, preserves unrelated rows, and runs before mirror preflight.
+  A private writer failpoint and a Windows file-lock injection reproduce the
+  interrupted publication; retry recovery passes.
+- Source commit: `8ea372bfc5e7ecef961fb9eefce92e2219445d1b`. Local checks passed:
+  fmt, all workspace all-target tests, warnings-denied Clippy, locked release
+  build, release CLI `baron 5.0.0`, and the exact case-sensitive session test
+  after the final helper cleanup. The workspace suite ran before the
+  test-helper-only lint cleanup; the affected test, fmt, Clippy, and release
+  build passed after it. Fixtures use temporary BARON_HOME and session roots.
+- The earlier ACCEPT review predates this source commit. The updated PR #2
+  head needs hosted CI verification and independent review. Source/evidence
+  head `b9cbbecb0ede08516590ff0d784693936e5cb79d` was pushed; its Baron CI run
+  was queued before this status-document update. The production-tree sweep
+  remains lexical plus targeted semantic tracing, not a
+  line-by-line review of every match. No project-scoped Baron proof or trace
+  was created for the user's unrecovered identity.
+- Persisted-state boundary: use temp repositories, Vaults, session roots, and
+  BARON_HOME only. Preserve the user's original checkout and machine state.
+- Safe next action: verify hosted checks on the latest PR #2 head and await
+  independent review of R01-R03; stop before merge pending owner approval.
+
+Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification: [evidence ledger](2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
+
 ## Current follow-up — SPEC-05 post-closure hardening (IN PROGRESS — 2026-10-18)
 
 This follow-up is separate from the original SPEC-05 closure. The accepted

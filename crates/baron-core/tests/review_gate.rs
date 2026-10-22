@@ -18,6 +18,13 @@ fn finding() -> ReviewFindingInput {
     }
 }
 
+fn write_review_entry(repo: &Path, name: &str, bytes: &[u8]) -> PathBuf {
+    let path = repo.join("docs/baron/reviews/findings").join(name);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, bytes).unwrap();
+    path
+}
+
 #[test]
 fn finding_is_mirrored_and_cannot_close_without_fix_and_verification() {
     let temp = tempdir().unwrap();
@@ -62,6 +69,184 @@ fn closure_preserves_original_finding_and_records_evidence() {
     assert!(content.contains("Changed footer layout constraints"));
     assert!(content.contains("390px/1440px"));
     assert!(review_status(&repo).unwrap().contains("Open findings: 0"));
+}
+
+#[test]
+fn closure_uses_the_header_status_when_summary_mentions_a_closed_status_marker() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let mut input = finding();
+    input.summary = "Audit notes mention - Status: `closed` as a literal marker".to_string();
+    let record = record_finding(&repo, &context, input).unwrap();
+
+    assert!(review_status(&repo).unwrap().contains("Open findings: 1"));
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Updated the navigation layout",
+        "Responsive checks passed",
+    )
+    .unwrap();
+
+    let repo_content = fs::read_to_string(&record.repo_path).unwrap();
+    let vault_content = fs::read_to_string(&record.vault_path).unwrap();
+    assert_eq!(repo_content, vault_content);
+    assert!(repo_content
+        .lines()
+        .any(|line| line == "- Status: `closed`"));
+    assert!(!repo_content.lines().any(|line| line == "- Status: `open`"));
+    assert!(review_status(&repo).unwrap().contains("Open findings: 0"));
+}
+
+#[test]
+fn status_shaped_evidence_and_affected_files_do_not_confuse_header_status() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let mut input = finding();
+    input.evidence = vec!["Status: `closed`".to_string(), "Status: `open`".to_string()];
+    input.affected_files = vec!["Status: `open`".to_string()];
+    let record = record_finding(&repo, &context, input).unwrap();
+
+    let recorded = fs::read_to_string(&record.repo_path).unwrap();
+    assert!(recorded.contains("## Evidence\n\n- Status: `closed`\n- Status: `open`"));
+    assert!(recorded.contains("## Affected Files\n\n- Status: `open`"));
+    assert!(review_status(&repo).unwrap().contains("Open findings: 1"));
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Corrected the reviewed issue",
+        "Focused regression passed",
+    )
+    .unwrap();
+
+    let closed = fs::read_to_string(&record.repo_path).unwrap();
+    let header = closed.split("## Summary").next().unwrap();
+    assert!(header.lines().any(|line| line == "- Status: `closed`"));
+    assert!(closed.contains("## Evidence\n\n- Status: `closed`\n- Status: `open`"));
+    assert!(closed.contains("## Affected Files\n\n- Status: `open`"));
+    assert!(review_status(&repo).unwrap().contains("Open findings: 0"));
+}
+
+#[test]
+fn close_finding_recovers_when_vault_closed_before_repo_projection() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let record = record_finding(&repo, &context, finding()).unwrap();
+    let open_repo_content = fs::read(&record.repo_path).unwrap();
+
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Fixed the footer overlap",
+        "Responsive layout checks passed",
+    )
+    .unwrap();
+    let closed_vault_content = fs::read(&record.vault_path).unwrap();
+    fs::write(&record.repo_path, &open_repo_content).unwrap();
+
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Retry should not replace original closure evidence",
+        "Retry should recover the prior closure",
+    )
+    .unwrap();
+
+    assert_eq!(fs::read(&record.repo_path).unwrap(), closed_vault_content);
+    assert_eq!(fs::read(&record.vault_path).unwrap(), closed_vault_content);
+    assert!(review_status(&repo).unwrap().contains("Open findings: 0"));
+}
+
+#[test]
+fn review_status_rejects_corrupt_finding_status() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    fs::create_dir_all(&repo).unwrap();
+    write_review_entry(&repo, "valid-open.md", b"# Finding\n- Status: `open`\n");
+    let corrupt = write_review_entry(&repo, "corrupt.md", b"# Finding\n- Status: `open`\n\xff");
+    let original = fs::read(&corrupt).unwrap();
+
+    let error = review_status(&repo).unwrap_err().to_string();
+
+    assert!(error.contains("UTF-8"), "unexpected error: {error}");
+    assert_eq!(fs::read(corrupt).unwrap(), original);
+}
+
+#[test]
+fn review_status_rejects_missing_unknown_and_duplicate_status_lines() {
+    for (name, content) in [
+        (
+            "missing.md",
+            "# Finding\n\n## Summary\n\nA finding without a status.\n",
+        ),
+        (
+            "unknown.md",
+            "# Finding\n- Status: `pending`\n\n## Summary\n\nUnknown status.\n",
+        ),
+        (
+            "missing-summary.md",
+            "# Finding\n- Status: `open`\n",
+        ),
+        (
+            "duplicate.md",
+            "# Finding\n- Status: `open`\n- Status: `closed`\n\n## Summary\n\nDuplicate header status.\n",
+        ),
+    ] {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("app");
+        fs::create_dir_all(&repo).unwrap();
+        write_review_entry(&repo, name, content.as_bytes());
+
+        let error = review_status(&repo).unwrap_err().to_string();
+        let error = error.to_lowercase();
+        assert!(error.contains("status") || error.contains("summary"),
+            "{name} produced an unclear error: {error}");
+    }
+}
+
+#[test]
+fn review_status_rejects_invalid_findings_directory_and_nested_entries() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("file-root");
+    fs::create_dir_all(repo.join("docs/baron/reviews")).unwrap();
+    fs::write(repo.join("docs/baron/reviews/findings"), "not a directory").unwrap();
+    assert!(review_status(&repo).is_err());
+
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("nested-entry");
+    let nested = repo.join("docs/baron/reviews/findings/unclassified");
+    fs::create_dir_all(&nested).unwrap();
+    assert!(review_status(&repo).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn review_status_rejects_symlinked_finding_entries() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let external = temp.path().join("external.md");
+    fs::create_dir_all(&repo).unwrap();
+    fs::write(&external, "# External\n- Status: `open`\n").unwrap();
+    let link = repo.join("docs/baron/reviews/findings/external.md");
+    fs::create_dir_all(link.parent().unwrap()).unwrap();
+    symlink(&external, &link).unwrap();
+
+    assert!(review_status(&repo).is_err());
 }
 
 #[test]

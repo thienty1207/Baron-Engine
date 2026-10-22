@@ -45,6 +45,32 @@ fn continuity_checkpoint_writes_repo_and_vault_resume_packet() {
 }
 
 #[test]
+fn continuity_checkpoint_rejects_a_corrupt_automation_journal() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    fs::create_dir_all(context.project_root.join("Artifacts")).unwrap();
+    fs::write(
+        context
+            .project_root
+            .join("Artifacts/automation-journal.jsonl"),
+        b"{malformed\n",
+    )
+    .unwrap();
+
+    let result = record_continuity_checkpoint(&repo, &context, "resume auth work", "codex");
+
+    assert!(
+        result.is_err(),
+        "a malformed journal must not produce a resume packet with a stale latest event"
+    );
+    assert!(!repo.join("docs/baron/continuity/CURRENT.md").exists());
+    assert!(!context.project_root.join("Continuity/CURRENT.md").exists());
+}
+
+#[test]
 fn legacy_checkpoint_does_not_import_completed_operation_proof_or_trace() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");

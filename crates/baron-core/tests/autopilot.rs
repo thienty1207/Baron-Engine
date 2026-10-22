@@ -144,6 +144,36 @@ fn approval_and_rejection_update_candidates_without_overwriting_runtime_assets()
 }
 
 #[test]
+fn approval_fails_closed_when_current_intent_is_unreadable() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let review = review_after_task(
+        &repo,
+        &context,
+        "Keep auth sessions valid while clarifying proof guidance.",
+    )
+    .unwrap();
+    let candidate_id = review.candidate_ids[0].clone();
+    let intent_path = repo.join("docs/baron/harness/CURRENT_INTENT.md");
+    fs::create_dir_all(intent_path.parent().unwrap()).unwrap();
+    fs::write(&intent_path, [0xff, 0xfe, 0xfd]).unwrap();
+
+    let result = approve_candidate(&repo, &context, &candidate_id);
+
+    assert!(
+        result.is_err(),
+        "approval must stop when current intent cannot be checked"
+    );
+    let candidates = fs::read_to_string(repo.join("docs/baron/autopilot/CANDIDATES.md")).unwrap();
+    assert!(candidates.contains("Status: `candidate`"));
+    assert!(!repo.join("docs/baron/harness/DECISIONS.md").exists());
+}
+
+#[test]
 fn status_surfaces_resume_and_observed_automation_without_guessing() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("demo");
@@ -211,6 +241,44 @@ fn autopilot_status_waits_for_the_shared_vault_journal_lock() {
         "Autopilot status read the shared journal without the capsule lock"
     );
     assert!(status.contains("ContextCompiled"));
+}
+
+#[test]
+fn autopilot_status_rejects_malformed_journal_rows() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    fs::write(&journal, b"{malformed}\n").unwrap();
+
+    assert!(autopilot_status(&repo, &context).is_err());
+}
+
+#[test]
+fn autopilot_status_distinguishes_missing_and_empty_journals() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    initialize_project(&repo, AdapterKind::Codex, &vault).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let journal = context
+        .project_root
+        .join("Artifacts/automation-journal.jsonl");
+
+    let missing = autopilot_status(&repo, &context).unwrap();
+    fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    fs::write(&journal, b"").unwrap();
+    let empty = autopilot_status(&repo, &context).unwrap();
+
+    assert!(missing.contains("Automation journal: `missing`"));
+    assert!(empty.contains("Automation journal: `empty`"));
 }
 
 trait ReadToStringLossy {
