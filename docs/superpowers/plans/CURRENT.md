@@ -1,6 +1,38 @@
 # Current Baron Build Plan
 
-## Current maintenance — SPEC-05 Maintenance 01 PR #2 review fixes (PUSHED — HOSTED CI / REVIEW PENDING — 2026-10-22)
+## Current follow-up — PR #2 review against HEAD 21eaa03b (LOCAL VERIFICATION PASSED — PUSH/CI/REVIEW PENDING — 2026-10-22)
+
+- Baseline under review: PR #2 head `21eaa03b314d479d6524dba34d0c6bc34be8368a`;
+  branch `codex/spec-05-maintenance-01-logic-integrity` in the managed worktree.
+- F-01: confirmed and fixed in source commit
+  `61d111dff35a5586a490d496868309ca68557097`. RED/GREEN tests cover an actual
+  nested Git repo, a linked worktree `.git` file, an ordinary subdirectory,
+  unresolved cwd, and symlink escape. Windows denied symlink creation locally;
+  that regression is expected to run on Linux CI.
+- F-02: confirmed and fixed in the same source commit. Parsing requires the
+  `## Summary` boundary and considers only header status; evidence and affected
+  file bullets remain unchanged. Duplicate header status remains an error.
+- F-03: test gap closed without production changes. Added successful replay and
+  external-edit rejection at all three missing journal boundaries; existing
+  transaction code passes the matrix.
+- Adjacent trace-score idempotency defect: repeated public scoring appended a
+  newline. A RED/GREEN byte-stability regression and fix are committed as
+  `195bdf7a1ffae166e67e9fdb5436098598678da1`; both trace copies and indexes
+  remain byte-identical after the second score.
+- Proof status: focused RED/GREEN regressions pass; the full workspace suite
+  passes. No project-scoped Baron proof/trace was created. Fixtures use
+  temporary repos, Vaults, sessions, and `BARON_HOME`.
+- Local gates pass: fmt; full workspace all-target tests; warnings-denied
+  Clippy; locked release build and CLI version; CLI help, JSON, 32
+  repository-relative links; retired-adapter and diff checks. Exact-head CI
+  and fresh independent review are pending after push.
+- Safe next action: push the source and evidence checkpoint to the existing
+  PR #2, verify CI on that exact head, and request fresh review. Stop before
+  merge or release.
+
+Plan: [PR #2 follow-up plan](2026-10-22-pr2-review-followup-21eaa03b.md); evidence: [follow-up verification ledger](2026-10-22-pr2-review-followup-21eaa03b-verification.md).
+
+## Previous checkpoint — SPEC-05 Maintenance 01 PR #2 R01-R03 review fixes (HEAD 21eaa03b — SUPERSEDED — 2026-10-22)
 
 - Baseline: `main` / `origin/main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`; isolated worktree.

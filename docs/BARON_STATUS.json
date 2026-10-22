@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "Verify hosted CI on the latest PR #2 head and await independent review of R01-R03; stop before merge pending owner approval.",
+  "nextAction": "Push the locally verified PR #2 follow-up source and evidence commits, verify exact-head CI including Linux symlink coverage, then request fresh independent review. Do not merge without owner approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -41,12 +41,12 @@
     "evidenceLedger": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md"
   },
   "maintenance01": {
-    "status": "PR2_REVIEW_FIXES_PUSHED_CI_REVIEW_PENDING",
+    "status": "PR2_REVIEW_FOLLOWUP_LOCALLY_VERIFIED_PUSH_PENDING",
     "started": "2026-10-21",
     "spec": "SPEC-05-MAINTENANCE-01-LOGIC-INTEGRITY-HARDENING",
     "baselineSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
     "branch": "codex/spec-05-maintenance-01-logic-integrity",
-    "sourceSnapshotSha": "8ea372bfc5e7ecef961fb9eefce92e2219445d1b",
+    "sourceSnapshotSha": "195bdf7a1ffae166e67e9fdb5436098598678da1",
     "findings": {
       "LOG-01": "CONFIRMED BUG; malformed Stop JSON and corrupt Stop journal were RED at the CLI boundary; typed failure disposition fixed the downgrade, and all 8 phase12_hooks_cli tests pass including the preserved soft UserPromptSubmit fallback",
       "LOG-02": "CONFIRMED BUG; six public-mutator invalid-UTF-8 regressions were observed RED for plan indexes, trace indexes, architecture/platform managed docs, and sibling harness story index; safe missing-only reads and trace-index preflight now pass all six",
@@ -67,13 +67,23 @@
       "trace-risk": "CONFIRMED BUG; unreadable or readable malformed Harness CURRENT risk could lower a high-risk legacy trace. Missing CURRENT retains the Medium compatibility default; unreadable, missing-risk, unknown-risk, duplicate-risk, or malformed present CURRENT selects High. The regression covers all four malformed/unreadable cases and requires the trace to fail.",
       "session-import-recovery": "CONFIRMED BUG; interruption after note publication and before state publication left retry able to erase a user edit. Create-only note publication now adopts only an existing note whose frontmatter type, adapter, and source hash match. A deterministic interruption/edit/retry regression confirms byte preservation and state recovery."
     },
-    "proofStatus": "Targeted RED/GREEN tests cover LOG-01..LOG-06, G-01 recovery after CURRENT publication, the two sibling journal readers, unreadable Autopilot intent approval, malformed/unreadable Harness risk, session import interruption/edit/retry preservation, and PR #2 findings R01-R03. No Baron proof/trace artifact was produced against the user's unrecovered project identity.",
-    "traceStatus": "Test-based implementation evidence only; R03 used deterministic writer failure and public Windows file-lock interruption/retry; no project-scoped Baron trace was produced.",
+    "proofStatus": "Targeted RED/GREEN tests cover LOG-01..LOG-06, G-01 recovery after CURRENT publication, sibling audit fixes, R01-R03, F-01/F-02, three F-03 replay stages, and repeated trace score idempotency. Nested Git repo and linked-worktree imports are rejected while ordinary subdirectories remain accepted; body Status evidence is preserved and header parsing remains fail-closed. F-03 recovery and external-edit tests pass without changing transaction behavior. Repeated public trace scoring is byte-stable after a separate adjacent fix. No Baron proof/trace artifact was produced against the user's unrecovered project identity.",
+    "traceStatus": "Test evidence only. Existing trace transaction code passes replay and external-edit tests after Vault trace publication, between index writes, and after final index write before journal cleanup. Repeated scoring preserves byte-identical repo/Vault trace files and indexes. The prior public Windows lock retry remains covered. No project-scoped Baron trace was produced.",
     "persistedStateBoundary": "Isolated worktree and temporary fixtures; original project, Vault, session roots, and machine state are outside the mutation boundary",
-    "localGates": "PASS on source commit 8ea372bfc5e7ecef961fb9eefce92e2219445d1b: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1 (exit 0, run before final test-helper-only lint cleanup); cargo clippy --workspace --all-targets -- -D warnings (exit 0); cargo build --workspace --locked --release (exit 0); release CLI version and help pass; exact case-sensitive session regression passed after final helper cleanup; status JSON parses; all 26 repository-relative links in five changed Markdown files resolve; retired-adapter tracked-content and filename searches return zero matches; git diff --check passes. Test environment used temporary BARON_HOME, Codex/Claude session roots, and bundled PowerShell 7.",
-    "reviewStatus": "Earlier read-only review ACCEPTED the prior complete range 9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222 with zero Critical or Important findings; it predates PR #2 findings R01-R03. All three follow-up bugs are now fixed with RED/GREEN evidence on source commit 8ea372bfc5e7ecef961fb9eefce92e2219445d1b. Independent review of the updated PR head is pending.",
-    "pullRequestStatus": "Existing PR #2: https://github.com/thienty1207/Baron-Engine/pull/2. Source and evidence head b9cbbecb0ede08516590ff0d784693936e5cb79d was pushed; Baron CI run 39703882406 was queued for that head. This status update changes the PR head again, so verify hosted checks on the latest pushed commit.",
+    "localGates": "PASS on source commit 195bdf7a1ffae166e67e9fdb5436098598678da1: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1 (exit 0); cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --locked --release; release CLI reports baron 5.0.0; five CLI help smokes; status JSON parsing; 32 repository-relative links in five changed Markdown files; retired-adapter content/filename gate; and git diff --check. Targeted session import 4/4, review_gate 12/12, and trace transaction unit tests 4/4. Symlink escape test ran but skipped its assertion on Windows because the OS denied symlink creation; Linux CI must execute it.",
+    "reviewStatus": "The prior read-only review accepted the R01-R03 range before the 21eaa03b follow-up review. F-01 and F-02 were source-confirmed and fixed with RED/GREEN tests; F-03 was a test gap only and is covered without changing transaction behavior. A separate repeated-score formatting regression was fixed and verified. Fresh independent review of the pushed follow-up is pending.",
+    "pullRequestStatus": "Existing PR #2: https://github.com/thienty1207/Baron-Engine/pull/2. Source commits 61d111dff35a5586a490d496868309ca68557097 and 195bdf7a1ffae166e67e9fdb5436098598678da1 are locally committed; status/evidence checkpoint and push are pending. Verify hosted checks on the exact pushed head; do not merge.",
     "knownLimitations": "The lexical source sweep is not a manual line-by-line review of every match. Optional diagnostic projections can represent unreadable CURRENT files as absent; CodeGraph source fingerprint/call-edge helpers may omit advisory cache/edge data on transient metadata or reread failure. These are classified and bounded in the verification ledger; no authoritative green path was found in the traced callers.",
+    "followupReview": {
+      "reviewedHead": "21eaa03b314d479d6524dba34d0c6bc34be8368a",
+      "status": "LOCAL_VERIFICATION_PASSED_PUSH_PENDING",
+      "F-01": "CONFIRMED BUG — FIXED in source commit 61d111dff35a5586a490d496868309ca68557097. Canonical effective Git/workspace roots are compared; nested repos and linked worktrees are excluded; normal subdirectories pass; unresolved cwd/markers fail explicitly. Windows denied symlink creation locally, so Linux CI must execute the symlink escape test.",
+      "F-02": "CONFIRMED BUG — FIXED in source commit 61d111dff35a5586a490d496868309ca68557097. Status is parsed only before required ## Summary; evidence and affected-file Status bullets are preserved; duplicate/malformed header fields fail closed.",
+      "F-03": "TEST GAP CLOSED — NO SOURCE BUG FOUND. Recovery and external edit rejection pass after Vault trace/before first index, after first index/before second, and after final index/before journal cleanup. No production code change was needed.",
+      "traceScoreIdempotency": "ADJACENT REGRESSION — FIXED in source commit 195bdf7a1ffae166e67e9fdb5436098598678da1. Repeated trace scoring now preserves byte-identical repo/Vault trace files and indexes.",
+      "plan": "docs/superpowers/plans/2026-10-22-pr2-review-followup-21eaa03b.md",
+      "verificationLedger": "docs/superpowers/plans/2026-10-22-pr2-review-followup-21eaa03b-verification.md"
+    },
     "plan": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md",
     "verificationLedger": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md"
   },
