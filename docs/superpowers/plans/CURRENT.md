@@ -1,6 +1,6 @@
 # Current Baron Build Plan
 
-## Current maintenance — SPEC-05 Maintenance 01 PR #2 review fixes (LOCAL VERIFIED — PUSH PENDING — 2026-10-22)
+## Current maintenance — SPEC-05 Maintenance 01 PR #2 review fixes (PUSHED — HOSTED CI / REVIEW PENDING — 2026-10-22)
 
 - Baseline: `main` / `origin/main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
 - Branch: `codex/spec-05-maintenance-01-logic-integrity`; isolated worktree.
@@ -28,14 +28,16 @@
   test-helper-only lint cleanup; the affected test, fmt, Clippy, and release
   build passed after it. Fixtures use temporary BARON_HOME and session roots.
 - The earlier ACCEPT review predates this source commit. The updated PR #2
-  head still needs hosted CI and independent review; push is pending. The
-  production-tree sweep remains lexical plus targeted semantic tracing, not a
+  head needs hosted CI verification and independent review. Source/evidence
+  head `b9cbbecb0ede08516590ff0d784693936e5cb79d` was pushed; its Baron CI run
+  was queued before this status-document update. The production-tree sweep
+  remains lexical plus targeted semantic tracing, not a
   line-by-line review of every match. No project-scoped Baron proof or trace
   was created for the user's unrecovered identity.
 - Persisted-state boundary: use temp repositories, Vaults, session roots, and
   BARON_HOME only. Preserve the user's original checkout and machine state.
-- Safe next action: push the tested follow-up commit to PR #2 and verify hosted
-  checks on that exact head; stop before merge pending owner approval.
+- Safe next action: verify hosted checks on the latest PR #2 head and await
+  independent review of R01-R03; stop before merge pending owner approval.
 
 Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification: [evidence ledger](2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 

@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "baron-5.0.1-stabilization-spec-05",
   "currentPhaseStatus": "closed",
-  "nextAction": "Push the locally verified PR #2 review-fix commit, verify hosted CI and request independent review on the exact head; stop before merge pending owner approval.",
+  "nextAction": "Verify hosted CI on the latest PR #2 head and await independent review of R01-R03; stop before merge pending owner approval.",
   "postClosureHardening": {
     "status": "in_progress",
     "date": "2026-10-18",
@@ -41,7 +41,7 @@
     "evidenceLedger": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md"
   },
   "maintenance01": {
-    "status": "PR2_REVIEW_FIXES_LOCAL_VERIFIED_PUSH_PENDING",
+    "status": "PR2_REVIEW_FIXES_PUSHED_CI_REVIEW_PENDING",
     "started": "2026-10-21",
     "spec": "SPEC-05-MAINTENANCE-01-LOGIC-INTEGRITY-HARDENING",
     "baselineSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
@@ -72,7 +72,7 @@
     "persistedStateBoundary": "Isolated worktree and temporary fixtures; original project, Vault, session roots, and machine state are outside the mutation boundary",
     "localGates": "PASS on source commit 8ea372bfc5e7ecef961fb9eefce92e2219445d1b: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1 (exit 0, run before final test-helper-only lint cleanup); cargo clippy --workspace --all-targets -- -D warnings (exit 0); cargo build --workspace --locked --release (exit 0); release CLI version and help pass; exact case-sensitive session regression passed after final helper cleanup; status JSON parses; all 26 repository-relative links in five changed Markdown files resolve; retired-adapter tracked-content and filename searches return zero matches; git diff --check passes. Test environment used temporary BARON_HOME, Codex/Claude session roots, and bundled PowerShell 7.",
     "reviewStatus": "Earlier read-only review ACCEPTED the prior complete range 9038afa9f840e3a62acc0f97c6aaa31849247525..3005f5f67a352d62bf60aa1ddb166eead90b5222 with zero Critical or Important findings; it predates PR #2 findings R01-R03. All three follow-up bugs are now fixed with RED/GREEN evidence on source commit 8ea372bfc5e7ecef961fb9eefce92e2219445d1b. Independent review of the updated PR head is pending.",
-    "pullRequestStatus": "Existing PR #2: https://github.com/thienty1207/Baron-Engine/pull/2. Source follow-up commit 8ea372bfc5e7ecef961fb9eefce92e2219445d1b and its status/evidence updates are committed locally and await push; hosted checks must be verified on the final pushed head.",
+    "pullRequestStatus": "Existing PR #2: https://github.com/thienty1207/Baron-Engine/pull/2. Source and evidence head b9cbbecb0ede08516590ff0d784693936e5cb79d was pushed; Baron CI run 39703882406 was queued for that head. This status update changes the PR head again, so verify hosted checks on the latest pushed commit.",
     "knownLimitations": "The lexical source sweep is not a manual line-by-line review of every match. Optional diagnostic projections can represent unreadable CURRENT files as absent; CodeGraph source fingerprint/call-edge helpers may omit advisory cache/edge data on transient metadata or reread failure. These are classified and bounded in the verification ledger; no authoritative green path was found in the traced callers.",
     "plan": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md",
     "verificationLedger": "docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md"

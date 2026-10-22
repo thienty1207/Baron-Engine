@@ -1,6 +1,6 @@
 # Current Build Note
 
-## SPEC-05 Maintenance 01 PR #2 review fixes — 2026-10-22 (LOCAL VERIFIED — PUSH PENDING)
+## SPEC-05 Maintenance 01 PR #2 review fixes — 2026-10-22 (PUSHED — HOSTED CI / REVIEW PENDING)
 
 Baseline `9038afa9f840e3a62acc0f97c6aaa31849247525`; branch
 `codex/spec-05-maintenance-01-logic-integrity`. Work is isolated in a managed
@@ -30,12 +30,14 @@ lint cleanup; the affected test, fmt, Clippy, and release build passed after it.
 Test fixtures used temporary BARON_HOME and
 Codex/Claude session roots. See the verification ledger for RED/GREEN and gate
 evidence. The earlier ACCEPT review predates this commit; the existing PR #2
-needs fresh review and exact-head hosted CI after push. The broad source sweep
+needs fresh review. Source/evidence commit `b9cbbecb0ede08516590ff0d784693936e5cb79d`
+was pushed and Baron CI run `39703882406` was queued; this status-doc update
+needs exact-head checks of its own. The broad source sweep
 remains lexical plus targeted semantic tracing, not a line-by-line review of
 every match. No project-scoped Baron proof/trace was produced.
 
-Safe next action: push this tested follow-up commit to PR #2 and verify hosted
-checks on its exact head. Stop before merge pending owner approval.
+Safe next action: verify hosted checks on the latest PR #2 head and await
+independent review of R01-R03. Stop before merge pending owner approval.
 
 Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); [verification ledger](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 

@@ -1,6 +1,6 @@
 # Baron Build Status
 
-## SPEC-05 Maintenance 01 — PR #2 review fixes (LOCAL VERIFIED — PUSH PENDING — 2026-10-22)
+## SPEC-05 Maintenance 01 — PR #2 review fixes (PUSHED — HOSTED CI / REVIEW PENDING — 2026-10-22)
 
 - Historical SPEC-05 remains `CLOSED`; this is a separate maintenance effort
   based on `main` at `9038afa9f840e3a62acc0f97c6aaa31849247525`.
@@ -31,7 +31,8 @@
   workspace suite had passed before that helper-only cleanup.
 - The earlier independent review accepted the prior source range; it did not
   review this follow-up commit. PR #2 needs a fresh review of the updated head.
-  Hosted checks for the final pushed head are pending.
+  The source/evidence head was pushed; its `Baron CI` workflow was queued. The
+  status-document update also needs exact-head hosted check verification.
 - The whole-tree sweep was lexical plus targeted semantic tracing, not a
   line-by-line review of every raw match. Remaining diagnostic-only and
   contract-limited cases are recorded in the verification ledger.
@@ -42,9 +43,9 @@
 - Persisted-state boundary: isolated worktree only; the user's primary
   checkout, untracked inputs, original project/Vault, and machine state remain
   outside the mutation boundary.
-- Safe next action: push the tested follow-up commit to existing PR #2, then
-  verify hosted checks on that exact head. Stop before merge pending the
-  repository owner's explicit approval.
+- Safe next action: verify hosted checks on the latest PR #2 head and await
+  independent review of R01-R03. Stop before merge pending the repository
+  owner's explicit approval.
 
 Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification ledger: [Maintenance 01 verification](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
