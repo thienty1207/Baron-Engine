@@ -1241,6 +1241,85 @@ fn trace_score_preserves_unreadable_indexes_and_trace_mirrors() {
     assert_eq!(fs::read(&trace.vault_path).unwrap(), vault_trace_before);
 }
 
+#[cfg(windows)]
+#[test]
+fn interrupted_trace_score_publication_recovers_through_public_retry() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    use windows_sys::Win32::Storage::FileSystem::FILE_SHARE_READ;
+
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("demo");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let selected = record_trace(
+        &repo,
+        &context,
+        "Selected trace for interrupted scoring",
+        TraceOutcome::Completed,
+    )
+    .unwrap();
+    let unrelated = record_trace(
+        &repo,
+        &context,
+        "Unrelated operation trace must remain unchanged",
+        TraceOutcome::Partial,
+    )
+    .unwrap();
+    let repo_index = repo.join("docs/baron/traces/INDEX.md");
+    let vault_index = context.project_root.join("Traces/INDEX.md");
+    let repo_index_before = fs::read(&repo_index).unwrap();
+    let vault_index_before = fs::read(&vault_index).unwrap();
+    let unrelated_repo_trace = fs::read(&unrelated.repo_path).unwrap();
+    let unrelated_vault_trace = fs::read(&unrelated.vault_path).unwrap();
+    let unrelated_index_row = fs::read_to_string(&repo_index)
+        .unwrap()
+        .lines()
+        .find(|line| line.contains(&format!("`{}`", unrelated.id)))
+        .unwrap()
+        .to_string();
+    let journal = repo.join(".baron/state/trace-score-transaction.json");
+    let held_vault_file = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ)
+        .open(&selected.vault_path)
+        .unwrap();
+
+    let interrupted = score_trace(&repo, &context, Some(&selected.id));
+    assert!(interrupted.is_err());
+    assert!(journal.is_file());
+    assert_ne!(
+        fs::read(&selected.repo_path).unwrap(),
+        fs::read(&selected.vault_path).unwrap()
+    );
+    assert_eq!(fs::read(&repo_index).unwrap(), repo_index_before);
+    assert_eq!(fs::read(&vault_index).unwrap(), vault_index_before);
+
+    drop(held_vault_file);
+    score_trace(&repo, &context, Some(&selected.id)).unwrap();
+
+    assert!(!journal.exists());
+    assert_eq!(
+        fs::read(&selected.repo_path).unwrap(),
+        fs::read(&selected.vault_path).unwrap()
+    );
+    assert_eq!(
+        fs::read(&unrelated.repo_path).unwrap(),
+        unrelated_repo_trace
+    );
+    assert_eq!(
+        fs::read(&unrelated.vault_path).unwrap(),
+        unrelated_vault_trace
+    );
+    for index in [&repo_index, &vault_index] {
+        assert!(fs::read_to_string(index)
+            .unwrap()
+            .lines()
+            .any(|line| line == unrelated_index_row));
+    }
+}
+
 fn register_required_git(repo: &std::path::Path, vault: &std::path::Path) {
     initialize_project(repo, AdapterKind::Codex, vault).unwrap();
     register_provider(

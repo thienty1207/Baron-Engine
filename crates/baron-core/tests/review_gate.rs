@@ -72,6 +72,72 @@ fn closure_preserves_original_finding_and_records_evidence() {
 }
 
 #[test]
+fn closure_uses_the_header_status_when_summary_mentions_a_closed_status_marker() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let mut input = finding();
+    input.summary = "Audit notes mention - Status: `closed` as a literal marker".to_string();
+    let record = record_finding(&repo, &context, input).unwrap();
+
+    assert!(review_status(&repo).unwrap().contains("Open findings: 1"));
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Updated the navigation layout",
+        "Responsive checks passed",
+    )
+    .unwrap();
+
+    let repo_content = fs::read_to_string(&record.repo_path).unwrap();
+    let vault_content = fs::read_to_string(&record.vault_path).unwrap();
+    assert_eq!(repo_content, vault_content);
+    assert!(repo_content
+        .lines()
+        .any(|line| line == "- Status: `closed`"));
+    assert!(!repo_content.lines().any(|line| line == "- Status: `open`"));
+    assert!(review_status(&repo).unwrap().contains("Open findings: 0"));
+}
+
+#[test]
+fn close_finding_recovers_when_vault_closed_before_repo_projection() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("app");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let record = record_finding(&repo, &context, finding()).unwrap();
+    let open_repo_content = fs::read(&record.repo_path).unwrap();
+
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Fixed the footer overlap",
+        "Responsive layout checks passed",
+    )
+    .unwrap();
+    let closed_vault_content = fs::read(&record.vault_path).unwrap();
+    fs::write(&record.repo_path, &open_repo_content).unwrap();
+
+    close_finding(
+        &repo,
+        &context,
+        &record.id,
+        "Retry should not replace original closure evidence",
+        "Retry should recover the prior closure",
+    )
+    .unwrap();
+
+    assert_eq!(fs::read(&record.repo_path).unwrap(), closed_vault_content);
+    assert_eq!(fs::read(&record.vault_path).unwrap(), closed_vault_content);
+    assert!(review_status(&repo).unwrap().contains("Open findings: 0"));
+}
+
+#[test]
 fn review_status_rejects_corrupt_finding_status() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("app");

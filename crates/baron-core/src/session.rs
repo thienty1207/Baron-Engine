@@ -189,10 +189,9 @@ where
 
         let (records, invalid_records) = parse_records(&content);
         report.invalid_records = report.invalid_records.saturating_add(invalid_records);
-        // A session header (cwd/repo/project metadata) establishes the
-        // project for the following user/assistant records. We do not accept
-        // an unrelated file merely because one string somewhere mentions the
-        // repository; a new header closes the active segment.
+        // Trusted cwd/repo/project metadata establishes the project for the
+        // following user/assistant records. Message bodies never establish a
+        // project binding; a new context record closes the active segment.
         let mut active_repo_segment = false;
         let mut matching_records = Vec::new();
         for record in &records {
@@ -237,6 +236,12 @@ where
     let _repo_lock = acquire_project_lock(&repo_root)?;
     let _vault_lock = acquire_project_lock(&vault.project_root)?;
     let mut state = load_state(&state_path)?;
+    let mut folded_source_counts = BTreeMap::new();
+    for item in &prepared {
+        *folded_source_counts
+            .entry(item.source_key.to_lowercase())
+            .or_insert(0usize) += 1;
+    }
     for item in prepared {
         if report.imported >= import_limit {
             break;
@@ -248,6 +253,28 @@ where
         {
             report.deduplicated += 1;
             continue;
+        }
+        let folded_key = item.source_key.to_lowercase();
+        let expected_note_path = match &item.action {
+            PreparedImportAction::Imported { note_path, .. } => {
+                Some(normalize_relative(note_path, &vault.project_root))
+            }
+            PreparedImportAction::Unmatched | PreparedImportAction::Noise => None,
+        };
+        if folded_source_counts.get(&folded_key) == Some(&1) {
+            if let Some(legacy) = state.sources.get(&folded_key) {
+                if legacy.content_hash == item.content_hash
+                    && legacy.note_path == expected_note_path
+                {
+                    let migrated = state
+                        .sources
+                        .remove(&folded_key)
+                        .expect("the matching legacy session source was just observed");
+                    state.sources.insert(item.source_key, migrated);
+                    report.deduplicated += 1;
+                    continue;
+                }
+            }
         }
         let source_state = match item.action {
             PreparedImportAction::Unmatched => {
@@ -352,6 +379,8 @@ fn discover_sources(roots: &[(PathBuf, &'static str)]) -> Vec<SessionSource> {
     for (root, adapter) in roots {
         collect_sources(root, adapter, &mut sources);
     }
+    let mut seen = BTreeSet::new();
+    sources.retain(|source| seen.insert((normalize_path(&source.path), source.adapter)));
     sources
 }
 
@@ -408,22 +437,35 @@ fn parse_records(content: &str) -> (Vec<Value>, usize) {
 }
 
 fn value_matches_repo(value: &Value, repo_root: &Path) -> bool {
-    let repo = normalize_path(repo_root);
-    let mut values = Vec::new();
-    collect_strings(value, &mut values);
-    values.iter().any(|value| {
-        let normalized = normalize_text_path(value);
-        if normalized == repo || normalized.starts_with(&format!("{repo}/")) {
-            return true;
+    if !is_session_context_record(value) {
+        return false;
+    }
+
+    let record_type = value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let has_session_payload = matches!(
+        record_type.as_str(),
+        "session_meta" | "session_start" | "session"
+    );
+    let mut paths = Vec::new();
+    let mut malformed = false;
+    collect_context_path_fields(value, &["cwd", "repo"], &mut paths, &mut malformed);
+    collect_project_path_field(value, &mut paths, &mut malformed);
+    if has_session_payload {
+        if let Some(payload) = value.get("payload") {
+            collect_context_path_fields(payload, &["cwd", "repo"], &mut paths, &mut malformed);
+            collect_project_path_field(payload, &mut paths, &mut malformed);
         }
-        Path::new(value)
-            .canonicalize()
-            .ok()
-            .map(|candidate| normalize_path(&candidate))
-            .is_some_and(|candidate| {
-                candidate == repo || candidate.starts_with(&format!("{repo}/"))
-            })
-    })
+    }
+
+    !malformed
+        && !paths.is_empty()
+        && paths
+            .into_iter()
+            .all(|path| path_matches_repo(path, repo_root))
 }
 
 fn is_session_context_record(value: &Value) -> bool {
@@ -431,15 +473,58 @@ fn is_session_context_record(value: &Value) -> bool {
         .get("type")
         .and_then(Value::as_str)
         .unwrap_or_default()
-        .to_lowercase();
+        .to_ascii_lowercase();
     record_type.contains("session")
         || value.get("cwd").is_some()
         || value.get("repo").is_some()
         || value.get("project").is_some()
-        || value.pointer("/payload/cwd").is_some()
-        || value.pointer("/payload/repo").is_some()
-        || value.pointer("/message/cwd").is_some()
-        || value.pointer("/message/repo").is_some()
+}
+
+fn collect_context_path_fields<'a>(
+    value: &'a Value,
+    fields: &[&str],
+    output: &mut Vec<&'a str>,
+    malformed: &mut bool,
+) {
+    for field in fields {
+        let Some(value) = value.get(field) else {
+            continue;
+        };
+        match value
+            .as_str()
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+        {
+            Some(path) => output.push(path),
+            None => *malformed = true,
+        }
+    }
+}
+
+fn collect_project_path_field<'a>(
+    value: &'a Value,
+    output: &mut Vec<&'a str>,
+    malformed: &mut bool,
+) {
+    let Some(project) = value.get("project") else {
+        return;
+    };
+    match project.as_str().map(str::trim) {
+        Some(path) if Path::new(path).is_absolute() => output.push(path),
+        Some(_) => {} // Project labels are not filesystem path authority.
+        None => *malformed = true,
+    }
+}
+
+fn path_matches_repo(value: &str, repo_root: &Path) -> bool {
+    let candidate = Path::new(value);
+    if !candidate.is_absolute() {
+        return false;
+    }
+    candidate
+        .canonicalize()
+        .ok()
+        .is_some_and(|candidate| candidate == repo_root || candidate.starts_with(repo_root))
 }
 
 fn extract_messages(records: &[Value]) -> Vec<(String, String)> {
@@ -524,23 +609,6 @@ fn collect_message_strings(value: &Value, output: &mut Vec<String>) {
                         collect_message_strings(value, output);
                     }
                 }
-            }
-        }
-        _ => {}
-    }
-}
-
-fn collect_strings(value: &Value, output: &mut Vec<String>) {
-    match value {
-        Value::String(value) => output.push(value.clone()),
-        Value::Array(values) => {
-            for value in values {
-                collect_strings(value, output);
-            }
-        }
-        Value::Object(values) => {
-            for value in values.values() {
-                collect_strings(value, output);
             }
         }
         _ => {}
@@ -689,11 +757,15 @@ fn env_path(name: &str) -> Option<PathBuf> {
 }
 
 fn normalize_path(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/").to_lowercase()
-}
-
-fn normalize_text_path(value: &str) -> String {
-    value.replace('\\', "/").to_lowercase()
+    // v1 persisted keys lowercased paths. New keys use canonical path spelling
+    // so case-sensitive roots stay distinct. A legacy key is migrated only
+    // when one current source matches its folded spelling and both its content
+    // hash and destination note identity still match; ambiguous legacy entries
+    // remain inert and create-only note publication makes a retry safe.
+    path.canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 fn normalize_relative(path: &Path, root: &Path) -> String {
@@ -751,6 +823,25 @@ mod tests {
     use super::{import_sessions_from_roots, load_state};
     use crate::vault::ensure_vault;
     use tempfile::tempdir;
+
+    fn enable_case_sensitive_directory(path: &std::path::Path) -> bool {
+        #[cfg(windows)]
+        {
+            path.to_str().is_some_and(|path| {
+                std::process::Command::new("fsutil.exe")
+                    .args(["file", "setCaseSensitiveInfo"])
+                    .arg(path)
+                    .arg("enable")
+                    .output()
+                    .is_ok_and(|output| output.status.success())
+            })
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = path;
+            true
+        }
+    }
 
     #[test]
     fn concurrent_imports_preserve_disjoint_source_union() {
@@ -892,5 +983,124 @@ mod tests {
         assert_eq!(retry.imported, 1);
         assert_eq!(fs::read(&note_path).unwrap(), edited_note);
         assert_eq!(load_state(&state_path).unwrap().sources.len(), 1);
+    }
+
+    #[test]
+    fn case_distinct_session_sources_keep_separate_import_state_keys() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("Vault");
+        let roots = temp.path().join("source-roots");
+        fs::create_dir_all(&roots).unwrap();
+        let case_sensitive_enabled = enable_case_sensitive_directory(&roots);
+        #[cfg(windows)]
+        if !case_sensitive_enabled {
+            eprintln!(
+                "Skipping distinct-case session source assertions: Windows could not enable case-sensitive directory semantics for {}",
+                roots.display()
+            );
+        }
+        let source_upper = roots.join("Sessions");
+        let source_lower = roots.join("sessions");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&source_upper).unwrap();
+        fs::create_dir_all(&source_lower).unwrap();
+        let distinct_sources =
+            source_upper.canonicalize().unwrap() != source_lower.canonicalize().unwrap();
+        if case_sensitive_enabled {
+            assert!(
+                distinct_sources,
+                "case-sensitive directory setup did not create distinct sources"
+            );
+        }
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let repo_text = repo.canonicalize().unwrap().to_string_lossy().to_string();
+        for (root, message) in [
+            (&source_upper, "Remember the upper-case source identity"),
+            (&source_lower, "Remember the lower-case source identity"),
+        ] {
+            fs::write(
+                root.join("session.jsonl"),
+                format!(
+                    "{}\n{}\n",
+                    serde_json::json!({"type":"session_meta","payload":{"cwd":repo_text}}),
+                    serde_json::json!({"type":"response_item","payload":{"role":"user","content":message}})
+                ),
+            )
+            .unwrap();
+        }
+
+        let roots = vec![(source_upper, "codex"), (source_lower, "codex")];
+        let first =
+            import_sessions_from_roots(&repo, &context, 20, roots.clone(), || {}, |_| Ok(()))
+                .unwrap();
+        let state_path = context
+            .project_root
+            .join("Artifacts/session-import-state.json");
+        let state = load_state(&state_path).unwrap();
+        let retry =
+            import_sessions_from_roots(&repo, &context, 20, roots, || {}, |_| Ok(())).unwrap();
+
+        let expected_sources = if distinct_sources { 2 } else { 1 };
+        assert_eq!(first.imported, expected_sources);
+        assert_eq!(state.sources.len(), expected_sources);
+        assert_eq!(retry.imported, 0);
+        assert_eq!(retry.deduplicated, expected_sources);
+    }
+
+    #[test]
+    fn legacy_folded_source_key_migrates_without_replacing_edited_note() {
+        let temp = tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let vault = temp.path().join("Vault");
+        let root = temp.path().join("LegacySessions");
+        fs::create_dir_all(&repo).unwrap();
+        fs::create_dir_all(&root).unwrap();
+        let context = ensure_vault(&vault, &repo).unwrap();
+        let repo_text = repo.canonicalize().unwrap().to_string_lossy().to_string();
+        fs::write(
+            root.join("session.jsonl"),
+            format!(
+                "{}\n{}\n",
+                serde_json::json!({"type":"session_meta","payload":{"cwd":repo_text}}),
+                serde_json::json!({"type":"response_item","payload":{"role":"user","content":"Remember the migrated session identity"}})
+            ),
+        )
+        .unwrap();
+        let roots = vec![(root, "codex")];
+        let first =
+            import_sessions_from_roots(&repo, &context, 20, roots.clone(), || {}, |_| Ok(()))
+                .unwrap();
+        assert_eq!(first.imported, 1);
+
+        let state_path = context
+            .project_root
+            .join("Artifacts/session-import-state.json");
+        let mut state = load_state(&state_path).unwrap();
+        let (current_key, imported_source) = state.sources.pop_first().unwrap();
+        let legacy_key = current_key.to_lowercase();
+        assert_ne!(current_key, legacy_key);
+        let note_path = context
+            .project_root
+            .join(imported_source.note_path.as_deref().unwrap());
+        let mut edited_note = fs::read_to_string(&note_path).unwrap();
+        edited_note.push_str("\nUser edit preserved across state-key migration.\n");
+        fs::write(&note_path, &edited_note).unwrap();
+        state.sources.insert(legacy_key.clone(), imported_source);
+        fs::write(
+            &state_path,
+            format!("{}\n", serde_json::to_string_pretty(&state).unwrap()),
+        )
+        .unwrap();
+
+        let retry =
+            import_sessions_from_roots(&repo, &context, 20, roots, || {}, |_| Ok(())).unwrap();
+        let migrated = load_state(&state_path).unwrap();
+
+        assert_eq!(retry.imported, 0);
+        assert_eq!(retry.deduplicated, 1);
+        assert_eq!(fs::read_to_string(&note_path).unwrap(), edited_note);
+        assert!(migrated.sources.contains_key(&current_key));
+        assert!(!migrated.sources.contains_key(&legacy_key));
     }
 }

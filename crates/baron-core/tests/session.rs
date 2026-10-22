@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 use std::sync::Mutex;
 
 use baron_core::context::{compile_context, ContextTarget};
@@ -9,6 +10,23 @@ use baron_core::vault::ensure_vault;
 use tempfile::tempdir;
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+#[cfg(windows)]
+fn enable_case_sensitive_directory(path: &Path) -> bool {
+    path.to_str().is_some_and(|path| {
+        std::process::Command::new("fsutil.exe")
+            .args(["file", "setCaseSensitiveInfo"])
+            .arg(path)
+            .arg("enable")
+            .output()
+            .is_ok_and(|output| output.status.success())
+    })
+}
+
+#[cfg(not(windows))]
+fn enable_case_sensitive_directory(_path: &Path) -> bool {
+    true
+}
 
 #[test]
 fn imports_matched_codex_and_claude_sessions_with_redaction_and_deduplication() {
@@ -199,4 +217,107 @@ fn session_import_matches_canonical_path_aliases() {
     std::env::remove_var("BARON_CLAUDE_SESSIONS_ROOT");
 
     assert_eq!(report.imported, 1);
+}
+
+#[test]
+fn session_import_uses_context_metadata_instead_of_message_text_for_repo_binding() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("current-repo");
+    let other = temp.path().join("other-repo");
+    let vault = temp.path().join("Vault");
+    let codex = temp.path().join("sessions");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&other).unwrap();
+    fs::create_dir_all(&codex).unwrap();
+    let repo_text = repo.canonicalize().unwrap().to_string_lossy().to_string();
+    let other_text = other.canonicalize().unwrap().to_string_lossy().to_string();
+    fs::write(
+        codex.join("unrelated.jsonl"),
+        format!(
+            "{}\n{}\n{}\n",
+            serde_json::json!({"type":"session_meta","payload":{"cwd":other_text}}),
+            serde_json::json!({"type":"response_item","payload":{"role":"user","content":repo_text}}),
+            serde_json::json!({"type":"response_item","payload":{"role":"assistant","content":"Decision: this message belongs only to the other project."}})
+        ),
+    )
+    .unwrap();
+    fs::write(
+        codex.join("current.jsonl"),
+        format!(
+            "{}\n{}\n",
+            serde_json::json!({"type":"session_meta","payload":{"cwd":repo_text,"project":"current-project"}}),
+            serde_json::json!({"type":"response_item","payload":{"role":"assistant","content":"Decision: keep the current repository's bounded session import."}})
+        ),
+    )
+    .unwrap();
+    std::env::set_var("BARON_CODEX_SESSIONS_ROOT", &codex);
+    std::env::set_var(
+        "BARON_CLAUDE_SESSIONS_ROOT",
+        temp.path().join("missing-claude-sessions"),
+    );
+
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let report = import_sessions(&repo, &context, 20).unwrap();
+    let notes = fs::read_dir(context.project_root.join("Sessions/Imported"))
+        .unwrap()
+        .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+        .collect::<Vec<_>>();
+
+    std::env::remove_var("BARON_CODEX_SESSIONS_ROOT");
+    std::env::remove_var("BARON_CLAUDE_SESSIONS_ROOT");
+
+    assert_eq!(report.imported, 1);
+    assert_eq!(notes.len(), 1);
+    assert!(notes[0].contains("bounded session import"));
+    assert!(!notes[0].contains("belongs only to the other project"));
+}
+
+#[test]
+fn session_import_does_not_case_fold_distinct_repository_paths() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempdir().unwrap();
+    let case_sensitive_enabled = enable_case_sensitive_directory(temp.path());
+    let repo = temp.path().join("Hotel");
+    let other = temp.path().join("hotel");
+    let vault = temp.path().join("Vault");
+    let codex = temp.path().join("sessions");
+    fs::create_dir_all(&repo).unwrap();
+    fs::create_dir_all(&other).unwrap();
+    fs::create_dir_all(&codex).unwrap();
+    let distinct_paths = repo.canonicalize().unwrap() != other.canonicalize().unwrap();
+    if case_sensitive_enabled {
+        assert!(
+            distinct_paths,
+            "case-sensitive directory setup did not create distinct repositories"
+        );
+    } else {
+        eprintln!("case-sensitive repository subcase unavailable; checked canonical filesystem identity instead");
+    }
+    let other_text = other.canonicalize().unwrap().to_string_lossy().to_string();
+    fs::write(
+        codex.join("other-case.jsonl"),
+        format!(
+            "{}\n{}\n",
+            serde_json::json!({"type":"session_meta","payload":{"cwd":other_text}}),
+            serde_json::json!({"type":"response_item","payload":{"role":"user","content":"This belongs to the lowercase hotel repository."}})
+        ),
+    )
+    .unwrap();
+    std::env::set_var("BARON_CODEX_SESSIONS_ROOT", &codex);
+    std::env::set_var(
+        "BARON_CLAUDE_SESSIONS_ROOT",
+        temp.path().join("missing-claude-sessions"),
+    );
+
+    let context = ensure_vault(&vault, &repo).unwrap();
+    let report = import_sessions(&repo, &context, 20).unwrap();
+
+    std::env::remove_var("BARON_CODEX_SESSIONS_ROOT");
+    std::env::remove_var("BARON_CLAUDE_SESSIONS_ROOT");
+
+    assert_eq!(report.imported, usize::from(!distinct_paths));
+    if distinct_paths {
+        assert!(!context.project_root.join("Sessions/Imported").exists());
+    }
 }
