@@ -1,12 +1,14 @@
 # Current Build Note
 
-## Current checkpoint — Control Plane validator false-positive bugfix (READY FOR REVIEW — 2026-10-23)
+## Current checkpoint — Control Plane validator false-positive bugfix (IMPLEMENTED — PR CREATION BLOCKED — 2026-10-23)
 
 Branch `codex/control-plane-validator-false-positive` is based on latest verified `origin/main` commit `3cf40bb159f3f2522800f9ebc169a5ce10b346d1`. PR #3 docs-only reconciliation is merged at this base. The false positive was reproduced before the fix in the Core validator, real Codex projections for all three quality agents, and CLI `status`/`prepare`. The validator now scopes explicit negation and distinguishes quoted/descriptive mentions while preserving true-positive rejection.
 
 RED/GREEN focused results: Core Control Plane 15/15, Codex bridge 7/7, Control Plane CLI 3/3. `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings` pass. Final Windows `cargo test --workspace --all-targets --no-fail-fast -j 1` exited 0 with the repository-supported PowerShell 7 override and isolated temporary `BARON_HOME`; four pre-existing ignored tests remain ignored. No hosted CI result exists yet for this branch. Proof status is test evidence only; no Baron proof artifact or project-scoped trace exists.
 
-Persisted-state boundary: isolated managed worktree and temporary fixtures only; original checkout, user untracked files, docs-sync worktree/branch, Vault, and machine configuration are outside the mutation boundary. Safe next action: review the dedicated bugfix PR and hosted checks; do not merge until owner approval.
+Commit `736d457` is pushed to `origin/codex/control-plane-validator-false-positive`. PR creation was attempted through the GitHub connector and failed with HTTP 403 `Resource not accessible by integration`. The `gh` CLI is unavailable, and the signed-in Brave window could not be activated after one refreshed-window retry. No PR or hosted CI result exists yet.
+
+Persisted-state boundary: isolated managed worktree and temporary fixtures only; original checkout, user untracked files, docs-sync worktree/branch, Vault, and machine configuration are outside the mutation boundary. Safe next action: create the PR against `main` using the linked branch page in `docs/BARON_STATUS.md`; do not merge until owner approval.
 
 
 ## Historical checkpoint — post-SPEC-05 status reconciliation (DOCS-ONLY PR #3 merged — 2026-10-23)

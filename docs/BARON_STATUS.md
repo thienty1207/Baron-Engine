@@ -1,15 +1,16 @@
 # Baron Build Status
 
-## Current status — Control Plane validator false-positive bugfix (READY FOR REVIEW — 2026-10-23)
+## Current status — Control Plane validator false-positive bugfix (IMPLEMENTED — PR CREATION BLOCKED — 2026-10-23)
 
-- Branch `codex/control-plane-validator-false-positive` is based on latest verified `origin/main` commit `3cf40bb159f3f2522800f9ebc169a5ce10b346d1` in an isolated managed worktree. PR #3 docs-only status reconciliation is merged at this base.
+- Branch `codex/control-plane-validator-false-positive` is based on latest verified `origin/main` commit `3cf40bb159f3f2522800f9ebc169a5ce10b346d1`; implementation commit `736d457` is pushed to `origin`. PR #3 docs-only status reconciliation is merged at this base.
 - Confirmed root cause: `crates/baron-core/src/control_plane.rs` previously treated any `invoke other subagents` occurrence as active unless it found the exact substring `do not invoke other subagents`. The generated Codex projection in `crates/baron-adapters/src/install.rs` uses the compound prohibition `Do not plan, implement, switch adapters, invoke other subagents, or change lifecycle ownership.` A pre-fix CLI integration reproduction reported `Passed: no` for all three generated agents and a `control_plane_invalid` prepare blocker.
 - Fix: the validator now ignores explicit negation, quoted wording, and descriptive phrase mentions while retaining rejection for positive imperatives and requirements. Negation does not carry across contrast clauses such as `but`. Core tests cover compound and direct negation, descriptive/quoted mentions, direct and modal positive invocations, and contrast scoping. Adapter tests validate all three real generated Codex projections. CLI tests confirm initialized `status` and `prepare` agree and all three mandatory gates remain routed.
 - RED/GREEN evidence: before the fix, the new Core negative/descriptive cases failed, the adapter case flagged all three generated agents, and the CLI case reproduced all three blockers. After the fix: Core Control Plane 15/15, Codex bridge 7/7, Control Plane CLI 3/3.
 - Local Windows validation passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets -- -D warnings`; and `cargo test --workspace --all-targets --no-fail-fast -j 1` (exit 0). The full suite used the repository-supported `BARON_TEST_POWERSHELL` override to bundled PowerShell 7 and an isolated temporary `BARON_HOME`; four pre-existing ignored tests remain ignored. No hosted CI result exists yet for this branch.
 - Proof status: test evidence only; no Baron proof artifact. Trace status: no project-scoped Baron trace.
 - Persisted-state boundary: isolated managed worktree and temporary fixtures only; the primary checkout, user-provided untracked files, docs-sync worktree/branch, Vault, and machine configuration remain untouched.
-- Safe next action: review the dedicated bugfix PR and its hosted checks. Do not merge until the project owner approves.
+- PR creation is blocked: GitHub connector returned HTTP 403 `Resource not accessible by integration`; `gh` is not installed, and the signed-in Brave window could not be activated after a fresh-window retry. No PR was created and no hosted CI has run for this branch.
+- Safe next action: open [the PR creation page for the pushed branch](https://github.com/thienty1207/Baron-Engine/pull/new/codex/control-plane-validator-false-positive), create the PR against `main`, and review it. Do not merge until the project owner approves.
 
 Plan: [Control Plane validator false-positive bugfix](superpowers/plans/2026-10-23-control-plane-validator-false-positive.md).
 

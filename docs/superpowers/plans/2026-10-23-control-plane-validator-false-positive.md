@@ -1,6 +1,6 @@
 # Control Plane Validator False Positive Bugfix
 
-## Current checkpoint — implementation complete, dedicated PR prepared (2026-10-23)
+## Current checkpoint — implementation complete, PR creation blocked (2026-10-23)
 
 - Objective: fix the Control Plane validator false positive where the generated Codex quality-agent projection forbids invoking subagents but its compound sentence is treated as an affirmative invocation.
 - Scope: validator semantics, generated Codex projection regression, and CLI `status`/`prepare` consistency. This is a targeted bugfix, not SPEC-06.
@@ -10,9 +10,10 @@
 - Implementation: explicitly negated coordinated actions, quoted wording, and descriptive mentions are ignored. Contrast clauses restart polarity so a positive invocation after `but` remains invalid. Positive imperative and modal invocation forms remain rejected.
 - RED/GREEN results: Core false-positive cases were RED 0/2 before the fix and now Core Control Plane passes 15/15; adapter projection test was RED for all three agents and now the Codex bridge target passes 7/7; CLI reproduction was RED for `status` and `prepare` and now the Control Plane CLI target passes 3/3, with all three gates retained in the route.
 - Verification: final Windows `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace --all-targets --no-fail-fast -j 1` all passed. The full suite used `BARON_TEST_POWERSHELL` pointing to the repository-supported bundled PowerShell 7 executable and an isolated temporary `BARON_HOME`; four pre-existing tests were ignored. No hosted CI result exists yet for this branch.
+- Commit `736d457` is pushed to `origin/codex/control-plane-validator-false-positive`. PR creation through the GitHub connector failed with HTTP 403 `Resource not accessible by integration`; the `gh` CLI is unavailable and the Brave window could not be activated after one refreshed-window retry. No PR has been created.
 - Proof status: test evidence only; no Baron proof artifact. Trace status: no project-scoped Baron trace.
 - Persisted-state boundary: isolated managed worktree and temporary test fixtures; the primary checkout, user-provided untracked files, existing docs-sync worktree/branch, Vault, and machine configuration are outside the mutation boundary.
-- Safe next action: review the dedicated PR and hosted checks. Stop before merge pending project-owner approval.
+- Safe next action: open a PR against `main` from [the pushed branch](https://github.com/thienty1207/Baron-Engine/pull/new/codex/control-plane-validator-false-positive); review it and stop before merge pending project-owner approval.
 
 ## Implementation plan
 

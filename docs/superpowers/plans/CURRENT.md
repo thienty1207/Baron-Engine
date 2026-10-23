@@ -1,6 +1,6 @@
 # Current Baron Build Plan
 
-## Current phase — Control Plane validator false-positive bugfix (READY FOR REVIEW — 2026-10-23)
+## Current phase — Control Plane validator false-positive bugfix (IMPLEMENTED — PR CREATION BLOCKED — 2026-10-23)
 
 - Objective: correct the Control Plane false positive triggered by compound negation in generated Codex quality-agent projections. This is a targeted bugfix, not SPEC-06.
 - Branch: `codex/control-plane-validator-false-positive`, based on latest verified `origin/main` commit `3cf40bb159f3f2522800f9ebc169a5ce10b346d1` in an isolated managed worktree.
@@ -9,7 +9,8 @@
 - Verification: Core Control Plane 15/15, Codex bridge 7/7, CLI Control Plane 3/3; final Windows `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and full `cargo test --workspace --all-targets --no-fail-fast -j 1` pass. Full tests used the repository-supported PowerShell 7 override and isolated temporary `BARON_HOME`; four pre-existing tests are ignored. Hosted CI is pending.
 - Proof status: test evidence only; no Baron proof artifact. Trace status: no project-scoped Baron trace.
 - Persisted-state boundary: isolated managed worktree and temporary fixtures only. The primary checkout, user-provided untracked files, existing docs-sync worktree/branch, Vault, and machine configuration remain outside the mutation boundary.
-- Safe next action: review the dedicated bugfix PR and hosted checks; leave merge to the owner.
+- Commit `736d457` is pushed to `origin/codex/control-plane-validator-false-positive`. GitHub connector PR creation returned HTTP 403 `Resource not accessible by integration`; `gh` is unavailable and the Brave window failed activation after one retry, so no PR or hosted check exists yet.
+- Safe next action: use [the PR creation page for this branch](https://github.com/thienty1207/Baron-Engine/pull/new/codex/control-plane-validator-false-positive) to open a PR against `main`, then review it. Leave merge to the owner.
 
 Plan: [Control Plane validator false-positive bugfix](2026-10-23-control-plane-validator-false-positive.md).
 
