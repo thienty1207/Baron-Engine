@@ -1,6 +1,16 @@
 # Baron Build Status
 
-## PR #2 review follow-up — F-01/F-02 fixed, F-03 coverage added (LOCAL VERIFICATION PASSED — PUSH/CI/REVIEW PENDING — 2026-10-22)
+## Current status — post-SPEC-05 documentation reconciliation (DOCS-ONLY PR AWAITING OWNER REVIEW — 2026-10-23)
+
+- Verified main: 11a731c82d999366f287479e7b2afda46898570f. PR #1 merged 2026-10-21 at 9038afa9f840e3a62acc0f97c6aaa31849247525; PR #2 merged 2026-10-22 at 11a731c82d999366f287479e7b2afda46898570f. SPEC-01 through SPEC-05 are recorded complete in the repository status history; SPEC-05 Maintenance 01 is merged in PR #2.
+- Existing hosted CI run 39740216250 succeeded on exact merge commit 11a731c82d999366f287479e7b2afda46898570f: Format/Clippy, Linux native tests, and Windows native tests passed. This docs-only task did not rerun tests or builds.
+- The current proactive SPEC-05 bug-fixing/hardening pass is closed for now. Future bug fixes require a reproducible defect, regression, security issue, or concrete integrity risk; this is not a claim that no bugs remain.
+- H-01/H-02/H-03 fixes are in merged code. Preserve these residuals: old plans below case-sensitive Windows ancestors may retain an ambiguous folded v1 owner and need an explicit audited migration; relocation remains fail-closed; diagnostic automation_status still reads its full journal (Minor review note).
+- SPEC-06 is not started; no canonical tracked spec or acceptance criteria were found. The total number of specs in the current roadmap is Unknown. The three existing 4.2 dashboard follow-ups are separate.
+- No new Baron proof or project-scoped trace was created for this docs update. Only maintained status documents are in scope; source, tests, runtime configuration, dependencies, generated binaries, project/Vault data, and user untracked files are untouched.
+- Safe next action: owner review and merge of the docs-only status PR. Keep SPEC-06 unstarted until canonical scope and acceptance criteria are approved.
+
+## Historical pre-merge checkpoint — PR #2 review follow-up (state recorded 2026-10-22; superseded by merge)
 
 - Review baseline: `21eaa03b314d479d6524dba34d0c6bc34be8368a`; source/test
   commits: `61d111dff35a5586a490d496868309ca68557097` and
@@ -93,7 +103,9 @@ Plan: [PR #2 follow-up plan](superpowers/plans/2026-10-22-pr2-review-followup-21
 
 Plan: [Maintenance 01 implementation plan](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification ledger: [Maintenance 01 verification](superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
-## SPEC-05 post-closure hardening follow-up (IN PROGRESS — 2026-10-18)
+## Historical pre-integration checkpoint — SPEC-05 post-closure hardening (IN PROGRESS at 2026-10-18; later merged through PR #1)
+
+This section preserves the pre-integration state. PR #1 later merged on 2026-10-21 at 9038afa9f840e3a62acc0f97c6aaa31849247525. The integrated PR #2 merge commit 11a731c82d999366f287479e7b2afda46898570f passed hosted CI; residual limitations remain as stated above.
 
 This follow-up records additional maintenance after the original SPEC-05
 closure. The accepted closure range

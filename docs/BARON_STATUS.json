@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-22",
+  "lastUpdated": "2026-10-23",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.0",
@@ -15,16 +15,32 @@
     "claude"
   ],
   "remainingPhaseCount": 0,
-  "currentPhase": "baron-5.0.1-stabilization-spec-05",
-  "currentPhaseStatus": "closed",
-  "nextAction": "Push the locally verified PR #2 follow-up source and evidence commits, verify exact-head CI including Linux symlink coverage, then request fresh independent review. Do not merge without owner approval.",
+  "currentPhase": "post-spec-05-documentation-roadmap-reconciliation",
+  "currentPhaseStatus": "docs_only_pr_pending_owner_review",
+  "nextAction": "Review and merge the docs-only status reconciliation PR. Keep SPEC-06 unstarted until its canonical scope and acceptance criteria are defined; future bug-fix work requires a reproducible defect, regression, security issue, or concrete integrity risk.",
+  "currentRoadmap": {
+    "verifiedMainSha": "11a731c82d999366f287479e7b2afda46898570f",
+    "specs01Through05": "completed_and_merged",
+    "spec06": {
+      "status": "not_started",
+      "scopeConfirmed": false,
+      "canonicalSpecFound": false
+    },
+    "totalSpecCount": null,
+    "proactiveBugFixingPass": {
+      "status": "closed_for_now",
+      "futureWorkTrigger": "reproducible defect, regression, security issue, or concrete integrity risk"
+    }
+  },
   "postClosureHardening": {
-    "status": "in_progress",
+    "status": "merged",
     "date": "2026-10-18",
     "historicalSpec05Status": "closed",
     "historicalAcceptedRange": "ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355af4fe0f621e8de3f8f780fbd2ad",
     "branch": "fix/spec-05-post-closure-hardening",
     "sourceCheckpoint": "e452b62a4aac08def36e51af1d559679d73bd1b3",
+    "mergedInPullRequest": "https://github.com/thienty1207/Baron-Engine/pull/1",
+    "mergeCommitSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
     "spec05SourceTip": "1772124d7e49adf99775c4df62d706b7311a4a3f",
     "findings": {
       "H-01": "CONFIRMED BUG; journaled progress publication and four recovery boundaries are fixed. Follow-up found and fixed start/resume mirror validation running before pending-journal recovery; the after_local resume regression was observed RED then GREEN.",
@@ -32,21 +48,24 @@
       "H-03": "CONFIRMED BUG, fixed: live claims are retained, all-live capacity fails closed, malformed replay rows reject hook work, reverse reads are capped at 4 MiB and selected to 512 lines, append boundary detection reads one byte, and oversized unresolved tails fail closed."
     },
     "focusedVerification": "PASS: H-01 exact recovery regression; Core unit and integration targets in fresh workspace run had 0 failed assertions, including plan 65/65 and phase12_hooks 16/16; H-02 moved-checkout regression 1; H-03 targeted suites and replay regressions passed.",
-    "fullWorkspaceGates": "PASS locally at source checkpoint e452b62: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1; cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --release --locked; release CLI reports baron 5.0.0. Tests used isolated temporary BARON_HOME and bundled PowerShell 7. Hosted CI pending.",
+    "fullWorkspaceGates": "PASS locally at source checkpoint e452b62: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1; cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --release --locked; release CLI reports baron 5.0.0. Tests used isolated temporary BARON_HOME and bundled PowerShell 7. Integrated main CI later passed in run 39740216250 on merge commit 11a731c82d999366f287479e7b2afda46898570f; this docs-only task did not rerun tests.",
     "independentWholeLineageReview": "Final review verified HEAD 74c231269d2042e5bf0dc3d3a97f2ff9af04b972 and the 95-commit/102-path range. No Critical or Important findings remain. Minor notes: automation_status reads its full diagnostic journal; pre-fix plans under case-sensitive Windows ancestors retain an ambiguous folded v1 owner and need a future explicit audited migration. Review was scoped, not line-by-line; reviewer did not run tests.",
-    "pullRequestHostedChecks": "pending: no PR was created. The GitHub connector returned 403 Resource not accessible by integration; the in-app GitHub browser is signed out. No PR-head CI has run.",
+    "pullRequestHostedChecks": "PR #1 merged on 2026-10-21 at 9038afa9f840e3a62acc0f97c6aaa31849247525. Integrated GitHub Actions run 39740216250 succeeded on PR #2 merge commit 11a731c82d999366f287479e7b2afda46898570f; Format/Clippy, Linux native tests, and Windows native tests all passed.",
     "identityRecovery": "Original project and machine-local configuration, Vault root, capsule, and Project ID were not found in checked locations; no replacement was created. Tests use temporary identities and Vaults.",
     "persistedStateBoundary": "Tracked changes are in the managed worktree; regression repos, Vaults, and fresh test runs use temporary fixtures and BARON_HOME. An earlier invocation used the host machine home; a separate receipt-authority seed was observed, but its prior provenance is uncertain. Its value was not read or changed, and no machine data was staged. No original-project proof or trace was produced.",
     "plan": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening.md",
     "evidenceLedger": "docs/superpowers/plans/2026-10-18-spec-05-post-closure-hardening-verification.md"
   },
   "maintenance01": {
-    "status": "PR2_REVIEW_FOLLOWUP_LOCALLY_VERIFIED_PUSH_PENDING",
+    "status": "merged",
     "started": "2026-10-21",
     "spec": "SPEC-05-MAINTENANCE-01-LOGIC-INTEGRITY-HARDENING",
     "baselineSha": "9038afa9f840e3a62acc0f97c6aaa31849247525",
     "branch": "codex/spec-05-maintenance-01-logic-integrity",
     "sourceSnapshotSha": "195bdf7a1ffae166e67e9fdb5436098598678da1",
+    "mergedPullRequestHeadSha": "5618facf3f65dffda7526d537b17e1a2d66f46c7",
+    "mergeCommitSha": "11a731c82d999366f287479e7b2afda46898570f",
+    "pullRequestUrl": "https://github.com/thienty1207/Baron-Engine/pull/2",
     "findings": {
       "LOG-01": "CONFIRMED BUG; malformed Stop JSON and corrupt Stop journal were RED at the CLI boundary; typed failure disposition fixed the downgrade, and all 8 phase12_hooks_cli tests pass including the preserved soft UserPromptSubmit fallback",
       "LOG-02": "CONFIRMED BUG; six public-mutator invalid-UTF-8 regressions were observed RED for plan indexes, trace indexes, architecture/platform managed docs, and sibling harness story index; safe missing-only reads and trace-index preflight now pass all six",
@@ -70,14 +89,16 @@
     "proofStatus": "Targeted RED/GREEN tests cover LOG-01..LOG-06, G-01 recovery after CURRENT publication, sibling audit fixes, R01-R03, F-01/F-02, three F-03 replay stages, and repeated trace score idempotency. Nested Git repo and linked-worktree imports are rejected while ordinary subdirectories remain accepted; body Status evidence is preserved and header parsing remains fail-closed. F-03 recovery and external-edit tests pass without changing transaction behavior. Repeated public trace scoring is byte-stable after a separate adjacent fix. No Baron proof/trace artifact was produced against the user's unrecovered project identity.",
     "traceStatus": "Test evidence only. Existing trace transaction code passes replay and external-edit tests after Vault trace publication, between index writes, and after final index write before journal cleanup. Repeated scoring preserves byte-identical repo/Vault trace files and indexes. The prior public Windows lock retry remains covered. No project-scoped Baron trace was produced.",
     "persistedStateBoundary": "Isolated worktree and temporary fixtures; original project, Vault, session roots, and machine state are outside the mutation boundary",
-    "localGates": "PASS on source commit 195bdf7a1ffae166e67e9fdb5436098598678da1: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1 (exit 0); cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --locked --release; release CLI reports baron 5.0.0; five CLI help smokes; status JSON parsing; 32 repository-relative links in five changed Markdown files; retired-adapter content/filename gate; and git diff --check. Targeted session import 4/4, review_gate 12/12, and trace transaction unit tests 4/4. Symlink escape test ran but skipped its assertion on Windows because the OS denied symlink creation; Linux CI must execute it.",
-    "reviewStatus": "The prior read-only review accepted the R01-R03 range before the 21eaa03b follow-up review. F-01 and F-02 were source-confirmed and fixed with RED/GREEN tests; F-03 was a test gap only and is covered without changing transaction behavior. A separate repeated-score formatting regression was fixed and verified. Fresh independent review of the pushed follow-up is pending.",
-    "pullRequestStatus": "Existing PR #2: https://github.com/thienty1207/Baron-Engine/pull/2. Source commits 61d111dff35a5586a490d496868309ca68557097 and 195bdf7a1ffae166e67e9fdb5436098598678da1 are locally committed; status/evidence checkpoint and push are pending. Verify hosted checks on the exact pushed head; do not merge.",
+    "localGates": "PASS on source commit 195bdf7a1ffae166e67e9fdb5436098598678da1: cargo fmt --all -- --check; cargo test --workspace --all-targets --no-fail-fast -j 1 (exit 0); cargo clippy --workspace --all-targets -- -D warnings; cargo build --workspace --locked --release; release CLI reports baron 5.0.0; five CLI help smokes; status JSON parsing; 32 repository-relative links in five changed Markdown files; retired-adapter content/filename gate; and git diff --check. Targeted session import 4/4, review_gate 12/12, and trace transaction unit tests 4/4. Windows-local symlink creation was denied; Linux native tests passed on integrated main commit 11a731c82d999366f287479e7b2afda46898570f.",
+    "reviewStatus": "PR #2 follow-up findings F-01/F-02 were fixed with RED/GREEN tests; F-03 was a test gap closed without a source change; the repeated-score regression was fixed. PR #2 was merged after owner review on 2026-10-22. This status does not claim the whole source tree was reviewed line by line.",
+    "pullRequestStatus": "PR #2 merged on 2026-10-22 at 11a731c82d999366f287479e7b2afda46898570f. Final PR head: 5618facf3f65dffda7526d537b17e1a2d66f46c7. GitHub Actions run 39740216250 succeeded on the exact merge commit; Format/Clippy, Linux native tests, and Windows native tests passed.",
     "knownLimitations": "The lexical source sweep is not a manual line-by-line review of every match. Optional diagnostic projections can represent unreadable CURRENT files as absent; CodeGraph source fingerprint/call-edge helpers may omit advisory cache/edge data on transient metadata or reread failure. These are classified and bounded in the verification ledger; no authoritative green path was found in the traced callers.",
     "followupReview": {
       "reviewedHead": "21eaa03b314d479d6524dba34d0c6bc34be8368a",
-      "status": "LOCAL_VERIFICATION_PASSED_PUSH_PENDING",
-      "F-01": "CONFIRMED BUG — FIXED in source commit 61d111dff35a5586a490d496868309ca68557097. Canonical effective Git/workspace roots are compared; nested repos and linked worktrees are excluded; normal subdirectories pass; unresolved cwd/markers fail explicitly. Windows denied symlink creation locally, so Linux CI must execute the symlink escape test.",
+      "status": "MERGED",
+      "mergedPullRequestHeadSha": "5618facf3f65dffda7526d537b17e1a2d66f46c7",
+      "mergeCommitSha": "11a731c82d999366f287479e7b2afda46898570f",
+      "F-01": "CONFIRMED BUG — FIXED in source commit 61d111dff35a5586a490d496868309ca68557097. Canonical effective Git/workspace roots are compared; nested repos and linked worktrees are excluded; normal subdirectories pass; unresolved cwd/markers fail explicitly. Windows denied local symlink creation; Linux native tests passed on integrated main commit 11a731c82d999366f287479e7b2afda46898570f.",
       "F-02": "CONFIRMED BUG — FIXED in source commit 61d111dff35a5586a490d496868309ca68557097. Status is parsed only before required ## Summary; evidence and affected-file Status bullets are preserved; duplicate/malformed header fields fail closed.",
       "F-03": "TEST GAP CLOSED — NO SOURCE BUG FOUND. Recovery and external edit rejection pass after Vault trace/before first index, after first index/before second, and after final index/before journal cleanup. No production code change was needed.",
       "traceScoreIdempotency": "ADJACENT REGRESSION — FIXED in source commit 195bdf7a1ffae166e67e9fdb5436098598678da1. Repeated trace scoring now preserves byte-identical repo/Vault trace files and indexes.",
