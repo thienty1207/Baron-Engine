@@ -1,6 +1,22 @@
 # Current Baron Build Plan
 
-## Current follow-up — PR #2 review against HEAD 21eaa03b (LOCAL VERIFICATION PASSED — PUSH/CI/REVIEW PENDING — 2026-10-22)
+## Current phase — post-SPEC-05 status and roadmap reconciliation (DOCS-ONLY PR AWAITING OWNER REVIEW — 2026-10-23)
+
+- Objective: align the maintained status documents with the verified GitHub main state after SPEC-05; this phase changes documentation only.
+- Verified main: 11a731c82d999366f287479e7b2afda46898570f. [PR #1](https://github.com/thienty1207/Baron-Engine/pull/1) merged on 2026-10-21 at 9038afa9f840e3a62acc0f97c6aaa31849247525; [PR #2](https://github.com/thienty1207/Baron-Engine/pull/2) merged on 2026-10-22 at 11a731c82d999366f287479e7b2afda46898570f.
+- Integrated CI: [GitHub Actions run 39740216250](https://github.com/thienty1207/Baron-Engine/actions/runs/39740216250) succeeded on the exact PR #2 merge commit. Format and Clippy, Linux native tests, and Windows native tests all passed. This is existing hosted CI evidence; this documentation-only task did not rerun tests or builds.
+- SPEC-01 through SPEC-05 are recorded complete in the repository status history. SPEC-05 post-closure H-01/H-02/H-03 hardening and Maintenance 01 are present in merged main. This does not claim the product is bug-free.
+- The current proactive bug-fixing and hardening pass is closed for now. Future bug-fix work should start from a reproducible defect, regression, security issue, or concrete integrity risk.
+- Preserved residuals: pre-fix plans created below case-sensitive Windows ancestors can retain an ambiguous folded v1 owner ID and fail strict validation; recovery needs an explicit audited migration, and checkout relocation remains fail-closed. The diagnostic automation_status path still reads its full journal; the final review recorded this as a Minor note.
+- SPEC-06 is not started and its scope and acceptance criteria are not confirmed. The tracked repository contains no canonical SPEC-06 spec. The total number of specs in the current roadmap is Unknown; historical references do not establish it.
+- The three existing 4.2 dashboard follow-ups remain separate from this closed SPEC-05 pass.
+- Proof status: only repository and hosted-CI evidence is carried forward; this docs-only task creates no new Baron proof artifact. Trace status: no project-scoped Baron trace was produced for the unrecovered original project identity.
+- Persisted-state boundary: only the four maintained status documents are in scope in this isolated worktree. No source, tests, runtime configuration, dependencies, generated binaries, project/Vault data, or user untracked files are changed.
+- Safe next action: review and merge the docs-only status PR. Keep SPEC-06 unstarted until a canonical scope and acceptance criteria are approved.
+
+## Historical pre-merge checkpoint — PR #2 review follow-up (state recorded 2026-10-22; superseded by merge)
+
+This section preserves the pre-merge checkpoint as it was recorded. PR #2 later merged on 2026-10-22 at 11a731c82d999366f287479e7b2afda46898570f; integrated merge-commit CI passed as stated in the current phase above.
 
 - Baseline under review: PR #2 head `21eaa03b314d479d6524dba34d0c6bc34be8368a`;
   branch `codex/spec-05-maintenance-01-logic-integrity` in the managed worktree.
@@ -73,7 +89,9 @@ Plan: [PR #2 follow-up plan](2026-10-22-pr2-review-followup-21eaa03b.md); eviden
 
 Plan: [SPEC-05 Maintenance 01 logic integrity](2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); verification: [evidence ledger](2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
-## Current follow-up — SPEC-05 post-closure hardening (IN PROGRESS — 2026-10-18)
+## Historical pre-integration checkpoint — SPEC-05 post-closure hardening (IN PROGRESS at 2026-10-18; later merged through PR #1)
+
+This section preserves the pre-integration state. PR #1 later merged on 2026-10-21 at 9038afa9f840e3a62acc0f97c6aaa31849247525; the integrated PR #2 merge commit 11a731c82d999366f287479e7b2afda46898570f passed hosted CI. Residual limitations remain listed here and in the current phase above.
 
 This follow-up is separate from the original SPEC-05 closure. The accepted
 historical range and CLOSED status remain intact. Branch

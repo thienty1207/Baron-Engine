@@ -1,6 +1,16 @@
 # Current Build Note
 
-## PR #2 review follow-up — F-01/F-02 fixed; F-03 coverage complete (LOCAL VERIFIED — PUSH/CI/REVIEW PENDING — 2026-10-22)
+## Current checkpoint — post-SPEC-05 status reconciliation (DOCS-ONLY PR AWAITING OWNER REVIEW — 2026-10-23)
+
+[PR #1](https://github.com/thienty1207/Baron-Engine/pull/1) merged on 2026-10-21 at 9038afa9f840e3a62acc0f97c6aaa31849247525; [PR #2](https://github.com/thienty1207/Baron-Engine/pull/2) / SPEC-05 Maintenance 01 merged on 2026-10-22 at 11a731c82d999366f287479e7b2afda46898570f. SPEC-01 through SPEC-05 are recorded complete in the repository status history. [GitHub Actions run 39740216250](https://github.com/thienty1207/Baron-Engine/actions/runs/39740216250) succeeded on the exact PR #2 merge commit: Format/Clippy, Linux native tests, and Windows native tests passed. These are existing CI results; this docs-only task does not rerun tests.
+
+The proactive SPEC-05 hardening pass is closed for now. Future bug-fix work requires a reproducible defect, regression, security issue, or concrete integrity risk; no claim is made that the product is bug-free. H-01/H-02/H-03 fixes are merged. Residuals remain: ambiguous folded v1 owners on older plans under case-sensitive Windows ancestors need an explicit audited migration; relocation remains fail-closed; diagnostic automation_status still reads its full journal (Minor review note).
+
+SPEC-06 is not started and has no confirmed scope or acceptance criteria in the tracked repository. The total number of specs in the current roadmap is Unknown. No project-scoped proof or trace was created for the unrecovered original identity.
+
+Persisted-state boundary: only maintained status documents in this isolated worktree. No source, tests, configuration, generated files, project/Vault data, or user untracked files are changed. Safe next action: review and merge the docs-only status PR; do not begin SPEC-06 without a canonical scope and acceptance criteria.
+
+## Historical pre-merge checkpoint — PR #2 follow-up (state recorded 2026-10-22; superseded by merge)
 
 Reviewed exact PR #2 head `21eaa03b314d479d6524dba34d0c6bc34be8368a`; source
 commits `61d111dff35a5586a490d496868309ca68557097` and
@@ -78,7 +88,9 @@ independent review of R01-R03. Stop before merge pending owner approval.
 
 Plan: [implementation plan](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-plan.md); [verification ledger](../../docs/superpowers/plans/2026-10-21-spec-05-maintenance-01-logic-integrity-verification.md).
 
-## SPEC-05 post-closure hardening follow-up — 2026-10-18 (IN PROGRESS)
+## Historical pre-integration checkpoint — SPEC-05 post-closure hardening (IN PROGRESS at 2026-10-18; later merged through PR #1)
+
+This section preserves the pre-integration status. PR #1 later merged on 2026-10-21; hosted CI passed on the integrated PR #2 merge commit as recorded in the current checkpoint above.
 
 This follow-up does not change the accepted SPEC-05 source range or its
 historical CLOSED status. Branch fix/spec-05-post-closure-hardening has
