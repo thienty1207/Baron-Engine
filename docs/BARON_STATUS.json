@@ -15,11 +15,11 @@
     "claude"
   ],
   "remainingPhaseCount": 0,
-  "currentPhase": "post-spec-05-documentation-roadmap-reconciliation",
-  "currentPhaseStatus": "docs_only_pr_pending_owner_review",
-  "nextAction": "Review and merge the docs-only status reconciliation PR. Keep SPEC-06 unstarted until its canonical scope and acceptance criteria are defined; future bug-fix work requires a reproducible defect, regression, security issue, or concrete integrity risk.",
+  "currentPhase": "control-plane-validator-false-positive-bugfix",
+  "currentPhaseStatus": "implementation_complete_pr_creation_blocked",
+  "nextAction": "Create a PR against main from origin/codex/control-plane-validator-false-positive using the linked GitHub PR page; review it and do not merge until owner approval. The GitHub connector denied PR creation with HTTP 403 Resource not accessible by integration.",
   "currentRoadmap": {
-    "verifiedMainSha": "11a731c82d999366f287479e7b2afda46898570f",
+    "verifiedMainSha": "3cf40bb159f3f2522800f9ebc169a5ce10b346d1",
     "specs01Through05": "completed_and_merged",
     "spec06": {
       "status": "not_started",

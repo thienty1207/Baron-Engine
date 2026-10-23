@@ -92,6 +92,166 @@ struct AgentContract {
     developer_instructions: Option<String>,
 }
 
+const RECURSIVE_SUBAGENT_INVOCATION: &str = "invoke other subagents";
+
+// Keep the existing fail-closed keyword check for positive invocation forms, but ignore
+// explicit negations and phrase mentions that are quoted or framed as descriptive text.
+fn has_affirmative_recursive_subagent_invocation(instructions: &str) -> bool {
+    let instructions = instructions.to_lowercase();
+    instructions
+        .split(['.', '!', '?', '\n', ';'])
+        .any(|sentence| {
+            let mut search_from = 0;
+            while let Some(relative_start) =
+                sentence[search_from..].find(RECURSIVE_SUBAGENT_INVOCATION)
+            {
+                let start = search_from + relative_start;
+                let end = start + RECURSIVE_SUBAGENT_INVOCATION.len();
+                let prefix = &sentence[..start];
+                let suffix = &sentence[end..];
+                if !is_negated_recursive_subagent_invocation(prefix)
+                    && !is_descriptive_subagent_mention(prefix, suffix)
+                {
+                    return true;
+                }
+                search_from = end;
+            }
+            false
+        })
+}
+
+fn is_negated_recursive_subagent_invocation(prefix: &str) -> bool {
+    const NEGATIONS: &[&str] = &[
+        "do not",
+        "don't",
+        "does not",
+        "doesn't",
+        "did not",
+        "never",
+        "must not",
+        "mustn't",
+        "mustn’t",
+        "should not",
+        "shouldn't",
+        "shouldn’t",
+        "shall not",
+        "will not",
+        "won't",
+        "would not",
+        "wouldn't",
+        "could not",
+        "couldn't",
+        "might not",
+        "mightn't",
+        "not to",
+        "cannot",
+        "can't",
+        "can’t",
+        "avoid",
+        "forbid",
+        "forbids",
+        "forbidden",
+        "prohibit",
+        "prohibits",
+        "prohibited",
+        "not allowed",
+        "not permitted",
+        "disallow",
+        "disallows",
+        "disallowed",
+        "warn against",
+        "warns against",
+        "warning against",
+    ];
+    const CONTRASTS: &[&str] = &[" but ", " however ", " although ", " instead ", " rather "];
+
+    let clause = CONTRASTS
+        .iter()
+        .filter_map(|contrast| prefix.rfind(contrast).map(|index| index + contrast.len()))
+        .max()
+        .map_or(prefix, |index| &prefix[index..]);
+    NEGATIONS
+        .iter()
+        .any(|marker| contains_word_boundary_match(clause, marker))
+}
+
+fn contains_word_boundary_match(text: &str, marker: &str) -> bool {
+    text.match_indices(marker).any(|(start, matched)| {
+        let end = start + matched.len();
+        let has_left_boundary = text[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric());
+        let has_right_boundary = text[end..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric());
+        has_left_boundary && has_right_boundary
+    })
+}
+
+fn is_descriptive_subagent_mention(prefix: &str, suffix: &str) -> bool {
+    const DESCRIPTIVE_PREFIXES: &[&str] = &[
+        "the phrase ",
+        "phrase ",
+        "the wording ",
+        "wording ",
+        "the term ",
+        "term ",
+        "the text ",
+        "text ",
+        "the instruction ",
+        "instruction ",
+        "the example ",
+        "example ",
+        "the mention ",
+        "mention ",
+        "mentions ",
+        "describes ",
+        "describing ",
+        "discusses ",
+        "discussing ",
+        "quotes ",
+        "quoting ",
+    ];
+    const NEGATIVE_PREDICATES: &[&str] = &[
+        "is forbidden",
+        "are forbidden",
+        "is prohibited",
+        "are prohibited",
+        "is not allowed",
+        "are not allowed",
+        "is disallowed",
+        "are disallowed",
+        "is invalid",
+        "are invalid",
+        "is discouraged",
+        "are discouraged",
+        "is not permitted",
+        "are not permitted",
+        "must be avoided",
+        "should be avoided",
+    ];
+
+    let trimmed_prefix = prefix.trim_end();
+    let quoted_mention = (trimmed_prefix.is_empty()
+        || trimmed_prefix.ends_with(['`', '"', '\'', '“', '‘']))
+        && suffix
+            .trim_start()
+            .chars()
+            .next()
+            .is_some_and(|character| matches!(character, '`' | '"' | '\'' | '”' | '’'));
+    quoted_mention
+        || DESCRIPTIVE_PREFIXES
+            .iter()
+            .any(|marker| trimmed_prefix.ends_with(marker.trim()))
+        || NEGATIVE_PREDICATES.iter().any(|predicate| {
+            suffix
+                .trim_start_matches(|character: char| !character.is_alphanumeric())
+                .starts_with(predicate)
+        })
+}
+
 pub fn validate_control_plane(repo_root: impl AsRef<Path>) -> Result<ControlPlaneReport> {
     let repo_root = repo_root.as_ref();
     let skills = load_skills(repo_root)?;
@@ -125,14 +285,8 @@ pub fn validate_control_plane(repo_root: impl AsRef<Path>) -> Result<ControlPlan
         }
     }
     for agent in &agents {
-        let instructions = agent
-            .developer_instructions
-            .as_deref()
-            .unwrap_or_default()
-            .to_lowercase();
-        if instructions.contains("invoke other subagents")
-            && !instructions.contains("do not invoke other subagents")
-        {
+        let instructions = agent.developer_instructions.as_deref().unwrap_or_default();
+        if has_affirmative_recursive_subagent_invocation(instructions) {
             diagnostics.push(format!(
                 "recursive subagent orchestration is forbidden: {}",
                 agent.name
