@@ -1,6 +1,20 @@
 # Current Baron Build Plan
 
-## Current phase — post-SPEC-05 status and roadmap reconciliation (DOCS-ONLY PR AWAITING OWNER REVIEW — 2026-10-23)
+## Current phase — Control Plane validator false-positive bugfix (READY FOR REVIEW — 2026-10-23)
+
+- Objective: correct the Control Plane false positive triggered by compound negation in generated Codex quality-agent projections. This is a targeted bugfix, not SPEC-06.
+- Branch: `codex/control-plane-validator-false-positive`, based on latest verified `origin/main` commit `3cf40bb159f3f2522800f9ebc169a5ce10b346d1` in an isolated managed worktree.
+- Investigation: the Core validator checked for `invoke other subagents` and exempted only the exact text `do not invoke other subagents`. Generated Codex projections use a compound prohibition, which was incorrectly reported as recursive orchestration. Pre-fix regressions reproduced this in the Core validator, all three real Codex projections, and initialized CLI `status`/`prepare`.
+- Implementation: false-positive filtering now handles explicit negation across coordinated actions, quoted/descriptive mentions, and contrast boundaries; positive imperative and modal invocation directives still fail validation. The true-positive and contrast tests guard against weakening the check.
+- Verification: Core Control Plane 15/15, Codex bridge 7/7, CLI Control Plane 3/3; final Windows `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and full `cargo test --workspace --all-targets --no-fail-fast -j 1` pass. Full tests used the repository-supported PowerShell 7 override and isolated temporary `BARON_HOME`; four pre-existing tests are ignored. Hosted CI is pending.
+- Proof status: test evidence only; no Baron proof artifact. Trace status: no project-scoped Baron trace.
+- Persisted-state boundary: isolated managed worktree and temporary fixtures only. The primary checkout, user-provided untracked files, existing docs-sync worktree/branch, Vault, and machine configuration remain outside the mutation boundary.
+- Safe next action: review the dedicated bugfix PR and hosted checks; leave merge to the owner.
+
+Plan: [Control Plane validator false-positive bugfix](2026-10-23-control-plane-validator-false-positive.md).
+
+
+## Historical checkpoint — post-SPEC-05 status and roadmap reconciliation (DOCS-ONLY PR #3 merged — 2026-10-23)
 
 - Objective: align the maintained status documents with the verified GitHub main state after SPEC-05; this phase changes documentation only.
 - Verified main: 11a731c82d999366f287479e7b2afda46898570f. [PR #1](https://github.com/thienty1207/Baron-Engine/pull/1) merged on 2026-10-21 at 9038afa9f840e3a62acc0f97c6aaa31849247525; [PR #2](https://github.com/thienty1207/Baron-Engine/pull/2) merged on 2026-10-22 at 11a731c82d999366f287479e7b2afda46898570f.

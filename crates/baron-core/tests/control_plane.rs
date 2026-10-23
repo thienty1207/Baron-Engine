@@ -146,6 +146,132 @@ fn diagnoses_duplicate_workflow_ownership_and_recursive_agent_orchestration() {
 }
 
 #[test]
+fn accepts_compound_negated_subagent_mentions() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+    write(
+        &repo.join(".codex/agents/code-reviewer.toml"),
+        "name = \"code-reviewer\"\ndescription = \"Core code review gate.\"\ndeveloper_instructions = \"\"\"\nDo not plan, implement, switch adapters, invoke other subagents, or change lifecycle ownership.\n\"\"\"\n",
+    );
+
+    let report = validate_control_plane(repo).unwrap();
+
+    assert!(report.passed, "{:#?}", report.diagnostics);
+    assert!(report.diagnostics.is_empty());
+}
+
+#[test]
+fn accepts_direct_must_not_and_does_not_subagent_negations() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    for instruction in [
+        "The agent must not invoke other subagents.",
+        "The agent does not invoke other subagents.",
+        "The agent will not invoke other subagents.",
+        "Never invoke other subagents.",
+    ] {
+        write(
+            &repo.join(".codex/agents/code-reviewer.toml"),
+            &format!(
+                "name = \"code-reviewer\"\ndescription = \"Core code review gate.\"\ndeveloper_instructions = \"\"\"\n{instruction}\n\"\"\"\n"
+            ),
+        );
+
+        let report = validate_control_plane(repo).unwrap();
+
+        assert!(report.passed, "{instruction}: {:#?}", report.diagnostics);
+        assert!(report.diagnostics.is_empty());
+    }
+}
+
+#[test]
+fn accepts_descriptive_mentions_of_subagent_invocation() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+    write(
+        &repo.join(".codex/agents/code-reviewer.toml"),
+        "name = \"code-reviewer\"\ndescription = \"Core code review gate.\"\ndeveloper_instructions = \"\"\"\nThe phrase `invoke other subagents` describes a prohibited behavior; report findings to the parent instead.\nThe phrase invoke other subagents names a prohibited behavior.\n`invoke other subagents` is quoted wording from a prohibited example.\n\"\"\"\n",
+    );
+
+    let report = validate_control_plane(repo).unwrap();
+
+    assert!(report.passed, "{:#?}", report.diagnostics);
+    assert!(report.diagnostics.is_empty());
+}
+
+#[test]
+fn rejects_an_affirmative_subagent_invocation_instruction() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+    write(
+        &repo.join(".codex/agents/code-reviewer.toml"),
+        "name = \"code-reviewer\"\ndescription = \"Core code review gate.\"\ndeveloper_instructions = \"\"\"\nInvoke other subagents for review and testing before final output.\n\"\"\"\n",
+    );
+
+    let report = validate_control_plane(repo).unwrap();
+
+    assert!(!report.passed);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|item| { item == "recursive subagent orchestration is forbidden: code-reviewer" }));
+    assert!(!report.diagnostics.iter().any(|item| {
+        item == "recursive subagent orchestration is forbidden: security-auditor"
+            || item == "recursive subagent orchestration is forbidden: test-engineer"
+    }));
+}
+
+#[test]
+fn rejects_an_affirmative_subagent_invocation_requirement() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+    write(
+        &repo.join(".codex/agents/code-reviewer.toml"),
+        "name = \"code-reviewer\"\ndescription = \"Core code review gate.\"\ndeveloper_instructions = \"\"\"\nThe agent must invoke other subagents before completing review.\n\"\"\"\n",
+    );
+
+    let report = validate_control_plane(repo).unwrap();
+
+    assert!(!report.passed);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|item| { item == "recursive subagent orchestration is forbidden: code-reviewer" }));
+}
+
+#[test]
+fn rejects_invocation_after_unrelated_negation_or_whenever_clause() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    for instruction in [
+        "Whenever needed, invoke other subagents for review.",
+        "Do not discuss the restriction, but invoke other subagents for review.",
+    ] {
+        write(
+            &repo.join(".codex/agents/code-reviewer.toml"),
+            &format!(
+                "name = \"code-reviewer\"\ndescription = \"Core code review gate.\"\ndeveloper_instructions = \"\"\"\n{instruction}\n\"\"\"\n"
+            ),
+        );
+
+        let report = validate_control_plane(repo).unwrap();
+
+        assert!(!report.passed, "{instruction}");
+        assert!(report.diagnostics.iter().any(|item| {
+            item == "recursive subagent orchestration is forbidden: code-reviewer"
+        }));
+    }
+}
+
+#[test]
 fn routes_frontend_tasks_narrowly_with_review_and_test_gates() {
     let temp = tempdir().unwrap();
     let repo = temp.path();

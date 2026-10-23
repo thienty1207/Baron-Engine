@@ -6,6 +6,7 @@ use baron_adapters::{
     install_adapter, load_managed_baseline, managed_payloads_for_adapter, AgentAdapter,
     ManagedMergeKind, ManagedOwner, SupportedManagedAdapter,
 };
+use baron_core::control_plane::validate_control_plane;
 use tempfile::tempdir;
 
 fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
@@ -283,4 +284,27 @@ fn target_codex_hooks_and_user_agents_text_are_preserved() {
     let hooks = fs::read_to_string(hooks).unwrap();
     assert!(hooks.contains("third-party-hook"));
     assert!(hooks.contains("\"custom\": true"));
+}
+
+#[test]
+fn generated_codex_quality_agent_projections_pass_control_plane_validation() {
+    let temp = tempdir().unwrap();
+    install_adapter(temp.path(), AgentAdapter::Codex).unwrap();
+
+    for name in ["code-reviewer", "security-auditor", "test-engineer"] {
+        let projection =
+            fs::read_to_string(temp.path().join(format!(".codex/agents/{name}.toml"))).unwrap();
+        assert!(projection.contains(
+            "Do not plan, implement, switch adapters, invoke other subagents, or change lifecycle ownership."
+        ));
+    }
+
+    let report = validate_control_plane(temp.path()).unwrap();
+
+    assert!(report.passed, "{:#?}", report.diagnostics);
+    for name in ["code-reviewer", "security-auditor", "test-engineer"] {
+        assert!(!report.diagnostics.iter().any(|diagnostic| {
+            diagnostic == &format!("recursive subagent orchestration is forbidden: {name}")
+        }));
+    }
 }
