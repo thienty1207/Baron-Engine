@@ -17,8 +17,14 @@ the same project is opened from either supported tool. The adapters provide the
 host-native files and hooks; they do not own a second workflow or memory
 system.
 
-Current source version: `5.0.0`.
+Current source version: `5.0.1` (unreleased candidate).
 Current public release: [`v5.0.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.0).
+
+For development continuation, read the
+[canonical handoff](docs/superpowers/plans/CURRENT.md) first. The
+[source reading guide](docs/architecture/SOURCE_READING_GUIDE.md) explains how
+to inventory and inspect the complete implementation without mistaking old
+plans for current behavior.
 
 ## What Baron Does
 
