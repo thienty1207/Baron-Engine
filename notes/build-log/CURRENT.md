@@ -11,9 +11,9 @@ records verification evidence; checkpoints below this one are historical.
 Candidate: `codex/version-5-0-1`, pushed to origin and based on
 `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. Workspace crates and certification
 target are 5.0.1; stable/downloadable remain 5.0.0 until publication. PR #5 is
-open at head `70de94e6e42105eea1a0984063ea680aa537dd7b`. Hosted CI run
-40153047854 passed Format/Clippy and Linux native tests; Windows native tests
-are in progress. No tag or public release exists.
+open from `codex/version-5-0-1`; consult the PR page for the current head and
+hosted CI results. Merge only after all required checks pass on that head. No
+tag or public release exists.
 
 Local verification for the candidate passed fmt, full workspace all-target
 tests, locked check, Clippy with warnings denied, focused Core and adapter

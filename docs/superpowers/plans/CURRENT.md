@@ -14,11 +14,9 @@
   `5.0.0`; do not describe 5.0.1 as released or downloadable.
 - The owner requested stable/downloadable v5.0.1 and authorized its PR, merge,
   and immutable release promotion after the repository gates pass. PR #5 is open
-  from `codex/version-5-0-1` at head
-  `70de94e6e42105eea1a0984063ea680aa537dd7b`; the branch is pushed to origin.
-  Hosted CI run [40153047854](https://github.com/thienty1207/Baron-Engine/actions/runs/40153047854)
-  has passed Format/Clippy and Linux native tests; Windows native tests remain
-  in progress. No tag or public release exists yet.
+  from `codex/version-5-0-1`; the branch is pushed to origin. Use the PR page
+  as the current source for its head and hosted check results, and merge only
+  after all required checks pass on that head. No tag or public release exists.
 - Local release certification passed 9/9 checks with the 5.0.1 Windows release
   binary, using an isolated temporary source copy, project, and Vault. No user
   project, Vault, or machine configuration was touched.

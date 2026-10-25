@@ -17,7 +17,7 @@
   "remainingPhaseCount": 0,
   "currentPhase": "v5-0-1-release-promotion",
   "currentPhaseStatus": "candidate_pr_open_ci_running",
-  "nextAction": "Wait for all hosted checks on PR #5 at head 70de94e6e42105eea1a0984063ea680aa537dd7b. Format/Clippy and Linux native tests passed; Windows native tests are in progress. The local 5.0.1 release certification passed 9/9 checks in a disposable environment. After all PR checks pass, merge the explicitly authorized PR and run the immutable release workflow on the exact new origin/main SHA. Keep stable/downloadable at 5.0.0 until publication succeeds.",
+  "nextAction": "Wait for all required hosted checks on the current head of PR #5; use the PR page as the source of truth for the latest head and check results. The local 5.0.1 release certification passed 9/9 checks in a disposable environment. After all PR checks pass, merge the explicitly authorized PR and run the immutable release workflow on the exact new origin/main SHA. Keep stable/downloadable at 5.0.0 until publication succeeds.",
   "currentRoadmap": {
     "verifiedMainSha": "cf319a12cfc19e2739303b1b26ee71357ae6c0cd",
     "specs01Through05": "completed_and_merged",
