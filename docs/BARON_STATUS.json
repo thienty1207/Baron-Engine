@@ -1,10 +1,10 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-24",
+  "lastUpdated": "2026-10-25",
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.1",
-  "releasePromotionStatus": "candidate_branch_unpublished",
+  "releasePromotionStatus": "candidate_branch_pushed_unreleased",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "5.0.0",
   "targetReleaseCompletionPercent": 100,
@@ -15,9 +15,9 @@
     "claude"
   ],
   "remainingPhaseCount": 0,
-  "currentPhase": "v5-0-1-local-candidate-preparation",
-  "currentPhaseStatus": "candidate_branch_unpublished",
-  "nextAction": "Owner review of branch codex/version-5-0-1 after its authorized push. No PR is claimed. Require hosted Windows and Linux CI on the exact approved PR head before separate release promotion; stable/downloadable remains 5.0.0.",
+  "currentPhase": "v5-0-1-pushed-source-candidate",
+  "currentPhaseStatus": "candidate_branch_pushed",
+  "nextAction": "Owner review of pushed branch codex/version-5-0-1; no PR was created in this task. Require hosted Windows and Linux CI on the exact approved PR head before separate release promotion; stable/downloadable remains 5.0.0.",
   "currentRoadmap": {
     "verifiedMainSha": "cf319a12cfc19e2739303b1b26ee71357ae6c0cd",
     "specs01Through05": "completed_and_merged",

@@ -1,6 +1,6 @@
 # Baron Build Status
 
-## Current status — v5.0.1 unpublished source candidate and AI handoff (2026-10-24)
+## Current status — pushed v5.0.1 source candidate and AI handoff (2026-10-25)
 
 > This is the current release/phase dashboard. For AI continuation, use the
 > canonical [handoff](superpowers/plans/CURRENT.md); every older checkpoint
@@ -8,7 +8,7 @@
 
 - Canonical continuation instructions are in the [handoff](superpowers/plans/CURRENT.md). Use the [source-reading guide](architecture/SOURCE_READING_GUIDE.md) for a complete, coverage-tracked source pass.
 - All workspace crates and the certification target are 5.0.1. Stable/downloadable release and active program target remain 5.0.0; 5.0.1 is an unpublished source candidate.
-- Candidate branch `codex/version-5-0-1` is based on merge commit `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. The owner authorized committing and pushing this branch as part of the handoff update. No tag, release publication, merge, or PR is claimed here; verify the remote branch and any hosted checks before reporting them.
+- Candidate branch `codex/version-5-0-1` is pushed to origin and based on merge commit `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. No PR was created and no candidate hosted CI result is claimed. No tag, release publication, or merge was made. Confirm the branch still matches its upstream before continuing.
 - Local candidate verification: fmt, full workspace all-target tests, locked workspace check, warnings-denied Clippy, focused Core and adapter suites, five CLI help commands, locked release build, and release CLI `baron 5.0.1` passed. Status JSON, repository-relative links, and diff checks passed.
 - Windows caveat: default test-spawned Windows PowerShell 5.1 failed to auto-load `Microsoft.PowerShell.Archive` in three installer cases. `lifecycle_scripts` 7/7 and the full workspace suite passed with the test-supported `BARON_TEST_POWERSHELL` override to bundled PowerShell 7. Hosted Windows/Linux CI on the candidate branch remains required before release promotion.
 - End-to-end caveats: live Claude Code was unavailable; Codex's implicit no-path context failed Windows path inspection involving the host shell's extended path prefix, while explicit project-path calls passed. See the canonical handoff for the exact scope and next actions.

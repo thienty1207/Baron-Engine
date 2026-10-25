@@ -79,3 +79,9 @@ Run `cargo test -p baron-core --test public_trust_docs` after the commit and rec
 ## Final Verification and Delivery
 
 Run the repository-required format, full workspace tests, and warnings-denied Clippy. For documentation, also run focused Core and adapter contract suites, user-facing CLI help checks, link validation, status JSON parsing, the retired-adapter gate, and `git diff --check`. Obtain a fresh review of the complete local branch, address any Important findings, then push `codex/version-5-0-1` to `origin`. Do not open a PR unless separately requested.
+
+## Delivery — 2026-10-25
+
+The candidate and handoff commits were pushed to `origin/codex/version-5-0-1`
+after the owner's authorization. The fresh branch review found no actionable
+findings. No PR, tag, release, merge, or candidate hosted CI run was created.

@@ -1,6 +1,6 @@
 # Current Build Note
 
-## Current checkpoint — v5.0.1 unpublished candidate and handoff docs (2026-10-24)
+## Current checkpoint — pushed v5.0.1 source candidate and handoff docs (2026-10-25)
 
 See the [canonical handoff](../../docs/superpowers/plans/CURRENT.md) for
 project state, release boundary, known host limits, and safe next action. The
@@ -8,12 +8,11 @@ project state, release boundary, known host limits, and safe next action. The
 defines how to inventory and read the full implementation. This build log
 records verification evidence; checkpoints below this one are historical.
 
-Candidate: `codex/version-5-0-1`, based on `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`.
-Workspace crates and certification target are 5.0.1; stable/downloadable
-remain 5.0.0. The owner authorized committing and pushing the branch after
-this documentation work. No tag, public release, PR, or hosted CI run is
-claimed. The next gate before release promotion is hosted Windows/Linux CI on
-the exact approved PR head.
+Candidate: `codex/version-5-0-1`, pushed to origin and based on
+`cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. Workspace crates and certification
+target are 5.0.1; stable/downloadable remain 5.0.0. No tag, public release,
+merge, PR, or candidate hosted CI run was created. The next gate before release
+promotion is hosted Windows/Linux CI on the exact approved PR head.
 
 Local verification for the candidate passed fmt, full workspace all-target
 tests, locked check, Clippy with warnings denied, focused Core and adapter
@@ -21,7 +20,8 @@ suites, CLI help, locked release build, and a release CLI version check. The
 Windows lifecycle tests required the supported PowerShell 7 override because
 test-spawned Windows PowerShell 5.1 could not auto-load
 `Microsoft.PowerShell.Archive`; see the handoff for details. Source E2E host
-limits are also recorded there.
+limits are also recorded there. The final push was followed by a clean upstream
+sync check; the post-commit public trust docs test passed 12/12.
 
 ## Historical build checkpoints — context only
 

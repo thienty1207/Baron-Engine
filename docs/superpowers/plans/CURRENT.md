@@ -4,7 +4,7 @@
 > all checkpoints and phase snapshots after it are historical records and must
 > not override these facts or the checked-out source.
 
-## Current source and release boundary — 2026-10-24
+## Current source and release boundary — 2026-10-25
 
 - Repository: `thienty1207/Baron-Engine`.
 - Candidate branch: `codex/version-5-0-1`, based on verified `main` merge
@@ -12,11 +12,11 @@
 - Source version: `5.0.1` in the workspace crates and certification target.
   The source candidate is unpublished. Stable and downloadable release remain
   `5.0.0`; do not describe 5.0.1 as released or downloadable.
-- The owner authorized committing and pushing this candidate branch after the
-  handoff documentation update. That authorization does not authorize a tag,
-  release publication, merge, or PR creation. Verify the branch's actual remote
-  state before saying it was pushed; no PR or hosted CI result exists unless
-  separately confirmed.
+- The owner authorized committing and pushing this candidate branch; it is now
+  pushed to `origin/codex/version-5-0-1`. Confirm local/upstream HEAD equality
+  before relying on this handoff. No PR was created and no hosted CI result is
+  claimed. The authorization does not cover a tag, release publication, merge,
+  or PR creation.
 - The 5.0.1 release-candidate change fixes the Control Plane false positive for
   negated subagent mentions from merged PR #4. Read the version-bump plan for
   its version and verification details.
@@ -67,8 +67,9 @@
 1. Read [`AGENTS.md`](../../../AGENTS.md), then
    [`SOURCE_READING_GUIDE.md`](../../architecture/SOURCE_READING_GUIDE.md)
    before claiming a complete source audit.
-2. Review the candidate branch and verify its remote commit. The owner has not
-   requested a PR in this task; do not create one without that request.
+2. The candidate branch is pushed and no PR was requested in this task. Do not
+   create one without the owner's explicit request; hosted Windows/Linux CI on
+   the exact approved PR head remains required before release promotion.
 3. Before release promotion, open an approved PR through the owner's workflow,
    require hosted Windows and Linux CI on the exact head, then follow
    `docs/RELEASE.md`. Keep stable/downloadable at 5.0.0 until release
