@@ -66,11 +66,11 @@ Run the public trust docs test, parse the status JSON, validate repository-relat
 
 Expected: focused tests pass, JSON parses, every checked relative link resolves, and the diff check exits 0.
 
-- [ ] **Step 6: Review the complete candidate and commit**
+- [x] **Step 6: Review the complete candidate and commit**
 
 Review the full diff, including the pending 5.0.1 version-bump work, and stage only the documented candidate files and plans. Commit with a message describing the 5.0.1 candidate and AI handoff update.
 
-- [ ] **Step 7: Record task completion**
+- [x] **Step 7: Record task completion**
 
 Run `cargo test -p baron-core --test public_trust_docs` after the commit and record the result in the task ledger. The full repository-required verification suite is run separately below.
 
