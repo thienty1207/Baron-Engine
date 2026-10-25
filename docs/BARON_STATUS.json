@@ -1,14 +1,14 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-10-25",
-  "stableRelease": "5.0.0",
-  "downloadableRelease": "5.0.0",
-  "candidateSourceVersion": "5.0.1",
-  "releasePromotionStatus": "candidate_pr_open_ci_running",
+  "stableRelease": "5.0.1",
+  "downloadableRelease": "5.0.1",
+  "candidateSourceVersion": null,
+  "releasePromotionStatus": "published",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "5.0.0",
+  "targetRelease": "5.0.1",
   "targetReleaseCompletionPercent": 100,
-  "programTargetRelease": "5.0.0",
+  "programTargetRelease": "5.0.1",
   "programCompletionPercent": 100,
   "supportedAdapters": [
     "codex",
@@ -16,10 +16,10 @@
   ],
   "remainingPhaseCount": 0,
   "currentPhase": "v5-0-1-release-promotion",
-  "currentPhaseStatus": "candidate_pr_open_ci_running",
-  "nextAction": "Wait for all required hosted checks on the current head of PR #5; use the PR page as the source of truth for the latest head and check results. The local 5.0.1 release certification passed 9/9 checks in a disposable environment. After all PR checks pass, merge the explicitly authorized PR and run the immutable release workflow on the exact new origin/main SHA. Keep stable/downloadable at 5.0.0 until publication succeeds.",
+  "currentPhaseStatus": "published",
+  "nextAction": "Maintain Baron Engine 5.0.1. SPEC-06 has not started and needs a canonical specification and acceptance criteria before implementation begins.",
   "currentRoadmap": {
-    "verifiedMainSha": "cf319a12cfc19e2739303b1b26ee71357ae6c0cd",
+    "verifiedMainSha": "4008d1963ed2fcd756aaf81b54cbe838b52596d1",
     "specs01Through05": "completed_and_merged",
     "spec06": {
       "status": "not_started",
@@ -2219,16 +2219,16 @@
     "docs/architecture/CONTEXT_COMPILER.md"
   ],
   "publishedRelease": {
-    "version": "5.0.0",
-    "commit": "cb2940e79fe4ed4cda7c52ea64c46c049b189514",
-    "tag": "v5.0.0",
-    "workflowRun": 34350086718,
-    "title": "Baron Engine v5.0.0",
+    "version": "5.0.1",
+    "commit": "4008d1963ed2fcd756aaf81b54cbe838b52596d1",
+    "tag": "v5.0.1",
+    "workflowRun": 40156631352,
+    "title": "Baron Engine v5.0.1",
     "assetCount": 9,
     "targets": [
       "x86_64-pc-windows-msvc",
       "x86_64-unknown-linux-gnu"
     ],
-    "url": "https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.0"
+    "url": "https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1"
   }
 }

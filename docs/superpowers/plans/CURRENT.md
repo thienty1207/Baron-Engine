@@ -4,26 +4,34 @@
 > all checkpoints and phase snapshots after it are historical records and must
 > not override these facts or the checked-out source.
 
-## Current source and release boundary — 2026-10-25
+## Current source and release — 2026-10-25
 
 - Repository: `thienty1207/Baron-Engine`.
-- Candidate branch: `codex/version-5-0-1`, based on verified `main` merge
-  commit `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`.
-- Source version: `5.0.1` in the workspace crates and certification target.
-  The source candidate is unpublished. Stable and downloadable release remain
-  `5.0.0`; do not describe 5.0.1 as released or downloadable.
-- The owner requested stable/downloadable v5.0.1 and authorized its PR, merge,
-  and immutable release promotion after the repository gates pass. PR #5 is open
-  from `codex/version-5-0-1`; the branch is pushed to origin. Use the PR page
-  as the current source for its head and hosted check results, and merge only
-  after all required checks pass on that head. No tag or public release exists.
-- Local release certification passed 9/9 checks with the 5.0.1 Windows release
-  binary, using an isolated temporary source copy, project, and Vault. No user
-  project, Vault, or machine configuration was touched.
-- The release code change being versioned is already on the verified base from
-  merged PR #4 (Control Plane false-positive fix); this branch prepares the
-  5.0.1 version, changelog, handoff, and status metadata. Read the version-bump
-  plan for the exact version change and local verification ledger.
+- Source version, stable release, and downloadable release are `5.0.1`.
+  [GitHub Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1)
+  is also the current `releases/latest` destination.
+- PR [#5](https://github.com/thienty1207/Baron-Engine/pull/5) merged on
+  2026-10-25 at `4008d1963ed2fcd756aaf81b54cbe838b52596d1`. Annotated tag
+  `v5.0.1` points to this source commit. The exact-head PR CI run
+  [40154174683](https://github.com/thienty1207/Baron-Engine/actions/runs/40154174683)
+  passed all six checks; release workflow
+  [40156631352](https://github.com/thienty1207/Baron-Engine/actions/runs/40156631352)
+  passed and published nine signed/checksummed assets.
+- The release gates passed: full workspace tests, formatting, Clippy, Graphify
+  0.9.25 certification, Windows and Linux builds, manifest signing and
+  verification, checksum verification, and installer lifecycle checks. The
+  public `releases/latest` Windows installer was downloaded and installed in a
+  disposable root; `baron --version` returned `baron 5.0.1`.
+- The local `baron certify run --profile release` gate passed 9/9 checks in a
+  temporary source copy, project, and Vault. No user project, Vault, or machine
+  configuration was touched.
+- Proof status: release CI, installer verification, and certification passed;
+  no project-scoped Baron proof was created for the user's project.
+- Trace status: release and test evidence only; no project-scoped Baron trace
+  was created for the user's project.
+- The release source change was the version bump and release metadata; the
+  Control Plane false-positive fix was already merged through PR #4. See the
+  version-bump plan for its implementation and verification ledger.
 - The documentation duplicate audit found no byte-identical files under
   `docs/`; no documentation file was deleted. Similar current summaries now
   link to this handoff while preserving their separate dashboard/log roles.
@@ -47,7 +55,7 @@
 
 ## Verification and known limits
 
-- On this candidate, local format, full workspace tests, locked workspace
+- On the release source, local format, full workspace tests, locked workspace
   check, warnings-denied Clippy, focused Core/adapter suites, CLI help, locked
   release build, JSON parsing, links, and diff checks passed. The release binary
   reports `baron 5.0.1`.
@@ -55,8 +63,7 @@
   `BARON_TEST_POWERSHELL` override to bundled PowerShell 7 in this environment.
   Default Windows PowerShell 5.1 failed to auto-load `Microsoft.PowerShell.Archive`
   in three installer cases; the complete workspace run passed with the
-  override. Hosted Windows/Linux CI on this candidate branch remains required
-  before a release promotion.
+  override. Hosted Windows/Linux native CI passed on the exact PR #5 head.
 - End-to-end host limits from the merged-source check: live Claude Code CLI was
   unavailable, so its projection and hook contract were tested without a live
   Claude run. Codex's implicit no-path context failed Windows path inspection
@@ -71,14 +78,11 @@
 1. Read [`AGENTS.md`](../../../AGENTS.md), then
    [`SOURCE_READING_GUIDE.md`](../../architecture/SOURCE_READING_GUIDE.md)
    before claiming a complete source audit.
-2. PR #5 is already open. Wait for its Windows and Linux checks plus Format and
-   Clippy to pass on the exact head before merging; do not merge a pending or
-   failing check.
-3. After the authorized merge, verify the exact new `origin/main` SHA and run
-   the `Baron Release` workflow as documented in `docs/RELEASE.md`. Keep
-   stable/downloadable and README claims at 5.0.0 until immutable release
-   assets publish successfully; then synchronize README and release status to
-   5.0.1.
+2. Continue normal Baron `5.0.1` maintenance. SPEC-06 has not started; first
+   establish its canonical scope and acceptance criteria before implementation.
+3. Future releases must use a new versioned source commit on `main`, pass the
+   release workflow, and update the public docs only after the GitHub Release
+   and downloadable assets are verified.
 
 Current records: [release/phase dashboard](../../BARON_STATUS.md),
 [machine-readable status](../../BARON_STATUS.json),
