@@ -13,7 +13,10 @@ push, publish, bump the version, or rewrite history as part of Phase 15.
 
 The durable status dashboard is [`docs/BARON_STATUS.md`](docs/BARON_STATUS.md),
 the machine-readable status is [`docs/BARON_STATUS.json`](docs/BARON_STATUS.json),
-and the active plan is in `docs/superpowers/plans/`.
+and the active plan is in `docs/superpowers/plans/`. The single canonical AI
+handoff is [`docs/superpowers/plans/CURRENT.md`](docs/superpowers/plans/CURRENT.md).
+Use [`docs/architecture/SOURCE_READING_GUIDE.md`](docs/architecture/SOURCE_READING_GUIDE.md)
+when a task needs a complete source pass.
 
 ## Product model
 
@@ -80,14 +83,19 @@ State; it must work even before any file has changed.
 ## Read order
 
 1. `README.md`
-2. `docs/BARON_STATUS.md`
-3. `notes/build-log/CURRENT.md`
-4. `docs/architecture/ARCHITECTURE.md`
-5. `docs/architecture/MEMORY_MODEL.md`
-6. `docs/architecture/ADAPTERS.md`
-7. `docs/architecture/CAPABILITY_REGISTRY.md`
-8. `docs/architecture/COMMAND_SURFACE.md`
-9. `docs/architecture/CONTEXT_COMPILER.md`
+2. `docs/superpowers/plans/CURRENT.md` — canonical AI handoff; follow its
+   current section before using historical checkpoints.
+3. `docs/BARON_STATUS.md`
+4. `docs/BARON_STATUS.json`
+5. `notes/build-log/CURRENT.md`
+6. `docs/architecture/SOURCE_READING_GUIDE.md` when inspecting implementation
+   or claiming source coverage.
+7. `docs/architecture/ARCHITECTURE.md`
+8. `docs/architecture/MEMORY_MODEL.md`
+9. `docs/architecture/ADAPTERS.md`
+10. `docs/architecture/CAPABILITY_REGISTRY.md`
+11. `docs/architecture/COMMAND_SURFACE.md`
+12. `docs/architecture/CONTEXT_COMPILER.md`
 
 The dated refactor files under `docs/refractor/` are engineering provenance;
 their status and historical framing explain which claims are current.

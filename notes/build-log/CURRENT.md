@@ -1,14 +1,53 @@
 # Current Build Note
 
-## Current checkpoint — Control Plane validator false-positive bugfix (IMPLEMENTED — PR CREATION BLOCKED — 2026-10-23)
+## Current checkpoint — v5.0.1 release promotion in progress (2026-10-25)
 
-Branch `codex/control-plane-validator-false-positive` is based on latest verified `origin/main` commit `3cf40bb159f3f2522800f9ebc169a5ce10b346d1`. PR #3 docs-only reconciliation is merged at this base. The false positive was reproduced before the fix in the Core validator, real Codex projections for all three quality agents, and CLI `status`/`prepare`. The validator now scopes explicit negation and distinguishes quoted/descriptive mentions while preserving true-positive rejection.
+See the [canonical handoff](../../docs/superpowers/plans/CURRENT.md) for
+project state, release boundary, known host limits, and safe next action. The
+[source-reading guide](../../docs/architecture/SOURCE_READING_GUIDE.md)
+defines how to inventory and read the full implementation. This build log
+records verification evidence; checkpoints below this one are historical.
 
-RED/GREEN focused results: Core Control Plane 15/15, Codex bridge 7/7, Control Plane CLI 3/3. `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings` pass. Final Windows `cargo test --workspace --all-targets --no-fail-fast -j 1` exited 0 with the repository-supported PowerShell 7 override and isolated temporary `BARON_HOME`; four pre-existing ignored tests remain ignored. No hosted CI result exists yet for this branch. Proof status is test evidence only; no Baron proof artifact or project-scoped trace exists.
+Candidate: `codex/version-5-0-1`, pushed to origin and based on
+`cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. Workspace crates and certification
+target are 5.0.1; stable/downloadable remain 5.0.0 until publication. PR #5 is
+open from `codex/version-5-0-1`; consult the PR page for the current head and
+hosted CI results. Merge only after all required checks pass on that head. No
+tag or public release exists.
 
-Commit `736d457` is pushed to `origin/codex/control-plane-validator-false-positive`. PR creation was attempted through the GitHub connector and failed with HTTP 403 `Resource not accessible by integration`. The `gh` CLI is unavailable, and the signed-in Brave window could not be activated after one refreshed-window retry. No PR or hosted CI result exists yet.
+Local verification for the candidate passed fmt, full workspace all-target
+tests, locked check, Clippy with warnings denied, focused Core and adapter
+suites, CLI help, locked release build, and a release CLI version check. The
+Windows lifecycle tests required the supported PowerShell 7 override because
+test-spawned Windows PowerShell 5.1 could not auto-load
+`Microsoft.PowerShell.Archive`; see the handoff for details. Source E2E host
+limits are also recorded there. The final push was followed by a clean upstream
+sync check; the post-commit public trust docs test passed 12/12. The 5.0.1
+Windows release binary also passed the release certification profile (9/9
+checks) in a disposable source copy and temporary Vault; user project, Vault,
+and machine configuration were not used.
 
-Persisted-state boundary: isolated managed worktree and temporary fixtures only; original checkout, user untracked files, docs-sync worktree/branch, Vault, and machine configuration are outside the mutation boundary. Safe next action: create the PR against `main` using the linked branch page in `docs/BARON_STATUS.md`; do not merge until owner approval.
+Safe next action: wait for all PR #5 checks to pass on the exact head, merge
+under the owner's release authorization, and run the immutable release workflow
+from the exact resulting `origin/main` SHA. Keep the README and stable/downloadable
+status at 5.0.0 until that workflow publishes successfully; synchronize them to
+5.0.1 afterward.
+
+## Historical build checkpoints — context only
+
+Everything below this heading records prior work at the time it was run. Use
+the current checkpoint at the top and the canonical handoff for current state;
+do not follow an old phase's next action as today's instruction.
+
+## Historical checkpoint — Post-merge status reconciliation and end-to-end validation (COMPLETE WITH HOST LIMITS — 2026-10-24)
+
+PR #4 is merged at `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`; local `main` matches `origin/main`. Merge workflow 39982258262 passed Format/Clippy and Linux/Windows native tests. Local Windows checks passed fmt, workspace all-target tests (1,029 passed, 0 failed, 4 ignored across 112 test binaries), and warnings-denied Clippy.
+
+The downloaded v5.0.0 installer passed in a disposable root and predates PR #4. The checked-out merge source was separately installed with `cargo install --path crates/baron-cli --root <scratch> --locked`. In a scratch backend/Fiber project, Baron setup and sequential Codex/Claude init passed with no conflicts; Go tests passed and the live `/health` endpoint returned `{"status":"ok"}`. Generated quality-agent projections and generic `AGENTS.md` were present. Control Plane validation passed without `control_plane_invalid`; Wiki exact search found the seeded document, and a second project did not retrieve it.
+
+Codex/Claude SessionStart and UserPromptSubmit hook contracts passed with idempotent retries and journal events. A real ephemeral Codex CLI read-only run completed; its events appeared in the scratch Vault journal. Automation status remained `attention_required` for missing proof, gate receipts, and trace, which this read-only test did not generate. The continuity checkpoint and exact-binding `plan start` resume passed; an unmatched fresh Codex session remained unknown. Session replay indexed zero sources/messages for that ephemeral session. Claude Code CLI was not installed, so live Claude was not exercised; its generated projection and direct hook contract were. Codex's no-path `baron context --codex` session-start call failed Windows path inspection at `\\?\C:\Users\tytyb` inside the host shell, while explicit-project and correctly rooted-shell calls passed. The scratch project had no `.git`, so its `git status` failed; follow up on implicit host cwd/path handling.
+
+Proof status: no product proof or trace was created; test evidence is source/CLI/HTTP output in a disposable environment. Persisted-state boundary: only the four maintained status docs, this task plan, and the task-local temp install/project/Vault changed. Existing untracked files and real user project, Vault, and machine configuration were preserved. No source edits, commit, push, release, or publication. Safe next action: review the local docs diff and follow up on implicit-path `baron context --codex` in the Windows host sandbox; rerun live Claude or session replay only if needed with the required CLI/non-ephemeral session.
 
 
 ## Historical checkpoint — post-SPEC-05 status reconciliation (DOCS-ONLY PR #3 merged — 2026-10-23)
@@ -1413,7 +1452,7 @@ Public release evidence:
 - Public release gate complete; only final documentation synchronization remains
   in this build note. No source or release artifact change is required.
 
-## Current Phase
+## Historical phase snapshot
 
 Baron 4.0 Phase 76 exact-source publication and recovery install (`completed`).
 

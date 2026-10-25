@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.1 - Unreleased
+
+- Fix Control Plane validation false positives caused by negated subagent
+  mentions.
+
 ## 5.0.0 - 2026-09-09
 
 Baron Engine 5.0.0 completes the Codex + Claude Core consolidation and ships

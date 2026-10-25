@@ -1,18 +1,39 @@
 # Baron Build Status
 
-## Current status — Control Plane validator false-positive bugfix (IMPLEMENTED — PR CREATION BLOCKED — 2026-10-23)
+## Current status — v5.0.1 release promotion in progress (2026-10-25)
 
-- Branch `codex/control-plane-validator-false-positive` is based on latest verified `origin/main` commit `3cf40bb159f3f2522800f9ebc169a5ce10b346d1`; implementation commit `736d457` is pushed to `origin`. PR #3 docs-only status reconciliation is merged at this base.
-- Confirmed root cause: `crates/baron-core/src/control_plane.rs` previously treated any `invoke other subagents` occurrence as active unless it found the exact substring `do not invoke other subagents`. The generated Codex projection in `crates/baron-adapters/src/install.rs` uses the compound prohibition `Do not plan, implement, switch adapters, invoke other subagents, or change lifecycle ownership.` A pre-fix CLI integration reproduction reported `Passed: no` for all three generated agents and a `control_plane_invalid` prepare blocker.
-- Fix: the validator now ignores explicit negation, quoted wording, and descriptive phrase mentions while retaining rejection for positive imperatives and requirements. Negation does not carry across contrast clauses such as `but`. Core tests cover compound and direct negation, descriptive/quoted mentions, direct and modal positive invocations, and contrast scoping. Adapter tests validate all three real generated Codex projections. CLI tests confirm initialized `status` and `prepare` agree and all three mandatory gates remain routed.
-- RED/GREEN evidence: before the fix, the new Core negative/descriptive cases failed, the adapter case flagged all three generated agents, and the CLI case reproduced all three blockers. After the fix: Core Control Plane 15/15, Codex bridge 7/7, Control Plane CLI 3/3.
-- Local Windows validation passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets -- -D warnings`; and `cargo test --workspace --all-targets --no-fail-fast -j 1` (exit 0). The full suite used the repository-supported `BARON_TEST_POWERSHELL` override to bundled PowerShell 7 and an isolated temporary `BARON_HOME`; four pre-existing ignored tests remain ignored. No hosted CI result exists yet for this branch.
-- Proof status: test evidence only; no Baron proof artifact. Trace status: no project-scoped Baron trace.
-- Persisted-state boundary: isolated managed worktree and temporary fixtures only; the primary checkout, user-provided untracked files, docs-sync worktree/branch, Vault, and machine configuration remain untouched.
-- PR creation is blocked: GitHub connector returned HTTP 403 `Resource not accessible by integration`; `gh` is not installed, and the signed-in Brave window could not be activated after a fresh-window retry. No PR was created and no hosted CI has run for this branch.
-- Safe next action: open [the PR creation page for the pushed branch](https://github.com/thienty1207/Baron-Engine/pull/new/codex/control-plane-validator-false-positive), create the PR against `main`, and review it. Do not merge until the project owner approves.
+> This is the current release/phase dashboard. For AI continuation, use the
+> canonical [handoff](superpowers/plans/CURRENT.md); every older checkpoint
+> below this current section is historical evidence.
 
-Plan: [Control Plane validator false-positive bugfix](superpowers/plans/2026-10-23-control-plane-validator-false-positive.md).
+- Canonical continuation instructions are in the [handoff](superpowers/plans/CURRENT.md). Use the [source-reading guide](architecture/SOURCE_READING_GUIDE.md) for a complete, coverage-tracked source pass.
+- All workspace crates and the certification target are 5.0.1. Stable/downloadable release and the completed program target remain 5.0.0 until immutable v5.0.1 assets are published.
+- Candidate branch `codex/version-5-0-1` is pushed to origin and PR [#5](https://github.com/thienty1207/Baron-Engine/pull/5) is open against `main`. Use the PR page for the current head and latest CI results; merge only after all checks on that head pass. No tag or release has been created.
+- Local candidate verification: fmt, full workspace all-target tests, locked workspace check, warnings-denied Clippy, focused Core and adapter suites, five CLI help commands, locked release build, and release CLI `baron 5.0.1` passed. Status JSON, repository-relative links, and diff checks passed.
+- The `baron certify run --profile release` gate passed all 9 checks using the 5.0.1 Windows release binary in an isolated temporary source copy and temporary Vault. The user Vault, project, and machine configuration were not used.
+- Windows caveat: default test-spawned Windows PowerShell 5.1 failed to auto-load `Microsoft.PowerShell.Archive` in three installer cases. `lifecycle_scripts` 7/7 and the full workspace suite passed with the test-supported `BARON_TEST_POWERSHELL` override to bundled PowerShell 7. Hosted Windows/Linux CI on the current PR #5 head remains required before release promotion.
+- End-to-end caveats: live Claude Code was unavailable; Codex's implicit no-path context failed Windows path inspection involving the host shell's extended path prefix, while explicit project-path calls passed. See the canonical handoff for the exact scope and next actions.
+- Persisted-state boundary: candidate worktree, Cargo outputs, and temporary fixtures only. The primary checkout, user files, Vaults, and machine configuration remain untouched.
+
+Plan: [5.0.1 version bump](superpowers/plans/2026-10-24-v5-0-1-version-bump.md); [AI handoff/source guide](superpowers/plans/2026-10-24-ai-handoff-and-source-reading-guide.md).
+
+Authorized next steps: wait for all hosted PR #5 checks, merge after they pass, then run the immutable release workflow against the exact new `origin/main` SHA. Keep stable/downloadable and README claims at 5.0.0 until the release workflow finishes successfully; sync public docs to 5.0.1 afterward.
+
+## Previous checkpoint — Post-merge end-to-end validation (COMPLETE WITH HOST AVAILABILITY LIMITS — 2026-10-24)
+
+- PR #4 is merged at `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`; local `main` matches `origin/main`. The exact merge-commit workflow 39982258262 passed Format/Clippy and Linux and Windows native tests.
+- Local Windows checks passed: `cargo fmt --all -- --check`; `cargo test --workspace --all-targets --no-fail-fast -j 1` (1,029 passed, 0 failed, 4 ignored across 112 test binaries); and `cargo clippy --workspace --all-targets -- -D warnings`.
+- The downloaded stable installer installed v5.0.0 in a disposable root. That published release predates PR #4. Separately, `cargo install --path crates/baron-cli --root <scratch> --locked` built the checked-out merge source; its CLI also reports v5.0.0.
+- Source E2E used a disposable backend/Fiber project and Vault. Baron setup and sequential Codex/Claude init passed with no conflicts, 157 canonical Core files, the three mandatory quality agents, and generic `AGENTS.md` fallback. Go tests passed and the live Fiber `/health` endpoint returned `{"status":"ok"}`.
+- The merged-source Control Plane status passed on generated Codex agents; `PreparePacketV1.ok` was true and no `control_plane_invalid` blocker appeared. Wiki indexed 12 docs/51 sections; the seeded exact marker was found in its source project and not returned by a second project.
+- Codex and Claude `SessionStart`/`UserPromptSubmit` hook contracts passed; duplicate prompt submissions were idempotent. A real ephemeral Codex CLI run completed and the scratch Vault journal recorded its session and prompt events. Automation status correctly remained `attention_required` because this read-only smoke run had no proof, trusted gate receipts, or passing trace. Stop hooks fail-closed after the test plan was intentionally interrupted.
+- Codex host caveat: its session-start `baron context --codex` command, run without a repo path in the host shell, failed Windows path inspection at `\\?\C:\Users\tytyb`. The same source command passed with the explicit scratch project path and from a shell rooted at that project. Codex also ran `git status` in the non-Git scratch project and got “not a git repository.” Investigate host-shell cwd/path handling before treating implicit-path context as verified.
+- Continuity checkpoint/status passed in the scratch project and Vault. Exact adapter/session/request binding resumed the interrupted plan; it was then interrupted again with a recorded next action. A separate new Codex session without a matching plan remained `unknown`, as required by fail-closed identity handling. Session replay indexed 0 sources/0 messages because the host run was ephemeral.
+- Host limits: Claude Code CLI is not installed, so live Claude execution was unavailable; Claude projection and hook protocol were exercised directly. Other agent hosts remain generic-instruction consumers, not native adapters. No product proof/trace was created.
+- Persisted-state boundary: only the four maintained status docs, this task plan, and a new temp install/runtime root changed. Existing user untracked files, real project/Vault, and machine configuration were preserved. No source change, commit, push, release, or publication was made.
+- Safe next action: review these local status-doc changes. Follow up on implicit-path `baron context --codex` under the Codex Windows sandbox; rerun live Claude or session replay if those host-level checks are required and the CLI/session is available.
+
+Plan: [Post-merge status reconciliation and end-to-end verification](superpowers/plans/2026-10-23-post-merge-e2e-verification.md).
 
 ## Historical checkpoint — post-SPEC-05 documentation reconciliation (DOCS-ONLY PR #3 merged — 2026-10-23)
 
@@ -905,7 +926,9 @@ Last updated: 2026-09-06
 - Current next action: publish the Phase 1 evidence report and stop before
   Phase 2.
 
-## Overall
+## Historical overall snapshot — v5.0.0 release candidate (superseded by current status above)
+
+> Historical release-candidate snapshot. The 5.0.0 source/candidate and publication statements below describe the state at that time; the current source candidate and release boundary are recorded at the top of this file.
 
 - Stable source release: `v5.0.0` ([public Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.0); [`v4.2.2`](https://github.com/thienty1207/Baron-Engine/releases/tag/v4.2.2) is the prior public release)
 - Latest downloadable release: [`v5.0.0`](https://github.com/thienty1207/Baron-Engine/releases/latest)
@@ -5748,7 +5771,7 @@ Phase 25-26 final verification:
 - GitHub release workflow `28797886356`: passed
 - real machine update from Baron 3.1.2 to 3.1.4: passed
 
-## Current Working Files
+## Historical working-file index
 
 - Product spec: `docs/specs/2026-06-08-baron-product-spec-1.0.md`
 - Roadmap: `docs/roadmap/2026-06-08-implementation-roadmap.md`
@@ -5805,7 +5828,7 @@ Phase 25-26 final verification:
 - Baron 3.4-3.6 planning log: `notes/build-log/2026-07-24-baron-3-4-to-3-6-program.md`
 - Temporary build note: `notes/build-log/CURRENT.md`
 
-## Current Rule
+## Historical rule snapshot
 
 Baron `4.2.0` is the verified stable/latest public release. Phase 100 is
 complete; `4.1` remains the whole-engine rollback and Baron 4.0 remains the
