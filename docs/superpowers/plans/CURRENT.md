@@ -12,14 +12,20 @@
 - Source version: `5.0.1` in the workspace crates and certification target.
   The source candidate is unpublished. Stable and downloadable release remain
   `5.0.0`; do not describe 5.0.1 as released or downloadable.
-- The owner authorized committing and pushing this candidate branch; it is now
-  pushed to `origin/codex/version-5-0-1`. Confirm local/upstream HEAD equality
-  before relying on this handoff. No PR was created and no hosted CI result is
-  claimed. The authorization does not cover a tag, release publication, merge,
-  or PR creation.
-- The 5.0.1 release-candidate change fixes the Control Plane false positive for
-  negated subagent mentions from merged PR #4. Read the version-bump plan for
-  its version and verification details.
+- The owner requested stable/downloadable v5.0.1 and authorized its PR, merge,
+  and immutable release promotion after the repository gates pass. PR #5 is open
+  from `codex/version-5-0-1` at head
+  `70de94e6e42105eea1a0984063ea680aa537dd7b`; the branch is pushed to origin.
+  Hosted CI run [40153047854](https://github.com/thienty1207/Baron-Engine/actions/runs/40153047854)
+  has passed Format/Clippy and Linux native tests; Windows native tests remain
+  in progress. No tag or public release exists yet.
+- Local release certification passed 9/9 checks with the 5.0.1 Windows release
+  binary, using an isolated temporary source copy, project, and Vault. No user
+  project, Vault, or machine configuration was touched.
+- The release code change being versioned is already on the verified base from
+  merged PR #4 (Control Plane false-positive fix); this branch prepares the
+  5.0.1 version, changelog, handoff, and status metadata. Read the version-bump
+  plan for the exact version change and local verification ledger.
 - The documentation duplicate audit found no byte-identical files under
   `docs/`; no documentation file was deleted. Similar current summaries now
   link to this handoff while preserving their separate dashboard/log roles.
@@ -67,13 +73,14 @@
 1. Read [`AGENTS.md`](../../../AGENTS.md), then
    [`SOURCE_READING_GUIDE.md`](../../architecture/SOURCE_READING_GUIDE.md)
    before claiming a complete source audit.
-2. The candidate branch is pushed and no PR was requested in this task. Do not
-   create one without the owner's explicit request; hosted Windows/Linux CI on
-   the exact approved PR head remains required before release promotion.
-3. Before release promotion, open an approved PR through the owner's workflow,
-   require hosted Windows and Linux CI on the exact head, then follow
-   `docs/RELEASE.md`. Keep stable/downloadable at 5.0.0 until release
-   publication is separately authorized and complete.
+2. PR #5 is already open. Wait for its Windows and Linux checks plus Format and
+   Clippy to pass on the exact head before merging; do not merge a pending or
+   failing check.
+3. After the authorized merge, verify the exact new `origin/main` SHA and run
+   the `Baron Release` workflow as documented in `docs/RELEASE.md`. Keep
+   stable/downloadable and README claims at 5.0.0 until immutable release
+   assets publish successfully; then synchronize README and release status to
+   5.0.1.
 
 Current records: [release/phase dashboard](../../BARON_STATUS.md),
 [machine-readable status](../../BARON_STATUS.json),

@@ -1,20 +1,23 @@
 # Baron Build Status
 
-## Current status — pushed v5.0.1 source candidate and AI handoff (2026-10-25)
+## Current status — v5.0.1 release promotion in progress (2026-10-25)
 
 > This is the current release/phase dashboard. For AI continuation, use the
 > canonical [handoff](superpowers/plans/CURRENT.md); every older checkpoint
 > below this current section is historical evidence.
 
 - Canonical continuation instructions are in the [handoff](superpowers/plans/CURRENT.md). Use the [source-reading guide](architecture/SOURCE_READING_GUIDE.md) for a complete, coverage-tracked source pass.
-- All workspace crates and the certification target are 5.0.1. Stable/downloadable release and active program target remain 5.0.0; 5.0.1 is an unpublished source candidate.
-- Candidate branch `codex/version-5-0-1` is pushed to origin and based on merge commit `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. No PR was created and no candidate hosted CI result is claimed. No tag, release publication, or merge was made. Confirm the branch still matches its upstream before continuing.
+- All workspace crates and the certification target are 5.0.1. Stable/downloadable release and the completed program target remain 5.0.0 until immutable v5.0.1 assets are published.
+- Candidate branch `codex/version-5-0-1` is pushed to origin; PR [#5](https://github.com/thienty1207/Baron-Engine/pull/5) is open against `main` at head `70de94e6e42105eea1a0984063ea680aa537dd7b`. Candidate CI run [40153047854](https://github.com/thienty1207/Baron-Engine/actions/runs/40153047854) has passed Format/Clippy and Linux native tests; Windows native tests are still running. No tag or release has been created.
 - Local candidate verification: fmt, full workspace all-target tests, locked workspace check, warnings-denied Clippy, focused Core and adapter suites, five CLI help commands, locked release build, and release CLI `baron 5.0.1` passed. Status JSON, repository-relative links, and diff checks passed.
+- The `baron certify run --profile release` gate passed all 9 checks using the 5.0.1 Windows release binary in an isolated temporary source copy and temporary Vault. The user Vault, project, and machine configuration were not used.
 - Windows caveat: default test-spawned Windows PowerShell 5.1 failed to auto-load `Microsoft.PowerShell.Archive` in three installer cases. `lifecycle_scripts` 7/7 and the full workspace suite passed with the test-supported `BARON_TEST_POWERSHELL` override to bundled PowerShell 7. Hosted Windows/Linux CI on the candidate branch remains required before release promotion.
 - End-to-end caveats: live Claude Code was unavailable; Codex's implicit no-path context failed Windows path inspection involving the host shell's extended path prefix, while explicit project-path calls passed. See the canonical handoff for the exact scope and next actions.
 - Persisted-state boundary: candidate worktree, Cargo outputs, and temporary fixtures only. The primary checkout, user files, Vaults, and machine configuration remain untouched.
 
 Plan: [5.0.1 version bump](superpowers/plans/2026-10-24-v5-0-1-version-bump.md); [AI handoff/source guide](superpowers/plans/2026-10-24-ai-handoff-and-source-reading-guide.md).
+
+Authorized next steps: wait for all hosted PR #5 checks, merge after they pass, then run the immutable release workflow against the exact new `origin/main` SHA. Keep stable/downloadable and README claims at 5.0.0 until the release workflow finishes successfully; sync public docs to 5.0.1 afterward.
 
 ## Previous checkpoint — Post-merge end-to-end validation (COMPLETE WITH HOST AVAILABILITY LIMITS — 2026-10-24)
 

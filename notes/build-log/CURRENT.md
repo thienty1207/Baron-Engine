@@ -1,6 +1,6 @@
 # Current Build Note
 
-## Current checkpoint — pushed v5.0.1 source candidate and handoff docs (2026-10-25)
+## Current checkpoint — v5.0.1 release promotion in progress (2026-10-25)
 
 See the [canonical handoff](../../docs/superpowers/plans/CURRENT.md) for
 project state, release boundary, known host limits, and safe next action. The
@@ -10,9 +10,10 @@ records verification evidence; checkpoints below this one are historical.
 
 Candidate: `codex/version-5-0-1`, pushed to origin and based on
 `cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. Workspace crates and certification
-target are 5.0.1; stable/downloadable remain 5.0.0. No tag, public release,
-merge, PR, or candidate hosted CI run was created. The next gate before release
-promotion is hosted Windows/Linux CI on the exact approved PR head.
+target are 5.0.1; stable/downloadable remain 5.0.0 until publication. PR #5 is
+open at head `70de94e6e42105eea1a0984063ea680aa537dd7b`. Hosted CI run
+40153047854 passed Format/Clippy and Linux native tests; Windows native tests
+are in progress. No tag or public release exists.
 
 Local verification for the candidate passed fmt, full workspace all-target
 tests, locked check, Clippy with warnings denied, focused Core and adapter
@@ -21,7 +22,16 @@ Windows lifecycle tests required the supported PowerShell 7 override because
 test-spawned Windows PowerShell 5.1 could not auto-load
 `Microsoft.PowerShell.Archive`; see the handoff for details. Source E2E host
 limits are also recorded there. The final push was followed by a clean upstream
-sync check; the post-commit public trust docs test passed 12/12.
+sync check; the post-commit public trust docs test passed 12/12. The 5.0.1
+Windows release binary also passed the release certification profile (9/9
+checks) in a disposable source copy and temporary Vault; user project, Vault,
+and machine configuration were not used.
+
+Safe next action: wait for all PR #5 checks to pass on the exact head, merge
+under the owner's release authorization, and run the immutable release workflow
+from the exact resulting `origin/main` SHA. Keep the README and stable/downloadable
+status at 5.0.0 until that workflow publishes successfully; synchronize them to
+5.0.1 afterward.
 
 ## Historical build checkpoints — context only
 

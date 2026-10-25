@@ -4,7 +4,7 @@
   "stableRelease": "5.0.0",
   "downloadableRelease": "5.0.0",
   "candidateSourceVersion": "5.0.1",
-  "releasePromotionStatus": "candidate_branch_pushed_unreleased",
+  "releasePromotionStatus": "candidate_pr_open_ci_running",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "5.0.0",
   "targetReleaseCompletionPercent": 100,
@@ -15,9 +15,9 @@
     "claude"
   ],
   "remainingPhaseCount": 0,
-  "currentPhase": "v5-0-1-pushed-source-candidate",
-  "currentPhaseStatus": "candidate_branch_pushed",
-  "nextAction": "Owner review of pushed branch codex/version-5-0-1; no PR was created in this task. Require hosted Windows and Linux CI on the exact approved PR head before separate release promotion; stable/downloadable remains 5.0.0.",
+  "currentPhase": "v5-0-1-release-promotion",
+  "currentPhaseStatus": "candidate_pr_open_ci_running",
+  "nextAction": "Wait for all hosted checks on PR #5 at head 70de94e6e42105eea1a0984063ea680aa537dd7b. Format/Clippy and Linux native tests passed; Windows native tests are in progress. The local 5.0.1 release certification passed 9/9 checks in a disposable environment. After all PR checks pass, merge the explicitly authorized PR and run the immutable release workflow on the exact new origin/main SHA. Keep stable/downloadable at 5.0.0 until publication succeeds.",
   "currentRoadmap": {
     "verifiedMainSha": "cf319a12cfc19e2739303b1b26ee71357ae6c0cd",
     "specs01Through05": "completed_and_merged",

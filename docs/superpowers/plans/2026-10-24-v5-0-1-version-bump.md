@@ -9,6 +9,12 @@ commit, push, or release. The owner later authorized committing and pushing
 this candidate branch with the AI handoff documentation task; no tag or
 release is authorized.
 
+> Scope update — 2026-10-25: the owner subsequently requested stable and
+> downloadable v5.0.1 and authorized PR creation, merge, and immutable release
+> promotion after all gates pass. The restriction above records the original
+> version-bump task scope only; [`CURRENT.md`](CURRENT.md) is the live handoff
+> for the release follow-on and its current authorization/status.
+
 ## Baseline
 
 - Repository: `thienty1207/Baron-Engine`
