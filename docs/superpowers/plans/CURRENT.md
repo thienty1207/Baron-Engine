@@ -450,7 +450,10 @@ Accepted source range: `ecaf362c275431edfc5e590fd6a87d926b9bde9d..af2e1db020355a
 
 ## Historical checkpoint — Phase 16 v5.0.0 release candidate (superseded by local v5.0.1 candidate on 2026-10-24)
 
-> The commit, push, tag, and publication instructions in this checkpoint are historical 5.0.0 release-candidate steps. The active state is the unpublished 5.0.1 source candidate at the top of this file.
+> The commit, push, tag, and publication instructions here are historical
+> v5.0.0 candidate steps. When this checkpoint was last updated on 2026-10-24,
+> the active state was an unpublished v5.0.1 source candidate; see the current
+> section at the top for today's release state.
 
 - Active phase: Baron Codex + Claude Core Consolidation - Phase 16 release
 - Status: `release candidate ready for hosted verification`
