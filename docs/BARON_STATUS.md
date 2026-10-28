@@ -1,23 +1,29 @@
 # Baron Build Status
 
-## Current status — v5.0.1 release promotion in progress (2026-10-25)
+## Current status — Baron Engine v5.0.1 published (2026-10-25)
 
 > This is the current release/phase dashboard. For AI continuation, use the
 > canonical [handoff](superpowers/plans/CURRENT.md); every older checkpoint
 > below this current section is historical evidence.
 
 - Canonical continuation instructions are in the [handoff](superpowers/plans/CURRENT.md). Use the [source-reading guide](architecture/SOURCE_READING_GUIDE.md) for a complete, coverage-tracked source pass.
-- All workspace crates and the certification target are 5.0.1. Stable/downloadable release and the completed program target remain 5.0.0 until immutable v5.0.1 assets are published.
-- Candidate branch `codex/version-5-0-1` is pushed to origin and PR [#5](https://github.com/thienty1207/Baron-Engine/pull/5) is open against `main`. Use the PR page for the current head and latest CI results; merge only after all checks on that head pass. No tag or release has been created.
-- Local candidate verification: fmt, full workspace all-target tests, locked workspace check, warnings-denied Clippy, focused Core and adapter suites, five CLI help commands, locked release build, and release CLI `baron 5.0.1` passed. Status JSON, repository-relative links, and diff checks passed.
-- The `baron certify run --profile release` gate passed all 9 checks using the 5.0.1 Windows release binary in an isolated temporary source copy and temporary Vault. The user Vault, project, and machine configuration were not used.
-- Windows caveat: default test-spawned Windows PowerShell 5.1 failed to auto-load `Microsoft.PowerShell.Archive` in three installer cases. `lifecycle_scripts` 7/7 and the full workspace suite passed with the test-supported `BARON_TEST_POWERSHELL` override to bundled PowerShell 7. Hosted Windows/Linux CI on the current PR #5 head remains required before release promotion.
-- End-to-end caveats: live Claude Code was unavailable; Codex's implicit no-path context failed Windows path inspection involving the host shell's extended path prefix, while explicit project-path calls passed. See the canonical handoff for the exact scope and next actions.
-- Persisted-state boundary: candidate worktree, Cargo outputs, and temporary fixtures only. The primary checkout, user files, Vaults, and machine configuration remain untouched.
+- Stable source release: `v5.0.1` ([official release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1));
+  the `releases/latest` download endpoint now resolves to this release. It
+  includes nine signed/checksummed assets for Windows x64 and Linux x64.
+- Release source: merge commit `4008d1963ed2fcd756aaf81b54cbe838b52596d1`,
+  tagged `v5.0.1`. PR [#5](https://github.com/thienty1207/Baron-Engine/pull/5)
+  merged after all six exact-head checks passed; [release workflow run
+  40156631352](https://github.com/thienty1207/Baron-Engine/actions/runs/40156631352)
+  completed successfully.
+- The release workflow passed formatting, full workspace tests, Clippy, Graphify 0.9.25 certification, Windows/Linux release builds, manifest signing and verification, checksums, and install/update/rollback/uninstall lifecycle checks.
+- Public download smoke: downloaded `install.ps1` from `releases/latest`, installed into a disposable temporary root, and confirmed `baron --version` prints `baron 5.0.1`. The release certification profile separately passed 9/9 checks in a disposable source copy and Vault.
+- Hosted PR CI passed Windows and Linux native tests plus Format and Clippy. The local Windows full-workspace run required the supported PowerShell 7 test override because test-spawned Windows PowerShell 5.1 could not auto-load `Microsoft.PowerShell.Archive` in three installer cases.
+- End-to-end caveats remain: live Claude Code was unavailable; Codex's implicit no-path context failed Windows path inspection involving the host shell's extended path prefix, while explicit project-path calls passed. See the canonical handoff for exact scope.
+- Persisted-state boundary: documentation worktree, Cargo outputs, and temporary release-install fixtures only. The user's project, Vault, and machine configuration were not changed.
 
 Plan: [5.0.1 version bump](superpowers/plans/2026-10-24-v5-0-1-version-bump.md); [AI handoff/source guide](superpowers/plans/2026-10-24-ai-handoff-and-source-reading-guide.md).
 
-Authorized next steps: wait for all hosted PR #5 checks, merge after they pass, then run the immutable release workflow against the exact new `origin/main` SHA. Keep stable/downloadable and README claims at 5.0.0 until the release workflow finishes successfully; sync public docs to 5.0.1 afterward.
+Next action: maintain Baron Engine `5.0.1`. SPEC-06 remains unstarted and needs a canonical specification and acceptance criteria before implementation begins.
 
 ## Previous checkpoint — Post-merge end-to-end validation (COMPLETE WITH HOST AVAILABILITY LIMITS — 2026-10-24)
 

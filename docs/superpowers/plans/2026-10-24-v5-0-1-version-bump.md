@@ -96,3 +96,25 @@ release is authorized.
   current `candidateSourceVersion` matches the workspace package version. The
   current candidate was verified through Cargo metadata and release CLI smoke;
   expanding the test contract is outside this version-only bump.
+
+## Post-merge publication and public smoke — 2026-10-25
+
+- PR [#5](https://github.com/thienty1207/Baron-Engine/pull/5) merged at
+  `4008d1963ed2fcd756aaf81b54cbe838b52596d1`; annotated tag `v5.0.1` points to
+  that commit. Exact-head CI run
+  [40154174683](https://github.com/thienty1207/Baron-Engine/actions/runs/40154174683)
+  passed all six checks.
+- Release workflow
+  [40156631352](https://github.com/thienty1207/Baron-Engine/actions/runs/40156631352)
+  passed and published the official
+  [v5.0.1 release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1)
+  with nine Windows/Linux assets. The release workflow verified full workspace
+  tests, formatting, Clippy, Graphify certification, both native builds, signed
+  release metadata, checksums, and installer lifecycle.
+- Public installer smoke downloaded `install.ps1` through the
+  `releases/latest/download` endpoint, installed into a disposable root, and
+  returned `baron 5.0.1`. No user project, Vault, or machine configuration was
+  used.
+- The maintained README, changelog, release guide, status dashboard, JSON,
+  canonical handoff, and current build log were then synchronized to the
+  published release. Historical snapshots retain their original version facts.

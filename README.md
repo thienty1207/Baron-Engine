@@ -17,8 +17,9 @@ the same project is opened from either supported tool. The adapters provide the
 host-native files and hooks; they do not own a second workflow or memory
 system.
 
-Current source version: `5.0.1` (unreleased candidate).
-Current public release: [`v5.0.0`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.0).
+Current source version: `5.0.1`.
+Current stable and downloadable release:
+[`Baron Engine v5.0.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1).
 
 For development continuation, read the
 [canonical handoff](docs/superpowers/plans/CURRENT.md) first. The
@@ -63,12 +64,12 @@ curl -fsSL https://github.com/thienty1207/Baron-Engine/releases/latest/download/
 baron --version
 ```
 
-The expected output is `baron 5.0.0`. Installers authenticate the detached
+The expected output is `baron 5.0.1`. Installers authenticate the detached
 release manifest, then verify the archive checksum
 and the staged binary version before replacing an existing executable. See the
 [release guide](docs/RELEASE.md) for rollback and offline installation.
 
-The v5.0.0 release publishes Windows x64 and Linux x64 artifacts. macOS is
+The v5.0.1 release publishes Windows x64 and Linux x64 artifacts. macOS is
 outside this release matrix.
 
 The official release assets are authenticated by the detached Ed25519

@@ -1,6 +1,6 @@
 # Current Build Note
 
-## Current checkpoint — v5.0.1 release promotion in progress (2026-10-25)
+## Current checkpoint — v5.0.1 stable release published (2026-10-25)
 
 See the [canonical handoff](../../docs/superpowers/plans/CURRENT.md) for
 project state, release boundary, known host limits, and safe next action. The
@@ -8,14 +8,17 @@ project state, release boundary, known host limits, and safe next action. The
 defines how to inventory and read the full implementation. This build log
 records verification evidence; checkpoints below this one are historical.
 
-Candidate: `codex/version-5-0-1`, pushed to origin and based on
-`cf319a12cfc19e2739303b1b26ee71357ae6c0cd`. Workspace crates and certification
-target are 5.0.1; stable/downloadable remain 5.0.0 until publication. PR #5 is
-open from `codex/version-5-0-1`; consult the PR page for the current head and
-hosted CI results. Merge only after all required checks pass on that head. No
-tag or public release exists.
+PR [#5](https://github.com/thienty1207/Baron-Engine/pull/5) merged as
+`4008d1963ed2fcd756aaf81b54cbe838b52596d1`, and annotated tag `v5.0.1` points
+to that source commit. PR-head run
+[40154174683](https://github.com/thienty1207/Baron-Engine/actions/runs/40154174683)
+passed all six checks. Release run
+[40156631352](https://github.com/thienty1207/Baron-Engine/actions/runs/40156631352)
+completed successfully; the official
+[v5.0.1 GitHub Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1)
+is the current `releases/latest` with nine Windows/Linux assets.
 
-Local verification for the candidate passed fmt, full workspace all-target
+Local verification for the release source passed fmt, full workspace all-target
 tests, locked check, Clippy with warnings denied, focused Core and adapter
 suites, CLI help, locked release build, and a release CLI version check. The
 Windows lifecycle tests required the supported PowerShell 7 override because
@@ -24,14 +27,23 @@ test-spawned Windows PowerShell 5.1 could not auto-load
 limits are also recorded there. The final push was followed by a clean upstream
 sync check; the post-commit public trust docs test passed 12/12. The 5.0.1
 Windows release binary also passed the release certification profile (9/9
-checks) in a disposable source copy and temporary Vault; user project, Vault,
-and machine configuration were not used.
+checks) in a disposable source copy and temporary Vault. The public
+`releases/latest/download/install.ps1` installer installed to a disposable root
+and reported `baron 5.0.1`. The user's project, Vault, and machine configuration
+were not used.
 
-Safe next action: wait for all PR #5 checks to pass on the exact head, merge
-under the owner's release authorization, and run the immutable release workflow
-from the exact resulting `origin/main` SHA. Keep the README and stable/downloadable
-status at 5.0.0 until that workflow publishes successfully; synchronize them to
-5.0.1 afterward.
+The release-doc sync passed the Core public trust docs suite (12/12), adapter
+docs suite (2/2), five CLI version/help checks, JSON parsing, 61 repository-
+relative Markdown links, formatter check, and `git diff --check`. The retired-
+adapter scan found only two historical notes and no current-product references.
+
+Proof status: release workflow, signature/checksum verification, certification,
+and public installer evidence passed; no user-project proof was produced.
+Trace status: no user-project Baron trace was created; this checkpoint records
+release and isolated test evidence only.
+
+Safe next action: maintain Baron Engine `5.0.1`. SPEC-06 is not started and
+needs a canonical scope and acceptance criteria before implementation.
 
 ## Historical build checkpoints — context only
 

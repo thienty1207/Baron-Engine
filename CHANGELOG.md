@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.0.1 - Unreleased
+## 5.0.1 - 2026-10-25
 
 - Fix Control Plane validation false positives caused by negated subagent
   mentions.

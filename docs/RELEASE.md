@@ -171,7 +171,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v5.0.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v5.0.1-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -184,13 +184,13 @@ Download one native archive, `SHA256SUMS`, `release-manifest.json`, and
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 5.0.0 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 5.0.1 -SourceDirectory D:\baron-release
 ```
 
 Linux:
 
 ```bash
-sh ./install.sh --version 5.0.0 --source-dir /path/to/baron-release
+sh ./install.sh --version 5.0.1 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -208,8 +208,8 @@ targets.
 The final promotion job assembles both supported native archives and runs:
 
 ```bash
-  baron release metadata release-assets --release-version 5.0.0 --source-revision <40-character-git-sha>
-  baron release verify release-assets --expected-version 5.0.0 --expected-source-revision <40-character-git-sha>
+  baron release metadata release-assets --release-version 5.0.1 --source-revision <40-character-git-sha>
+  baron release verify release-assets --expected-version 5.0.1 --expected-source-revision <40-character-git-sha>
 ```
 
 The metadata command requires `BARON_RELEASE_SIGNING_KEY`, a protected GitHub
@@ -223,7 +223,7 @@ binary.
 These maintainer commands are hidden from normal help because users do not need
 them during project work.
 
-Before promoting a `v5.0.0` release, also run:
+Before promoting a new release, also run:
 
 ```bash
 baron certify run <repo-path> --vault <vault-path> --profile release
@@ -235,14 +235,21 @@ healthy at scale.
 ## Publishing `releases/latest`
 
 `releases/latest` is controlled by GitHub Releases, not by `Cargo.toml` alone.
-Push the verified source commit to `main`, copy its full SHA, and push the
-version tag; GitHub Actions then starts the release workflow automatically:
+The current stable release is
+[`v5.0.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1).
+For a future release, first merge its version and source changes to `main`, then
+create the matching tag from the exact `origin/main` commit. The tag starts the
+release workflow automatically:
 
 ```bash
-git push origin main
-git rev-parse HEAD
-git tag -a v5.0.0 <40-character-git-sha> -m "Baron 5.0.0"
-git push origin refs/tags/v5.0.0
+git switch main
+git pull --ff-only origin main
+VERSION="$(cargo metadata --no-deps --format-version 1 \
+  | jq -r '.packages[] | select(.name == "baron-cli") | .version')"
+SOURCE_SHA="$(git rev-parse HEAD)"
+test "$(git rev-parse origin/main)" = "$SOURCE_SHA"
+git tag -a "v$VERSION" "$SOURCE_SHA" -m "Baron Engine v$VERSION"
+git push origin "refs/tags/v$VERSION"
 ```
 
 The `Baron Release` workflow refuses an existing tag or Release, builds the
@@ -250,7 +257,7 @@ native archives from that exact SHA, verifies checksums and installer lifecycle,
 and then creates the immutable GitHub Release. Only the final promotion job has
 repository write permission. When the workflow finishes,
 `https://github.com/thienty1207/Baron-Engine/releases/latest` should point at
-`v5.0.0`.
+the newly published version. It currently resolves to `v5.0.1`.
 
 Public smoke after the workflow:
 
@@ -259,3 +266,5 @@ baron --version
 baron setup --vault
 baron init --codex --fullstack
 ```
+
+For the current release, `baron --version` prints `baron 5.0.1`.
