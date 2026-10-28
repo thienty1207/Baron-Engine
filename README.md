@@ -21,6 +21,21 @@ Current source version: `5.0.1`.
 Current stable and downloadable release:
 [`Baron Engine v5.0.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1).
 
+## Development focus and future roadmap
+
+The current focus is to use Baron `5.0.1` to build real products and gather
+practical usage evidence. Codex and Claude remain the only supported native
+integrations in this release.
+
+| Future direction | Scope | Status |
+|---|---|---|
+| [SPEC-06](docs/specs/Spec6/SPEC-06-1-CROSS-HOST-TASK-STATE-AND-RESUME.md) | Cross-host task resume, a DeepSeek Harness adapter, and feature parity | Deferred; not implemented or supported. Revisit after real product use and an explicit owner decision. The [remaining drafts](docs/specs/Spec6/) are design references only. |
+| [SPEC-07](docs/specs/Spec7/Baron_5.0.1_AI_Memory_3.2.9_Architecture_Feature_RFC.md) | Evaluate selected AI-Memory ideas for Baron, including observation retrieval, feedback/relations, non-destructive aging, and retrieval efficiency | Deferred; the RFC is a reference proposal, not an approved implementation plan. Its eight sub-specs are candidates, not a commitment to implement all of them. |
+
+SPEC-06 and SPEC-07 are future roadmap directions, not active work or
+capabilities of Baron `5.0.1`. There is no implementation date set. Resume
+either only after the owner explicitly reprioritizes it.
+
 For development continuation, read the
 [canonical handoff](docs/superpowers/plans/CURRENT.md) first. The
 [source reading guide](docs/architecture/SOURCE_READING_GUIDE.md) explains how

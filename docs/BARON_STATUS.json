@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-25",
+  "lastUpdated": "2026-10-28",
   "stableRelease": "5.0.1",
   "downloadableRelease": "5.0.1",
   "candidateSourceVersion": null,
@@ -17,14 +17,30 @@
   "remainingPhaseCount": 0,
   "currentPhase": "v5-0-1-release-promotion",
   "currentPhaseStatus": "published",
-  "nextAction": "Maintain Baron Engine 5.0.1. SPEC-06 has not started and needs a canonical specification and acceptance criteria before implementation begins.",
+  "nextAction": "Use Baron Engine 5.0.1 for real product work and gather practical findings. SPEC-06 and SPEC-07 are deferred future directions; resume only after an explicit owner decision.",
   "currentRoadmap": {
     "verifiedMainSha": "4008d1963ed2fcd756aaf81b54cbe838b52596d1",
     "specs01Through05": "completed_and_merged",
     "spec06": {
-      "status": "not_started",
+      "status": "optional_deferred",
       "scopeConfirmed": false,
-      "canonicalSpecFound": false
+      "canonicalSpecFound": true,
+      "implementationStatus": "not_started",
+      "ownerRequestedImplementation": false,
+      "draftSpecs": [
+        "docs/specs/Spec6/SPEC-06-1-CROSS-HOST-TASK-STATE-AND-RESUME.md",
+        "docs/specs/Spec6/SPEC-06-2-DEEPSEEK-HARNESS-ADAPTER.md",
+        "docs/specs/Spec6/SPEC-06-3-DEEPSEEK-FEATURE-PARITY-AND-ENFORCEMENT.md"
+      ]
+    },
+    "spec07": {
+      "status": "deferred_future_direction",
+      "scopeConfirmed": false,
+      "canonicalReferenceFound": true,
+      "implementationStatus": "not_started",
+      "ownerRequestedImplementation": false,
+      "resumeCondition": "After practical product use of Baron 5.0.1 and an explicit owner decision.",
+      "reference": "docs/specs/Spec7/Baron_5.0.1_AI_Memory_3.2.9_Architecture_Feature_RFC.md"
     },
     "totalSpecCount": null,
     "proactiveBugFixingPass": {

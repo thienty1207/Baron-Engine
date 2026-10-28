@@ -1,6 +1,33 @@
 # Current Build Note
 
-## Current checkpoint — v5.0.1 stable release published (2026-10-25)
+## Current checkpoint — SPEC-06 and SPEC-07 deferred future directions (2026-10-28)
+
+The owner is postponing SPEC-06 and SPEC-07 while using Baron `5.0.1` to build
+real products and gather practical evidence. SPEC-06 covers cross-host task
+state/resume, a DeepSeek Harness adapter, and feature parity. SPEC-07 is an
+AI-Memory architecture reference for selectively evaluating possible Baron
+improvements. Neither is active or approved implementation work; the eight
+SPEC-07 sub-specs are options, not a commitment to implement them all. Codex
+and Claude remain the only implemented active adapters.
+
+No source, tests, dependencies, runtime configuration, Project ID, Vault, or
+provider credentials were changed. No build or test suite was run for this
+spec-authoring task. Proof/trace status remains the existing release and test
+evidence; no project-scoped Baron proof or trace was created.
+
+Safe next action: use Baron `5.0.1` for real product work and record practical
+findings. Reopen SPEC-06 or SPEC-07 only after an explicit owner decision.
+
+## Previous checkpoint — SPEC-06 design drafts written (2026-10-28)
+
+Three draft specifications were prepared as possible future designs for
+cross-host task state/resume, a DeepSeek Harness adapter, and feature
+parity/evidence enforcement. At this checkpoint the owner had not yet decided
+whether to pursue them. No source, tests, dependencies, runtime configuration,
+Project ID, Vault, or provider credentials were changed. No build or test suite
+was run. No project-scoped Baron proof or trace was created.
+
+## Historical checkpoint — v5.0.1 stable release published (2026-10-25)
 
 See the [canonical handoff](../../docs/superpowers/plans/CURRENT.md) for
 project state, release boundary, known host limits, and safe next action. The
