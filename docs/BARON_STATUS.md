@@ -20,10 +20,11 @@
 - Hosted PR CI passed Windows and Linux native tests plus Format and Clippy. The local Windows full-workspace run required the supported PowerShell 7 test override because test-spawned Windows PowerShell 5.1 could not auto-load `Microsoft.PowerShell.Archive` in three installer cases.
 - End-to-end caveats remain: live Claude Code was unavailable; Codex's implicit no-path context failed Windows path inspection involving the host shell's extended path prefix, while explicit project-path calls passed. See the canonical handoff for exact scope.
 - Persisted-state boundary: documentation worktree, Cargo outputs, and temporary release-install fixtures only. The user's project, Vault, and machine configuration were not changed.
+- SPEC-06 and SPEC-07 are deferred future directions while the owner uses Baron `5.0.1` to build real products and gather practical evidence. SPEC-06 proposes cross-host task state/resume, a DeepSeek Harness adapter, and feature parity. SPEC-07 is a reference study of AI-Memory ideas for selective adoption. Neither is active implementation work; SPEC-07's eight proposed sub-specs are not a commitment to implement all of them. Codex and Claude remain the only supported adapters. Reopen only after an explicit owner decision.
 
 Plan: [5.0.1 version bump](superpowers/plans/2026-10-24-v5-0-1-version-bump.md); [AI handoff/source guide](superpowers/plans/2026-10-24-ai-handoff-and-source-reading-guide.md).
 
-Next action: maintain Baron Engine `5.0.1`. SPEC-06 remains unstarted and needs a canonical specification and acceptance criteria before implementation begins.
+Next action: use Baron Engine `5.0.1` for real product work and gather practical findings. SPEC-06 and SPEC-07 remain deferred; do not implement either until the owner explicitly resumes it.
 
 ## Previous checkpoint — Post-merge end-to-end validation (COMPLETE WITH HOST AVAILABILITY LIMITS — 2026-10-24)
 

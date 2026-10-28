@@ -46,8 +46,15 @@
   fallback when host hooks do not run.
 - The Codex + Claude Core consolidation through Phase 15 is complete. Phase 16
   adversarial verification has not started. SPEC-01 through SPEC-05 are
-  recorded complete and merged. SPEC-06 is not started; no canonical SPEC-06
-  or approved acceptance criteria are present in this checkout.
+  recorded complete and merged. SPEC-06 and SPEC-07 are deferred future
+  directions while the owner uses Baron `5.0.1` to build real products and
+  gather practical evidence. SPEC-06 covers cross-host task state/resume, a
+  DeepSeek Harness adapter, and feature parity. SPEC-07 is a reference study of
+  AI-Memory ideas that may be selectively adapted to Baron. Neither is active
+  or approved implementation work; SPEC-07's eight proposed sub-specs are not
+  a commitment to implement all of them. Codex and Claude remain the only
+  supported adapters. Reopen either direction only after an explicit owner
+  decision.
 - Do not infer that the product has no remaining bugs. Future hardening should
   start from a reproducible defect, regression, security issue, or concrete
   integrity risk. Historical SPEC-05 residuals are documented in the status
@@ -78,8 +85,11 @@
 1. Read [`AGENTS.md`](../../../AGENTS.md), then
    [`SOURCE_READING_GUIDE.md`](../../architecture/SOURCE_READING_GUIDE.md)
    before claiming a complete source audit.
-2. Continue normal Baron `5.0.1` maintenance. SPEC-06 has not started; first
-   establish its canonical scope and acceptance criteria before implementation.
+2. Use Baron `5.0.1` for real product work and record practical findings.
+   [SPEC-06](../../specs/Spec6/) and
+   [SPEC-07](../../specs/Spec7/Baron_5.0.1_AI_Memory_3.2.9_Architecture_Feature_RFC.md)
+   are deferred future directions, not current tasks. Do not start either
+   without an explicit owner decision.
 3. Future releases must use a new versioned source commit on `main`, pass the
    release workflow, and update the public docs only after the GitHub Release
    and downloadable assets are verified.

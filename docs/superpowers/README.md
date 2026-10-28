@@ -8,7 +8,8 @@ documentation.
 The single canonical project handoff is
 [`docs/superpowers/plans/CURRENT.md`](plans/CURRENT.md). It links the current
 candidate, completed and pending work, verification, blockers, and next safe
-action. The durable phase dashboard is [`docs/BARON_STATUS.md`](../BARON_STATUS.md).
+action. SPEC-06 and SPEC-07 are recorded there as deferred future directions;
+the presence of a draft does not approve implementation. The durable phase dashboard is [`docs/BARON_STATUS.md`](../BARON_STATUS.md).
 Use the [source reading guide](../architecture/SOURCE_READING_GUIDE.md) to
 inventory and read the complete implementation. Current user and integration
 behavior is described by the repository [README](../../README.md) and the
