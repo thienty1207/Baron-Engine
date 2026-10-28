@@ -23,7 +23,7 @@ fn install_minimal_codex_contract(repo: &Path) {
 | --- | --- | --- |\n\
 | Superpowers | workflow core | planning, TDD, debugging, review, verification |\n\
 | `frontend-design` | optional domain | UI, layout, responsive, accessibility, browser-facing flows |\n\
-| `vibe-security-scan` | optional domain | auth, API, secrets, RLS, uploads, payment, dependencies, permissions |\n",
+| `security-audit` | optional domain | application source changes, security-sensitive boundaries, focused audit |\n",
     );
     write(
         &repo.join(".codex/agents/INDEX.md"),
@@ -43,8 +43,8 @@ fn install_minimal_codex_contract(repo: &Path) {
         "---\nname: frontend-design\ndescription: Use when building frontend UI, layout, responsive behavior, accessibility, or browser-facing flows.\n---\n\n# Frontend Design\n\nOptional domain skill. Superpowers remains the workflow authority. Output must include files, accessibility risks, and verification.\n",
     );
     write(
-        &repo.join(".codex/skills/vibe-security-scan/SKILL.md"),
-        "---\nname: vibe-security-scan\ndescription: Use when reviewing auth, API, secrets, RLS, uploads, payment, dependency, CORS, JWT, rate limit, or access control security risks.\n---\n\n# Vibe Security Scan\n\nOptional defensive security domain skill. Superpowers remains the workflow authority. Output must include severity, evidence, fix, and verification.\n",
+        &repo.join(".codex/skills/security-audit/SKILL.md"),
+        "---\nname: security-audit\ndescription: Use for bounded security review of meaningful application source changes and security-sensitive boundaries.\n---\n\n# Baron Security Audit\n\nThe security-audit methodology is distinct from the independent security-auditor gate. Superpowers remains the workflow authority. Never claim an audit ran when only this route was selected.\n",
     );
     for (name, description) in [
         (
@@ -290,12 +290,12 @@ fn routes_frontend_tasks_narrowly_with_review_and_test_gates() {
     assert!(!route
         .selected_skills
         .iter()
-        .any(|item| item.name == "vibe-security-scan"));
+        .any(|item| item.name == "security-audit"));
     assert_eq!(route.mandatory_agents, ["code-reviewer", "test-engineer"]);
     assert!(route
         .skipped
         .iter()
-        .any(|item| item.contains("vibe-security-scan")));
+        .any(|item| item.contains("security-audit")));
 }
 
 #[test]
@@ -351,12 +351,201 @@ fn routes_security_tasks_to_security_skill_and_all_core_gates() {
     assert!(route
         .selected_skills
         .iter()
-        .any(|item| item.name == "vibe-security-scan"));
+        .any(|item| item.name == "security-audit"));
     assert_eq!(
         route.mandatory_agents,
         ["code-reviewer", "security-auditor", "test-engineer"]
     );
+    assert!(route.security_sensitive);
     assert!(route.explanation.contains("security-sensitive task"));
+}
+
+#[test]
+fn routes_meaningful_application_changes_to_security_audit_without_scanning_docs_only() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let implementation = route_task(
+        repo,
+        "implement a FastAPI endpoint in src/users.py",
+        RiskLane::Medium,
+    )
+    .unwrap();
+    assert!(implementation
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "security-audit"));
+    assert_eq!(
+        implementation.mandatory_agents,
+        ["code-reviewer", "test-engineer"]
+    );
+
+    let docs_only = route_task(
+        repo,
+        "update README installation examples and formatting",
+        RiskLane::Low,
+    )
+    .unwrap();
+    assert!(!docs_only
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "security-audit"));
+
+    let mixed_docs_and_code = route_task(
+        repo,
+        "update the README and implement a parser in src/parser.rs",
+        RiskLane::Medium,
+    )
+    .unwrap();
+    assert!(mixed_docs_and_code
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "security-audit"));
+}
+
+#[test]
+fn repository_auth_surface_does_not_route_docs_only_work_to_security_audit() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+    write(&repo.join("src/auth.rs"), "pub fn authenticate() {}\n");
+
+    let docs_only = route_task(
+        repo,
+        "update README installation examples and formatting",
+        RiskLane::Low,
+    )
+    .unwrap();
+
+    assert!(!docs_only
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "security-audit"));
+}
+
+#[test]
+fn application_change_routing_covers_all_seven_initial_languages() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    for path in [
+        "src/handler.py",
+        "src/handler.cpp",
+        "src/Handler.java",
+        "src/handler.rs",
+        "src/handler.go",
+        "src/handler.ts",
+        "src/module.mts",
+        "src/Handler.cs",
+    ] {
+        let task = format!("implement request validation in {path}");
+        let route = route_task(repo, &task, RiskLane::Medium).unwrap();
+        assert!(
+            route
+                .selected_skills
+                .iter()
+                .any(|item| item.name == "security-audit"),
+            "{path} did not select security-audit: {:?}",
+            route.selected_skills
+        );
+    }
+}
+
+#[test]
+fn application_configuration_changes_route_to_security_audit() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    for path in ["build.gradle", "settings.gradle.kts", "MyApp.csproj"] {
+        let task = format!("change {path}");
+        let route = route_task(repo, &task, RiskLane::Medium).unwrap();
+        assert!(
+            route
+                .selected_skills
+                .iter()
+                .any(|item| item.name == "security-audit"),
+            "{path} did not select security-audit: {:?}",
+            route.selected_skills
+        );
+    }
+}
+
+#[test]
+fn generic_high_risk_application_work_keeps_a_focused_security_route() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+
+    let route = route_task(
+        repo,
+        "implement cache invalidation in src/cache.rs",
+        RiskLane::High,
+    )
+    .unwrap();
+
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "security-audit"));
+    assert!(!route.security_sensitive);
+    assert_eq!(
+        route.mandatory_agents,
+        ["code-reviewer", "security-auditor", "test-engineer"]
+    );
+}
+
+#[test]
+fn route_context_preserves_changed_security_paths_for_prepare_scope() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+    write(
+        &repo.join("docs/baron/plans/CURRENT.md"),
+        "# Current Plan\n\n- Changed files: src/auth.rs\n",
+    );
+
+    let route = route_task(repo, "fix it", RiskLane::Medium).unwrap();
+
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "security-audit"));
+    assert_eq!(
+        route.mandatory_agents,
+        ["code-reviewer", "security-auditor", "test-engineer"]
+    );
+    assert!(route.security_sensitive);
+    assert!(route
+        .affected_paths
+        .iter()
+        .any(|path| path == "src/auth.rs"));
+}
+
+#[test]
+fn route_reports_when_operation_paths_exceed_its_bounded_context() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_minimal_codex_contract(repo);
+    let paths = (0..17)
+        .map(|index| format!("src/module{index}.rs"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    write(
+        &repo.join("docs/baron/plans/CURRENT.md"),
+        &format!("# Current Plan\n\n- Changed files: {paths}\n"),
+    );
+
+    let route = route_task(repo, "fix it", RiskLane::Medium).unwrap();
+
+    assert_eq!(route.affected_paths.len(), 16);
+    assert!(route.affected_paths_truncated);
+    assert!(route
+        .selected_skills
+        .iter()
+        .any(|item| item.name == "security-audit"));
 }
 
 #[test]

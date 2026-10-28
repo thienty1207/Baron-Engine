@@ -180,6 +180,6 @@ Return API/interface guidance in this shape:
 
 - If evidence is thin, say exactly what is unknown.
 - If the change is medium/high risk, require core quality gates and trace scoring.
-- If security is involved, route `vibe-security-scan` and `security-auditor`.
+- If security is involved, route `security-audit` and retain `security-auditor` as the independent gate.
 - If performance is involved, route `performance-optimization` or `web-performance-auditor` as appropriate.
 - Do not claim interface readiness until proof and trace support the claim.

@@ -1,6 +1,42 @@
 # Current Build Note
 
-## Current checkpoint — v5.0.1 stable release published (2026-10-25)
+## Current checkpoint — SPEC-08-01 implemented and verified locally (2026-10-28)
+
+Active branch `codex/spec-08-01-vibe-retirement` is based on
+`origin/main` `c1c182a187e62332a32ce1824f6658f261ce84c8`. The implementation
+plan is [SPEC-08-01](../../docs/superpowers/plans/2026-10-28-spec-08-01-vibe-security-retirement.md).
+Scope is Core routing, the security-audit PreparePacket contract/asset, and
+safe retirement of old managed Vibe assets; SPEC-08-05/02/03/04 remain pending.
+
+Final Windows verification passed: `cargo fmt --all -- --check`,
+`cargo test --workspace --all-targets --no-fail-fast -j 2` (112 test targets,
+1,055 passed, 0 failed, 4 ignored), and
+`cargo clippy --workspace --all-targets -- -D warnings`. The full test run used
+bundled PowerShell 7 through `BARON_TEST_POWERSHELL`. Focused suites passed:
+Core `control_plane` 22/22 and security plan unit tests 5/5; CLI
+`prepare_cli` 8/8; adapter `adapter_lifecycle` 23/23 and `update_planner`
+26/26; adapter retirement I/O unit test 1/1.
+
+The first full run exposed exact runtime skill-contract heading and wording
+mismatches; those were corrected. Clippy then identified test modules placed
+before later production functions in Core Prepare and adapter Update; both test
+modules were moved to file ends and focused tests passed. The final full suite
+and Clippy passed after these corrections. The docs-only false-positive routing
+regression was observed failing before its Core fix and passing afterward.
+
+Source coverage was targeted to SPEC-08-01 routing, PreparePacket, managed
+asset/update migration, related tests, and runtime assets; this was not a full
+line-by-line source pass of the repository.
+
+Proof status: no project-scoped Baron proof. Trace status: no project-scoped
+Baron trace. Persisted-state boundary: isolated linked worktree, Cargo output,
+and disposable test fixtures; no user project, Vault, or machine configuration.
+No commit, push, PR, merge, tag, version bump, or release is in scope.
+
+Safe next action: owner review of the local verified SPEC-08-01 diff. Do not
+start another SPEC-08 child, commit, push, merge, or release without approval.
+
+## Release baseline — v5.0.1 stable release published (2026-10-25)
 
 See the [canonical handoff](../../docs/superpowers/plans/CURRENT.md) for
 project state, release boundary, known host limits, and safe next action. The

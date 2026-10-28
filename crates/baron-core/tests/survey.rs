@@ -114,7 +114,7 @@ fn ignores_agent_asset_directories_when_detecting_project_risk() {
         r#"{"scripts":{"test":"vitest"}}"#,
     );
     write(
-        &root.join(".codex/skills/vibe-security-scan/rules/generic/01-hardcoded-secret.md"),
+        &root.join(".codex/skills/security-audit/rules/generic/01-hardcoded-secret.md"),
         "# Hardcoded Secret\n",
     );
     write(

@@ -69,6 +69,8 @@ impl Drop for InstallerCallbackFence {
 const BUNDLED_SKILLS: &[&str] = &[
     "superpowers",
     "frontend-design",
+    "security-audit",
+    // Migration-only identity for pre-SPEC-08 Baron-owned projections.
     "vibe-security-scan",
     "binary-reverse-analysis",
     "apk-mobile-analysis",

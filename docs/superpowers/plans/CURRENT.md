@@ -4,9 +4,36 @@
 > all checkpoints and phase snapshots after it are historical records and must
 > not override these facts or the checked-out source.
 
-## Current source and release — 2026-10-25
+## Current source, active work, and release — 2026-10-28
 
 - Repository: `thienty1207/Baron-Engine`.
+- Active work: SPEC-08-01 is implemented and locally verified on isolated branch
+  `codex/spec-08-01-vibe-retirement`, based on local `origin/main` at
+  `c1c182a187e62332a32ce1824f6658f261ce84c8`. The implementation plan is
+  [`2026-10-28-spec-08-01-vibe-security-retirement.md`](2026-10-28-spec-08-01-vibe-security-retirement.md).
+- SPEC-08-01 verification on Windows passed: `cargo fmt --all -- --check`;
+  `cargo test --workspace --all-targets --no-fail-fast -j 2` (112 targets,
+  1,055 passed, 0 failed, 4 ignored); and
+  `cargo clippy --workspace --all-targets -- -D warnings`. The workspace run
+  used bundled PowerShell 7 through `BARON_TEST_POWERSHELL`.
+- The first full run exposed a runtime asset contract mismatch; the skill
+  headings and no-clean wording were corrected. Clippy also caught test modules
+  placed before remaining production functions; both modules were moved to the
+  end of their files, focused tests passed, and the final full test/Clippy runs
+  passed. The new auth-repository/docs-only regression was first observed RED
+  and then passed after routing stopped using repository-wide survey matches
+  as task evidence.
+- This work covers only SPEC-08-01. SPEC-08-05, 08-02, 08-03, and 08-04 remain
+  pending; do not claim SPEC-08 complete or imply that the full Cloudflare
+  audit/remediation workflow is implemented. SPEC-06 remains unstarted.
+- Source review was targeted to SPEC-08-01 routing, PreparePacket, managed
+  asset/update migration, related tests, and relevant runtime assets. It was
+  not a line-by-line pass of the whole repository.
+- Proof/trace: no project-scoped Baron proof or trace. Persisted-state
+  boundary: this linked worktree, its Cargo build outputs, and temporary test
+  fixtures; the primary checkout, project, Vault, `.env`, and machine
+  configuration remain outside the write boundary.
+- No commit, push, PR, merge, tag, version bump, or release is in scope.
 - Source version, stable release, and downloadable release are `5.0.1`.
   [GitHub Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1)
   is also the current `releases/latest` destination.
@@ -78,8 +105,9 @@
 1. Read [`AGENTS.md`](../../../AGENTS.md), then
    [`SOURCE_READING_GUIDE.md`](../../architecture/SOURCE_READING_GUIDE.md)
    before claiming a complete source audit.
-2. Continue normal Baron `5.0.1` maintenance. SPEC-06 has not started; first
-   establish its canonical scope and acceptance criteria before implementation.
+2. Review the verified local SPEC-08-01 diff. Do not start another Spec8 child
+   or publish/integrate this work until the owner approves the next step.
+   SPEC-08-05, 08-02, 08-03, or 08-04. SPEC-06 has not started.
 3. Future releases must use a new versioned source commit on `main`, pass the
    release workflow, and update the public docs only after the GitHub Release
    and downloadable assets are verified.

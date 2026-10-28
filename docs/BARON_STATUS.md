@@ -1,12 +1,16 @@
 # Baron Build Status
 
-## Current status — Baron Engine v5.0.1 published (2026-10-25)
+## Current status — SPEC-08-01 implemented and verified locally; stable release remains v5.0.1 (2026-10-28)
 
 > This is the current release/phase dashboard. For AI continuation, use the
 > canonical [handoff](superpowers/plans/CURRENT.md); every older checkpoint
 > below this current section is historical evidence.
 
 - Canonical continuation instructions are in the [handoff](superpowers/plans/CURRENT.md). Use the [source-reading guide](architecture/SOURCE_READING_GUIDE.md) for a complete, coverage-tracked source pass.
+- [SPEC-08-01 — Core Routing and Vibe Retirement](specs/Spec8%20-%20Replace%20VibeSecurity/SPEC-08-01-CORE-ROUTING-AND-VIBE-RETIREMENT.md) is implemented and verified locally on isolated branch `codex/spec-08-01-vibe-retirement`, based on `origin/main` at `c1c182a187e62332a32ce1824f6658f261ce84c8`. The plan is [here](superpowers/plans/2026-10-28-spec-08-01-vibe-security-retirement.md).
+- This is a partial child-spec implementation, not completion of SPEC-08. SPEC-08-05, 08-02, 08-03, and 08-04 remain pending. No push, merge, version bump, or release is in scope.
+- Final Windows verification passed: `cargo fmt --all -- --check`; full workspace all-target tests (112 targets, 1,055 passed, 0 failed, 4 ignored) using the supported PowerShell 7 `BARON_TEST_POWERSHELL` override; and warnings-denied workspace Clippy. The first full run found an asset-contract mismatch, which was corrected; Clippy also led to moving two test modules after production functions. Final full tests and Clippy passed after those corrections.
+- The source review was targeted to SPEC-08-01 routing, PreparePacket, managed asset/update migration, related tests, and runtime assets. It was not a line-by-line repository-wide source pass. User project/Vault/machine configuration is outside the write boundary.
 - Stable source release: `v5.0.1` ([official release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1));
   the `releases/latest` download endpoint now resolves to this release. It
   includes nine signed/checksummed assets for Windows x64 and Linux x64.
@@ -23,7 +27,7 @@
 
 Plan: [5.0.1 version bump](superpowers/plans/2026-10-24-v5-0-1-version-bump.md); [AI handoff/source guide](superpowers/plans/2026-10-24-ai-handoff-and-source-reading-guide.md).
 
-Next action: maintain Baron Engine `5.0.1`. SPEC-06 remains unstarted and needs a canonical specification and acceptance criteria before implementation begins.
+Next action: owner review of the verified local SPEC-08-01 diff. SPEC-06 remains unstarted; SPEC-08-05/02/03/04 remain pending. Do not claim SPEC-08 complete or publish this work without owner approval.
 
 ## Previous checkpoint — Post-merge end-to-end validation (COMPLETE WITH HOST AVAILABILITY LIMITS — 2026-10-24)
 

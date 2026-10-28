@@ -187,7 +187,7 @@ fn codex_adapter_installs_core_and_optional_assets() {
         .join(".baron/core/skills/frontend-design/SKILL.md")
         .exists());
     assert!(repo
-        .join(".baron/core/skills/vibe-security-scan/SKILL.md")
+        .join(".baron/core/skills/security-audit/SKILL.md")
         .exists());
     for skill in [
         "api-and-interface-design",
@@ -612,7 +612,7 @@ fn skills_and_agents_indexes_route_narrowly() {
     let skills = fs::read_to_string(repo.join(".codex/INDEX.md")).unwrap();
     assert!(skills.contains("Superpowers"));
     assert!(skills.contains("frontend-design"));
-    assert!(skills.contains("vibe-security-scan"));
+    assert!(skills.contains("security-audit"));
     assert!(skills.contains("api-and-interface-design"));
     assert!(skills.contains("observability-and-instrumentation"));
     assert!(skills.contains("performance-optimization"));
@@ -719,7 +719,7 @@ fn baron_owned_runtime_assets_are_self_contained_and_deep() {
 
     for skill in [
         "frontend-design",
-        "vibe-security-scan",
+        "security-audit",
         "api-and-interface-design",
         "observability-and-instrumentation",
         "performance-optimization",
@@ -784,14 +784,14 @@ fn baron_owned_runtime_assets_are_self_contained_and_deep() {
             ],
         ),
         (
-            "vibe-security-scan",
+            "security-audit",
             [
-                "trust boundary",
+                "trust boundaries",
                 "data-flow",
-                "idor",
-                "ssrf",
-                "command injection",
-                "no weaponized",
+                "security-auditor",
+                "not_run",
+                "audit_workflow_pending_spec_08_03",
+                "no clean",
             ],
         ),
     ];
@@ -857,7 +857,7 @@ fn bundled_domain_skills_do_not_depend_on_agent_bootstrap_runtime() {
 
     for skill in [
         "frontend-design",
-        "vibe-security-scan",
+        "security-audit",
         "api-and-interface-design",
         "observability-and-instrumentation",
         "performance-optimization",

@@ -37,7 +37,7 @@ const REQUIRED_AGENT_TERMS: &[&str] = &[
 const MANAGED_SKILLS: &[&str] = &[
     "superpowers",
     "frontend-design",
-    "vibe-security-scan",
+    "security-audit",
     "binary-reverse-analysis",
     "apk-mobile-analysis",
     "malware-triage",

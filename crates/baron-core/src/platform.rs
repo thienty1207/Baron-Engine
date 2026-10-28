@@ -229,7 +229,7 @@ const BACKEND: ProfileValues = (
     ],
     &[
         "api-and-interface-design",
-        "vibe-security-scan",
+        "security-audit",
         "observability-and-instrumentation",
     ],
     &["code-reviewer", "security-auditor", "test-engineer"],
@@ -273,7 +273,7 @@ const FULLSTACK: ProfileValues = (
     &[
         "frontend-design",
         "api-and-interface-design",
-        "vibe-security-scan",
+        "security-audit",
         "observability-and-instrumentation",
     ],
     &["code-reviewer", "security-auditor", "test-engineer"],
@@ -318,7 +318,7 @@ const MOBILE: ProfileValues = (
         "mobile-application-engineering",
         "api-and-interface-design",
         "performance-optimization when measured",
-        "vibe-security-scan",
+        "security-audit",
     ],
     &["code-reviewer", "security-auditor", "test-engineer"],
     &[
@@ -356,7 +356,7 @@ const DESKTOP: ProfileValues = (
     ],
     &[
         "performance-optimization when measured",
-        "vibe-security-scan",
+        "security-audit",
         "deprecation-and-migration",
     ],
     &["code-reviewer", "security-auditor", "test-engineer"],
@@ -490,7 +490,7 @@ const DATA: ProfileValues = (
     &[
         "observability-and-instrumentation",
         "deprecation-and-migration",
-        "vibe-security-scan",
+        "security-audit",
     ],
     &["code-reviewer", "security-auditor", "test-engineer"],
     &[
@@ -575,7 +575,7 @@ const CLOUD: ProfileValues = (
     ],
     &[
         "observability-and-instrumentation",
-        "vibe-security-scan",
+        "security-audit",
         "deprecation-and-migration",
     ],
     &["code-reviewer", "security-auditor", "test-engineer"],

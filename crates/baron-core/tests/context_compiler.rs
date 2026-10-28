@@ -524,7 +524,7 @@ fn context_why_explains_capability_cache_without_claiming_execution() {
             kind: ProviderKind::Skill,
             requirement: Requirement::Optional,
             command: None,
-            scan_target: Some(".codex/skills/vibe-security-scan".to_string()),
+            scan_target: Some(".codex/skills/security-audit".to_string()),
             adapters: vec![AdapterKind::Codex],
             description: "Provides defensive repository security review guidance.".to_string(),
         },

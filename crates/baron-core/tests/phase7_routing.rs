@@ -222,7 +222,7 @@ fn ordinary_api_work_does_not_trigger_security_by_the_word_api() {
     .unwrap();
 
     assert!(names(&route).contains(&"api-and-interface-design".to_string()));
-    assert!(!names(&route).contains(&"vibe-security-scan".to_string()));
+    assert!(!names(&route).contains(&"security-audit".to_string()));
     assert!(!route
         .mandatory_agents
         .contains(&"security-auditor".to_string()));

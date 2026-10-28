@@ -49,6 +49,9 @@ pub struct RouteReport {
     pub explanation: String,
     pub verification: Vec<RoutingDecision>,
     pub profile: Option<String>,
+    pub security_sensitive: bool,
+    pub affected_paths: Vec<String>,
+    pub affected_paths_truncated: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -399,27 +402,9 @@ fn route_task_internal(
             "firmware analysis",
         ],
     );
-    let security = risk == RiskLane::High
-        || contains_any(
-            &normalized_task,
-            &[
-                "auth",
-                "login",
-                "permission",
-                "tenant",
-                "rls",
-                "security",
-                "secret",
-                "jwt",
-                "cors",
-                "upload",
-                "payment",
-                "crypto",
-                "untrusted input",
-                "sensitive data",
-                "injection",
-            ],
-        );
+    let security = security_boundary_evidence(&normalized_task, &context);
+    let application_change = meaningful_application_change(&normalized_task, &context);
+    let security_audit_required = security || application_change;
     let frontend = contains_any(
         &normalized_task,
         &[
@@ -523,7 +508,7 @@ fn route_task_internal(
 
     let mut candidates = vec![
         CandidateMatch::new("frontend-design", frontend, false),
-        CandidateMatch::new("vibe-security-scan", security, risk == RiskLane::High),
+        CandidateMatch::new("security-audit", security_audit_required, security),
         CandidateMatch::new(
             "apk-mobile-analysis",
             reverse_analysis && contains_any(&normalized_task, &["apk", "android binary"]),
@@ -573,6 +558,16 @@ fn route_task_internal(
             .triggers
             .iter()
             .any(|trigger| contains_term(&normalized_task, trigger));
+        if candidate.name == "security-audit" && candidate.direct_signal {
+            candidate.task_match = true;
+        }
+        if candidate.name == "security-audit" {
+            // A risky surface in the repository is background context, not
+            // evidence that a documentation-only task changed that surface.
+            // Meaningful app changes and security-sensitive tasks are already
+            // represented by `direct_signal` above.
+            candidate.repo_match = false;
+        }
         if is_reverse_candidate(&candidate.name) && !reverse_analysis {
             candidate.task_match = false;
             candidate.repo_match = false;
@@ -601,9 +596,12 @@ fn route_task_internal(
         }
     }
     candidates.sort_by(|left, right| {
-        right
-            .score
-            .cmp(&left.score)
+        let security_audit_priority = |candidate: &CandidateMatch| {
+            usize::from(candidate.name != "security-audit" || !candidate.direct_signal)
+        };
+        security_audit_priority(left)
+            .cmp(&security_audit_priority(right))
+            .then_with(|| right.score.cmp(&left.score))
             .then_with(|| left.order.cmp(&right.order))
     });
 
@@ -816,6 +814,9 @@ fn route_task_internal(
         explanation,
         verification,
         profile,
+        security_sensitive: security,
+        affected_paths: context.affected_paths,
+        affected_paths_truncated: context.affected_paths_truncated,
     })
 }
 
@@ -828,6 +829,7 @@ struct RouteContext {
     state_signals: Vec<String>,
     capabilities_available: bool,
     affected_paths: Vec<String>,
+    affected_paths_truncated: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -895,7 +897,7 @@ impl CandidateMatch {
 fn candidate_order(name: &str) -> usize {
     [
         "frontend-design",
-        "vibe-security-scan",
+        "security-audit",
         "apk-mobile-analysis",
         "malware-triage",
         "binary-reverse-analysis",
@@ -1021,7 +1023,7 @@ fn collect_route_context(
                 .unwrap_or(true)
         })
         .unwrap_or(false);
-    let affected_paths = state_sources
+    let all_affected_paths: Vec<String> = state_sources
         .iter()
         .flat_map(|source| {
             source
@@ -1030,8 +1032,9 @@ fn collect_route_context(
                 .flat_map(|line| line.split(',').map(|value| value.trim().to_lowercase()))
                 .collect::<Vec<_>>()
         })
-        .take(16)
         .collect();
+    let affected_paths_truncated = all_affected_paths.len() > 16;
+    let affected_paths = all_affected_paths.into_iter().take(16).collect();
     Ok(RouteContext {
         profile,
         profiles,
@@ -1042,6 +1045,7 @@ fn collect_route_context(
         state_signals,
         capabilities_available,
         affected_paths,
+        affected_paths_truncated,
     })
 }
 
@@ -1224,8 +1228,15 @@ fn builtin_metadata(name: &str) -> SkillMetadata {
             ]),
             ..SkillMetadata::default()
         },
-        "vibe-security-scan" => SkillMetadata {
+        "security-audit" => SkillMetadata {
             triggers: values(&[
+                "application source",
+                "source code",
+                "build configuration",
+                "dependency configuration",
+                "ci configuration",
+                "security policy",
+                "data flow",
                 "auth",
                 "login",
                 "permission",
@@ -1241,6 +1252,15 @@ fn builtin_metadata(name: &str) -> SkillMetadata {
                 "untrusted input",
                 "sensitive data",
                 "injection",
+                "xss",
+                "csrf",
+                "ssrf",
+                "sql injection",
+                "path traversal",
+                "command injection",
+                "prototype pollution",
+                "xxe",
+                "idor",
             ]),
             ..SkillMetadata::default()
         },
@@ -1434,7 +1454,9 @@ fn builtin_metadata(name: &str) -> SkillMetadata {
 
 fn candidate_reason(name: &str, reverse_analysis: bool) -> &'static str {
     match name {
-        "vibe-security-scan" => "security-sensitive task evidence requires defensive scan guidance",
+        "security-audit" => {
+            "meaningful application changes or security evidence require a bounded audit plan"
+        }
         "apk-mobile-analysis" | "malware-triage" | "binary-reverse-analysis"
             if reverse_analysis =>
         {
@@ -1565,6 +1587,211 @@ fn normalize_task(task: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .to_lowercase()
+}
+
+fn meaningful_application_change(task: &str, context: &RouteContext) -> bool {
+    const CHANGE_INTENT: &[&str] = &[
+        "add",
+        "build",
+        "change",
+        "create",
+        "extend",
+        "fix",
+        "implement",
+        "modify",
+        "migrate",
+        "port",
+        "refactor",
+        "remove",
+        "replace",
+        "support",
+        "update",
+        "write",
+    ];
+    const APPLICATION_SCOPE: &[&str] = &[
+        "application",
+        "app",
+        "api",
+        "backend",
+        "build configuration",
+        "ci",
+        "component",
+        "data flow",
+        "dependency",
+        "endpoint",
+        "feature",
+        "function",
+        "frontend",
+        "handler",
+        "implementation",
+        "package",
+        "route",
+        "schema",
+        "service",
+        "source",
+        "security policy",
+        "workflow",
+    ];
+    const COSMETIC_ONLY: &[&str] = &[
+        "cosmetic",
+        "copy edit",
+        "copyedit",
+        "documentation only",
+        "docs only",
+        "formatting",
+        "readme",
+        "spacing only",
+        "typo",
+        "wording",
+    ];
+
+    let has_application_path = task_contains_application_path(task)
+        || context
+            .affected_paths
+            .iter()
+            .any(|path| is_application_path(path));
+    if contains_any(task, COSMETIC_ONLY) && !has_application_path {
+        return false;
+    }
+    if !contains_any(task, CHANGE_INTENT) {
+        return false;
+    }
+    contains_any(task, APPLICATION_SCOPE) || has_application_path
+}
+
+fn security_boundary_evidence(task: &str, context: &RouteContext) -> bool {
+    const SECURITY_SIGNALS: &[&str] = &[
+        "auth",
+        "login",
+        "permission",
+        "tenant",
+        "rls",
+        "security",
+        "secret",
+        "jwt",
+        "cors",
+        "upload",
+        "payment",
+        "crypto",
+        "untrusted input",
+        "sensitive data",
+        "injection",
+        "xss",
+        "csrf",
+        "ssrf",
+        "sql injection",
+        "sqli",
+        "path traversal",
+        "command injection",
+        "prototype pollution",
+        "xxe",
+        "idor",
+        "authentication",
+        "authorization",
+        "vulnerability",
+    ];
+    contains_any(task, SECURITY_SIGNALS)
+        || context
+            .affected_paths
+            .iter()
+            .any(|path| contains_any(path, SECURITY_SIGNALS))
+}
+
+fn task_contains_application_path(task: &str) -> bool {
+    task.split(|character: char| character.is_whitespace() || matches!(character, '`' | '"' | '\''))
+        .any(is_application_path)
+}
+
+fn is_application_path(value: &str) -> bool {
+    let value = value.trim_matches(|character: char| {
+        matches!(
+            character,
+            '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';' | ':'
+        )
+    });
+    let extension = Path::new(value)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase);
+    matches!(
+        extension.as_deref(),
+        Some(
+            "c" | "cc"
+                | "cpp"
+                | "cxx"
+                | "cs"
+                | "csx"
+                | "csproj"
+                | "go"
+                | "gradle"
+                | "kts"
+                | "h"
+                | "hh"
+                | "hpp"
+                | "hxx"
+                | "java"
+                | "js"
+                | "jsx"
+                | "mjs"
+                | "mts"
+                | "cts"
+                | "py"
+                | "pyi"
+                | "props"
+                | "rs"
+                | "sln"
+                | "slnx"
+                | "targets"
+                | "ts"
+                | "tsx"
+        )
+    ) || matches!(
+        Path::new(value)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some(
+            "cargo.toml"
+                | "cargo.lock"
+                | "cmakelists.txt"
+                | "dockerfile"
+                | "build.gradle"
+                | "build.gradle.kts"
+                | "settings.gradle"
+                | "settings.gradle.kts"
+                | "gradle.properties"
+                | "global.json"
+                | "go.mod"
+                | "go.sum"
+                | "directory.build.props"
+                | "directory.build.targets"
+                | "nuget.config"
+                | "pipfile"
+                | "pipfile.lock"
+                | "package.json"
+                | "package-lock.json"
+                | "pnpm-lock.yaml"
+                | "pom.xml"
+                | "pyproject.toml"
+                | "poetry.lock"
+                | "requirements.txt"
+                | "uv.lock"
+                | "makefile"
+                | "justfile"
+                | "jenkinsfile"
+                | "yarn.lock"
+        )
+    ) || Path::new(value)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::to_ascii_lowercase)
+        .is_some_and(|name| name.starts_with("requirements") && name.ends_with(".txt"))
+        || value.to_ascii_lowercase().contains(".github/workflows/")
+        || value.to_ascii_lowercase().contains(".circleci/")
+        || value.to_ascii_lowercase().contains(".buildkite/")
+        || value.to_ascii_lowercase().contains(".gitlab-ci")
+        || value.to_ascii_lowercase().contains("azure-pipelines")
 }
 
 fn contains_term(value: &str, term: &str) -> bool {

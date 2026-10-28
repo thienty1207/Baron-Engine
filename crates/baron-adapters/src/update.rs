@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -21,6 +22,9 @@ const MANAGED_START: &str = "<!-- BARON:MANAGED:START -->";
 const MANAGED_END: &str = "<!-- BARON:MANAGED:END -->";
 const ROUTING_START: &str = "<!-- BARON:ROUTING:START -->";
 const ROUTING_END: &str = "<!-- BARON:ROUTING:END -->";
+const RETIRED_VIBE_CORE_PREFIX: &str = ".baron/core/skills/vibe-security-scan";
+const RETIRED_VIBE_ARCHIVE_ROOT: &str = ".baron/managed-state/retired/vibe-security-scan";
+const RETIRED_VIBE_RECEIPT: &str = ".baron/managed-state/retired-vibe-security.json";
 const PRESERVED_PATH_PREVIEW_LIMIT: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -233,6 +237,35 @@ pub struct LocalReconcileReport {
     pub applied_paths: Vec<PathBuf>,
     pub conflicts: Vec<PathBuf>,
     pub preserved_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct VibeRetirementReceipt {
+    schema_version: u32,
+    legacy_skill_id: String,
+    replacement_skill_id: String,
+    #[serde(default)]
+    retired_assets: Vec<VibeRetiredAsset>,
+    #[serde(default)]
+    pending_assets: Vec<VibeRetiredAsset>,
+    #[serde(default)]
+    review_required_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VibeRetiredAsset {
+    original_path: String,
+    archived_path: String,
+    sha256: String,
+}
+
+struct VibeRetirementStage {
+    original_path: PathBuf,
+    archived_path: PathBuf,
+    expected_bytes: Vec<u8>,
+    archive_existed: bool,
 }
 
 /// Evidence returned by the Phase 3 ownership migration. A migration report
@@ -922,6 +955,8 @@ pub fn core_reconcile_managed_assets(
     migrate_managed_ownership(&repo_root)?;
     validate_payloads(upstream_payloads)?;
     let baseline = load_managed_baseline(&repo_root)?;
+    let (mut retirement_receipt, previous_receipt_bytes) =
+        load_vibe_retirement_receipt(&repo_root)?;
     let upstream = upstream_payloads
         .iter()
         .map(|payload| (payload.relative_path.clone(), payload))
@@ -938,8 +973,72 @@ pub fn core_reconcile_managed_assets(
 
     let mut actions = Vec::new();
     let mut conflicts = Vec::new();
+    let mut retirement_conflicts = Vec::new();
+    let mut retained_legacy_records = HashSet::new();
+    let mut retirement_stages = Vec::new();
+    let mut recovered_retirements = Vec::new();
     for record in core_records {
         let Some(payload) = upstream.get(&record.relative_path) else {
+            if is_retired_vibe_core_path(&record.relative_path) {
+                let base = managed_baseline_content(&repo_root, record)?;
+                let expected_bytes = base.into_bytes();
+                let local_path = checked_repo_path(&repo_root, &record.relative_path)?;
+                let archive_relative = retired_vibe_archive_path(&record.relative_path)?;
+                let archive_path = checked_repo_path(&repo_root, &archive_relative)?;
+                let local = read_bytes(&local_path)?;
+                let archived = read_bytes(&archive_path)?;
+                let receipt_asset = VibeRetiredAsset {
+                    original_path: record.relative_path.to_string_lossy().replace('\\', "/"),
+                    archived_path: archive_relative.to_string_lossy().replace('\\', "/"),
+                    sha256: sha256_bytes(&expected_bytes),
+                };
+
+                match local {
+                    None => match archived {
+                        Some(bytes) if bytes == expected_bytes => {
+                            recovered_retirements.push(receipt_asset);
+                        }
+                        Some(_) => {
+                            retirement_conflicts.push(record.relative_path.clone());
+                            retained_legacy_records.insert(record.relative_path.clone());
+                        }
+                        None => {
+                            // The live file is already missing, but the managed baseline is
+                            // still the only recoverable copy. Keep its record and require
+                            // review instead of silently dropping that recovery source.
+                            retirement_conflicts.push(record.relative_path.clone());
+                            retained_legacy_records.insert(record.relative_path.clone());
+                        }
+                    },
+                    Some(bytes) if bytes == expected_bytes => match archived {
+                        None => retirement_stages.push(VibeRetirementStage {
+                            original_path: local_path,
+                            archived_path: archive_path,
+                            expected_bytes,
+                            archive_existed: false,
+                        }),
+                        Some(archived_bytes) if archived_bytes == expected_bytes => {
+                            retirement_stages.push(VibeRetirementStage {
+                                original_path: local_path,
+                                archived_path: archive_path,
+                                expected_bytes,
+                                archive_existed: true,
+                            });
+                        }
+                        Some(_) => {
+                            retirement_conflicts.push(record.relative_path.clone());
+                            retained_legacy_records.insert(record.relative_path.clone());
+                        }
+                    },
+                    Some(_) => {
+                        retirement_conflicts.push(record.relative_path.clone());
+                        retained_legacy_records.insert(record.relative_path.clone());
+                        if archived.as_deref() == Some(expected_bytes.as_slice()) {
+                            recovered_retirements.push(receipt_asset);
+                        }
+                    }
+                }
+            }
             continue;
         };
         if payload.merge_kind != record.merge_kind {
@@ -963,6 +1062,12 @@ pub fn core_reconcile_managed_assets(
         }
         actions.push(action);
     }
+    retirement_conflicts.extend(retired_vibe_files_without_baseline(
+        &repo_root,
+        &baseline_core_paths,
+    )?);
+    retirement_conflicts.sort();
+    retirement_conflicts.dedup();
     for payload in upstream_payloads {
         if baseline_core_paths.contains(&payload.relative_path) {
             continue;
@@ -973,6 +1078,7 @@ pub fn core_reconcile_managed_assets(
         }
         actions.push(action);
     }
+    conflicts.extend(retirement_conflicts.iter().cloned());
     conflicts.sort();
     conflicts.dedup();
     let managed_paths = baseline
@@ -986,7 +1092,20 @@ pub fn core_reconcile_managed_assets(
         )
         .collect::<HashSet<_>>();
     let preserved = collect_preserved_paths(&repo_root, &managed_paths)?;
-    if !conflicts.is_empty() {
+    if conflicts
+        .iter()
+        .any(|path| !retirement_conflicts.contains(path))
+    {
+        retirement_receipt.review_required_paths = retirement_conflicts
+            .iter()
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        if !retirement_receipt.review_required_paths.is_empty()
+            || !retirement_receipt.retired_assets.is_empty()
+            || !retirement_receipt.pending_assets.is_empty()
+        {
+            write_vibe_retirement_receipt(&repo_root, &retirement_receipt)?;
+        }
         return Ok(LocalReconcileReport {
             applied_paths: Vec::new(),
             conflicts,
@@ -995,6 +1114,60 @@ pub fn core_reconcile_managed_assets(
     }
 
     actions.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    let mut pending_names = retirement_receipt
+        .pending_assets
+        .iter()
+        .map(|item| item.original_path.clone())
+        .collect::<HashSet<_>>();
+    for item in &recovered_retirements {
+        pending_names.remove(&item.original_path);
+        retirement_receipt
+            .pending_assets
+            .retain(|pending| pending.original_path != item.original_path);
+        if !retirement_receipt
+            .retired_assets
+            .iter()
+            .any(|existing| existing.original_path == item.original_path)
+        {
+            retirement_receipt.retired_assets.push(item.clone());
+        }
+    }
+    for stage in &retirement_stages {
+        let original = stage
+            .original_path
+            .strip_prefix(&repo_root)
+            .context("Retired Vibe source path escaped the repository")?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let archived = stage
+            .archived_path
+            .strip_prefix(&repo_root)
+            .context("Retired Vibe archive path escaped the repository")?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let receipt_item = VibeRetiredAsset {
+            original_path: original.clone(),
+            archived_path: archived,
+            sha256: sha256_bytes(&stage.expected_bytes),
+        };
+        let already_archived = retirement_receipt
+            .retired_assets
+            .iter()
+            .any(|item| item.original_path == original);
+        if !already_archived && pending_names.insert(original.clone()) {
+            retirement_receipt.pending_assets.push(receipt_item);
+        }
+    }
+    retirement_receipt.review_required_paths = retirement_conflicts
+        .iter()
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .collect();
+    retirement_receipt
+        .pending_assets
+        .sort_by(|left, right| left.original_path.cmp(&right.original_path));
+    retirement_receipt.review_required_paths.sort();
+    retirement_receipt.review_required_paths.dedup();
+
     let payloads = upstream_payloads
         .iter()
         .map(|payload| (payload.relative_path.clone(), payload))
@@ -1040,15 +1213,106 @@ pub fn core_reconcile_managed_assets(
     }
 
     let mut applied = Vec::new();
+    let mut applied_rewrites = Vec::new();
     for (target, _existed, _previous, replacement) in &rewrites {
         if let Err(error) = ensure_safe_target_parent(&repo_root, target)
             .and_then(|_| atomic_write(target, replacement))
         {
-            rollback_local_reconcile(&rewrites, &applied)?;
+            rollback_local_reconcile(&rewrites, &applied_rewrites)?;
             return Err(error
                 .context("Baron Core reconciliation failed and restored prior managed targets"));
         }
         applied.push(target.clone());
+        applied_rewrites.push(target.clone());
+    }
+
+    if let Err(error) = write_vibe_retirement_receipt(&repo_root, &retirement_receipt) {
+        let rollback_targets = rollback_local_reconcile(&rewrites, &applied_rewrites);
+        return match rollback_targets {
+            Ok(()) => Err(error.context("Could not publish Vibe retirement receipt; restored prior Core targets")),
+            Err(rollback) => Err(error.context(format!(
+                "Could not publish Vibe retirement receipt; Core target rollback also failed: {rollback:#}"
+            ))),
+        };
+    }
+
+    let mut staged = Vec::new();
+    for stage in &retirement_stages {
+        let stage_result = (|| -> Result<()> {
+            ensure_safe_target_parent(&repo_root, &stage.archived_path)?;
+            ensure_safe_target_parent(&repo_root, &stage.original_path)?;
+            if read_bytes(&stage.original_path)?.as_deref() != Some(stage.expected_bytes.as_slice())
+            {
+                bail!(
+                    "Retired Vibe asset changed during migration: {}",
+                    stage.original_path.display()
+                );
+            }
+            if stage.archive_existed {
+                if read_bytes(&stage.archived_path)?.as_deref()
+                    != Some(stage.expected_bytes.as_slice())
+                {
+                    bail!(
+                        "Retired Vibe archive changed during migration: {}",
+                        stage.archived_path.display()
+                    );
+                }
+                fs::remove_file(&stage.original_path).with_context(|| {
+                    format!(
+                        "Could not retire previously archived Vibe asset: {}",
+                        stage.original_path.display()
+                    )
+                })?;
+            } else {
+                copy_vibe_asset_without_replacing_archive(
+                    &stage.archived_path,
+                    &stage.expected_bytes,
+                )?;
+                if read_bytes(&stage.original_path)?.as_deref()
+                    != Some(stage.expected_bytes.as_slice())
+                {
+                    bail!(
+                        "Retired Vibe asset changed during migration: {}",
+                        stage.original_path.display()
+                    );
+                }
+                fs::remove_file(&stage.original_path).with_context(|| {
+                    format!(
+                        "Could not retire unchanged Vibe asset: {}",
+                        stage.original_path.display()
+                    )
+                })?;
+            }
+            if read_bytes(&stage.archived_path)?.as_deref() != Some(stage.expected_bytes.as_slice())
+            {
+                restore_missing_vibe_source(&stage.original_path, &stage.expected_bytes)?;
+                bail!(
+                    "Vibe archive changed during retirement; restored the managed source: {}",
+                    stage.original_path.display()
+                );
+            }
+            if read_bytes(&stage.original_path)?.is_some() {
+                bail!(
+                    "Retired Vibe source reappeared during migration: {}",
+                    stage.original_path.display()
+                );
+            }
+            Ok(())
+        })();
+        if let Err(error) = stage_result {
+            let rollback_staged = rollback_vibe_retirement_stages(&repo_root, &staged);
+            let rollback_targets = rollback_local_reconcile(&rewrites, &applied_rewrites);
+            let rollback_receipt =
+                restore_vibe_retirement_receipt(&repo_root, previous_receipt_bytes.as_deref());
+            return Err(error.context(format!(
+                "Vibe asset retirement stopped and attempted rollback (staged={:?}, targets={:?}, receipt={:?})",
+                rollback_staged,
+                rollback_targets,
+                rollback_receipt
+            )));
+        }
+        staged.push(stage);
+        applied.push(stage.original_path.clone());
     }
 
     let mut merged_payloads = previous_payloads
@@ -1058,6 +1322,11 @@ pub fn core_reconcile_managed_assets(
                 payloads
                     .get(&previous.relative_path)
                     .map(|payload| (*payload).clone())
+                    .or_else(|| {
+                        retained_legacy_records
+                            .contains(&previous.relative_path)
+                            .then_some(previous)
+                    })
             } else {
                 Some(previous)
             }
@@ -1072,32 +1341,175 @@ pub fn core_reconcile_managed_assets(
         }
     }
     if let Err(error) = replace_managed_baseline(&repo_root, &merged_payloads, installed_version) {
-        let rollback_targets = rollback_local_reconcile(&rewrites, &applied);
+        let rollback_staged = rollback_vibe_retirement_stages(&repo_root, &staged);
+        let rollback_targets = rollback_local_reconcile(&rewrites, &applied_rewrites);
         let rollback_baseline = replace_managed_baseline(
             &repo_root,
             &baseline_payloads(&repo_root, &baseline)?,
             &baseline.installed_version,
         );
-        return match (rollback_targets, rollback_baseline) {
-            (Ok(()), Ok(())) => Err(error.context(
+        return match (rollback_staged, rollback_targets, rollback_baseline) {
+            (Ok(()), Ok(()), Ok(())) => Err(error.context(
                 "Baron Core reconciliation could not publish its baseline and restored prior state",
             )),
-            (target_error, baseline_error) => Err(error.context(format!(
-                "Baron Core reconciliation failed; target rollback: {}; baseline rollback: {}",
-                target_error
-                    .map(|_| "ok".to_string())
-                    .unwrap_or_else(|rollback| rollback.to_string()),
-                baseline_error
-                    .map(|_| "ok".to_string())
-                    .unwrap_or_else(|rollback| rollback.to_string())
-            ))),
+            (staged_error, target_error, baseline_error) => {
+                let status = |result: &Result<()>| match result {
+                    Ok(()) => "ok".to_string(),
+                    Err(rollback) => format!("failed: {rollback:#}"),
+                };
+                Err(error.context(format!(
+                    "Baron Core reconciliation failed; retired asset rollback: {}; target rollback: {}; baseline rollback: {}",
+                    status(&staged_error),
+                    status(&target_error),
+                    status(&baseline_error)
+                )))
+            }
         };
+    }
+    for stage in &retirement_stages {
+        let original = stage
+            .original_path
+            .strip_prefix(&repo_root)
+            .context("Retired Vibe source path escaped the repository")?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let archived = stage
+            .archived_path
+            .strip_prefix(&repo_root)
+            .context("Retired Vibe archive path escaped the repository")?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let item = VibeRetiredAsset {
+            original_path: original.clone(),
+            archived_path: archived,
+            sha256: sha256_bytes(&stage.expected_bytes),
+        };
+        if !retirement_receipt
+            .retired_assets
+            .iter()
+            .any(|existing| existing.original_path == item.original_path)
+        {
+            retirement_receipt.retired_assets.push(item);
+        }
+        retirement_receipt
+            .pending_assets
+            .retain(|pending| pending.original_path != original);
+    }
+    retirement_receipt
+        .retired_assets
+        .sort_by(|left, right| left.original_path.cmp(&right.original_path));
+    retirement_receipt
+        .pending_assets
+        .sort_by(|left, right| left.original_path.cmp(&right.original_path));
+    if let Err(error) = write_vibe_retirement_receipt(&repo_root, &retirement_receipt) {
+        let rollback_staged = rollback_vibe_retirement_stages(&repo_root, &staged);
+        let rollback_targets = rollback_local_reconcile(&rewrites, &applied_rewrites);
+        let rollback_baseline = replace_managed_baseline(
+            &repo_root,
+            &baseline_payloads(&repo_root, &baseline)?,
+            &baseline.installed_version,
+        );
+        let rollback_receipt =
+            restore_vibe_retirement_receipt(&repo_root, previous_receipt_bytes.as_deref());
+        return Err(error.context(format!(
+            "Vibe retirement receipt finalization failed; rollback status staged={:?}, targets={:?}, baseline={:?}, receipt={:?}",
+            rollback_staged,
+            rollback_targets,
+            rollback_baseline,
+            rollback_receipt
+        )));
     }
     Ok(LocalReconcileReport {
         applied_paths: applied,
-        conflicts: Vec::new(),
+        conflicts,
         preserved_paths: preserved.paths,
     })
+}
+
+fn rollback_vibe_retirement_stages(
+    repo_root: &Path,
+    staged: &[&VibeRetirementStage],
+) -> Result<()> {
+    let mut failures = Vec::new();
+    for stage in staged.iter().rev() {
+        let result = match read_bytes(&stage.original_path) {
+            Ok(Some(bytes)) if bytes == stage.expected_bytes => Ok(()),
+            Ok(Some(_)) => Err(anyhow!(
+                "Retired Vibe source changed before rollback: {}",
+                stage.original_path.display()
+            )),
+            Ok(None) => match read_bytes(&stage.archived_path) {
+                Ok(Some(bytes)) if bytes == stage.expected_bytes => {
+                    ensure_safe_target_parent(repo_root, &stage.original_path).and_then(|_| {
+                        restore_missing_vibe_source(&stage.original_path, &stage.expected_bytes)
+                    })
+                }
+                Ok(Some(_)) => Err(anyhow!(
+                    "Retired Vibe archive changed before rollback: {}",
+                    stage.archived_path.display()
+                )),
+                Ok(None) => Err(anyhow!(
+                    "Retired Vibe archive disappeared before rollback: {}",
+                    stage.archived_path.display()
+                )),
+                Err(error) => Err(error),
+            },
+            Err(error) => Err(error),
+        };
+        if let Err(error) = result {
+            failures.push(format!("{}: {error:#}", stage.original_path.display()));
+        }
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        bail!(
+            "Could not restore all retired Vibe assets: {}",
+            failures.join("; ")
+        )
+    }
+}
+
+fn copy_vibe_asset_without_replacing_archive(
+    archive_path: &Path,
+    expected_bytes: &[u8],
+) -> Result<()> {
+    let mut archive = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(archive_path)
+        .with_context(|| {
+            format!(
+                "Could not create Vibe archive without replacing an existing target: {}",
+                archive_path.display()
+            )
+        })?;
+    archive.write_all(expected_bytes)?;
+    archive.sync_all()?;
+    drop(archive);
+    if read_bytes(archive_path)?.as_deref() != Some(expected_bytes) {
+        bail!(
+            "Vibe archive changed while it was being written: {}",
+            archive_path.display()
+        );
+    }
+    Ok(())
+}
+
+fn restore_missing_vibe_source(source_path: &Path, expected_bytes: &[u8]) -> Result<()> {
+    let mut source = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(source_path)
+        .with_context(|| {
+            format!(
+                "Could not restore missing Vibe source without replacing a concurrent file: {}",
+                source_path.display()
+            )
+        })?;
+    source.write_all(expected_bytes)?;
+    source.sync_all()?;
+    Ok(())
 }
 
 fn baseline_payloads(
@@ -1116,6 +1528,196 @@ fn baseline_payloads(
             })
         })
         .collect()
+}
+
+fn empty_vibe_retirement_receipt() -> VibeRetirementReceipt {
+    VibeRetirementReceipt {
+        schema_version: 1,
+        legacy_skill_id: "vibe-security-scan".to_string(),
+        replacement_skill_id: "security-audit".to_string(),
+        retired_assets: Vec::new(),
+        pending_assets: Vec::new(),
+        review_required_paths: Vec::new(),
+    }
+}
+
+fn is_retired_vibe_core_path(path: &Path) -> bool {
+    path.starts_with(Path::new(RETIRED_VIBE_CORE_PREFIX))
+}
+
+fn retired_vibe_archive_path(relative_path: &Path) -> Result<PathBuf> {
+    let suffix = relative_path
+        .strip_prefix(RETIRED_VIBE_CORE_PREFIX)
+        .context("Retired Vibe asset path is outside its exact managed root")?;
+    if suffix.as_os_str().is_empty() {
+        bail!("Retired Vibe asset path must identify a file below its managed root");
+    }
+    let archive = Path::new(RETIRED_VIBE_ARCHIVE_ROOT).join(suffix);
+    validate_relative_path(&archive)?;
+    Ok(archive)
+}
+
+fn load_vibe_retirement_receipt(
+    repo_root: &Path,
+) -> Result<(VibeRetirementReceipt, Option<Vec<u8>>)> {
+    let path = checked_repo_path(repo_root, Path::new(RETIRED_VIBE_RECEIPT))?;
+    let Some(bytes) = read_bytes(&path)? else {
+        return Ok((empty_vibe_retirement_receipt(), None));
+    };
+    let receipt: VibeRetirementReceipt = serde_json::from_slice(&bytes)
+        .context("Vibe retirement receipt is malformed; preserving it and failing closed")?;
+    if receipt.schema_version != 1
+        || receipt.legacy_skill_id != "vibe-security-scan"
+        || receipt.replacement_skill_id != "security-audit"
+    {
+        bail!("Vibe retirement receipt has an unsupported identity or schema");
+    }
+    validate_vibe_retirement_receipt(&receipt)?;
+    Ok((receipt, Some(bytes)))
+}
+
+fn validate_vibe_retirement_receipt(receipt: &VibeRetirementReceipt) -> Result<()> {
+    let mut recorded_assets = HashSet::new();
+    for asset in receipt
+        .retired_assets
+        .iter()
+        .chain(receipt.pending_assets.iter())
+    {
+        let original = Path::new(&asset.original_path);
+        validate_relative_path(original)?;
+        if asset.original_path.contains('\\') || !is_retired_vibe_core_path(original) {
+            bail!("Vibe retirement receipt contains a non-canonical legacy asset path");
+        }
+        let expected_archive = retired_vibe_archive_path(original)?
+            .to_string_lossy()
+            .replace('\\', "/");
+        if asset.archived_path != expected_archive {
+            bail!("Vibe retirement receipt archive path does not match its legacy asset");
+        }
+        if asset.sha256.len() != 64 || !asset.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            bail!("Vibe retirement receipt contains an invalid SHA-256 digest");
+        }
+        if !recorded_assets.insert(asset.original_path.as_str()) {
+            bail!("Vibe retirement receipt contains a duplicate or overlapping asset state");
+        }
+    }
+
+    let mut review_paths = HashSet::new();
+    for path in &receipt.review_required_paths {
+        let relative = Path::new(path);
+        validate_relative_path(relative)?;
+        if path.contains('\\') || !is_retired_vibe_core_path(relative) {
+            bail!("Vibe retirement receipt contains a non-canonical review path");
+        }
+        if !review_paths.insert(path.as_str()) {
+            bail!("Vibe retirement receipt contains a duplicate review path");
+        }
+    }
+    Ok(())
+}
+
+fn write_vibe_retirement_receipt(repo_root: &Path, receipt: &VibeRetirementReceipt) -> Result<()> {
+    validate_vibe_retirement_receipt(receipt)?;
+    let target = checked_repo_path(repo_root, Path::new(RETIRED_VIBE_RECEIPT))?;
+    ensure_safe_target_parent(repo_root, &target)?;
+    let is_empty = receipt.retired_assets.is_empty()
+        && receipt.pending_assets.is_empty()
+        && receipt.review_required_paths.is_empty();
+    match fs::symlink_metadata(&target) {
+        Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {}
+        Ok(_) => bail!("Vibe retirement receipt target is not a regular file"),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && is_empty => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    let mut bytes = serde_json::to_vec_pretty(receipt)?;
+    bytes.push(b'\n');
+    replace_file(&target, &bytes)
+}
+
+fn restore_vibe_retirement_receipt(repo_root: &Path, previous: Option<&[u8]>) -> Result<()> {
+    let target = checked_repo_path(repo_root, Path::new(RETIRED_VIBE_RECEIPT))?;
+    match previous {
+        Some(bytes) => {
+            ensure_safe_target_parent(repo_root, &target)?;
+            replace_file(&target, bytes)
+        }
+        None => match fs::symlink_metadata(&target) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                fs::remove_file(&target).with_context(|| {
+                    format!(
+                        "Could not roll back Vibe retirement receipt {}",
+                        target.display()
+                    )
+                })
+            }
+            Ok(_) => bail!("Vibe retirement receipt became unsafe during rollback"),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        },
+    }
+}
+
+fn retired_vibe_files_without_baseline(
+    repo_root: &Path,
+    baseline_paths: &HashSet<PathBuf>,
+) -> Result<Vec<PathBuf>> {
+    let root_relative = Path::new(RETIRED_VIBE_CORE_PREFIX);
+    let root = checked_repo_path(repo_root, root_relative)?;
+    match fs::symlink_metadata(&root) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Ok(vec![root_relative.to_path_buf()]);
+        }
+        Ok(_) => {}
+    }
+    if is_link_or_reparse_point(&root)? {
+        return Ok(vec![root_relative.to_path_buf()]);
+    }
+    let mut found = Vec::new();
+    collect_retired_vibe_files(repo_root, &root, &mut found)?;
+    found.retain(|path| !baseline_paths.contains(path));
+    found.sort();
+    found.dedup();
+    Ok(found)
+}
+
+fn collect_retired_vibe_files(
+    repo_root: &Path,
+    directory: &Path,
+    found: &mut Vec<PathBuf>,
+) -> Result<()> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() && !file_type.is_symlink() && !is_link_or_reparse_point(&path)? {
+            collect_retired_vibe_files(repo_root, &path, found)?;
+        } else {
+            found.push(
+                path.strip_prefix(repo_root)
+                    .context("Retired Vibe asset scan escaped the repository")?
+                    .to_path_buf(),
+            );
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn review_unmanaged_retired_vibe_assets(
+    repo_root: impl AsRef<Path>,
+    baseline_paths: &HashSet<PathBuf>,
+) -> Result<Vec<PathBuf>> {
+    let repo_root = canonical_repo_root(repo_root.as_ref())?;
+    let conflicts = retired_vibe_files_without_baseline(&repo_root, baseline_paths)?;
+    let (mut receipt, _) = load_vibe_retirement_receipt(&repo_root)?;
+    receipt.review_required_paths = conflicts
+        .iter()
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .collect();
+    write_vibe_retirement_receipt(&repo_root, &receipt)?;
+    Ok(conflicts)
 }
 
 fn plan_new_upstream_payload(
@@ -1904,4 +2506,23 @@ fn atomic_write(path: &Path, content: &str) -> Result<()> {
             .with_context(|| format!("Could not set executable mode on {}", path.display()))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod vibe_retirement_io_tests {
+    use super::*;
+
+    #[test]
+    fn archive_copy_and_rollback_source_restore_never_replace_existing_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let archive = temp.path().join("archive.md");
+        let source = temp.path().join("source.md");
+        fs::write(&archive, b"existing archive").unwrap();
+        fs::write(&source, b"existing local source").unwrap();
+
+        assert!(copy_vibe_asset_without_replacing_archive(&archive, b"managed baseline").is_err());
+        assert!(restore_missing_vibe_source(&source, b"managed baseline").is_err());
+        assert_eq!(fs::read(&archive).unwrap(), b"existing archive");
+        assert_eq!(fs::read(&source).unwrap(), b"existing local source");
+    }
 }

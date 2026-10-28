@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 #[cfg(unix)]
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use baron_core::safe_io::{acquire_project_lock, read_bytes, read_text, replace_file};
 
 use crate::managed::{upsert_managed_block, upsert_routing_block, write_managed_file};
-use crate::update::managed_manifest_exists;
+use crate::update::{managed_manifest_exists, review_unmanaged_retired_vibe_assets};
 use crate::{
     core_reconcile_managed_assets, ensure_managed_baseline, load_managed_baseline,
     managed_baseline_content, managed_content_for_kind, migrate_managed_ownership, AgentAdapter,
@@ -74,6 +75,9 @@ pub fn install_adapter(
 ) -> Result<InstallReport> {
     let repo_root = repo_root.as_ref();
     let core = Some(ensure_core_runtime(repo_root)?);
+    if let Some(core) = &core {
+        ensure_security_audit_ready(repo_root, core)?;
+    }
     let _lock = acquire_project_lock(repo_root)?;
     preflight_native_hooks(repo_root, adapter)?;
     migrate_managed_ownership(repo_root)?;
@@ -91,6 +95,26 @@ pub fn install_adapter(
         report.core = core;
     }
     Ok(report)
+}
+
+fn ensure_security_audit_ready(repo_root: &Path, report: &CoreInstallReport) -> Result<()> {
+    let relative_path = ".baron/core/skills/security-audit/SKILL.md";
+    if report.conflicts.iter().any(|path| path == relative_path) {
+        bail!(
+            "Cannot publish an adapter route to security-audit because its managed Core asset conflicts at {relative_path}"
+        );
+    }
+    let expected = core_managed_payloads()?
+        .into_iter()
+        .find(|payload| payload.relative_path == Path::new(relative_path))
+        .context("Packaged security-audit entrypoint is missing")?;
+    let path = repo_root.join(relative_path);
+    match read_bytes(&path)? {
+        Some(bytes) if bytes == expected.content.as_bytes() => Ok(()),
+        _ => bail!(
+            "Cannot publish an adapter route to security-audit because its managed Core asset is unavailable or modified at {relative_path}"
+        ),
+    }
 }
 
 /// Ensure the packaged semantic runtime is present at `.baron/core/**`.
@@ -168,6 +192,13 @@ pub fn ensure_core_runtime(repo_root: impl AsRef<Path>) -> Result<CoreInstallRep
             );
         }
     }
+    conflicts.extend(
+        review_unmanaged_retired_vibe_assets(repo_root, &HashSet::new())?
+            .into_iter()
+            .map(|path| path.to_string_lossy().replace('\\', "/")),
+    );
+    conflicts.sort();
+    conflicts.dedup();
 
     Ok(CoreInstallReport {
         managed_files,
@@ -787,7 +818,7 @@ fn safe_write_adapter_projection(
 
 fn codex_index() -> String {
     "# Baron Codex Workspace\n\n\
-Start with root `AGENTS.md`. Baron Core lives at `.baron/core/**`; the native bridge is `.agents/skills/baron-engine/`; Codex quality-agent projections live under `.codex/agents/`. Do not recursively load every skill; read only the route-selected Core resources. Core routing covers Superpowers, `frontend-design`, `vibe-security-scan`, `api-and-interface-design`, `observability-and-instrumentation`, `performance-optimization`, and `deprecation-and-migration`; these names identify canonical Core resources rather than copied Codex files. `.codex/hooks.json` is an optional accelerator and never the sole correctness path.\n"
+Start with root `AGENTS.md`. Baron Core lives at `.baron/core/**`; the native bridge is `.agents/skills/baron-engine/`; Codex quality-agent projections live under `.codex/agents/`. Do not recursively load every skill; read only the route-selected Core resources. Core routing covers Superpowers, `frontend-design`, `security-audit`, `api-and-interface-design`, `observability-and-instrumentation`, `performance-optimization`, and `deprecation-and-migration`; these names identify canonical Core resources rather than copied Codex files. `.codex/hooks.json` is an optional accelerator and never the sole correctness path.\n"
         .to_string()
 }
 
@@ -800,9 +831,9 @@ Run `baron control-plane route \"<task>\"` before loading optional skills.\n\n\
 | --- | --- | --- | --- | --- | --- |\n\
 | Superpowers | workflow core | planning, TDD, debugging, review, verification | never optional | plan/proof/trace discipline | no other skill may claim workflow ownership |\n\
 | `frontend-design` | optional frontend domain | UI, layout, responsive, accessibility, browser-facing flows | backend-only, CLI-only, security-only tasks | files/screens reviewed, UI verification | must not replace Superpowers or quality gates |\n\
-  | `vibe-security-scan` | optional defensive security domain | auth, API, secrets, RLS, uploads, payment, dependencies, permissions | visual-only or copy-only tasks | severity, evidence, fix, verification | must not replace `security-auditor` final gate |\n\
+  | `security-audit` | optional bounded application security review | meaningful application changes and security-sensitive boundaries | cosmetic-only or docs-only work | scope, language, blockers, evidence, verification | methodology is distinct from the `security-auditor` gate |\n\
   | `binary-reverse-analysis` | optional defensive reverse domain | binary triage, disassembly, static reverse engineering | live exploitation, persistence, evasion, CTF/pwn | scope, artifact hash, tool evidence, uncertainty | must not install tools or replace security-auditor |\n\
-  | `apk-mobile-analysis` | optional defensive mobile domain | APK/Android manifest, permissions, static mobile review | credential theft, live exploitation, auto-bootstrap | artifact hash, static evidence, verification | must not replace vibe-security-scan or security-auditor |\n\
+| `apk-mobile-analysis` | optional defensive mobile domain | APK/Android manifest, permissions, static mobile review | credential theft, live exploitation, auto-bootstrap | artifact hash, static evidence, verification | must not replace security-audit or security-auditor |\n\
   | `malware-triage` | optional defensive malware domain | offline sample triage, indicators, containment notes | payload execution, persistence, evasion, live delivery | hash, isolated evidence, safe handling | must not execute samples or replace security-auditor |\n\n\
 | `api-and-interface-design` | optional API/interface domain | API contracts, request/response shape, SDK/public interface, compatibility, or deep module boundary | implementation-only tasks that do not change boundaries | contract risks, versioning impact, boundary evidence, verification | must not replace Superpowers planning or tests |\n\
 | `observability-and-instrumentation` | optional operations domain | logs, metrics, tracing, alerts, SLOs, audit events, diagnostics | tasks with no runtime/operations impact | signal list, gaps, proof hooks | must not fabricate production behavior |\n\

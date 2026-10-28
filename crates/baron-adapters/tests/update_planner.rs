@@ -3,10 +3,12 @@ use std::path::{Path, PathBuf};
 
 use baron_adapters::{
     core_managed_payloads, core_reconcile_managed_assets, ensure_managed_baseline, install_adapter,
-    load_managed_baseline, managed_payloads_for_adapter, plan_managed_update,
-    reconcile_installed_managed_assets, record_managed_baseline, replace_managed_baseline,
-    AgentAdapter, ManagedAssetPayload, ManagedMergeKind, UpdateDisposition,
+    load_managed_baseline, managed_baseline_content, managed_payloads_for_adapter,
+    plan_managed_update, reconcile_installed_managed_assets, record_managed_baseline,
+    replace_managed_baseline, AgentAdapter, ManagedAssetPayload, ManagedMergeKind,
+    UpdateDisposition,
 };
+use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
 fn payload(path: &str, kind: ManagedMergeKind, content: &str) -> ManagedAssetPayload {
@@ -29,6 +31,437 @@ fn payload_for(
 
 const BASE_MARKER: &str = "<!-- BARON:MANAGED:START -->\nbase\n<!-- BARON:MANAGED:END -->";
 const UPSTREAM_MARKER: &str = "<!-- BARON:MANAGED:START -->\nupstream\n<!-- BARON:MANAGED:END -->";
+
+const RETIRED_VIBE_PATH: &str = ".baron/core/skills/vibe-security-scan/SKILL.md";
+const RETIRED_VIBE_CONTENT: &str = "# Previously managed Vibe security skill\n";
+
+fn sha256(content: &str) -> String {
+    Sha256::digest(content.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn current_core_payloads_without_vibe() -> Vec<ManagedAssetPayload> {
+    core_managed_payloads()
+        .unwrap()
+        .into_iter()
+        .filter(|item| {
+            !item
+                .relative_path
+                .starts_with(".baron/core/skills/vibe-security-scan")
+        })
+        .collect()
+}
+
+fn install_legacy_vibe_baseline(repo: &Path) {
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    let mut legacy_upstream = current_core_payloads_without_vibe();
+    legacy_upstream.push(payload_for(
+        "core",
+        RETIRED_VIBE_PATH,
+        ManagedMergeKind::FullText,
+        RETIRED_VIBE_CONTENT,
+    ));
+    let report = core_reconcile_managed_assets(repo, &legacy_upstream, "5.0.0").unwrap();
+    assert!(report.conflicts.is_empty());
+}
+
+#[test]
+fn unchanged_retired_vibe_asset_is_archived_and_retry_is_idempotent() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_legacy_vibe_baseline(repo);
+    let legacy = repo.join(RETIRED_VIBE_PATH);
+    assert_eq!(fs::read_to_string(&legacy).unwrap(), RETIRED_VIBE_CONTENT);
+
+    let current = current_core_payloads_without_vibe();
+    let first = core_reconcile_managed_assets(repo, &current, "5.0.1").unwrap();
+
+    assert!(
+        !legacy.exists(),
+        "the active legacy runtime path must be retired"
+    );
+    assert!(first.conflicts.is_empty());
+    assert!(repo
+        .join(".baron/core/skills/security-audit/SKILL.md")
+        .is_file());
+    assert_eq!(
+        fs::read_to_string(repo.join(".baron/managed-state/retired/vibe-security-scan/SKILL.md"))
+            .unwrap(),
+        RETIRED_VIBE_CONTENT
+    );
+    assert!(repo
+        .join(".baron/managed-state/retired-vibe-security.json")
+        .is_file());
+    let baseline = load_managed_baseline(repo).unwrap();
+    assert!(!baseline
+        .records
+        .iter()
+        .any(|record| record.relative_path == Path::new(RETIRED_VIBE_PATH)));
+
+    let archive_before =
+        fs::read(repo.join(".baron/managed-state/retired/vibe-security-scan/SKILL.md")).unwrap();
+    let second = core_reconcile_managed_assets(repo, &current, "5.0.1").unwrap();
+    assert!(second.conflicts.is_empty());
+    assert!(!legacy.exists());
+    assert_eq!(
+        fs::read(repo.join(".baron/managed-state/retired/vibe-security-scan/SKILL.md")).unwrap(),
+        archive_before
+    );
+}
+
+#[test]
+fn modified_retired_vibe_asset_is_preserved_with_review_conflict() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_legacy_vibe_baseline(repo);
+    let legacy = repo.join(RETIRED_VIBE_PATH);
+    let modified = "# User-modified legacy security guidance\n";
+    fs::write(&legacy, modified).unwrap();
+    let custom = repo.join(".codex/skills/vibe-security-scan/SKILL.md");
+    fs::create_dir_all(custom.parent().unwrap()).unwrap();
+    fs::write(&custom, "user-owned skill\n").unwrap();
+    let claude_custom = repo.join(".claude/skills/vibe-security-scan/SKILL.md");
+    fs::create_dir_all(claude_custom.parent().unwrap()).unwrap();
+    fs::write(&claude_custom, "user-owned Claude skill\n").unwrap();
+
+    let current = current_core_payloads_without_vibe();
+    let report = core_reconcile_managed_assets(repo, &current, "5.0.1").unwrap();
+
+    assert_eq!(fs::read_to_string(&legacy).unwrap(), modified);
+    assert!(report
+        .conflicts
+        .iter()
+        .any(|path| path == Path::new(RETIRED_VIBE_PATH)));
+    assert_eq!(fs::read_to_string(&custom).unwrap(), "user-owned skill\n");
+    assert!(repo
+        .join(".baron/core/skills/security-audit/SKILL.md")
+        .is_file());
+    let baseline = load_managed_baseline(repo).unwrap();
+    assert!(baseline
+        .records
+        .iter()
+        .any(|record| record.relative_path == Path::new(RETIRED_VIBE_PATH)));
+
+    let claude_install = install_adapter(repo, AgentAdapter::Claude).unwrap();
+    assert!(claude_install
+        .core
+        .conflicts
+        .iter()
+        .any(|path| { path == ".baron/core/skills/vibe-security-scan/SKILL.md" }));
+    let claude_index = fs::read_to_string(repo.join(".claude/skills/INDEX.md")).unwrap();
+    assert!(claude_index.contains("security-audit"));
+    assert!(!claude_index.contains("vibe-security-scan"));
+    assert_eq!(fs::read_to_string(&custom).unwrap(), "user-owned skill\n");
+    assert_eq!(
+        fs::read_to_string(&claude_custom).unwrap(),
+        "user-owned Claude skill\n"
+    );
+}
+
+#[test]
+fn retired_vibe_file_without_baseline_is_preserved_and_reported() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    let unknown_path = ".baron/core/skills/vibe-security-scan/local.md";
+    let unknown = repo.join(unknown_path);
+    fs::create_dir_all(unknown.parent().unwrap()).unwrap();
+    fs::write(&unknown, "untracked local file\n").unwrap();
+
+    let report =
+        core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1")
+            .unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&unknown).unwrap(),
+        "untracked local file\n"
+    );
+    assert!(report
+        .conflicts
+        .iter()
+        .any(|path| path == Path::new(unknown_path)));
+    assert!(repo
+        .join(".baron/core/skills/security-audit/SKILL.md")
+        .is_file());
+}
+
+#[test]
+fn first_install_reports_and_preserves_unmanaged_retired_vibe_asset() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    let unknown_path = ".baron/core/skills/vibe-security-scan/local.md";
+    let unknown = repo.join(unknown_path);
+    fs::create_dir_all(unknown.parent().unwrap()).unwrap();
+    fs::write(&unknown, "unmanaged legacy data\n").unwrap();
+
+    let report = install_adapter(repo, AgentAdapter::Codex).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&unknown).unwrap(),
+        "unmanaged legacy data\n"
+    );
+    assert!(report
+        .core
+        .conflicts
+        .iter()
+        .any(|path| path == unknown_path));
+    assert!(repo
+        .join(".baron/core/skills/security-audit/SKILL.md")
+        .is_file());
+    let index = fs::read_to_string(repo.join(".codex/INDEX.md")).unwrap();
+    assert!(index.contains("security-audit"));
+    assert!(!index.contains("vibe-security-scan"));
+    let receipt: serde_json::Value = serde_json::from_slice(
+        &fs::read(repo.join(".baron/managed-state/retired-vibe-security.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(receipt["review_required_paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|path| path == unknown_path));
+}
+
+#[test]
+fn resolved_unmanaged_vibe_conflict_clears_review_receipt() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    let unknown_path = ".baron/core/skills/vibe-security-scan/local.md";
+    let unknown = repo.join(unknown_path);
+    fs::create_dir_all(unknown.parent().unwrap()).unwrap();
+    fs::write(&unknown, "unmanaged legacy data\n").unwrap();
+    install_adapter(repo, AgentAdapter::Codex).unwrap();
+    fs::remove_file(&unknown).unwrap();
+
+    let report =
+        core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1")
+            .unwrap();
+
+    assert!(report.conflicts.is_empty());
+    let receipt: serde_json::Value = serde_json::from_slice(
+        &fs::read(repo.join(".baron/managed-state/retired-vibe-security.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(receipt["review_required_paths"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn new_adapter_route_is_not_published_when_security_audit_asset_conflicts() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    let skill = repo.join(".baron/core/skills/security-audit/SKILL.md");
+    fs::create_dir_all(skill.parent().unwrap()).unwrap();
+    fs::write(&skill, "user-owned conflicting skill\n").unwrap();
+
+    let error = install_adapter(repo, AgentAdapter::Codex).unwrap_err();
+
+    assert!(error.to_string().contains("security-audit"));
+    assert_eq!(
+        fs::read_to_string(&skill).unwrap(),
+        "user-owned conflicting skill\n"
+    );
+    assert!(!repo.join(".codex/INDEX.md").exists());
+    assert!(!repo.join("AGENTS.md").exists());
+}
+
+#[test]
+fn retry_recovers_after_legacy_file_was_archived_before_baseline_publication() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_legacy_vibe_baseline(repo);
+    let legacy = repo.join(RETIRED_VIBE_PATH);
+    let archived = repo.join(".baron/managed-state/retired/vibe-security-scan/SKILL.md");
+    fs::create_dir_all(archived.parent().unwrap()).unwrap();
+    fs::write(&archived, RETIRED_VIBE_CONTENT).unwrap();
+    fs::remove_file(&legacy).unwrap();
+    let receipt_path = repo.join(".baron/managed-state/retired-vibe-security.json");
+    fs::write(
+        &receipt_path,
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1,
+            "legacy_skill_id": "vibe-security-scan",
+            "replacement_skill_id": "security-audit",
+            "retired_assets": [],
+            "pending_assets": [{
+                "original_path": RETIRED_VIBE_PATH,
+                "archived_path": ".baron/managed-state/retired/vibe-security-scan/SKILL.md",
+                "sha256": sha256(RETIRED_VIBE_CONTENT)
+            }],
+            "review_required_paths": []
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let report =
+        core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1")
+            .unwrap();
+
+    assert!(report.conflicts.is_empty());
+    assert!(!legacy.exists());
+    assert_eq!(fs::read_to_string(&archived).unwrap(), RETIRED_VIBE_CONTENT);
+    let baseline = load_managed_baseline(repo).unwrap();
+    assert!(!baseline
+        .records
+        .iter()
+        .any(|record| record.relative_path == Path::new(RETIRED_VIBE_PATH)));
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&fs::read(&receipt_path).unwrap()).unwrap();
+    assert!(receipt["retired_assets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["original_path"] == RETIRED_VIBE_PATH));
+    assert!(receipt["pending_assets"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn malformed_retirement_receipt_cannot_suppress_accurate_archive_evidence() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_legacy_vibe_baseline(repo);
+    let receipt = serde_json::json!({
+        "schema_version": 1,
+        "legacy_skill_id": "vibe-security-scan",
+        "replacement_skill_id": "security-audit",
+        "retired_assets": [{
+            "original_path": RETIRED_VIBE_PATH,
+            "archived_path": "../../attacker-controlled.txt",
+            "sha256": sha256(RETIRED_VIBE_CONTENT)
+        }],
+        "pending_assets": [],
+        "review_required_paths": []
+    });
+    fs::write(
+        repo.join(".baron/managed-state/retired-vibe-security.json"),
+        serde_json::to_vec(&receipt).unwrap(),
+    )
+    .unwrap();
+    let legacy = repo.join(RETIRED_VIBE_PATH);
+
+    let result =
+        core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1");
+
+    assert!(result.is_err());
+    assert_eq!(fs::read_to_string(&legacy).unwrap(), RETIRED_VIBE_CONTENT);
+    assert!(load_managed_baseline(repo)
+        .unwrap()
+        .records
+        .iter()
+        .any(|record| record.relative_path == Path::new(RETIRED_VIBE_PATH)));
+}
+
+#[test]
+fn archive_collision_preserves_both_legacy_and_archive_bytes() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_legacy_vibe_baseline(repo);
+    let legacy = repo.join(RETIRED_VIBE_PATH);
+    let archive = repo.join(".baron/managed-state/retired/vibe-security-scan/SKILL.md");
+    fs::create_dir_all(archive.parent().unwrap()).unwrap();
+    fs::write(&archive, "unrelated archive data\n").unwrap();
+
+    let report =
+        core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1")
+            .unwrap();
+
+    assert!(report
+        .conflicts
+        .iter()
+        .any(|path| path == Path::new(RETIRED_VIBE_PATH)));
+    assert_eq!(fs::read_to_string(&legacy).unwrap(), RETIRED_VIBE_CONTENT);
+    assert_eq!(
+        fs::read_to_string(&archive).unwrap(),
+        "unrelated archive data\n"
+    );
+    assert!(load_managed_baseline(repo)
+        .unwrap()
+        .records
+        .iter()
+        .any(|record| record.relative_path == Path::new(RETIRED_VIBE_PATH)));
+}
+
+#[test]
+fn restored_legacy_source_completes_an_already_archived_review_case() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_legacy_vibe_baseline(repo);
+    let legacy = repo.join(RETIRED_VIBE_PATH);
+    let archive = repo.join(".baron/managed-state/retired/vibe-security-scan/SKILL.md");
+    fs::create_dir_all(archive.parent().unwrap()).unwrap();
+    fs::write(&archive, RETIRED_VIBE_CONTENT).unwrap();
+    fs::write(&legacy, "locally modified legacy asset\n").unwrap();
+
+    let first = core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1")
+        .unwrap();
+    assert!(first
+        .conflicts
+        .iter()
+        .any(|path| path == Path::new(RETIRED_VIBE_PATH)));
+    fs::write(&legacy, RETIRED_VIBE_CONTENT).unwrap();
+
+    let second =
+        core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1")
+            .unwrap();
+
+    assert!(second.conflicts.is_empty());
+    assert!(!legacy.exists());
+    assert_eq!(fs::read_to_string(&archive).unwrap(), RETIRED_VIBE_CONTENT);
+    let receipt: serde_json::Value = serde_json::from_slice(
+        &fs::read(repo.join(".baron/managed-state/retired-vibe-security.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(receipt["pending_assets"].as_array().unwrap().is_empty());
+    assert!(receipt["review_required_paths"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn missing_retired_vibe_file_keeps_baseline_content_recoverable() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path();
+    install_legacy_vibe_baseline(repo);
+    let legacy = repo.join(RETIRED_VIBE_PATH);
+    fs::remove_file(&legacy).unwrap();
+
+    let report =
+        core_reconcile_managed_assets(repo, &current_core_payloads_without_vibe(), "5.0.1")
+            .unwrap();
+
+    assert!(report
+        .conflicts
+        .iter()
+        .any(|path| path == Path::new(RETIRED_VIBE_PATH)));
+    let baseline = load_managed_baseline(repo).unwrap();
+    let record = baseline
+        .records
+        .iter()
+        .find(|record| record.relative_path == Path::new(RETIRED_VIBE_PATH))
+        .expect("missing legacy target must retain its managed baseline record");
+    assert_eq!(
+        managed_baseline_content(repo, record).unwrap(),
+        RETIRED_VIBE_CONTENT
+    );
+    assert!(!repo
+        .join(".baron/managed-state/retired/vibe-security-scan/SKILL.md")
+        .exists());
+    let receipt: serde_json::Value = serde_json::from_slice(
+        &fs::read(repo.join(".baron/managed-state/retired-vibe-security.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(receipt["review_required_paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|path| path == RETIRED_VIBE_PATH));
+}
 
 #[test]
 fn local_reconcile_restores_only_a_missing_embedded_managed_asset() {

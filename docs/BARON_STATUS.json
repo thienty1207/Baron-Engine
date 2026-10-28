@@ -1,6 +1,6 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-25",
+  "lastUpdated": "2026-10-28",
   "stableRelease": "5.0.1",
   "downloadableRelease": "5.0.1",
   "candidateSourceVersion": null,
@@ -15,9 +15,9 @@
     "claude"
   ],
   "remainingPhaseCount": 0,
-  "currentPhase": "v5-0-1-release-promotion",
-  "currentPhaseStatus": "published",
-  "nextAction": "Maintain Baron Engine 5.0.1. SPEC-06 has not started and needs a canonical specification and acceptance criteria before implementation begins.",
+  "currentPhase": "spec-08-01-core-routing-and-vibe-retirement",
+  "currentPhaseStatus": "completed_locally_pending_owner_review",
+  "nextAction": "Owner review of the verified local SPEC-08-01 diff; do not publish or start another SPEC-08 child without approval.",
   "currentRoadmap": {
     "verifiedMainSha": "4008d1963ed2fcd756aaf81b54cbe838b52596d1",
     "specs01Through05": "completed_and_merged",
@@ -25,6 +25,12 @@
       "status": "not_started",
       "scopeConfirmed": false,
       "canonicalSpecFound": false
+    },
+    "spec08": {
+      "status": "in_progress",
+      "activeChild": null,
+      "completedChildren": ["SPEC-08-01"],
+      "pendingChildren": ["SPEC-08-05", "SPEC-08-02", "SPEC-08-03", "SPEC-08-04"]
     },
     "totalSpecCount": null,
     "proactiveBugFixingPass": {

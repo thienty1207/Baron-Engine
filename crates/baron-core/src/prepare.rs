@@ -168,6 +168,8 @@ pub struct PreparePacketV1 {
     pub risk: RiskLane,
     pub profile: PrepareProfile,
     pub route: PrepareRoute,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub security_audit: Option<PrepareSecurityAuditPlan>,
     pub context: PrepareContext,
     pub continuity: PrepareContinuity,
     pub verification: PrepareVerification,
@@ -235,6 +237,19 @@ pub struct PrepareRoute {
     pub mandatory_agents: Vec<PrepareAgent>,
     pub optional_agents: Vec<PrepareRouteItem>,
     pub skipped: Vec<String>,
+}
+
+/// A routing plan, not evidence that an audit was executed or passed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrepareSecurityAuditPlan {
+    pub audit_mode: String,
+    pub scope: Vec<String>,
+    #[serde(default)]
+    pub scope_truncated: bool,
+    pub detected_languages: Vec<String>,
+    pub required_validation: Vec<String>,
+    pub capability_blockers: Vec<String>,
+    pub execution_status: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -487,6 +502,7 @@ pub fn prepare(
     }
 
     let task_text = bounded(&request.task, PREPARE_MAX_OUTPUT_CONTEXT_CHARS);
+    let security_audit = prepare_security_audit_plan(&request.task, work_shape.risk, &route);
     let selected_skills = route
         .selected_skills
         .iter()
@@ -547,6 +563,7 @@ pub fn prepare(
             optional_agents,
             skipped: route.skipped,
         },
+        security_audit,
         context: PrepareContext {
             target: adapter.as_str().to_string(),
             text: context_text,
@@ -584,6 +601,158 @@ pub fn prepare(
             requires_confirmation: matches!(work_shape.judgment, JudgmentNeed::UserConfirmation),
         },
     })
+}
+
+fn prepare_security_audit_plan(
+    task: &str,
+    _risk: RiskLane,
+    route: &crate::control_plane::RouteReport,
+) -> Option<PrepareSecurityAuditPlan> {
+    if !route
+        .selected_skills
+        .iter()
+        .any(|skill| skill.name == "security-audit")
+    {
+        return None;
+    }
+
+    let mut scope = Vec::new();
+    let mut languages = Vec::new();
+    let mut scope_truncated = route.affected_paths_truncated;
+    let task_paths = task.split(|character: char| {
+        character.is_whitespace() || matches!(character, '`' | '"' | '\'')
+    });
+    for token in task_paths.chain(route.affected_paths.iter().map(String::as_str)) {
+        let token = token.trim_matches(|character: char| {
+            matches!(
+                character,
+                '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';' | ':'
+            )
+        });
+        if !is_safe_security_audit_scope_path(token) {
+            continue;
+        }
+        if scope.iter().any(|known| known == token) {
+            continue;
+        }
+        if scope.len() >= 32 {
+            scope_truncated = true;
+            continue;
+        }
+        if let Some(language) = security_audit_language(token) {
+            if !languages.iter().any(|known| known == language) {
+                languages.push(language.to_string());
+            }
+        }
+        scope.push(token.to_string());
+    }
+
+    if scope.is_empty() {
+        scope.push("planned_application_or_security_boundary".to_string());
+    }
+    let audit_mode = if route.security_sensitive {
+        "broad"
+    } else {
+        "focused"
+    };
+    let mut capability_blockers = vec!["audit_workflow_pending_spec_08_03".to_string()];
+    if languages.is_empty() {
+        capability_blockers.push("language_coverage_pending_spec_08_02".to_string());
+    }
+    if scope_truncated {
+        capability_blockers.push("audit_scope_truncated".to_string());
+    }
+
+    Some(PrepareSecurityAuditPlan {
+        audit_mode: audit_mode.to_string(),
+        scope,
+        scope_truncated,
+        detected_languages: languages,
+        required_validation: vec![
+            "risk_check_planned_scope_before_implementation".to_string(),
+            "review_actual_changed_files_and_connected_trust_boundaries".to_string(),
+            "expand_scope_for_connected_in_repository_security_boundaries".to_string(),
+            "validate_candidates_with_evidence_before_classifying_findings".to_string(),
+            "re_audit_after_safe_fixes".to_string(),
+        ],
+        capability_blockers,
+        execution_status: "not_run".to_string(),
+    })
+}
+
+fn is_safe_security_audit_scope_path(token: &str) -> bool {
+    if token.is_empty()
+        || token.chars().count() > 256
+        || token.contains(':')
+        || token.starts_with('\\')
+    {
+        return false;
+    }
+    let path = Path::new(token);
+    !path.is_absolute()
+        && !path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+        && (token.contains('/')
+            || token.contains('\\')
+            || path.extension().is_some()
+            || path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| {
+                    matches!(
+                        name.to_ascii_lowercase().as_str(),
+                        "dockerfile" | "makefile" | "justfile" | "jenkinsfile"
+                    )
+                }))
+}
+
+fn security_audit_language(path: &str) -> Option<&'static str> {
+    let filename = Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::to_ascii_lowercase);
+    match filename.as_deref() {
+        Some("cargo.toml" | "cargo.lock") => return Some("rust"),
+        Some("go.mod" | "go.sum") => return Some("go"),
+        Some(
+            "pom.xml"
+            | "build.gradle"
+            | "build.gradle.kts"
+            | "settings.gradle"
+            | "settings.gradle.kts",
+        ) => return Some("java"),
+        Some(
+            "global.json" | "directory.build.props" | "directory.build.targets" | "nuget.config",
+        ) => return Some("csharp"),
+        Some("gradle.properties") => return Some("java"),
+        Some("cmakelists.txt") => return Some("cpp"),
+        Some("pyproject.toml" | "pipfile" | "pipfile.lock" | "poetry.lock" | "uv.lock") => {
+            return Some("python")
+        }
+        _ if filename
+            .as_deref()
+            .is_some_and(|name| name.starts_with("requirements") && name.ends_with(".txt")) =>
+        {
+            return Some("python")
+        }
+        _ => {}
+    }
+    match Path::new(path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("py" | "pyi") => Some("python"),
+        Some("h" | "cc" | "cpp" | "cxx" | "hh" | "hpp" | "hxx") => Some("cpp"),
+        Some("java") => Some("java"),
+        Some("rs") => Some("rust"),
+        Some("go") => Some("go"),
+        Some("ts" | "tsx" | "mts" | "cts") => Some("typescript"),
+        Some("cs" | "csx" | "csproj" | "sln" | "slnx" | "props" | "targets") => Some("csharp"),
+        _ => None,
+    }
 }
 
 fn validate_request(request: &mut PrepareRequestV1) -> Result<(), PrepareError> {
@@ -864,4 +1033,104 @@ fn section_list(source: &str, heading: &str) -> Vec<String> {
         }
     }
     values.into_iter().take(16).collect()
+}
+
+#[cfg(test)]
+mod security_audit_plan_tests {
+    use super::*;
+    use crate::control_plane::{RouteReport, RoutingDecision};
+
+    fn selected_route(security_sensitive: bool, affected_paths: Vec<String>) -> RouteReport {
+        RouteReport {
+            selected_skills: vec![RoutingDecision {
+                name: "security-audit".to_string(),
+                reason: "test route".to_string(),
+            }],
+            mandatory_agents: Vec::new(),
+            optional_agents: Vec::new(),
+            skipped: Vec::new(),
+            explanation: String::new(),
+            verification: Vec::new(),
+            profile: None,
+            security_sensitive,
+            affected_paths,
+            affected_paths_truncated: false,
+        }
+    }
+
+    #[test]
+    fn plan_includes_operation_paths_and_requires_boundary_expansion() {
+        let route = selected_route(true, vec!["src/AuthController.java".to_string()]);
+
+        let plan = prepare_security_audit_plan("fix this", RiskLane::Medium, &route).unwrap();
+
+        assert_eq!(plan.audit_mode, "broad");
+        assert_eq!(plan.scope, ["src/AuthController.java"]);
+        assert_eq!(plan.detected_languages, ["java"]);
+        assert!(plan
+            .required_validation
+            .contains(&"risk_check_planned_scope_before_implementation".to_string()));
+        assert!(plan
+            .required_validation
+            .contains(&"expand_scope_for_connected_in_repository_security_boundaries".to_string()));
+    }
+
+    #[test]
+    fn plan_keeps_build_manifest_scope_and_language_evidence() {
+        let route = selected_route(false, Vec::new());
+
+        let plan =
+            prepare_security_audit_plan("change build.gradle", RiskLane::Medium, &route).unwrap();
+
+        assert_eq!(plan.scope, ["build.gradle"]);
+        assert_eq!(plan.detected_languages, ["java"]);
+    }
+
+    #[test]
+    fn generic_high_risk_work_uses_focused_mode_and_unsafe_paths_stay_unknown() {
+        let route = selected_route(false, vec!["../outside.rs".to_string()]);
+
+        let plan = prepare_security_audit_plan("fix this", RiskLane::High, &route).unwrap();
+
+        assert_eq!(plan.audit_mode, "focused");
+        assert_eq!(plan.scope, ["planned_application_or_security_boundary"]);
+        assert!(plan.detected_languages.is_empty());
+        assert!(plan
+            .capability_blockers
+            .contains(&"language_coverage_pending_spec_08_02".to_string()));
+    }
+
+    #[test]
+    fn plan_reports_scope_truncation_and_deserializes_older_shape() {
+        let paths = (0..33)
+            .map(|index| format!("src/module{index}.rs"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let route = selected_route(false, Vec::new());
+        let plan = prepare_security_audit_plan(&paths, RiskLane::Medium, &route).unwrap();
+
+        assert_eq!(plan.scope.len(), 32);
+        assert!(plan.scope_truncated);
+        assert!(plan
+            .capability_blockers
+            .contains(&"audit_scope_truncated".to_string()));
+
+        let mut old_shape = serde_json::to_value(&plan).unwrap();
+        old_shape.as_object_mut().unwrap().remove("scope_truncated");
+        let decoded: PrepareSecurityAuditPlan = serde_json::from_value(old_shape).unwrap();
+        assert!(!decoded.scope_truncated);
+    }
+
+    #[test]
+    fn plan_carries_truncation_from_operation_state_paths() {
+        let mut route = selected_route(false, vec!["src/module.rs".to_string()]);
+        route.affected_paths_truncated = true;
+
+        let plan = prepare_security_audit_plan("fix this", RiskLane::Medium, &route).unwrap();
+
+        assert!(plan.scope_truncated);
+        assert!(plan
+            .capability_blockers
+            .contains(&"audit_scope_truncated".to_string()));
+    }
 }

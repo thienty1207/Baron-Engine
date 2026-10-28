@@ -34,7 +34,7 @@ fn control_plane_route_explains_security_skill_and_quality_gates() {
         .assert()
         .success()
         .stdout(predicate::str::contains("# Baron Control Plane Route"))
-        .stdout(predicate::str::contains("vibe-security-scan"))
+        .stdout(predicate::str::contains("security-audit"))
         .stdout(predicate::str::contains("security-auditor"))
         .stdout(predicate::str::contains("security-sensitive task"));
 }

@@ -112,6 +112,178 @@ fn prepare_repeated_input_keeps_deterministic_identity_and_route_fields() {
 }
 
 #[test]
+fn prepare_emits_bounded_security_audit_plan_without_claiming_execution() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("prepare-security-audit");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    init(&repo, &vault, "--codex");
+
+    let payload = json!({
+        "schema_version": 1,
+        "task": "implement request validation in src/api/users.ts",
+        "session_id": "security-audit-session",
+        "request_id": "security-audit-request"
+    });
+    let typescript_packet = packet(run_prepare(&repo, "codex", payload));
+    let security_audit = &typescript_packet["security_audit"];
+
+    assert_eq!(security_audit["execution_status"], "not_run");
+    assert_eq!(security_audit["audit_mode"], "focused");
+    assert!(security_audit["scope"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|path| path == "src/api/users.ts"));
+    assert!(security_audit["detected_languages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|language| language == "typescript"));
+    assert!(security_audit["required_validation"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == "re_audit_after_safe_fixes"));
+    assert!(security_audit["capability_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == "audit_workflow_pending_spec_08_03"));
+    assert!(typescript_packet["verification"]["mandatory_gates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|agent| agent != "security-auditor"));
+
+    let mut legacy_packet = typescript_packet.clone();
+    legacy_packet
+        .as_object_mut()
+        .unwrap()
+        .remove("security_audit");
+    let decoded: baron_core::prepare::PreparePacketV1 =
+        serde_json::from_value(legacy_packet).expect("older prepare packets remain readable");
+    assert!(decoded.security_audit.is_none());
+
+    for (index, (path, language)) in [
+        ("src/handler.py", "python"),
+        ("src/handler.cpp", "cpp"),
+        ("src/handler.h", "cpp"),
+        ("src/Handler.java", "java"),
+        ("src/handler.rs", "rust"),
+        ("src/handler.go", "go"),
+        ("src/handler.ts", "typescript"),
+        ("src/module.mts", "typescript"),
+        ("src/Handler.cs", "csharp"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let packet = packet(run_prepare(
+            &repo,
+            "codex",
+            json!({
+                "schema_version": 1,
+                "task": format!("implement request validation in {path}"),
+                "session_id": format!("language-session-{index}"),
+                "request_id": format!("language-request-{index}")
+            }),
+        ));
+        assert!(
+            packet["security_audit"]["detected_languages"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == language),
+            "PreparePacket did not identify {language} for {path}"
+        );
+    }
+
+    let broad = packet(run_prepare(
+        &repo,
+        "codex",
+        json!({
+            "schema_version": 1,
+            "task": "fix authorization bypass in src/auth.ts",
+            "session_id": "security-boundary-session",
+            "request_id": "security-boundary-request"
+        }),
+    ));
+    assert_eq!(broad["security_audit"]["audit_mode"], "broad");
+    assert!(broad["verification"]["mandatory_gates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|agent| agent == "security-auditor"));
+
+    let unknown_language = packet(run_prepare(
+        &repo,
+        "codex",
+        json!({
+            "schema_version": 1,
+            "task": "implement a backend feature",
+            "session_id": "unknown-language-session",
+            "request_id": "unknown-language-request"
+        }),
+    ));
+    assert!(unknown_language["security_audit"]["detected_languages"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(unknown_language["security_audit"]["capability_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == "language_coverage_pending_spec_08_02"));
+
+    let out_of_scope = packet(run_prepare(
+        &repo,
+        "codex",
+        json!({
+            "schema_version": 1,
+            "task": "implement request validation in ../outside.rs",
+            "session_id": "outside-scope-session",
+            "request_id": "outside-scope-request"
+        }),
+    ));
+    assert_eq!(
+        out_of_scope["security_audit"]["scope"],
+        json!(["planned_application_or_security_boundary"])
+    );
+    assert!(out_of_scope["security_audit"]["detected_languages"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(out_of_scope["security_audit"]["capability_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == "language_coverage_pending_spec_08_02"));
+}
+
+#[test]
+fn prepare_omits_security_audit_plan_for_docs_only_work() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("prepare-docs-only");
+    let vault = temp.path().join("Vault");
+    fs::create_dir_all(&repo).unwrap();
+    init(&repo, &vault, "--codex");
+
+    let packet = packet(run_prepare(
+        &repo,
+        "codex",
+        json!({
+            "schema_version": 1,
+            "task": "update README installation examples",
+            "session_id": "docs-only-session",
+            "request_id": "docs-only-request"
+        }),
+    ));
+
+    assert!(packet.get("security_audit").is_none());
+}
+
+#[test]
 fn prepare_resumes_exact_interrupted_operation_and_rejects_unbound_current_intent() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("prepare-resume");

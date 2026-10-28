@@ -786,7 +786,7 @@ pub fn default_cases(context: &VaultContext) -> Vec<BenchmarkCase> {
                 "generation".to_string(),
             ],
             expected_citations: Vec::new(),
-            expected_relations: vec!["vibe-security-scan".to_string()],
+            expected_relations: vec!["security-audit".to_string()],
             project_id: context.project_id.clone(),
         },
         BenchmarkCase {
@@ -1311,10 +1311,9 @@ pub fn route_security_task(
         );
     }
     let owners = match route {
-        SecurityRoute::SourceAppSec => vec![
-            "vibe-security-scan".to_string(),
-            "security-auditor".to_string(),
-        ],
+        SecurityRoute::SourceAppSec => {
+            vec!["security-audit".to_string(), "security-auditor".to_string()]
+        }
         SecurityRoute::ReverseAnalysis => vec![
             "reverse-analysis-pack".to_string(),
             "security-auditor".to_string(),
@@ -1324,7 +1323,7 @@ pub fn route_security_task(
             "security-auditor".to_string(),
         ],
         SecurityRoute::Mixed => vec![
-            "vibe-security-scan".to_string(),
+            "security-audit".to_string(),
             "reverse-analysis-pack".to_string(),
             "security-auditor".to_string(),
         ],
@@ -2026,7 +2025,7 @@ mod tests {
         assert!(decision
             .owners
             .iter()
-            .any(|owner| owner == "vibe-security-scan"));
+            .any(|owner| owner == "security-audit"));
     }
 
     #[test]
