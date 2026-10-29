@@ -5,15 +5,21 @@
 > Baron Engine 5.0.2 is an unpublished source candidate. Stable and downloadable
 > release remains v5.0.1; no v5.0.2 tag or release is created by this change.
 
+- The verified source candidate is pushed on branch
+  [`codex/spec-08-02-seven-language-coverage`](https://github.com/thienty1207/Baron-Engine/tree/codex/spec-08-02-seven-language-coverage)
+  at `756dc28d649eaacf5135cd3be0b46df030e3056e`; local and remote branch tips
+  match. GitHub Actions run [40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668)
+  was `in_progress` when checked.
 - SPEC-08 remains **OPEN**. SPEC-08-01 is implemented and pushed; work for
-  SPEC-08-02 through SPEC-08-05 is locally implemented and Windows-verified.
+  SPEC-08-02 through SPEC-08-05 is implemented and Windows-verified on this
+  branch.
 - End-to-end testing against a representative real project remains pending.
   No target application code has been audited or executed. Target audit and
   remediation stay blocked until a trusted OS-enforced sandbox is verified.
 - Windows gates passed after the 5.0.2 bump: `cargo fmt --all -- --check`,
   full workspace tests (117 targets; exit 0; 0 failed; 4 ignored),
   warnings-denied Clippy, and `cargo check --workspace --locked`. The CLI reports
-  `baron 5.0.2`. Linux acceptance remains pending.
+  `baron 5.0.2`. Hosted Linux acceptance is pending the current CI run.
 - The next acceptance step is end-to-end audit/remediation testing when a
   suitable project is available, followed by Linux and sandbox verification.
   Keep SPEC-08 open until these gates pass.

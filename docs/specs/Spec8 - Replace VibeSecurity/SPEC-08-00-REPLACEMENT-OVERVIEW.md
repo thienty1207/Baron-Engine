@@ -1,6 +1,6 @@
 # SPEC-08 — Replace Vibe Security with Baron Security Audit
 
-**Status:** OPEN — SPEC-08-01 is implemented and pushed; SPEC-08-02 through SPEC-08-05 contracts are implemented and locally verified on the current source branch. SPEC-08 is not closed: real-project end-to-end audit/remediation acceptance, Linux acceptance, and verification of a trusted OS-enforced sandbox remain pending. Target execution remains blocked until sandbox controls are verified.<br>
+**Status:** OPEN — SPEC-08-01 is implemented and pushed; SPEC-08-02 through SPEC-08-05 contracts are implemented and verified on source commit `756dc28` pushed to `codex/spec-08-02-seven-language-coverage`. SPEC-08 is not closed: real-project end-to-end audit/remediation acceptance, hosted Linux acceptance, and verification of a trusted OS-enforced sandbox remain pending. Target execution remains blocked until sandbox controls are verified. GitHub Actions run [40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668) was in progress at the last check.<br>
 **Date:** 2026-10-29
 **Scope:** Complete runtime replacement of the Vibe security scan with a Baron-native security-audit workflow based on Cloudflare’s security-audit method.
 
@@ -105,7 +105,7 @@ orders 08-05 first, the owner requested 08-02 next. SPEC-08-05 remains required
 before audit/remediation execution. SPEC-08-03/08-04 still need integration and
 acceptance verification, and SPEC-08 as a whole is not complete.
 
-## Status checkpoint — 2026-10-29
+## Pre-push status checkpoint — 2026-10-29
 
 SPEC-08-05 now has local fail-closed capability/sandbox, truthful-state,
 source-bound checkpoint, and redacted create-only report contracts, including
