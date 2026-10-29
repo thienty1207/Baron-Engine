@@ -11,10 +11,11 @@
   created. Workspace packages, lockfile, certification target, README,
   changelog, and status metadata are synchronized to the candidate.
 - The candidate source is pushed at `756dc28d649eaacf5135cd3be0b46df030e3056e`
-  on `codex/spec-08-02-seven-language-coverage`; local and remote tips match.
-  GitHub Actions run
+  on `codex/spec-08-02-seven-language-coverage`. Its CI run
   [40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668)
-  was in progress at the last check.
+  was cancelled after the documentation receipt push; the replacement run
+  [40832498552](https://github.com/thienty1207/Baron-Engine/actions/runs/40832498552)
+  was queued at the last check.
 - SPEC-08 remains **OPEN**, pending end-to-end audit/remediation acceptance on a
   representative project. No target application code was audited or executed.
   Keep target execution disabled until a trusted OS-enforced sandbox is

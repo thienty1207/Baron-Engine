@@ -7,9 +7,9 @@
   "candidateSourceBranch": "codex/spec-08-02-seven-language-coverage",
   "candidateSourceCommit": "756dc28d649eaacf5135cd3be0b46df030e3056e",
   "hostedCiRun": {
-    "id": 40832304668,
-    "statusAtLastCheck": "in_progress",
-    "url": "https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668"
+    "id": 40832498552,
+    "statusAtLastCheck": "queued",
+    "url": "https://github.com/thienty1207/Baron-Engine/actions/runs/40832498552"
   },
   "releasePromotionStatus": "candidate_not_published",
   "stableReleaseCompletionPercent": 100,
@@ -50,7 +50,7 @@
         "focusedSecurityAuditCli": "12 passed",
         "checkpointFileBoundsRegressions": "2 passed; oversized checkpoint input and conflicting artifact reads are bounded",
         "preparePacketSecurityAudit": "security audit contract passed; PreparePacket CLI suite 9 passed in 122.76 seconds",
-        "linuxAcceptance": "pending_hosted_ci_run_40832304668",
+        "linuxAcceptance": "pending_hosted_ci_run_40832498552",
         "phaseByPhaseInterruptionAcceptance": "Windows checkpoint assessment verified at 0-6 saved phase receipts in separate CLI processes; phase, coverage, finding, repeatability, and non-mutation assertions pass; automatic continuation and Linux acceptance pending"
       },
       "completedChildren": ["SPEC-08-01", "SPEC-08-02"],

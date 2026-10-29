@@ -7,9 +7,11 @@
 
 - The verified source candidate is pushed on branch
   [`codex/spec-08-02-seven-language-coverage`](https://github.com/thienty1207/Baron-Engine/tree/codex/spec-08-02-seven-language-coverage)
-  at `756dc28d649eaacf5135cd3be0b46df030e3056e`; local and remote branch tips
-  match. GitHub Actions run [40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668)
-  was `in_progress` when checked.
+  at source commit `756dc28d649eaacf5135cd3be0b46df030e3056e`. Its CI run
+  [40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668)
+  was cancelled when the documentation receipt push triggered a new run;
+  run [40832498552](https://github.com/thienty1207/Baron-Engine/actions/runs/40832498552)
+  was queued at the latest check.
 - SPEC-08 remains **OPEN**. SPEC-08-01 is implemented and pushed; work for
   SPEC-08-02 through SPEC-08-05 is implemented and Windows-verified on this
   branch.

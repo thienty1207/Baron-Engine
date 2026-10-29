@@ -6,16 +6,19 @@ The current source candidate is Baron Engine `5.0.2`. The published stable and
 downloadable release remains `5.0.1`; this is not a release publication. The
 current branch is `codex/spec-08-02-seven-language-coverage`, based on
 SPEC-08-01 commit `0933e2a11b5cd043a4533c43879ad3d842bd38a7`. Source commit
-`756dc28d649eaacf5135cd3be0b46df030e3056e` is pushed; `git ls-remote` confirmed
-the local and remote branch tips match. GitHub Actions run
+`756dc28d649eaacf5135cd3be0b46df030e3056e` is pushed. Immediately after that
+push, `git ls-remote` matched the remote tip to the source commit. GitHub Actions run
 [40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668)
-was in progress when checked.
+was later cancelled when the status receipt commit triggered run
+[40832498552](https://github.com/thienty1207/Baron-Engine/actions/runs/40832498552),
+which was queued at the latest check.
 
 SPEC-08 remains **OPEN** pending end-to-end security audit and remediation tests
 against a representative project. No target application code has been audited
 or executed. The trusted OS sandbox backend is not verified, so target
-execution remains blocked. Linux acceptance and automatic continuation remain
-pending. Keep SPEC-08 open until these acceptance gates pass.
+execution remains blocked. Linux acceptance is pending the active push-triggered
+CI run; automatic continuation remains pending. Keep SPEC-08 open until these
+acceptance gates pass.
 
 The source package, lockfile, certification target, README, changelog, status
 metadata, and handoff now agree on candidate version `5.0.2`. Windows gates
