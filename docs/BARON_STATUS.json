@@ -1,21 +1,21 @@
 {
   "project": "Baron Engine",
   "lastUpdated": "2026-10-29",
-  "stableRelease": "5.0.1",
-  "downloadableRelease": "5.0.1",
-  "candidateSourceVersion": "5.0.2",
-  "candidateSourceBranch": "codex/spec-08-02-seven-language-coverage",
-  "candidateSourceCommit": "756dc28d649eaacf5135cd3be0b46df030e3056e",
+  "stableRelease": "5.0.2",
+  "downloadableRelease": "5.0.2",
+  "candidateSourceVersion": null,
+  "candidateSourceBranch": null,
+  "candidateSourceCommit": null,
   "hostedCiRun": {
-    "id": 40832498552,
-    "statusAtLastCheck": "queued",
-    "url": "https://github.com/thienty1207/Baron-Engine/actions/runs/40832498552"
+    "id": 40864426884,
+    "statusAtLastCheck": "completed_success",
+    "url": "https://github.com/thienty1207/Baron-Engine/actions/runs/40864426884"
   },
-  "releasePromotionStatus": "candidate_not_published",
+  "releasePromotionStatus": "immutable_release_published",
   "stableReleaseCompletionPercent": 100,
-  "targetRelease": "5.0.1",
+  "targetRelease": "5.0.2",
   "targetReleaseCompletionPercent": 100,
-  "programTargetRelease": "5.0.1",
+  "programTargetRelease": "5.0.2",
   "programCompletionPercent": 100,
   "supportedAdapters": [
     "codex",
@@ -23,10 +23,10 @@
   ],
   "remainingPhaseCount": 0,
   "currentPhase": "spec-08-05-safety-recovery-and-failure-handling",
-  "currentPhaseStatus": "SPEC-08_OPEN_PENDING_END_TO_END_ACCEPTANCE; Windows_workspace_gates_verified; Linux_acceptance_pending; automatic_continuation_unverified; target_execution_blocked_without_os_sandbox",
-  "nextAction": "Run end-to-end security audit and remediation acceptance against a representative project when available; complete Linux acceptance and verify a trusted OS sandbox before enabling target execution or closing SPEC-08.",
+  "currentPhaseStatus": "SPEC-08_OPEN_PENDING_END_TO_END_ACCEPTANCE; v5.0.2_immutable_release_published; hosted_Linux_and_Windows_CI_passed; automatic_continuation_unverified; target_execution_blocked_without_os_sandbox",
+  "nextAction": "Run end-to-end security audit and remediation acceptance against a representative project and verify a trusted OS sandbox before enabling target execution or closing SPEC-08.",
   "currentRoadmap": {
-    "verifiedMainSha": "4008d1963ed2fcd756aaf81b54cbe838b52596d1",
+    "verifiedMainSha": "75d7ecc59d69631f2a6c213b7196e1a2ed525e09",
     "specs01Through05": "completed_and_merged",
     "spec06": {
       "status": "not_started",
@@ -36,12 +36,12 @@
     "spec08": {
       "status": "in_progress",
       "activeChild": "SPEC-08-05",
-      "activeChildLocalState": "fail_closed_contracts_and_windows_checkpoint_assessment_verified; SPEC-08 remains open pending real-project end-to-end acceptance, Linux acceptance, and verified OS sandbox",
+      "activeChildLocalState": "SPEC-08-01_through_08-05_source_on_main_and_v5.0.2_released; SPEC-08 remains open pending representative-project end-to-end acceptance, automatic continuation verification, and trusted OS sandbox",
       "executionDependency": "SPEC-08-05",
       "activeChildVerification": {
-        "platform": "Windows",
+        "platform": "Windows and Linux hosted CI",
         "format": "passed",
-        "workspaceTests": "117 targets; passed with exit 0; 0 failed; 4 ignored",
+        "workspaceTests": "Windows local PowerShell 7 full suite and hosted Linux/Windows native suites passed; local 117 targets; 0 failed; 4 ignored",
         "clippy": "passed with warnings denied",
         "focusedSafetyUnit": "13 passed",
         "focusedSafetyIntegration": "11 passed",
@@ -50,8 +50,8 @@
         "focusedSecurityAuditCli": "12 passed",
         "checkpointFileBoundsRegressions": "2 passed; oversized checkpoint input and conflicting artifact reads are bounded",
         "preparePacketSecurityAudit": "security audit contract passed; PreparePacket CLI suite 9 passed in 122.76 seconds",
-        "linuxAcceptance": "pending_hosted_ci_run_40832498552",
-        "phaseByPhaseInterruptionAcceptance": "Windows checkpoint assessment verified at 0-6 saved phase receipts in separate CLI processes; phase, coverage, finding, repeatability, and non-mutation assertions pass; automatic continuation and Linux acceptance pending"
+        "linuxAcceptance": "hosted Linux native suite passed in CI run 40864426884; real-project SPEC-08 end-to-end acceptance remains pending",
+        "phaseByPhaseInterruptionAcceptance": "Windows checkpoint assessment verified at 0-6 saved phase receipts in separate CLI processes; phase, coverage, finding, repeatability, and non-mutation assertions pass; hosted Linux and Windows suites passed; automatic continuation and real-project end-to-end acceptance remain pending"
       },
       "completedChildren": ["SPEC-08-01", "SPEC-08-02"],
       "pendingChildren": ["SPEC-08-05-ACCEPTANCE", "SPEC-08-03-INTEGRATION", "SPEC-08-04-INTEGRATION", "SPEC-08-END-TO-END-ACCEPTANCE"]
@@ -2249,16 +2249,16 @@
     "docs/architecture/CONTEXT_COMPILER.md"
   ],
   "publishedRelease": {
-    "version": "5.0.1",
-    "commit": "4008d1963ed2fcd756aaf81b54cbe838b52596d1",
-    "tag": "v5.0.1",
-    "workflowRun": 40156631352,
-    "title": "Baron Engine v5.0.1",
+    "version": "5.0.2",
+    "commit": "75d7ecc59d69631f2a6c213b7196e1a2ed525e09",
+    "tag": "v5.0.2",
+    "workflowRun": 40868342649,
+    "title": "Baron Engine v5.0.2",
     "assetCount": 9,
     "targets": [
       "x86_64-pc-windows-msvc",
       "x86_64-unknown-linux-gnu"
     ],
-    "url": "https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1"
+    "url": "https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.2"
   }
 }

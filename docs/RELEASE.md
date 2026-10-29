@@ -171,7 +171,7 @@ sha256sum -c SHA256SUMS
 On Windows:
 
 ```powershell
-Get-FileHash .\baron-v5.0.1-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\baron-v5.0.2-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare that value with the matching line in `SHA256SUMS`.
@@ -184,13 +184,13 @@ Download one native archive, `SHA256SUMS`, `release-manifest.json`, and
 Windows:
 
 ```powershell
-& .\install.ps1 -Version 5.0.1 -SourceDirectory D:\baron-release
+& .\install.ps1 -Version 5.0.2 -SourceDirectory D:\baron-release
 ```
 
 Linux:
 
 ```bash
-sh ./install.sh --version 5.0.1 --source-dir /path/to/baron-release
+sh ./install.sh --version 5.0.2 --source-dir /path/to/baron-release
 ```
 
 `BARON_RELEASE_BASE_URL` may point installers at a trusted GitHub-compatible
@@ -208,8 +208,8 @@ targets.
 The final promotion job assembles both supported native archives and runs:
 
 ```bash
-  baron release metadata release-assets --release-version 5.0.1 --source-revision <40-character-git-sha>
-  baron release verify release-assets --expected-version 5.0.1 --expected-source-revision <40-character-git-sha>
+  baron release metadata release-assets --release-version 5.0.2 --source-revision <40-character-git-sha>
+  baron release verify release-assets --expected-version 5.0.2 --expected-source-revision <40-character-git-sha>
 ```
 
 The metadata command requires `BARON_RELEASE_SIGNING_KEY`, a protected GitHub
@@ -236,7 +236,7 @@ healthy at scale.
 
 `releases/latest` is controlled by GitHub Releases, not by `Cargo.toml` alone.
 The current stable release is
-[`v5.0.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1).
+[`v5.0.2`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.2).
 For a future release, first merge its version and source changes to `main`, then
 create the matching tag from the exact `origin/main` commit. The tag starts the
 release workflow automatically:
@@ -257,7 +257,7 @@ native archives from that exact SHA, verifies checksums and installer lifecycle,
 and then creates the immutable GitHub Release. Only the final promotion job has
 repository write permission. When the workflow finishes,
 `https://github.com/thienty1207/Baron-Engine/releases/latest` should point at
-the newly published version. It currently resolves to `v5.0.1`.
+the newly published version. It currently resolves to `v5.0.2`.
 
 Public smoke after the workflow:
 
@@ -267,4 +267,4 @@ baron setup --vault
 baron init --codex --fullstack
 ```
 
-For the current release, `baron --version` prints `baron 5.0.1`.
+For the current release, `baron --version` prints `baron 5.0.2`.

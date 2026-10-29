@@ -1,38 +1,36 @@
 # Current Build Note
 
-## Current checkpoint — v5.0.2 source candidate; SPEC-08 end-to-end acceptance open (2026-10-29)
+## Current checkpoint — v5.0.2 public release; SPEC-08 end-to-end acceptance open (2026-10-29)
 
-The current source candidate is Baron Engine `5.0.2`. The published stable and
-downloadable release remains `5.0.1`; this is not a release publication. The
-current branch is `codex/spec-08-02-seven-language-coverage`, based on
-SPEC-08-01 commit `0933e2a11b5cd043a4533c43879ad3d842bd38a7`. Source commit
-`756dc28d649eaacf5135cd3be0b46df030e3056e` is pushed. Immediately after that
-push, `git ls-remote` matched the remote tip to the source commit. GitHub Actions run
-[40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668)
-was later cancelled when the status receipt commit triggered run
-[40832498552](https://github.com/thienty1207/Baron-Engine/actions/runs/40832498552),
-which was queued at the latest check.
+Baron Engine `5.0.2` is the stable and downloadable release. Release source
+`75d7ecc59d69631f2a6c213b7196e1a2ed525e09` is on `main` and tagged `v5.0.2`.
+GitHub Release [v5.0.2](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.2)
+is public, has nine signed/checksummed assets, and `releases/latest` resolves to
+the same tag. Release workflow
+[40868342649](https://github.com/thienty1207/Baron-Engine/actions/runs/40868342649)
+passed exact-source verification, full workspace tests, Clippy, Graphify
+0.9.25 certification, Windows/Linux builds, manifest signing and verification,
+and installer lifecycle. Main CI
+[40864426884](https://github.com/thienty1207/Baron-Engine/actions/runs/40864426884)
+passed Format/Clippy and Windows/Linux native suites plus release-binary smoke.
 
-SPEC-08 remains **OPEN** pending end-to-end security audit and remediation tests
-against a representative project. No target application code has been audited
-or executed. The trusted OS sandbox backend is not verified, so target
-execution remains blocked. Linux acceptance is pending the active push-triggered
-CI run; automatic continuation remains pending. Keep SPEC-08 open until these
-acceptance gates pass.
+SPEC-08 remains **OPEN** pending end-to-end audit and remediation against a
+representative project, plus trusted OS-enforced sandbox verification. No
+target project code has been audited or executed; target execution remains
+blocked until the sandbox is verified. Automatic phase continuation remains
+unverified. Keep SPEC-08 open until the remaining acceptance is complete.
 
-The source package, lockfile, certification target, README, changelog, status
-metadata, and handoff now agree on candidate version `5.0.2`. Windows gates
-passed after the bump: `cargo fmt --all -- --check`,
-`cargo test --workspace --all-targets --no-fail-fast -j 2 --quiet` (117 targets;
-exit 0; 0 failed; 4 ignored),
-`cargo clippy --workspace --all-targets -- -D warnings`,
-`cargo check --workspace --locked`, and CLI smoke `baron 5.0.2`. Linux
-acceptance remains pending.
+Local Windows verification passed `cargo fmt --all -- --check`, the full
+workspace suite (117 targets; 0 failed; 4 ignored) with the supported
+`BARON_TEST_POWERSHELL` override, warnings-denied Clippy,
+`cargo check --workspace --locked`, and CLI smoke `baron 5.0.2`. The ordinary
+Windows PowerShell 5.1 test invocation first failed three installer tests
+because `Microsoft.PowerShell.Archive` could not load; the complete suite then
+passed with PowerShell 7 via the documented test override.
 
-Proof/trace: none for a user project. Persisted-state boundary: the current
-worktree, ignored SDD plan ledger, Cargo outputs, and test-only temporary
-fixtures. No user project, Vault, or machine configuration has been changed.
-No v5.0.2 release tag or downloadable artifact is being created.
+Proof/trace: none for a user project. Persisted-state boundary: Baron source,
+release metadata, CI, local Cargo outputs, and temporary test fixtures. No user
+project, Vault, or machine configuration was changed.
 
 ## Historical checkpoint — SPEC-08-05 Windows checkpoint acceptance verified locally (2026-10-29)
 

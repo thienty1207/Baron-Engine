@@ -1,32 +1,39 @@
 # Baron Build Status
 
-## Current status — v5.0.2 source candidate; SPEC-08 remains open pending end-to-end acceptance (2026-10-29)
+## Current status — v5.0.2 stable; SPEC-08 remains open pending end-to-end acceptance (2026-10-29)
 
-> Baron Engine 5.0.2 is an unpublished source candidate. Stable and downloadable
-> release remains v5.0.1; no v5.0.2 tag or release is created by this change.
+> Baron Engine 5.0.2 is the stable and downloadable release. SPEC-08 remains
+> **OPEN** until representative-project end-to-end and trusted-sandbox acceptance.
 
-- The verified source candidate is pushed on branch
-  [`codex/spec-08-02-seven-language-coverage`](https://github.com/thienty1207/Baron-Engine/tree/codex/spec-08-02-seven-language-coverage)
-  at source commit `756dc28d649eaacf5135cd3be0b46df030e3056e`. Its CI run
-  [40832304668](https://github.com/thienty1207/Baron-Engine/actions/runs/40832304668)
-  was cancelled when the documentation receipt push triggered a new run;
-  run [40832498552](https://github.com/thienty1207/Baron-Engine/actions/runs/40832498552)
-  was queued at the latest check.
-- SPEC-08 remains **OPEN**. SPEC-08-01 is implemented and pushed; work for
-  SPEC-08-02 through SPEC-08-05 is implemented and Windows-verified on this
-  branch.
-- End-to-end testing against a representative real project remains pending.
-  No target application code has been audited or executed. Target audit and
-  remediation stay blocked until a trusted OS-enforced sandbox is verified.
-- Windows gates passed after the 5.0.2 bump: `cargo fmt --all -- --check`,
-  full workspace tests (117 targets; exit 0; 0 failed; 4 ignored),
-  warnings-denied Clippy, and `cargo check --workspace --locked`. The CLI reports
-  `baron 5.0.2`. Hosted Linux acceptance is pending the current CI run.
-- The next acceptance step is end-to-end audit/remediation testing when a
-  suitable project is available, followed by Linux and sandbox verification.
-  Keep SPEC-08 open until these gates pass.
+- Stable source release: `v5.0.2`
+  ([official release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.2)).
+  Release source commit `75d7ecc59d69631f2a6c213b7196e1a2ed525e09` is on
+  `main`; annotated tag `v5.0.2` points to that commit. The release contains
+  nine authenticated assets for Windows x64 and Linux x64.
+- Main CI run
+  [40864426884](https://github.com/thienty1207/Baron-Engine/actions/runs/40864426884)
+  passed Format/Clippy and full Linux/Windows native test suites, including
+  release-binary smoke. Release workflow
+  [40868342649](https://github.com/thienty1207/Baron-Engine/actions/runs/40868342649)
+  passed its full workspace, Graphify, build, signing, manifest, checksum, and
+  installer lifecycle gates. `releases/latest` resolves to `v5.0.2`.
+- SPEC-08 remains **OPEN**. Implementations through SPEC-08-05 are present on
+  `main`; project end-to-end audit/remediation acceptance and verification of a
+  trusted OS-enforced sandbox remain pending. No target application code has
+  been audited or executed; target execution stays blocked until the sandbox is
+  verified.
+- Local Windows verification passed format, the full workspace suite
+  (117 targets; 0 failed; 4 ignored) using the repository's supported
+  `BARON_TEST_POWERSHELL` override, warnings-denied Clippy, locked workspace
+  check, and CLI version smoke (`baron 5.0.2`).
+- Next action: run end-to-end audit/remediation acceptance against a
+  representative project and verify a trusted OS sandbox. Keep SPEC-08 open
+  until those gates pass.
 
 ## Historical checkpoint — SPEC-08-05 Windows checkpoint acceptance verified locally (2026-10-29)
+
+> This snapshot predates the merge to `main` and the public v5.0.2 release.
+> Use the current status section above for the active repository state.
 
 > This is the current release/phase dashboard. For AI continuation, use the
 > canonical [handoff](superpowers/plans/CURRENT.md); every older checkpoint

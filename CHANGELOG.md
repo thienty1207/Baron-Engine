@@ -1,13 +1,16 @@
 # Changelog
 
-## 5.0.2 (unreleased source candidate)
+## 5.0.2 - 2026-10-29
 
-- Continue the SPEC-08 security-audit replacement with seven-language coverage,
-  Core workflow and remediation contracts, and fail-closed recovery handling.
-  SPEC-08 remains open pending end-to-end acceptance against a representative
-  project, Linux acceptance, and a verified sandbox backend.
-- Keep the published stable and downloadable release at 5.0.1 until the 5.0.2
-  candidate completes its acceptance gates and is explicitly released.
+- Add the Baron security-audit workflow foundation: bounded coverage for seven
+  languages, Core-owned audit and remediation contracts, and fail-closed
+  recovery/checkpoint handling.
+- Keep SPEC-08 **OPEN**. End-to-end acceptance against a representative project
+  and verification of a trusted OS-enforced sandbox remain pending; target code
+  has not been audited or executed.
+- Publish signed Windows x64 and Linux x64 release assets. The release workflow
+  verifies the exact `main` source, native builds, checksums, and installer
+  lifecycle.
 
 ## 5.0.1 - 2026-10-25
 
