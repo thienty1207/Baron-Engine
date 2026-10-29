@@ -4,13 +4,73 @@
 > all checkpoints and phase snapshots after it are historical records and must
 > not override these facts or the checked-out source.
 
-## Current source, active work, and release — 2026-10-28
+## Current source, active work, and release — 2026-10-29
+
+- Source version is `5.0.2` as an unpublished candidate. Stable and
+  downloadable release remains `5.0.1`; no `v5.0.2` tag or release has been
+  created. Workspace packages, lockfile, certification target, README,
+  changelog, and status metadata are synchronized to the candidate.
+- SPEC-08 remains **OPEN**, pending end-to-end audit/remediation acceptance on a
+  representative project. No target application code was audited or executed.
+  Keep target execution disabled until a trusted OS-enforced sandbox is
+  verified. Linux acceptance and automatic continuation are also pending.
+- The current source branch is `codex/spec-08-02-seven-language-coverage`,
+  based on pushed SPEC-08-01 commit `0933e2a11b5cd043a4533c43879ad3d842bd38a7`.
+  SPEC-08-02 through SPEC-08-05 implementation and verification details are in
+  the historical checkpoint below and their linked plans.
+- Windows gates passed after the version bump: format, all 117 workspace test
+  targets (0 failures; 4 ignored), warnings-denied Clippy, locked workspace
+  check, and CLI version smoke (`baron 5.0.2`). Linux acceptance remains open.
+- Next action: push the verified current branch as requested, then run
+  end-to-end acceptance when a representative project is available. Do not
+  close SPEC-08 before end-to-end, Linux, and sandbox acceptance.
+
+## Historical checkpoint — pre-v5.0.2 candidate source state (2026-10-29)
 
 - Repository: `thienty1207/Baron-Engine`.
-- Active work: SPEC-08-01 is implemented and locally verified on isolated branch
-  `codex/spec-08-01-vibe-retirement`, based on local `origin/main` at
-  `c1c182a187e62332a32ce1824f6658f261ce84c8`. The implementation plan is
-  [`2026-10-28-spec-08-01-vibe-security-retirement.md`](2026-10-28-spec-08-01-vibe-security-retirement.md).
+- Active work: SPEC-08-02 and the deterministic workflow/schema portion of
+  SPEC-08-03 are locally implemented and remain uncommitted. The fail-closed
+  contract, PreparePacket policy, CLI validator, and runtime guidance for
+  SPEC-08-04 are locally implemented. SPEC-08-05 now has local truthful run
+  states, capability/sandbox readiness, source-bound checkpoint/resume,
+  redacted create-only reporting, and CLI paths. Branch remains
+  `codex/spec-08-02-seven-language-coverage`, based on pushed SPEC-08-01 commit
+  `0933e2a11b5cd043a4533c43879ad3d842bd38a7`. Plans:
+  [`2026-10-28-spec-08-02-seven-language-coverage.md`](2026-10-28-spec-08-02-seven-language-coverage.md)
+  and
+  [`2026-10-28-spec-08-03-audit-workflow-and-finding-quality.md`](2026-10-28-spec-08-03-audit-workflow-and-finding-quality.md),
+  [`2026-10-29-spec-08-04-remediation-and-regression-loop.md`](2026-10-29-spec-08-04-remediation-and-regression-loop.md),
+  and the active [`2026-10-29-spec-08-05-safety-recovery-and-failure-handling.md`](2026-10-29-spec-08-05-safety-recovery-and-failure-handling.md).
+- SPEC-08-05 safety/recovery contract work is implemented locally and focused
+  tests pass. Its PreparePacket reports ten OS controls as unverified because
+  no trusted sandbox backend exists. The generic Baron command runner is not a
+  sandbox; no target process has run or is allowed to run. Phase-by-phase
+  checkpoint assessment now passes on Windows for saved states at 0–6 phase
+  receipts. The test saves and reloads using separate CLI processes, checks
+  phase/status/coverage/candidate retention, repeats assessment, and confirms the
+  checkpoint remains unchanged; a completed run is not resumable. This is a
+  checkpoint assessment contract, not an automatic phase executor or proof of
+  post-resume finding deduplication. Linux acceptance and any required
+  automatic-continuation integration remain open. Windows format, the full
+  workspace suite, and warnings-denied Clippy passed; see the SPEC-08-05 plan
+  and SDD ledger for the source, operation, recovery, and publication
+  boundaries.
+- SPEC-08-01 is implemented, verified, and pushed on branch
+  [`codex/spec-08-01-vibe-retirement`](https://github.com/thienty1207/Baron-Engine/tree/codex/spec-08-01-vibe-retirement).
+- SPEC-08-02 now supplies bounded read-only inventory for Python, C++, Java,
+  Rust, Go, TypeScript, and C#; local per-language rules; the shared attack
+  taxonomy; static fixture contracts; and additive PreparePacket coverage
+  evidence. Manifest/source reads use Core safe regular-file opening with
+  per-file and aggregate limits; source framework signals come from parsed
+  import targets after comment removal. Npm framework/TypeScript signals require
+  exact dependency evidence rather than package names or descriptions. Each
+  in-scope detected language carries a non-exhaustive framework-catalog gap.
+  No target fixture or project code was executed; PreparePacket keeps
+  `execution_status=not_run` and no fabricated checks.
+- Sequencing ruling: SPEC-08-02 depends on SPEC-08-05 and the parent roadmap
+  lists 08-05 first. The owner requested 08-02 next. This work did not run an
+  audit or remediation; a trusted sandbox backend remains required before
+  target execution. See the 08-02 plan for the full ruling and risk.
 - SPEC-08-01 verification on Windows passed: `cargo fmt --all -- --check`;
   `cargo test --workspace --all-targets --no-fail-fast -j 2` (112 targets,
   1,055 passed, 0 failed, 4 ignored); and
@@ -23,17 +83,82 @@
   passed. The new auth-repository/docs-only regression was first observed RED
   and then passed after routing stopped using repository-wide survey matches
   as task evidence.
-- This work covers only SPEC-08-01. SPEC-08-05, 08-02, 08-03, and 08-04 remain
-  pending; do not claim SPEC-08 complete or imply that the full Cloudflare
-  audit/remediation workflow is implemented. SPEC-06 remains unstarted.
-- Source review was targeted to SPEC-08-01 routing, PreparePacket, managed
-  asset/update migration, related tests, and relevant runtime assets. It was
-  not a line-by-line pass of the whole repository.
+- SPEC-08-02 is implemented and verified locally but not committed or pushed.
+  The fixture expected outcomes are static labels; they do not prove the
+  classifier or model respects them. Executable finding-behavior validation
+  remains pending a trusted sandbox backend and final 08-03 integration.
+  SPEC-08-05 acceptance and 08-03/08-04 integration remain open; do not claim
+  SPEC-08 complete or imply that the full audit/remediation workflow is
+  executable. SPEC-06 remains unstarted.
+- SPEC-08-03 now has locally verified deterministic workflow/finding schemas,
+  six-phase bookkeeping, full-ledger reports, schema-only validation,
+  PreparePacket metadata, and operation-bound continuity checkpoints. Fresh
+  review findings for complete dirty/Task State binding, candidate-linked
+  verdict evidence, and non-reflective run IDs were fixed and covered by
+  regressions. The child SPEC remains incomplete pending final safety/recovery
+  and acceptance integration. Target execution remains `not_run`; phase,
+  artifact, and reviewer identities are unverified serialized claims. No target
+  project or fixture is executed.
+- SPEC-08-04's deterministic remediation state contract, PreparePacket policy,
+  bounded `baron security-audit validate-remediation` command, and runtime
+  Superpowers/TDD guidance are implemented locally. Its focused Core tests pass
+  20/20, CLI validator tests 7/7, PreparePacket CLI tests 9/9, and the focused
+  managed-runtime contract test 1/1. Fresh final review found three Important
+  schema gaps; RED/GREEN regressions now preserve Project/Task/operation/scope
+  in a validated post-fix binding, reject reused regression and re-audit
+  evidence, and keep the final reviewer distinct from every fixer in the
+  timeline. Existing cycle-order checks still require a passing regression and
+  a still-confirmed re-audit before another fix cycle. Windows verification
+  passed `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --no-fail-fast -j 2` (116 targets;
+  1,122 passed, 0 failed, 4 ignored), and
+  `cargo clippy --workspace --all-targets -- -D warnings`. Focused tests pass:
+  Core remediation 20/20, validator CLI 7/7, PreparePacket CLI 9/9, and the
+  managed-runtime contract 1/1. The public-doc contract suite passes 12/12;
+  status JSON parses; and 69 relative links across 27 changed Markdown files
+  resolve. SPEC-08-04 is not complete as an executable remediation workflow:
+  target edits/tests, trusted finding closure, gate, proof, and trace remain
+  blocked because no trusted sandbox backend supplies enforced controls and
+  current-operation execution evidence.
+- SPEC-08-05 focused Windows verification passed: Core safety module 13/13,
+  including RED/GREEN stale dirty-state binding and bounded checkpoint/artifact
+  read regressions; safety integration 11/11; remediation 20/20; workflow
+  20/20; security-audit CLI 12/12; and the PreparePacket CLI contract. The
+  PreparePacket CLI target passed 9/9 in 122.76s. The full workspace test
+  passed on 117 targets (exit 0, no failures, 4 ignored), and workspace Clippy
+  passed with warnings denied. Adapter lifecycle passed 23/23. Linux acceptance
+  and automatic phase continuation remain unverified.
+- Pre-SPEC-08-04 baseline Windows verification on this worktree passed
+  `cargo fmt --all -- --check` and `cargo test --workspace --all-targets
+  --no-fail-fast --quiet` (115 targets; 1,099 passed, 0 failed, 4 ignored)
+  using the supported PowerShell 7 `BARON_TEST_POWERSHELL` override, and
+  `cargo clippy --workspace --all-targets -- -D warnings`. Focused suites passed:
+  Core inventory 17/17, static fixture contract 1/1, Core PreparePacket 8/8,
+  CLI PreparePacket 9/9, mixed-language PreparePacket 1/1, SPEC-08-03 workflow
+  20/20, and SPEC-08-03 CLI 4/4. JSON parsing and `git diff --check` passed;
+  25 Markdown files and 64 relative links checked with 0 broken.
+- The independent source review was scoped to the SPEC-08-02 inventory,
+  PreparePacket projection, rule assets, static fixtures, and related tests. Its
+  findings on file-read races, partial framework coverage, import-comment false
+  positives, and missing fixture outcomes were addressed. This is not a
+  line-by-line pass of the repository. No fixture or target project code was
+  executed; no audit was run.
+- Fresh scoped SPEC-08-03 review found two Important and one Medium schema
+  issue. Complete run-binding checks, candidate-linked verdict evidence, and
+  canonical UUID/digest-only run IDs now have regressions; all focused and
+  workspace checks passed. The review was not a repository-wide source pass.
 - Proof/trace: no project-scoped Baron proof or trace. Persisted-state
   boundary: this linked worktree, its Cargo build outputs, and temporary test
   fixtures; the primary checkout, project, Vault, `.env`, and machine
   configuration remain outside the write boundary.
-- No commit, push, PR, merge, tag, version bump, or release is in scope.
+- SPEC-08-01 was committed and pushed. SPEC-08-02/08-03/08-04 work in this
+  branch has not been committed, pushed, opened as a PR, merged, tagged,
+  version-bumped, or released.
+- SPEC-08-05 changes in this worktree are uncommitted and unpublished too.
+- Safe next action: decide whether to add a phase coordinator that automatically
+  persists and continues audit checkpoints, verify the acceptance suite on
+  Linux, and evaluate an OS-enforced sandbox backend. Keep target-controlled
+  execution disabled while `sandbox_backend_unverified` is present.
 - Source version, stable release, and downloadable release are `5.0.1`.
   [GitHub Release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1)
   is also the current `releases/latest` destination.
@@ -105,9 +230,11 @@
 1. Read [`AGENTS.md`](../../../AGENTS.md), then
    [`SOURCE_READING_GUIDE.md`](../../architecture/SOURCE_READING_GUIDE.md)
    before claiming a complete source audit.
-2. Review the verified local SPEC-08-01 diff. Do not start another Spec8 child
-   or publish/integrate this work until the owner approves the next step.
-   SPEC-08-05, 08-02, 08-03, or 08-04. SPEC-06 has not started.
+2. Keep SPEC-08-04 fail-closed while implementing its local contract. Then
+   implement SPEC-08-05 execution safety/recovery before completing 08-03/08-04
+   integration or enabling target audit/remediation execution. Preserve
+   uncommitted SPEC-08-02/08-03/08-04 work.
+   SPEC-06 has not started.
 3. Future releases must use a new versioned source commit on `main`, pass the
    release workflow, and update the public docs only after the GitHub Release
    and downloadable assets are verified.

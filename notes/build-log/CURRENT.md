@@ -1,14 +1,144 @@
 # Current Build Note
 
-## Current checkpoint — SPEC-08-01 implemented and verified locally (2026-10-28)
+## Current checkpoint — v5.0.2 source candidate; SPEC-08 end-to-end acceptance open (2026-10-29)
 
-Active branch `codex/spec-08-01-vibe-retirement` is based on
-`origin/main` `c1c182a187e62332a32ce1824f6658f261ce84c8`. The implementation
-plan is [SPEC-08-01](../../docs/superpowers/plans/2026-10-28-spec-08-01-vibe-security-retirement.md).
-Scope is Core routing, the security-audit PreparePacket contract/asset, and
-safe retirement of old managed Vibe assets; SPEC-08-05/02/03/04 remain pending.
+The current source candidate is Baron Engine `5.0.2`. The published stable and
+downloadable release remains `5.0.1`; this is not a release publication. The
+current branch is `codex/spec-08-02-seven-language-coverage`, based on
+SPEC-08-01 commit `0933e2a11b5cd043a4533c43879ad3d842bd38a7`.
 
-Final Windows verification passed: `cargo fmt --all -- --check`,
+SPEC-08 remains **OPEN** pending end-to-end security audit and remediation tests
+against a representative project. No target application code has been audited
+or executed. The trusted OS sandbox backend is not verified, so target
+execution remains blocked. Linux acceptance and automatic continuation remain
+pending. Keep SPEC-08 open until these acceptance gates pass.
+
+The source package, lockfile, certification target, README, changelog, status
+metadata, and handoff now agree on candidate version `5.0.2`. Windows gates
+passed after the bump: `cargo fmt --all -- --check`,
+`cargo test --workspace --all-targets --no-fail-fast -j 2 --quiet` (117 targets;
+exit 0; 0 failed; 4 ignored),
+`cargo clippy --workspace --all-targets -- -D warnings`,
+`cargo check --workspace --locked`, and CLI smoke `baron 5.0.2`. Linux
+acceptance remains pending.
+
+Proof/trace: none for a user project. Persisted-state boundary: the current
+worktree, ignored SDD plan ledger, Cargo outputs, and test-only temporary
+fixtures. No user project, Vault, or machine configuration has been changed.
+The current branch push is the remaining delivery step; no v5.0.2 release tag
+or downloadable artifact is being created.
+
+## Historical checkpoint — SPEC-08-05 Windows checkpoint acceptance verified locally (2026-10-29)
+
+SPEC-08-05 is being implemented in the existing linked worktree on
+`codex/spec-08-02-seven-language-coverage`, starting from
+`0933e2a11b5cd043a4533c43879ad3d842bd38a7`. The worktree already contains
+uncommitted SPEC-08-02/03/04 changes; preserve all of them. Local changes now
+add distinct audit terminal states/failure classes, registered/present/
+executed capability inspection, a PreparePacket gate reporting ten sandbox
+controls unverified, source-bound recovery checkpoints with current dirty-state
+validation, and redacted create-only reports/CLI commands. The phase-boundary
+test now saves interrupted synthetic runs at 0–5 phase receipts and a complete
+run at six receipts, reloads each through separate CLI processes, and checks
+phase, status, one candidate record, candidate fingerprint, coverage inventory, repeat
+assessment, and byte-preserving checkpoint behavior. A completed run correctly
+requires a new audit decision. This verifies the persisted-state assessment
+contract; it does not implement automatic phase execution or finding
+deduplication after an automatic continuation. No trusted OS-enforced sandbox
+backend exists, so target processes remain blocked. Tests use temporary
+synthetic Baron repositories; no user target code or target-controlled process
+was run.
+
+Windows verification passed `cargo fmt --all -- --check`, full
+`cargo test --workspace --all-targets --no-fail-fast -j 2 --quiet` (117 targets;
+exit 0, no failures, 4 ignored), and
+`cargo clippy --workspace --all-targets -- -D warnings`. Focused tests also
+passed: Core safety unit 13/13 (including stale dirty-state and oversized
+checkpoint/artifact read regressions observed RED before their fixes), safety
+integration 11/11, remediation 20/20, audit workflow 20/20,
+security-audit CLI 12/12, and adapter lifecycle 23/23. The PreparePacket CLI
+target passed 9/9 in 122.76 seconds. Before caching the static redaction regexes,
+the new phase-boundary integration exceeded 60 seconds while saving a run with
+a finding; after caching it passed in 12.41 seconds.
+Plan: [SPEC-08-05](../../docs/superpowers/plans/2026-10-29-spec-08-05-safety-recovery-and-failure-handling.md).
+
+Remaining acceptance: Linux verification, and a decision/implementation for
+automatic per-phase persistence and continuation if SPEC-08-05 requires a
+phase coordinator beyond its current checkpoint assessment CLI. The trusted OS
+sandbox backend is not available; SPEC-08 and target audit/remediation
+execution remain incomplete. No target process ran during these tests.
+
+Proof/trace: none for a user project. Persisted-state boundary: this linked
+worktree, ignored SDD plan ledger, Cargo outputs, and test-only temporary
+fixtures. Other worktrees, projects, Vaults, machine settings, and GitHub are
+outside the write boundary.
+
+## Previous checkpoint — SPEC-08-04 fail-closed contracts implemented locally; Windows verification passed (2026-10-29)
+
+Branch `codex/spec-08-02-seven-language-coverage` starts at pushed SPEC-08-01
+commit `0933e2a11b5cd043a4533c43879ad3d842bd38a7`. SPEC-08-02 remains
+implemented and locally verified but uncommitted/unpushed. SPEC-08-03's
+deterministic workflow/schema contract, PreparePacket projection, hidden
+validator, and operation-bound continuity checkpoint are implemented in this
+same linked worktree; its plan is
+[SPEC-08-03](../../docs/superpowers/plans/2026-10-28-spec-08-03-audit-workflow-and-finding-quality.md).
+Fresh review defects for review-to-binding freshness, candidate-relevant
+verdict evidence, and raw run-ID reflection were fixed and covered by RED/GREEN
+regressions. Reviewer identities and artifact references remain unverified
+schema claims.
+Scope is bounded static language/framework discovery, local rule packs and
+fixture contracts, plus PreparePacket coverage projection. Repository evidence
+reads now use Core's safe file opener with per-file and aggregate stream limits;
+framework import targets are parsed without comment matches; and each
+in-scope detected language preserves a partial-catalog validation gap. Fixture
+expected outcomes are static labels, not executable classifier evidence. No
+target code or fixture was executed. PreparePacket remains `not_run`. SPEC-08-03
+was implemented ahead of its SPEC-08-05 dependency at the owner's request;
+artifact/reviewer authenticity and target execution remain unavailable.
+SPEC-08-04 now has a deterministic remediation state contract, PreparePacket
+policy projection, bounded `baron security-audit validate-remediation` command,
+and managed Superpowers/TDD guidance. A fresh final review found three
+Important schema gaps. Four new regression tests reproduced failures before
+the fixes and pass now: post-fix bindings preserve Project/Task/operation/scope,
+regression and re-audit evidence cannot be replayed, and the final reviewer must
+differ from every fixer in the timeline. Focused tests pass: Core remediation
+20/20, security-audit CLI 7/7, PreparePacket CLI 9/9, and managed-runtime
+contract 1/1. Windows verification passed `cargo fmt --all -- --check`,
+`cargo test --workspace --all-targets --no-fail-fast -j 2` (116 targets; 1,122
+passed, 0 failed, 4 ignored), and
+`cargo clippy --workspace --all-targets -- -D warnings`. The final public-doc
+contract suite passed 12/12; `docs/BARON_STATUS.json` parses; all 69 relative
+links in the 27 changed Markdown files resolve; `git diff --check` reported no
+whitespace errors; and a scan of 47 changed text files found no trailing
+whitespace. No target source was edited;
+target tests, re-audit, gate, proof, and trace remain unavailable until 08-05
+provides authenticated evidence and enforced sandbox controls. Plan:
+[SPEC-08-04](../../docs/superpowers/plans/2026-10-29-spec-08-04-remediation-and-regression-loop.md).
+
+Earlier pre-SPEC-08-04 baseline verification passed
+`cargo fmt --all -- --check` and `cargo test --workspace --all-targets
+--no-fail-fast --quiet` (115 targets; 1,099 passed, 0 failed, 4 ignored) using the supported
+PowerShell 7 `BARON_TEST_POWERSHELL`
+override, and `cargo clippy --workspace --all-targets -- -D warnings`. Focused
+tests passed: Core language inventory 17/17, Core fixture contract 1/1, Core
+PreparePacket integration 8/8, CLI PreparePacket 9/9, mixed-language
+PreparePacket 1/1, SPEC-08-03 workflow 20/20, and SPEC-08-03 CLI 4/4. JSON
+parsing and `git diff --check` passed; 25 Markdown files and 64 relative links
+were checked with 0 broken links. This prior run does not verify the current
+SPEC-08-04 changes.
+
+The first post-review Clippy run found a collapsible nested `if` in Python
+triple-quoted string handling. The condition was collapsed, focused security
+tests passed again, and warnings-denied workspace Clippy passed. The final full
+workspace run passed after that source correction. Windows PowerShell 5.1 had
+failed to load `Microsoft.PowerShell.Archive` in earlier installer test runs;
+the final full suite used the supported bundled PowerShell 7 override.
+
+SPEC-08-01 was pushed as `0933e2a` on
+[`codex/spec-08-01-vibe-retirement`](https://github.com/thienty1207/Baron-Engine/tree/codex/spec-08-01-vibe-retirement).
+Its verification evidence is in the historical checkpoint below.
+
+Historical SPEC-08-01 Windows verification passed: `cargo fmt --all -- --check`,
 `cargo test --workspace --all-targets --no-fail-fast -j 2` (112 test targets,
 1,055 passed, 0 failed, 4 ignored), and
 `cargo clippy --workspace --all-targets -- -D warnings`. The full test run used
@@ -28,13 +158,16 @@ Source coverage was targeted to SPEC-08-01 routing, PreparePacket, managed
 asset/update migration, related tests, and runtime assets; this was not a full
 line-by-line source pass of the repository.
 
-Proof status: no project-scoped Baron proof. Trace status: no project-scoped
-Baron trace. Persisted-state boundary: isolated linked worktree, Cargo output,
-and disposable test fixtures; no user project, Vault, or machine configuration.
-No commit, push, PR, merge, tag, version bump, or release is in scope.
+Proof/trace status: no project-scoped Baron proof or trace; target audit and
+remediation execution remain `not_run`. Persisted-state boundary: this linked
+worktree, uncommitted SPEC-08-02/08-03 changes, the 08-04 plan/checkpoint,
+Cargo output, and temporary Baron test data only. The primary checkout, user
+projects, Vault, and machine configuration are untouched. No target project
+code, fixtures, or scanners were executed.
 
-Safe next action: owner review of the local verified SPEC-08-01 diff. Do not
-start another SPEC-08 child, commit, push, merge, or release without approval.
+Safe next action: finish the current SPEC-08-04 workspace gates and review the
+touched diff. Then implement SPEC-08-05 safety/recovery before enabling target
+audit/remediation execution or closing findings.
 
 ## Release baseline — v5.0.1 stable release published (2026-10-25)
 

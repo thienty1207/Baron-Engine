@@ -1,7 +1,7 @@
 # SPEC-08-04 — Automatic Remediation and Regression Loop
 
 **Parent:** [SPEC-08-00](SPEC-08-00-REPLACEMENT-OVERVIEW.md)<br>
-**Status:** Draft for owner review; implementation not started
+**Status:** Fail-closed state/policy contracts, PreparePacket projection, bounded CLI validator, and runtime instructions implemented locally (2026-10-29); target execution and trusted closure remain gated on SPEC-08-05
 **Depends on:** SPEC-08-03 and SPEC-08-05
 
 ## Goal

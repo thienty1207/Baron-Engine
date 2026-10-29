@@ -759,40 +759,45 @@ fn baron_owned_runtime_assets_are_self_contained_and_deep() {
     let skill_expectations = [
         (
             "api-and-interface-design",
-            [
+            &[
                 "versioning",
                 "compatibility",
                 "pagination",
                 "idempotency",
                 "error schema",
                 "auth boundary",
-            ],
+            ][..],
         ),
         (
             "observability-and-instrumentation",
-            ["correlation id", "metrics", "traces", "slo", "alert", "pii"],
+            &["correlation id", "metrics", "traces", "slo", "alert", "pii"][..],
         ),
         (
             "deprecation-and-migration",
-            [
+            &[
                 "rollback",
                 "feature flag",
                 "compatibility window",
                 "dual-read",
                 "dual-write",
                 "data migration",
-            ],
+            ][..],
         ),
         (
             "security-audit",
-            [
+            &[
                 "trust boundaries",
                 "data-flow",
                 "security-auditor",
                 "not_run",
-                "audit_workflow_pending_spec_08_03",
-                "no clean",
-            ],
+                "validate-run",
+                "validate-remediation",
+                "confirmed",
+                "superpowers",
+                "tdd flow",
+                "no more than three",
+                "sandbox_backend_unverified",
+            ][..],
         ),
     ];
     for (skill, terms) in skill_expectations {

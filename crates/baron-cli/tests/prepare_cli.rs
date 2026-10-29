@@ -129,6 +129,7 @@ fn prepare_emits_bounded_security_audit_plan_without_claiming_execution() {
     let security_audit = &typescript_packet["security_audit"];
 
     assert_eq!(security_audit["execution_status"], "not_run");
+    assert_eq!(security_audit["checks_run"], json!([]));
     assert_eq!(security_audit["audit_mode"], "focused");
     assert!(security_audit["scope"]
         .as_array()
@@ -140,16 +141,103 @@ fn prepare_emits_bounded_security_audit_plan_without_claiming_execution() {
         .unwrap()
         .iter()
         .any(|language| language == "typescript"));
+    assert_eq!(
+        security_audit["language_coverage"][0]["language"],
+        "typescript"
+    );
+    assert_eq!(
+        security_audit["language_coverage"][0]["confidence"],
+        "planned"
+    );
+    assert_eq!(
+        security_audit["language_coverage"][0]["in_scope_paths"],
+        json!(["src/api/users.ts"])
+    );
+    assert_eq!(
+        security_audit["language_coverage"][0]["lifecycle_surfaces"],
+        json!([
+            "inputs_and_entrypoints",
+            "validation_and_transforms",
+            "authorization_and_ownership",
+            "sensitive_sinks_and_persistence",
+            "errors_logging_and_outputs",
+            "configuration_and_deployment"
+        ])
+    );
+    assert!(!security_audit["language_coverage"][0]["coverage_gaps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|gap| gap == "lifecycle_surface_mapping_pending_spec_08_03"));
+    assert_eq!(security_audit["workflow_schema_version"], 1);
+    assert_eq!(
+        security_audit["required_phases"],
+        json!([
+            "reconnaissance",
+            "coverage_led_hunting",
+            "candidate_validation",
+            "structured_output",
+            "independent_record_verification",
+            "reporting"
+        ])
+    );
+    assert_eq!(security_audit["minimum_candidate_verifiers"], 1);
+    assert_eq!(
+        security_audit["validator_command"],
+        "baron security-audit validate-run"
+    );
+    assert_eq!(
+        security_audit["remediation_policy"]["validator_command"],
+        "baron security-audit validate-remediation"
+    );
+    assert_eq!(security_audit["remediation_policy"]["max_cycles"], 3);
+    assert_eq!(
+        security_audit["remediation_policy"]["execution_status"],
+        "not_run"
+    );
+    assert_eq!(
+        security_audit["remediation_policy"]["auto_fix_authorized"],
+        false
+    );
+    assert_eq!(
+        security_audit["remediation_policy"]["closure_authorized"],
+        false
+    );
+    assert_eq!(
+        security_audit["remediation_policy"]["blocker"],
+        "sandbox_backend_unverified"
+    );
+    assert_eq!(
+        security_audit["sandbox_readiness"]["execution_allowed"],
+        false
+    );
+    assert_eq!(
+        security_audit["sandbox_readiness"]["controls"]
+            .as_array()
+            .unwrap()
+            .len(),
+        10
+    );
+    assert!(security_audit["sandbox_readiness"]["controls"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|control| control["enforced"] == false));
     assert!(security_audit["required_validation"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|item| item == "re_audit_after_safe_fixes"));
-    assert!(security_audit["capability_blockers"]
+        .any(|item| item == "independently_re_read_confirmed_records"));
+    assert!(!security_audit["capability_blockers"]
         .as_array()
         .unwrap()
         .iter()
         .any(|item| item == "audit_workflow_pending_spec_08_03"));
+    assert!(security_audit["capability_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == "sandbox_backend_unverified"));
     assert!(typescript_packet["verification"]["mandatory_gates"]
         .as_array()
         .unwrap()
@@ -209,7 +297,8 @@ fn prepare_emits_bounded_security_audit_plan_without_claiming_execution() {
             "request_id": "security-boundary-request"
         }),
     ));
-    assert_eq!(broad["security_audit"]["audit_mode"], "broad");
+    assert_eq!(broad["security_audit"]["audit_mode"], "deep");
+    assert_eq!(broad["security_audit"]["minimum_candidate_verifiers"], 2);
     assert!(broad["verification"]["mandatory_gates"]
         .as_array()
         .unwrap()
@@ -230,11 +319,16 @@ fn prepare_emits_bounded_security_audit_plan_without_claiming_execution() {
         .as_array()
         .unwrap()
         .is_empty());
+    assert!(unknown_language["security_audit"]["coverage_gaps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == "no_supported_language_evidence_in_scope"));
     assert!(unknown_language["security_audit"]["capability_blockers"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|item| item == "language_coverage_pending_spec_08_02"));
+        .any(|item| item == "language_coverage_unknown"));
 
     let out_of_scope = packet(run_prepare(
         &repo,
@@ -254,11 +348,153 @@ fn prepare_emits_bounded_security_audit_plan_without_claiming_execution() {
         .as_array()
         .unwrap()
         .is_empty());
-    assert!(out_of_scope["security_audit"]["capability_blockers"]
+    assert!(out_of_scope["security_audit"]["coverage_gaps"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|item| item == "language_coverage_pending_spec_08_02"));
+        .any(|item| item == "no_supported_language_evidence_in_scope"));
+}
+
+#[test]
+fn prepare_discovers_all_languages_in_a_mixed_monorepo() {
+    let temp = tempdir().unwrap();
+    let repo = temp.path().join("prepare-mixed-language-repo");
+    let vault = temp.path().join("Vault");
+    let files = [
+        ("services/python/src/app.py", "def app(): return 'ok'\n"),
+        ("services/python/requirements.txt", "fastapi==0.115.0\n"),
+        (
+            "services/cpp/CMakeLists.txt",
+            "project(cpp_service LANGUAGES CXX)\n",
+        ),
+        ("services/cpp/src/main.cpp", "int main() { return 0; }\n"),
+        (
+            "services/java/pom.xml",
+            "<project><artifactId>api</artifactId></project>\n",
+        ),
+        ("services/java/src/Main.java", "class Main {}\n"),
+        (
+            "services/rust/Cargo.toml",
+            "[package]\nname = \"service\"\nversion = \"0.1.0\"\n",
+        ),
+        ("services/rust/src/main.rs", "fn main() {}\n"),
+        (
+            "services/go/go.mod",
+            "module example.com/service\n\ngo 1.23\n",
+        ),
+        ("services/go/main.go", "package main\nfunc main() {}\n"),
+        (
+            "services/typescript/package.json",
+            "{\"dependencies\": {\"typescript\": \"^5.0.0\"}}\n",
+        ),
+        ("services/typescript/tsconfig.json", "{}\n"),
+        (
+            "services/typescript/src/app.ts",
+            "export const app = true;\n",
+        ),
+        (
+            "services/dotnet/Api.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>\n",
+        ),
+        ("services/dotnet/Program.cs", "class Program {}\n"),
+        ("generated/Generated.java", "class Generated {}\n"),
+        ("vendor/library/ignored.go", "package ignored\n"),
+        ("tests/fixtures/example.py", "def fixture(): pass\n"),
+        ("target/debug/generated.rs", "fn generated() {}\n"),
+    ];
+    for (path, content) in files {
+        let path = repo.join(path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
+    init(&repo, &vault, "--codex");
+
+    let packet = packet(run_prepare(
+        &repo,
+        "codex",
+        json!({
+            "schema_version": 1,
+            "task": "implement a request handler in services/python/src/app.py",
+            "session_id": "mixed-language-session",
+            "request_id": "mixed-language-request"
+        }),
+    ));
+    let security_audit = &packet["security_audit"];
+    let mut detected = security_audit["detected_languages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|language| language.as_str().unwrap())
+        .collect::<Vec<_>>();
+    detected.sort_unstable();
+
+    assert_eq!(
+        detected,
+        [
+            "cpp",
+            "csharp",
+            "go",
+            "java",
+            "python",
+            "rust",
+            "typescript"
+        ]
+    );
+    assert_eq!(
+        security_audit["language_coverage"]
+            .as_array()
+            .unwrap()
+            .len(),
+        7
+    );
+    let languages = security_audit["language_coverage"].as_array().unwrap();
+    let python_coverage = languages
+        .iter()
+        .find(|coverage| coverage["language"] == "python")
+        .unwrap();
+    let rust_coverage = languages
+        .iter()
+        .find(|coverage| coverage["language"] == "rust")
+        .unwrap();
+    assert_eq!(python_coverage["in_scope"], true);
+    assert_eq!(
+        python_coverage["in_scope_paths"],
+        json!(["services/python/src/app.py"])
+    );
+    assert!(python_coverage["coverage_gaps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|gap| gap == "framework_detection_catalog_non_exhaustive_requires_validation"));
+    assert!(security_audit["coverage_gaps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|gap| gap == "framework_detection_catalog_non_exhaustive_requires_validation"));
+    assert!(security_audit["capability_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|blocker| blocker == "language_coverage_incomplete"));
+    assert_eq!(rust_coverage["in_scope"], false);
+    assert_eq!(rust_coverage["in_scope_paths"], json!([]));
+    assert_eq!(security_audit["execution_status"], "not_run");
+    assert_eq!(security_audit["checks_run"], json!([]));
+    assert!(security_audit["scope_exclusions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|rule| rule["path"] == "tests/fixtures" && rule["rule_id"] == "fixture_data"));
+    assert!(security_audit["stack_signals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|signal| signal["name"] == "fastapi" && signal["kind"] == "framework"));
+    assert!(!security_audit["capability_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item == "audit_workflow_pending_spec_08_03"));
 }
 
 #[test]

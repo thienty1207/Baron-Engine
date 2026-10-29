@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -24,6 +24,16 @@ use crate::plan::indexed_plan_status_for_identity;
 use crate::platform::{platform_name, render_platform_context};
 use crate::proof::proof_for_operation;
 use crate::risk::RiskLane;
+use crate::security_audit::{
+    SecurityAuditLanguageCoverage, SecurityAuditScopeExclusion, SecurityAuditStackSignal,
+    SecurityAuditUnsupportedEvidence, SHARED_ATTACK_CLASSES,
+};
+use crate::security_audit_remediation::MAX_SECURITY_AUDIT_REMEDIATION_CYCLES;
+use crate::security_audit_safety::{assess_audit_sandbox, AuditSandboxReadinessV1};
+use crate::security_audit_workflow::{
+    AuditMode, AuditPhase, SECURITY_AUDIT_LIFECYCLE_SURFACES,
+    SECURITY_AUDIT_WORKFLOW_SCHEMA_VERSION,
+};
 use crate::task_state::{canonical_plan_next, operation_scoped_source};
 use crate::trace::{latest_trace_score_for_operation_in_vault, TraceOperationBinding};
 use crate::vault::ensure_vault;
@@ -243,13 +253,86 @@ pub struct PrepareRoute {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrepareSecurityAuditPlan {
     pub audit_mode: String,
+    #[serde(default)]
+    pub workflow_schema_version: u32,
+    #[serde(default)]
+    pub required_phases: Vec<String>,
+    #[serde(default)]
+    pub minimum_candidate_verifiers: usize,
+    #[serde(default)]
+    pub validator_command: String,
+    #[serde(default)]
+    pub remediation_policy: PrepareSecurityAuditRemediationPolicy,
+    #[serde(default)]
+    pub sandbox_readiness: AuditSandboxReadinessV1,
+    #[serde(default)]
+    pub planned_lifecycle_surfaces: Vec<String>,
     pub scope: Vec<String>,
     #[serde(default)]
     pub scope_truncated: bool,
     pub detected_languages: Vec<String>,
+    #[serde(default)]
+    pub language_coverage: Vec<SecurityAuditLanguageCoverage>,
+    #[serde(default)]
+    pub stack_signals: Vec<SecurityAuditStackSignal>,
+    #[serde(default)]
+    pub scope_exclusions: Vec<SecurityAuditScopeExclusion>,
+    #[serde(default)]
+    pub unsupported_evidence: Vec<SecurityAuditUnsupportedEvidence>,
+    #[serde(default)]
+    pub planned_attack_classes: Vec<String>,
+    #[serde(default)]
+    pub coverage_gaps: Vec<String>,
+    #[serde(default)]
+    pub checks_run: Vec<PrepareSecurityAuditCheck>,
+    #[serde(default)]
+    pub coverage_inventory_truncated: bool,
     pub required_validation: Vec<String>,
     pub capability_blockers: Vec<String>,
     pub execution_status: String,
+}
+
+/// A bounded workflow projection. It describes policy but never records
+/// execution or authorizes target edits while the sandbox backend is unverified.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrepareSecurityAuditRemediationPolicy {
+    pub validator_command: String,
+    pub max_cycles: usize,
+    pub required_steps: Vec<String>,
+    pub blocker: String,
+    pub execution_status: String,
+    pub auto_fix_authorized: bool,
+    pub closure_authorized: bool,
+}
+
+impl Default for PrepareSecurityAuditRemediationPolicy {
+    fn default() -> Self {
+        Self {
+            validator_command: "baron security-audit validate-remediation".to_string(),
+            max_cycles: MAX_SECURITY_AUDIT_REMEDIATION_CYCLES,
+            required_steps: vec![
+                "independently_confirm_the_in_scope_finding".to_string(),
+                "inspect_affected_source_and_connected_data_flow".to_string(),
+                "write_a_failing_regression_check_when_feasible".to_string(),
+                "apply_a_narrow_fix_through_superpowers_tdd".to_string(),
+                "pass_regression_checks_in_an_enforced_sandbox".to_string(),
+                "targeted_re_audit_the_exact_post_fix_source".to_string(),
+                "record_independent_security_auditor_gate".to_string(),
+                "record_current_operation_proof_and_trace".to_string(),
+            ],
+            blocker: "sandbox_backend_unverified".to_string(),
+            execution_status: "not_run".to_string(),
+            auto_fix_authorized: false,
+            closure_authorized: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrepareSecurityAuditCheck {
+    pub check_id: String,
+    pub status: String,
+    pub evidence: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -502,7 +585,13 @@ pub fn prepare(
     }
 
     let task_text = bounded(&request.task, PREPARE_MAX_OUTPUT_CONTEXT_CHARS);
-    let security_audit = prepare_security_audit_plan(&request.task, work_shape.risk, &route);
+    let security_audit = prepare_security_audit_plan(
+        &repo_root,
+        &request.task,
+        work_shape.risk,
+        &route,
+        &operation,
+    );
     let selected_skills = route
         .selected_skills
         .iter()
@@ -604,9 +693,11 @@ pub fn prepare(
 }
 
 fn prepare_security_audit_plan(
+    repo_root: &Path,
     task: &str,
-    _risk: RiskLane,
+    risk: RiskLane,
     route: &crate::control_plane::RouteReport,
+    operation: &OperationContext,
 ) -> Option<PrepareSecurityAuditPlan> {
     if !route
         .selected_skills
@@ -617,7 +708,6 @@ fn prepare_security_audit_plan(
     }
 
     let mut scope = Vec::new();
-    let mut languages = Vec::new();
     let mut scope_truncated = route.affected_paths_truncated;
     let task_paths = task.split(|character: char| {
         character.is_whitespace() || matches!(character, '`' | '"' | '\'')
@@ -639,41 +729,117 @@ fn prepare_security_audit_plan(
             scope_truncated = true;
             continue;
         }
-        if let Some(language) = security_audit_language(token) {
-            if !languages.iter().any(|known| known == language) {
-                languages.push(language.to_string());
-            }
-        }
         scope.push(token.to_string());
     }
 
     if scope.is_empty() {
         scope.push("planned_application_or_security_boundary".to_string());
     }
-    let audit_mode = if route.security_sensitive {
-        "broad"
-    } else {
-        "focused"
+    let audit_mode = match (risk, route.security_sensitive) {
+        (RiskLane::High, _) => AuditMode::Deep,
+        (_, true) => AuditMode::Standard,
+        _ => AuditMode::Focused,
     };
-    let mut capability_blockers = vec!["audit_workflow_pending_spec_08_03".to_string()];
-    if languages.is_empty() {
-        capability_blockers.push("language_coverage_pending_spec_08_02".to_string());
+    let mut discovery = crate::security_audit::discover_security_audit_coverage(repo_root, &scope);
+    for language in &mut discovery.languages {
+        if language.in_scope {
+            language.lifecycle_surfaces = SECURITY_AUDIT_LIFECYCLE_SURFACES
+                .iter()
+                .map(|surface| surface.to_string())
+                .collect();
+        }
+    }
+    let in_scope_languages = discovery
+        .languages
+        .iter()
+        .filter(|language| language.in_scope)
+        .collect::<Vec<_>>();
+    let detected_languages = discovery
+        .languages
+        .iter()
+        .map(|language| language.language.clone())
+        .collect::<Vec<_>>();
+    let mut coverage_gaps = discovery
+        .coverage_gaps
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    for language in &discovery.languages {
+        coverage_gaps.extend(
+            language
+                .coverage_gaps
+                .iter()
+                .filter(|gap| gap.as_str() != "language_detected_outside_requested_scope")
+                .cloned(),
+        );
+    }
+    let sandbox_readiness = assess_audit_sandbox(repo_root, operation)
+        .unwrap_or_else(|_| AuditSandboxReadinessV1::unverified());
+    let mut capability_blockers = sandbox_readiness.blockers.clone();
+    if in_scope_languages.is_empty() {
+        capability_blockers.push("language_coverage_unknown".to_string());
+    }
+    if !discovery.unsupported_evidence.is_empty() {
+        capability_blockers.push("unsupported_language_evidence".to_string());
     }
     if scope_truncated {
         capability_blockers.push("audit_scope_truncated".to_string());
     }
+    if discovery.scan_truncated {
+        capability_blockers.push("language_coverage_inventory_truncated".to_string());
+    }
+    if !coverage_gaps.is_empty()
+        && !capability_blockers.contains(&"language_coverage_inventory_truncated".to_string())
+    {
+        capability_blockers.push("language_coverage_incomplete".to_string());
+    }
 
+    let planned_attack_classes = SHARED_ATTACK_CLASSES
+        .iter()
+        .filter(|attack_class| {
+            in_scope_languages.iter().any(|language| {
+                language
+                    .planned_attack_classes
+                    .iter()
+                    .any(|planned| planned.as_str() == **attack_class)
+            })
+        })
+        .map(|attack_class| attack_class.to_string())
+        .collect();
     Some(PrepareSecurityAuditPlan {
-        audit_mode: audit_mode.to_string(),
+        audit_mode: audit_mode.as_str().to_string(),
+        workflow_schema_version: SECURITY_AUDIT_WORKFLOW_SCHEMA_VERSION,
+        required_phases: AuditPhase::ordered()
+            .iter()
+            .map(|phase| phase.as_str().to_string())
+            .collect(),
+        minimum_candidate_verifiers: audit_mode.minimum_candidate_verifiers(),
+        validator_command: "baron security-audit validate-run".to_string(),
+        remediation_policy: PrepareSecurityAuditRemediationPolicy::default(),
+        sandbox_readiness,
+        planned_lifecycle_surfaces: SECURITY_AUDIT_LIFECYCLE_SURFACES
+            .iter()
+            .map(|surface| surface.to_string())
+            .collect(),
         scope,
         scope_truncated,
-        detected_languages: languages,
+        detected_languages,
+        language_coverage: discovery.languages,
+        stack_signals: discovery.stack_signals,
+        scope_exclusions: discovery.scope_exclusions,
+        unsupported_evidence: discovery.unsupported_evidence,
+        planned_attack_classes,
+        coverage_gaps: coverage_gaps.into_iter().collect(),
+        checks_run: Vec::new(),
+        coverage_inventory_truncated: discovery.scan_truncated,
         required_validation: vec![
-            "risk_check_planned_scope_before_implementation".to_string(),
-            "review_actual_changed_files_and_connected_trust_boundaries".to_string(),
-            "expand_scope_for_connected_in_repository_security_boundaries".to_string(),
-            "validate_candidates_with_evidence_before_classifying_findings".to_string(),
-            "re_audit_after_safe_fixes".to_string(),
+            "complete_reconnaissance_before_coverage_led_hunting".to_string(),
+            "complete_coverage_led_hunting_before_candidate_validation".to_string(),
+            "expand_scope_when_candidate_crosses_connected_boundary".to_string(),
+            "validate_each_candidate_with_a_fresh_independent_reviewer".to_string(),
+            "validate_versioned_findings_and_coverage_ledger".to_string(),
+            "independently_re_read_confirmed_records".to_string(),
+            "derive_target_neutral_report_with_residual_coverage".to_string(),
         ],
         capability_blockers,
         execution_status: "not_run".to_string(),
@@ -705,54 +871,6 @@ fn is_safe_security_audit_scope_path(token: &str) -> bool {
                         "dockerfile" | "makefile" | "justfile" | "jenkinsfile"
                     )
                 }))
-}
-
-fn security_audit_language(path: &str) -> Option<&'static str> {
-    let filename = Path::new(path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(str::to_ascii_lowercase);
-    match filename.as_deref() {
-        Some("cargo.toml" | "cargo.lock") => return Some("rust"),
-        Some("go.mod" | "go.sum") => return Some("go"),
-        Some(
-            "pom.xml"
-            | "build.gradle"
-            | "build.gradle.kts"
-            | "settings.gradle"
-            | "settings.gradle.kts",
-        ) => return Some("java"),
-        Some(
-            "global.json" | "directory.build.props" | "directory.build.targets" | "nuget.config",
-        ) => return Some("csharp"),
-        Some("gradle.properties") => return Some("java"),
-        Some("cmakelists.txt") => return Some("cpp"),
-        Some("pyproject.toml" | "pipfile" | "pipfile.lock" | "poetry.lock" | "uv.lock") => {
-            return Some("python")
-        }
-        _ if filename
-            .as_deref()
-            .is_some_and(|name| name.starts_with("requirements") && name.ends_with(".txt")) =>
-        {
-            return Some("python")
-        }
-        _ => {}
-    }
-    match Path::new(path)
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("py" | "pyi") => Some("python"),
-        Some("h" | "cc" | "cpp" | "cxx" | "hh" | "hpp" | "hxx") => Some("cpp"),
-        Some("java") => Some("java"),
-        Some("rs") => Some("rust"),
-        Some("go") => Some("go"),
-        Some("ts" | "tsx" | "mts" | "cts") => Some("typescript"),
-        Some("cs" | "csx" | "csproj" | "sln" | "slnx" | "props" | "targets") => Some("csharp"),
-        _ => None,
-    }
 }
 
 fn validate_request(request: &mut PrepareRequestV1) -> Result<(), PrepareError> {
@@ -1039,6 +1157,8 @@ fn section_list(source: &str, heading: &str) -> Vec<String> {
 mod security_audit_plan_tests {
     use super::*;
     use crate::control_plane::{RouteReport, RoutingDecision};
+    use std::fs;
+    use tempfile::tempdir;
 
     fn selected_route(security_sensitive: bool, affected_paths: Vec<String>) -> RouteReport {
         RouteReport {
@@ -1058,29 +1178,52 @@ mod security_audit_plan_tests {
         }
     }
 
+    fn security_audit_operation() -> OperationContext {
+        OperationContext::new(SupportedAdapter::Codex)
+            .with_session_id("prepare-test-session")
+            .with_request_id("prepare-test-request")
+            .with_task_id("prepare-test-task")
+            .with_operation_id("prepare-test-operation")
+    }
+
     #[test]
     fn plan_includes_operation_paths_and_requires_boundary_expansion() {
+        let temp = tempdir().unwrap();
         let route = selected_route(true, vec!["src/AuthController.java".to_string()]);
 
-        let plan = prepare_security_audit_plan("fix this", RiskLane::Medium, &route).unwrap();
+        let plan = prepare_security_audit_plan(
+            temp.path(),
+            "fix this",
+            RiskLane::Medium,
+            &route,
+            &security_audit_operation(),
+        )
+        .unwrap();
 
-        assert_eq!(plan.audit_mode, "broad");
+        assert_eq!(plan.audit_mode, "standard");
         assert_eq!(plan.scope, ["src/AuthController.java"]);
         assert_eq!(plan.detected_languages, ["java"]);
         assert!(plan
             .required_validation
-            .contains(&"risk_check_planned_scope_before_implementation".to_string()));
+            .contains(&"complete_reconnaissance_before_coverage_led_hunting".to_string()));
         assert!(plan
             .required_validation
-            .contains(&"expand_scope_for_connected_in_repository_security_boundaries".to_string()));
+            .contains(&"expand_scope_when_candidate_crosses_connected_boundary".to_string()));
     }
 
     #[test]
     fn plan_keeps_build_manifest_scope_and_language_evidence() {
+        let temp = tempdir().unwrap();
         let route = selected_route(false, Vec::new());
 
-        let plan =
-            prepare_security_audit_plan("change build.gradle", RiskLane::Medium, &route).unwrap();
+        let plan = prepare_security_audit_plan(
+            temp.path(),
+            "change build.gradle",
+            RiskLane::Medium,
+            &route,
+            &security_audit_operation(),
+        )
+        .unwrap();
 
         assert_eq!(plan.scope, ["build.gradle"]);
         assert_eq!(plan.detected_languages, ["java"]);
@@ -1088,26 +1231,44 @@ mod security_audit_plan_tests {
 
     #[test]
     fn generic_high_risk_work_uses_focused_mode_and_unsafe_paths_stay_unknown() {
+        let temp = tempdir().unwrap();
         let route = selected_route(false, vec!["../outside.rs".to_string()]);
 
-        let plan = prepare_security_audit_plan("fix this", RiskLane::High, &route).unwrap();
+        let plan = prepare_security_audit_plan(
+            temp.path(),
+            "fix this",
+            RiskLane::High,
+            &route,
+            &security_audit_operation(),
+        )
+        .unwrap();
 
-        assert_eq!(plan.audit_mode, "focused");
+        assert_eq!(plan.audit_mode, "deep");
         assert_eq!(plan.scope, ["planned_application_or_security_boundary"]);
         assert!(plan.detected_languages.is_empty());
         assert!(plan
             .capability_blockers
-            .contains(&"language_coverage_pending_spec_08_02".to_string()));
+            .contains(&"language_coverage_unknown".to_string()));
+        assert_eq!(plan.execution_status, "not_run");
+        assert!(plan.checks_run.is_empty());
     }
 
     #[test]
     fn plan_reports_scope_truncation_and_deserializes_older_shape() {
+        let temp = tempdir().unwrap();
         let paths = (0..33)
             .map(|index| format!("src/module{index}.rs"))
             .collect::<Vec<_>>()
             .join(" ");
         let route = selected_route(false, Vec::new());
-        let plan = prepare_security_audit_plan(&paths, RiskLane::Medium, &route).unwrap();
+        let plan = prepare_security_audit_plan(
+            temp.path(),
+            &paths,
+            RiskLane::Medium,
+            &route,
+            &security_audit_operation(),
+        )
+        .unwrap();
 
         assert_eq!(plan.scope.len(), 32);
         assert!(plan.scope_truncated);
@@ -1117,20 +1278,96 @@ mod security_audit_plan_tests {
 
         let mut old_shape = serde_json::to_value(&plan).unwrap();
         old_shape.as_object_mut().unwrap().remove("scope_truncated");
+        for field in [
+            "language_coverage",
+            "stack_signals",
+            "scope_exclusions",
+            "unsupported_evidence",
+            "planned_attack_classes",
+            "coverage_gaps",
+            "checks_run",
+            "coverage_inventory_truncated",
+            "workflow_schema_version",
+            "required_phases",
+            "minimum_candidate_verifiers",
+            "validator_command",
+            "remediation_policy",
+            "planned_lifecycle_surfaces",
+        ] {
+            old_shape.as_object_mut().unwrap().remove(field);
+        }
         let decoded: PrepareSecurityAuditPlan = serde_json::from_value(old_shape).unwrap();
         assert!(!decoded.scope_truncated);
+        assert!(decoded.language_coverage.is_empty());
+        assert!(decoded.stack_signals.is_empty());
+        assert!(decoded.checks_run.is_empty());
+        assert_eq!(decoded.workflow_schema_version, 0);
+        assert!(decoded.required_phases.is_empty());
+        assert_eq!(decoded.remediation_policy.max_cycles, 3);
+        assert!(!decoded.remediation_policy.auto_fix_authorized);
+        assert!(!decoded.remediation_policy.closure_authorized);
     }
 
     #[test]
     fn plan_carries_truncation_from_operation_state_paths() {
+        let temp = tempdir().unwrap();
         let mut route = selected_route(false, vec!["src/module.rs".to_string()]);
         route.affected_paths_truncated = true;
 
-        let plan = prepare_security_audit_plan("fix this", RiskLane::Medium, &route).unwrap();
+        let plan = prepare_security_audit_plan(
+            temp.path(),
+            "fix this",
+            RiskLane::Medium,
+            &route,
+            &security_audit_operation(),
+        )
+        .unwrap();
 
         assert!(plan.scope_truncated);
         assert!(plan
             .capability_blockers
             .contains(&"audit_scope_truncated".to_string()));
+    }
+
+    #[test]
+    fn plan_detects_monorepo_languages_but_keeps_requested_scope_separate() {
+        let temp = tempdir().unwrap();
+        fs::create_dir_all(temp.path().join("python")).unwrap();
+        fs::create_dir_all(temp.path().join("rust/src")).unwrap();
+        fs::write(temp.path().join("python/app.py"), "def app(): pass\n").unwrap();
+        fs::write(temp.path().join("rust/src/lib.rs"), "pub fn app() {}\n").unwrap();
+        let route = selected_route(false, Vec::new());
+
+        let plan = prepare_security_audit_plan(
+            temp.path(),
+            "fix validation in python/app.py",
+            RiskLane::Medium,
+            &route,
+            &security_audit_operation(),
+        )
+        .unwrap();
+
+        assert_eq!(plan.detected_languages, ["python", "rust"]);
+        assert!(
+            plan.language_coverage
+                .iter()
+                .find(|coverage| coverage.language == "python")
+                .unwrap()
+                .in_scope
+        );
+        assert!(
+            !plan
+                .language_coverage
+                .iter()
+                .find(|coverage| coverage.language == "rust")
+                .unwrap()
+                .in_scope
+        );
+        assert_eq!(
+            plan.planned_attack_classes.len(),
+            SHARED_ATTACK_CLASSES.len()
+        );
+        assert!(plan.checks_run.is_empty());
+        assert_eq!(plan.execution_status, "not_run");
     }
 }

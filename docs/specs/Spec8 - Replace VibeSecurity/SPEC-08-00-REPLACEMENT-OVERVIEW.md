@@ -1,7 +1,7 @@
 # SPEC-08 — Replace Vibe Security with Baron Security Audit
 
-**Status:** SPEC-08-01 implemented and verified locally; SPEC-08 overall remains in progress and its remaining child specs are not started.<br>
-**Date:** 2026-10-28
+**Status:** OPEN — SPEC-08-01 is implemented and pushed; SPEC-08-02 through SPEC-08-05 contracts are implemented and locally verified on the current source branch. SPEC-08 is not closed: real-project end-to-end audit/remediation acceptance, Linux acceptance, and verification of a trusted OS-enforced sandbox remain pending. Target execution remains blocked until sandbox controls are verified.<br>
+**Date:** 2026-10-29
 **Scope:** Complete runtime replacement of the Vibe security scan with a Baron-native security-audit workflow based on Cloudflare’s security-audit method.
 
 ## 1. User outcome
@@ -93,11 +93,30 @@ The upstream workflow describes six phases: reconnaissance, coverage-led hunting
 
 ## Status checkpoint — 2026-10-28
 
-SPEC-08-01 is implemented and verified locally on the isolated branch
-`codex/spec-08-01-vibe-retirement`. Windows formatting, all 112 workspace test
-targets (1,055 passed, 0 failed, 4 ignored), and warnings-denied Clippy passed.
-SPEC-08-05, SPEC-08-02, SPEC-08-03, and SPEC-08-04 have not started. SPEC-08
-as a whole is not complete. This is a targeted SPEC-08-01 source audit, not a
-line-by-line repository-wide source pass. No commit, push, merge, version bump,
-or release has been made for this work; the local result is pending owner
-review.
+SPEC-08-01 is implemented, verified, and pushed on branch
+`codex/spec-08-01-vibe-retirement`. SPEC-08-02 implementation and static
+contracts are locally verified on `codex/spec-08-02-seven-language-coverage`,
+but are not committed or pushed. Core uses bounded safe file reads, exact
+source-import signals, and an explicit partial-framework-catalog validation
+gap; rule assets and fixture expected-outcome labels cover the seven languages.
+The labels are static contract data: no classifier output, audit, target code,
+or fixture was executed. Although 08-02 depends on 08-05 and the parent roadmap
+orders 08-05 first, the owner requested 08-02 next. SPEC-08-05 remains required
+before audit/remediation execution. SPEC-08-03/08-04 still need integration and
+acceptance verification, and SPEC-08 as a whole is not complete.
+
+## Status checkpoint — 2026-10-29
+
+SPEC-08-05 now has local fail-closed capability/sandbox, truthful-state,
+source-bound checkpoint, and redacted create-only report contracts, including
+bounded checkpoint and existing-artifact reads. Windows format, full workspace
+tests (117 targets; exit 0, no failures, 4 ignored), and warnings-denied Clippy
+pass. Synthetic phase-boundary tests save and reload states at 0–6 phase
+receipts in separate CLI processes; repeated resume assessments preserve phase,
+coverage, one candidate, and checkpoint bytes. This covers assessment and
+persisted-state integrity, not automatic phase execution or finding deduplication
+after continuation. Linux acceptance and any needed phase coordinator remain
+open; no OS sandbox backend is verified. Target audit/remediation execution
+stays disabled, and SPEC-08-03/08-04 still need integration and acceptance
+verification. All 08-02/03/04/05 work on the current branch remains local and
+uncommitted.

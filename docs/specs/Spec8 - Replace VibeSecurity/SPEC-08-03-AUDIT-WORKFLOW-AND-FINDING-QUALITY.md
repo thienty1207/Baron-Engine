@@ -1,7 +1,7 @@
 # SPEC-08-03 — Audit Workflow and Finding Quality
 
 **Parent:** [SPEC-08-00](SPEC-08-00-REPLACEMENT-OVERVIEW.md)<br>
-**Status:** Draft for owner review; implementation not started
+**Status:** Deterministic workflow/schema contracts implemented and locally verified; full SPEC remains incomplete pending SPEC-08-05 safety/recovery integration (2026-10-29); not committed or pushed
 **Depends on:** SPEC-08-01, SPEC-08-02, and SPEC-08-05
 
 ## Goal
@@ -39,13 +39,16 @@ A confirmed finding requires all of:
 
 needs_validation identifies an exact unresolved fact and blocker. It has no severity and is not counted as confirmed. rejected records the candidate claim and the evidence that disproved it.
 
+Confirmed verdict lines must stay within the exact candidate source range, with evidence supporting both the candidate and the verdict. A rejected verdict must preserve that candidate's exact claim and cite disproof evidence inside authorized scope that is linked to the candidate's cited range or original evidence references.
+
 Severity reflects demonstrated impact and preconditions, not checklist priority. Pattern matches, missing defense-in-depth layers, scanner output, or suspicious names alone are leads, not findings.
 
 Audit completion describes whether all required audit phases and validations ran for the declared scope. It may coexist with confirmed findings. Application-task completion is a separate Baron gate and cannot pass while required in-scope findings remain unfixed or unblocked.
 
 ## Core state and evidence integration
 
-- Every run binds to Baron project identity, exact source revision, scope, language set, profile, and current Task State.
+- Every run binds to Baron project identity, exact source revision and dirty-state digest, scope, language set, profile, exact Task State digest, and operation identity. Candidate and independent record reviews repeat the digest of the complete run binding; the candidate fingerprint includes that binding.
+- Run IDs use canonical UUID syntax. CLI and continuity summaries expose only a SHA-256 digest of the ID so free-form source text or secrets cannot be reflected into output.
 - Run progress and blockers are represented in Baron Task State/continuity; audit outputs do not become trusted Vault memory by default.
 - Coverage/finding schemas and their validators are Baron-owned, deterministic, versioned, and testable without invoking an AI model. Preserve Cloudflare’s evidence semantics while avoiding an unnecessary Node runtime requirement in Baron.
 - A proof receipt can say a check executed only when it records the exact scope/revision, command or review operation, outcome, timestamp, and artifact reference required by Core.
@@ -63,6 +66,9 @@ Audit completion describes whether all required audit phases and validations ran
 - Phase transitions cannot skip reconnaissance, candidate validation, schema validation, independent record verification, or final reporting.
 - Duplicate candidates are consolidated deterministically without hiding distinct root causes.
 - Stale findings are revalidated against current source; prior coverage never implies current safety.
+- Reviews against the same Git commit but a different dirty-state or Task State digest are rejected.
+- Confirmed verdict lines must remain inside the candidate range and have matching evidence; rejected verdicts must preserve the exact candidate claim and use relevant evidence within authorized scope.
+- Free-form secret-like run IDs are rejected and validator/checkpoint output does not reflect the raw ID.
 - Invalid/missing ledger or finding fields prevent a complete result.
 - needs_validation never receives severity or a clean/confirmed label.
 - Reports state exact scope, language coverage, unreviewed paths, prior-run limitations, validation mode, and residual checks.

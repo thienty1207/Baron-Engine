@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.0.2 (unreleased source candidate)
+
+- Continue the SPEC-08 security-audit replacement with seven-language coverage,
+  Core workflow and remediation contracts, and fail-closed recovery handling.
+  SPEC-08 remains open pending end-to-end acceptance against a representative
+  project, Linux acceptance, and a verified sandbox backend.
+- Keep the published stable and downloadable release at 5.0.1 until the 5.0.2
+  candidate completes its acceptance gates and is explicitly released.
+
 ## 5.0.1 - 2026-10-25
 
 - Fix Control Plane validation false positives caused by negated subagent

@@ -1,16 +1,40 @@
 # Baron Build Status
 
-## Current status — SPEC-08-01 implemented and verified locally; stable release remains v5.0.1 (2026-10-28)
+## Current status — v5.0.2 source candidate; SPEC-08 remains open pending end-to-end acceptance (2026-10-29)
+
+> Baron Engine 5.0.2 is an unpublished source candidate. Stable and downloadable
+> release remains v5.0.1; no v5.0.2 tag or release is created by this change.
+
+- SPEC-08 remains **OPEN**. SPEC-08-01 is implemented and pushed; work for
+  SPEC-08-02 through SPEC-08-05 is locally implemented and Windows-verified.
+- End-to-end testing against a representative real project remains pending.
+  No target application code has been audited or executed. Target audit and
+  remediation stay blocked until a trusted OS-enforced sandbox is verified.
+- Windows gates passed after the 5.0.2 bump: `cargo fmt --all -- --check`,
+  full workspace tests (117 targets; exit 0; 0 failed; 4 ignored),
+  warnings-denied Clippy, and `cargo check --workspace --locked`. The CLI reports
+  `baron 5.0.2`. Linux acceptance remains pending.
+- The next acceptance step is end-to-end audit/remediation testing when a
+  suitable project is available, followed by Linux and sandbox verification.
+  Keep SPEC-08 open until these gates pass.
+
+## Historical checkpoint — SPEC-08-05 Windows checkpoint acceptance verified locally (2026-10-29)
 
 > This is the current release/phase dashboard. For AI continuation, use the
 > canonical [handoff](superpowers/plans/CURRENT.md); every older checkpoint
 > below this current section is historical evidence.
 
 - Canonical continuation instructions are in the [handoff](superpowers/plans/CURRENT.md). Use the [source-reading guide](architecture/SOURCE_READING_GUIDE.md) for a complete, coverage-tracked source pass.
-- [SPEC-08-01 — Core Routing and Vibe Retirement](specs/Spec8%20-%20Replace%20VibeSecurity/SPEC-08-01-CORE-ROUTING-AND-VIBE-RETIREMENT.md) is implemented and verified locally on isolated branch `codex/spec-08-01-vibe-retirement`, based on `origin/main` at `c1c182a187e62332a32ce1824f6658f261ce84c8`. The plan is [here](superpowers/plans/2026-10-28-spec-08-01-vibe-security-retirement.md).
-- This is a partial child-spec implementation, not completion of SPEC-08. SPEC-08-05, 08-02, 08-03, and 08-04 remain pending. No push, merge, version bump, or release is in scope.
-- Final Windows verification passed: `cargo fmt --all -- --check`; full workspace all-target tests (112 targets, 1,055 passed, 0 failed, 4 ignored) using the supported PowerShell 7 `BARON_TEST_POWERSHELL` override; and warnings-denied workspace Clippy. The first full run found an asset-contract mismatch, which was corrected; Clippy also led to moving two test modules after production functions. Final full tests and Clippy passed after those corrections.
-- The source review was targeted to SPEC-08-01 routing, PreparePacket, managed asset/update migration, related tests, and runtime assets. It was not a line-by-line repository-wide source pass. User project/Vault/machine configuration is outside the write boundary.
+- [SPEC-08-01](specs/Spec8%20-%20Replace%20VibeSecurity/SPEC-08-01-CORE-ROUTING-AND-VIBE-RETIREMENT.md) is implemented, verified, and pushed to [`codex/spec-08-01-vibe-retirement`](https://github.com/thienty1207/Baron-Engine/tree/codex/spec-08-01-vibe-retirement) at `0933e2a`.
+- [SPEC-08-02 — Seven-Language Coverage](specs/Spec8%20-%20Replace%20VibeSecurity/SPEC-08-02-SEVEN-LANGUAGE-COVERAGE.md) is implemented and locally verified on isolated branch `codex/spec-08-02-seven-language-coverage`; it is not committed or pushed. Core emits bounded static language/framework inventory, reads manifests and source through the safe regular-file opener with per-file/aggregate limits, parses framework signals from import targets, and preserves a non-exhaustive catalog gap for each in-scope detected language. Seven local rule packs and static fixture contracts are present; PreparePacket remains `not_run`.
+- [SPEC-08-03 — Audit Workflow and Finding Quality](specs/Spec8%20-%20Replace%20VibeSecurity/SPEC-08-03-AUDIT-WORKFLOW-AND-FINDING-QUALITY.md) has locally verified deterministic Core workflow/schema, validator, report, PreparePacket, and continuity contracts. Fresh review findings about stale dirty-state reviews, unrelated verdict evidence, and reflected run IDs were fixed with regressions. It remains incomplete pending final integration/acceptance; no sandbox backend is verified. Plan: [SPEC-08-03 implementation](superpowers/plans/2026-10-28-spec-08-03-audit-workflow-and-finding-quality.md).
+- [SPEC-08-04 — Automatic Remediation and Regression Loop](specs/Spec8%20-%20Replace%20VibeSecurity/SPEC-08-04-AUTOMATIC-REMEDIATION-AND-REGRESSION-LOOP.md) has its fail-closed Core contract, PreparePacket policy, bounded `validate-remediation` CLI, and runtime Superpowers/TDD instructions implemented locally. A fresh final review found three Important schema gaps; RED/GREEN regressions now require a validated post-fix binding to preserve Project/Task/operation/scope, reject reused regression and re-audit evidence, and keep the final reviewer distinct from every fixer in the timeline. Earlier Windows verification passed format, warnings-denied Clippy, and full workspace tests (116 targets; 1,122 passed, 0 failed, 4 ignored). Focused tests pass: Core 20/20, CLI 7/7, PreparePacket CLI 9/9, and managed-runtime contract 1/1. Target-code edits or execution, trusted closure, proof, and trace remain blocked while the sandbox backend is unverified. Plan: [SPEC-08-04 implementation](superpowers/plans/2026-10-29-spec-08-04-remediation-and-regression-loop.md).
+- [SPEC-08-05 — Safety, Recovery, and Failure Handling](specs/Spec8%20-%20Replace%20VibeSecurity/SPEC-08-05-SAFETY-RECOVERY-AND-FAILURE-HANDLING.md) has local fail-closed contracts for truthful run states, capability evidence, all ten sandbox controls, source-bound checkpoints/resume assessment, and redacted create-only reports. Bounded regular-file reads reject oversized checkpoint inputs and conflicting output artifacts before unbounded allocation. Windows verification passed format, the full workspace suite (117 targets; exit 0; 4 ignored), and warnings-denied Clippy; focused safety tests pass: Core 13/13, integration 11/11, CLI 12/12. A new synthetic-repository CLI integration covers interruption states at 0–6 saved phase receipts, reloads them in separate processes, and checks that phase, coverage, one audit candidate record, and checkpoint bytes remain stable across repeated resume assessments. A completed run is not resumable. This verifies checkpoint assessment and state preservation; the command does not automatically continue audit work or test finding deduplication after continuation. Linux acceptance remains unverified. No trusted OS sandbox backend is available, so target processes stay blocked. Plan: [SPEC-08-05 implementation](superpowers/plans/2026-10-29-spec-08-05-safety-recovery-and-failure-handling.md).
+- SPEC-08-03/08-04 final integration and SPEC-08-05 acceptance remain open. Target audit/remediation execution remains `not_run`; phase/artifact and reviewer identities are serialized claims, not authenticated execution evidence, proof, gate, or trace. No target application code or fixture is executed. SPEC-08 is not complete.
+- Pre-SPEC-08-04 Windows baseline verification on this worktree passed `cargo fmt --all -- --check`, `cargo test --workspace --all-targets --no-fail-fast --quiet` (115 targets; 1,099 passed, 0 failed, 4 ignored) with the supported PowerShell 7 `BARON_TEST_POWERSHELL` override, and `cargo clippy --workspace --all-targets -- -D warnings`.
+- Focused SPEC-08-03 tests passed: Core workflow 20/20 and CLI schema/secret-handling 4/4. Existing SPEC-08-02 suites remain part of the full green workspace run. JSON parsing and `git diff --check` passed; 25 Markdown files and 64 relative links were checked with no broken links.
+- Fixture `expected_outcome` values are static labels validated as data. Workflow tests do not execute a classifier against them; behavior validation remains blocked until a trusted sandbox backend exists. No target fixture or project code was executed, and no audit was run.
+- Fresh independent review covered SPEC-08-03 workflow code/tests, CLI, PreparePacket, skill, and status docs. It found two Important and one Medium schema-boundary issue; all three were fixed and covered by regression tests. This was not a repository-wide source pass. The earlier SPEC-08-01/02 review scope was also targeted. User project/Vault/machine configuration is outside the write boundary.
 - Stable source release: `v5.0.1` ([official release](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1));
   the `releases/latest` download endpoint now resolves to this release. It
   includes nine signed/checksummed assets for Windows x64 and Linux x64.
@@ -27,7 +51,7 @@
 
 Plan: [5.0.1 version bump](superpowers/plans/2026-10-24-v5-0-1-version-bump.md); [AI handoff/source guide](superpowers/plans/2026-10-24-ai-handoff-and-source-reading-guide.md).
 
-Next action: owner review of the verified local SPEC-08-01 diff. SPEC-06 remains unstarted; SPEC-08-05/02/03/04 remain pending. Do not claim SPEC-08 complete or publish this work without owner approval.
+Next action: run Linux acceptance in CI; decide whether SPEC-08-05 needs a phase coordinator for automatic checkpoint persistence/continuation; evaluate a trusted OS-enforced sandbox backend. Keep target execution disabled until enforcement is verified. Preserve all local uncommitted SPEC-08-02/03/04/05 work. SPEC-06 remains unstarted, and SPEC-08 is not complete.
 
 ## Previous checkpoint — Post-merge end-to-end validation (COMPLETE WITH HOST AVAILABILITY LIMITS — 2026-10-24)
 

@@ -7,7 +7,7 @@ mod self_update;
 mod update_transaction;
 
 use crate::self_update::CandidateBinaryInspector;
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use baron_adapters::{
     core_managed_payloads, install_adapter, managed_payloads_for_adapter, plan_managed_update,
     reconcile_installed_managed_assets, shadow_preview, AgentAdapter, ManagedAssetPayload,
@@ -117,6 +117,17 @@ use baron_core::release::{
     load_and_verify_release_metadata, verify_release_identity, write_release_metadata,
 };
 use baron_core::review_gate::{close_finding, record_finding, review_status, ReviewFindingInput};
+use baron_core::security_audit_remediation::{
+    validate_security_audit_remediation_json, MAX_SECURITY_AUDIT_REMEDIATION_JSON_BYTES,
+};
+use baron_core::security_audit_safety::{
+    assess_audit_resume, create_audit_checkpoint, publish_audit_checkpoint, publish_audit_report,
+    read_audit_checkpoint_file,
+};
+use baron_core::security_audit_workflow::{
+    record_security_audit_continuity_checkpoint, validate_audit_run_json, AuditRunV1,
+    MAX_AUDIT_RUN_JSON_BYTES,
+};
 use baron_core::session::{import_sessions, import_state_summary};
 use baron_core::session_replay::{
     index_session_replay, replay_session_context, search_session_replay,
@@ -320,6 +331,11 @@ enum Commands {
     ControlPlane {
         #[command(subcommand)]
         command: ControlPlaneCommands,
+    },
+    #[command(hide = true, name = "security-audit")]
+    SecurityAudit {
+        #[command(subcommand)]
+        command: SecurityAuditCommands,
     },
     #[command(hide = true)]
     Asset {
@@ -925,6 +941,51 @@ enum ControlPlaneCommands {
 }
 
 #[derive(Debug, Subcommand)]
+enum SecurityAuditCommands {
+    /// Validate one versioned Baron audit-run document from stdin. This checks
+    /// schema/workflow invariants only; it does not verify external artifacts.
+    ValidateRun,
+    /// Validate one versioned remediation document from stdin. This checks
+    /// schema and ordering only; it never authorizes target-code execution.
+    ValidateRemediation,
+    /// Persist a compact audit progress checkpoint through Baron continuity.
+    Checkpoint {
+        repo_path: Option<PathBuf>,
+        #[arg(long)]
+        task: String,
+        #[arg(long, value_enum)]
+        adapter: AdapterArg,
+        #[arg(long)]
+        session_id: String,
+        #[arg(long)]
+        request_id: String,
+    },
+    /// Save a source-bound checkpoint to an explicit output file.
+    SaveCheckpoint {
+        #[arg(long)]
+        repo_path: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long = "pending-work")]
+        pending_work: Vec<String>,
+        #[arg(long = "next-action")]
+        next_action: String,
+    },
+    /// Revalidate a checkpoint against the current project and source tree.
+    ResumeCheckpoint {
+        #[arg(long)]
+        repo_path: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+    },
+    /// Publish a redacted schema-only report from one run document on stdin.
+    PublishReport {
+        #[arg(long)]
+        output: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum AssetCommands {
     Audit {
         repo_path: Option<PathBuf>,
@@ -1189,6 +1250,37 @@ impl fmt::Display for PrepareCommandFailure {
 }
 
 impl std::error::Error for PrepareCommandFailure {}
+
+fn read_security_audit_run_stdin() -> Result<AuditRunV1> {
+    let stdin = std::io::stdin();
+    let mut input = Vec::new();
+    stdin
+        .lock()
+        .take((MAX_AUDIT_RUN_JSON_BYTES + 1) as u64)
+        .read_to_end(&mut input)
+        .context("could not read security-audit run from stdin")?;
+    ensure!(
+        input.len() <= MAX_AUDIT_RUN_JSON_BYTES,
+        "security-audit run exceeds the input byte limit"
+    );
+    validate_audit_run_json(&input)
+}
+
+fn read_security_audit_remediation_stdin(
+) -> Result<baron_core::security_audit_remediation::SecurityAuditRemediationValidationV1> {
+    let stdin = std::io::stdin();
+    let mut input = Vec::new();
+    stdin
+        .lock()
+        .take((MAX_SECURITY_AUDIT_REMEDIATION_JSON_BYTES + 1) as u64)
+        .read_to_end(&mut input)
+        .context("could not read security-audit remediation from stdin")?;
+    ensure!(
+        input.len() <= MAX_SECURITY_AUDIT_REMEDIATION_JSON_BYTES,
+        "security-audit remediation exceeds the input byte limit"
+    );
+    validate_security_audit_remediation_json(&input)
+}
 
 fn main() {
     // The command dispatcher intentionally owns a broad, strongly typed
@@ -3676,6 +3768,108 @@ fn run() -> Result<()> {
                 println!("- Passed: `{}`", if status.passed { "yes" } else { "no" });
                 println!("- Required: {}", required.join(", "));
                 println!("- Missing: {}", list_or_none(&status.missing_agents));
+            }
+        },
+        Some(Commands::SecurityAudit { command }) => match command {
+            SecurityAuditCommands::ValidateRun => {
+                let run = read_security_audit_run_stdin()?;
+                let validation = serde_json::json!({
+                    "schema_version": run.schema_version,
+                    "ok": true,
+                    "validation_scope": "schema_and_workflow_contract_only",
+                    "run_id_sha256": run.run_id_sha256(),
+                    "run_status_claim": run.status.as_str(),
+                    "current_phase": run.current_phase.as_str(),
+                    "completed_phases": run.phase_receipts.len(),
+                    "required_phases": 6,
+                    "execution_status": if run.execution_receipts.is_empty() {
+                        "not_run"
+                    } else {
+                        "evidence_recorded_unverified"
+                    },
+                    "proof_gate_trace_claimed": false
+                });
+                println!("{}", serde_json::to_string(&validation)?);
+            }
+            SecurityAuditCommands::ValidateRemediation => {
+                let validation = read_security_audit_remediation_stdin()?;
+                println!("{}", serde_json::to_string(&validation)?);
+            }
+            SecurityAuditCommands::Checkpoint {
+                repo_path,
+                task,
+                adapter,
+                session_id,
+                request_id,
+            } => {
+                let run = read_security_audit_run_stdin()?;
+                let (repo_root, vault) = execution_context(repo_path)?;
+                let identity = resolve_plan_identity_selector(
+                    &repo_root,
+                    Some(task),
+                    Some(adapter),
+                    Some(session_id),
+                    Some(request_id),
+                )?
+                .context("exact active task and operation identity is required")?;
+                let operation = OperationContext::from_identity(&identity);
+                let packet = record_security_audit_continuity_checkpoint(
+                    &repo_root, &vault, &operation, &run,
+                )?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "ok": true,
+                        "run_id_sha256": run.run_id_sha256(),
+                        "run_status_claim": run.status.as_str(),
+                        "completed_phases": run.phase_receipts.len(),
+                        "repo_packet": packet.repo_path.display().to_string(),
+                        "vault_packet": packet.vault_path.display().to_string()
+                    }))?
+                );
+            }
+            SecurityAuditCommands::SaveCheckpoint {
+                repo_path,
+                output,
+                pending_work,
+                next_action,
+            } => {
+                let run = read_security_audit_run_stdin()?;
+                let checkpoint =
+                    create_audit_checkpoint(&repo_path, run, pending_work, next_action)?;
+                let created = publish_audit_checkpoint(&output, &checkpoint)?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "ok": true,
+                        "artifact_state": if created { "created" } else { "already_present_identical" },
+                        "checkpoint_sha256": checkpoint.checkpoint_sha256,
+                        "run_id_sha256": checkpoint.run.run_id_sha256(),
+                        "run_status": checkpoint.run.status.as_str(),
+                    }))?
+                );
+            }
+            SecurityAuditCommands::ResumeCheckpoint { repo_path, input } => {
+                let checkpoint = read_audit_checkpoint_file(&input)?;
+                let assessment = assess_audit_resume(&repo_path, &checkpoint)?;
+                println!("{}", serde_json::to_string(&assessment)?);
+            }
+            SecurityAuditCommands::PublishReport { output } => {
+                let run = read_security_audit_run_stdin()?;
+                let report = run.report()?;
+                let created = publish_audit_report(&output, &report)?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "ok": true,
+                        "artifact_state": if created { "created" } else { "already_present_identical" },
+                        "run_id_sha256": run.run_id_sha256(),
+                        "run_status": run.status.as_str(),
+                        "clean": false,
+                        "application_task_blocked": true,
+                        "proof_gate_trace_claimed": false,
+                    }))?
+                );
             }
         },
         Some(Commands::Asset { command }) => match command {

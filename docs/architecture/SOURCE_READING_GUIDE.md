@@ -83,6 +83,7 @@ assets, tests, and workflows:
 |---|---|---|
 | Setup and project identity | `config`, `identity`, `safe_io`, `vault`, `state_guard` | CLI `setup`/`init`, adapter install, lifecycle tests |
 | Request preparation and routing | `prepare`, `control_plane`, `context`, `survey`, `platform`, `work_shape`, `risk`, `intelligence*` | `PrepareRequestV1`/`PreparePacketV1`, Codex and Claude projections, prepare/route tests |
+| Security audit and remediation contracts | `prepare`, `security_audit`, `security_audit_workflow`, `security_audit_remediation`, `capability` | PreparePacket policy, hidden `security-audit validate-*` commands, `assets/core/skills/security-audit/SKILL.md`, rule/fixture contracts, workflow/remediation tests; distinguish schema claims from target execution, which remains gated on SPEC-08-05 |
 | Trusted project memory | `memory`, `firewall`, `semantic`, `knowledge`, `domain_language`, `session`, `session_replay` | Vault fixtures, project-isolation tests, search tests |
 | Plan, continuity, and recovery | `operation*`, `intent`, `task_state`, `plan`, `continuity`, `harness*` | CLI plan/recovery commands, multi-checkout and crash-boundary tests |
 | Proof, gates, and completion | `execution_receipt`, `receipt_authority`, `proof`, `trace`, `review_gate`, `capability` | receipt authority and completion tests, workflow gates |

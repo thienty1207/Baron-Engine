@@ -1,10 +1,10 @@
 {
   "project": "Baron Engine",
-  "lastUpdated": "2026-10-28",
+  "lastUpdated": "2026-10-29",
   "stableRelease": "5.0.1",
   "downloadableRelease": "5.0.1",
-  "candidateSourceVersion": null,
-  "releasePromotionStatus": "published",
+  "candidateSourceVersion": "5.0.2",
+  "releasePromotionStatus": "candidate_not_published",
   "stableReleaseCompletionPercent": 100,
   "targetRelease": "5.0.1",
   "targetReleaseCompletionPercent": 100,
@@ -15,9 +15,9 @@
     "claude"
   ],
   "remainingPhaseCount": 0,
-  "currentPhase": "spec-08-01-core-routing-and-vibe-retirement",
-  "currentPhaseStatus": "completed_locally_pending_owner_review",
-  "nextAction": "Owner review of the verified local SPEC-08-01 diff; do not publish or start another SPEC-08 child without approval.",
+  "currentPhase": "spec-08-05-safety-recovery-and-failure-handling",
+  "currentPhaseStatus": "SPEC-08_OPEN_PENDING_END_TO_END_ACCEPTANCE; Windows_workspace_gates_verified; Linux_acceptance_pending; automatic_continuation_unverified; target_execution_blocked_without_os_sandbox",
+  "nextAction": "Run end-to-end security audit and remediation acceptance against a representative project when available; complete Linux acceptance and verify a trusted OS sandbox before enabling target execution or closing SPEC-08.",
   "currentRoadmap": {
     "verifiedMainSha": "4008d1963ed2fcd756aaf81b54cbe838b52596d1",
     "specs01Through05": "completed_and_merged",
@@ -28,9 +28,26 @@
     },
     "spec08": {
       "status": "in_progress",
-      "activeChild": null,
-      "completedChildren": ["SPEC-08-01"],
-      "pendingChildren": ["SPEC-08-05", "SPEC-08-02", "SPEC-08-03", "SPEC-08-04"]
+      "activeChild": "SPEC-08-05",
+      "activeChildLocalState": "fail_closed_contracts_and_windows_checkpoint_assessment_verified; SPEC-08 remains open pending real-project end-to-end acceptance, Linux acceptance, and verified OS sandbox",
+      "executionDependency": "SPEC-08-05",
+      "activeChildVerification": {
+        "platform": "Windows",
+        "format": "passed",
+        "workspaceTests": "117 targets; passed with exit 0; 0 failed; 4 ignored",
+        "clippy": "passed with warnings denied",
+        "focusedSafetyUnit": "13 passed",
+        "focusedSafetyIntegration": "11 passed",
+        "focusedRemediation": "20 passed",
+        "focusedWorkflow": "20 passed",
+        "focusedSecurityAuditCli": "12 passed",
+        "checkpointFileBoundsRegressions": "2 passed; oversized checkpoint input and conflicting artifact reads are bounded",
+        "preparePacketSecurityAudit": "security audit contract passed; PreparePacket CLI suite 9 passed in 122.76 seconds",
+        "linuxAcceptance": "not_run",
+        "phaseByPhaseInterruptionAcceptance": "Windows checkpoint assessment verified at 0-6 saved phase receipts in separate CLI processes; phase, coverage, finding, repeatability, and non-mutation assertions pass; automatic continuation and Linux acceptance pending"
+      },
+      "completedChildren": ["SPEC-08-01", "SPEC-08-02"],
+      "pendingChildren": ["SPEC-08-05-ACCEPTANCE", "SPEC-08-03-INTEGRATION", "SPEC-08-04-INTEGRATION", "SPEC-08-END-TO-END-ACCEPTANCE"]
     },
     "totalSpecCount": null,
     "proactiveBugFixingPass": {

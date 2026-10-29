@@ -16,7 +16,9 @@ use crate::execution_receipt::{
     VerifiedExecutionReceipt,
 };
 use crate::operation::OperationContext;
-use crate::safe_io::{acquire_project_lock, append_text, ensure_directory_chain, replace_text};
+use crate::safe_io::{
+    acquire_project_lock, append_text, ensure_directory_chain, read_bytes, replace_text,
+};
 
 const REGISTRY_PATH: &str = ".baron/capabilities.toml";
 const STATE_PATH: &str = ".baron/cache/capability-state.json";
@@ -25,6 +27,8 @@ const RUNTIME_EVIDENCE_PATH: &str = ".baron/cache/runtime-execution.jsonl";
 // is diagnostic cache metadata, so encode it in the opaque evidence string
 // instead of adding a required public struct-literal field.
 const PROVIDER_FINGERPRINT_MARKER: &str = "\n[baron-provider-fingerprint=";
+const MAX_CAPABILITY_REGISTRY_BYTES: usize = 1024 * 1024;
+const MAX_CAPABILITY_STATE_BYTES: usize = 4 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -210,12 +214,14 @@ pub fn normalize_identifier(value: &str) -> Option<String> {
 
 pub fn load_registry(repo_root: impl AsRef<Path>) -> Result<CapabilityRegistry> {
     let path = repo_root.as_ref().join(REGISTRY_PATH);
-    if !path.exists() {
+    let Some(bytes) = read_bytes(&path)? else {
         return Ok(CapabilityRegistry::default());
+    };
+    if bytes.len() > MAX_CAPABILITY_REGISTRY_BYTES {
+        bail!("Capability registry exceeds its size limit");
     }
-    let content =
-        fs::read_to_string(&path).with_context(|| format!("Could not read {}", path.display()))?;
-    toml::from_str(&content).with_context(|| format!("Could not parse {}", path.display()))
+    let content = String::from_utf8(bytes).context("Capability registry is not valid UTF-8")?;
+    toml::from_str(&content).context("Capability registry is malformed")
 }
 
 pub fn register_provider(
@@ -335,13 +341,13 @@ pub fn check_capabilities(
 
 pub fn load_capability_state(repo_root: impl AsRef<Path>) -> Result<Option<CapabilityState>> {
     let path = repo_root.as_ref().join(STATE_PATH);
-    if !path.exists() {
+    let Some(bytes) = read_bytes(&path)? else {
         return Ok(None);
+    };
+    if bytes.len() > MAX_CAPABILITY_STATE_BYTES {
+        bail!("Capability state cache exceeds its size limit");
     }
-    let content =
-        fs::read_to_string(&path).with_context(|| format!("Could not read {}", path.display()))?;
-    let state = serde_json::from_str(&content)
-        .with_context(|| format!("Could not parse {}", path.display()))?;
+    let state = serde_json::from_slice(&bytes).context("Capability state cache is malformed")?;
     Ok(Some(state))
 }
 
@@ -1215,7 +1221,7 @@ fn evidence_without_provider_fingerprint(evidence: &str) -> String {
         .unwrap_or_else(|| evidence.to_string())
 }
 
-fn observation_matches_provider(
+pub(crate) fn observation_matches_provider(
     observation: &ProviderObservation,
     provider: &CapabilityProvider,
 ) -> bool {

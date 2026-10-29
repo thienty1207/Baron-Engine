@@ -1,7 +1,7 @@
 # SPEC-08-05 — Safety, Recovery, and Failure Handling
 
 **Parent:** [SPEC-08-00](SPEC-08-00-REPLACEMENT-OVERVIEW.md)<br>
-**Status:** Draft for owner review; implementation not started
+**Status:** Fail-closed safety/recovery contracts and synthetic Windows checkpoint assessment at each saved phase boundary are implemented locally and verified. Automatic phase execution/continuation, Linux acceptance, and an OS-enforced sandbox backend remain unverified, so target execution stays blocked. Not committed or pushed.
 **Depends on:** SPEC-08-01; required before audit or remediation execution
 
 ## Goal
@@ -64,3 +64,41 @@ Each resumable checkpoint binds to project ID, exact source revision and dirty-s
 - Test all terminal states and ensure only complete runs with all required gates may make complete audit claims.
 - Verify on Windows and Linux that sandbox/capability absence degrades safely rather than executing target code or claiming an audit pass.
 - Test that a failed command is not interpreted as “no vulnerability found.”
+
+## Local implementation checkpoint — 2026-10-29
+
+The current worktree implements typed `in_progress`, `complete`, `incomplete`,
+`blocked`, and `failed` audit states; failure classes that remain distinct from
+negative findings; capability registration/presence/execution reporting; and a
+PreparePacket projection that reports every required sandbox control as
+unverified. No target command is launched because Baron has no trusted
+OS-enforcement backend in this implementation.
+
+Recovery checkpoints are bounded, strict-schema artifacts bound to the current
+Baron Project ID, full Git revision, scoped dirty-state digest, exact scoped
+file inventory/content hashes, run binding, phase, coverage, candidates,
+pending work, and safe next action. Resume rechecks identity/revision/state and
+is only an assessment hint; changes require a fresh audit. Checkpoint and
+report publication is create-only and preserves conflicting user edits.
+Reports redact common secret-like values and cannot claim a clean result,
+proof, trace, or application-task completion.
+
+Focused Windows regressions currently cover truthful states, failed and timed
+out execution, capability evidence binding, fail-closed sandbox readiness,
+checkpoint identity/revision/content/dirty-state validation, bounded source
+inventory, malformed/schema-tampered checkpoints, idempotent create-only
+publication, bounded reads for checkpoint inputs and conflicting output files, and report redaction/conflict preservation.
+An added synthetic-repository CLI integration constructs interruption states
+at 0–5 completed phase receipts plus the terminal six-receipt state, saves each
+checkpoint, reloads it in separate CLI processes, and checks phase/status,
+candidate fingerprints, coverage completeness, repeatable resume assessments,
+and byte-for-byte checkpoint preservation. It proves resumability assessment
+and state retention at each boundary; `resume-checkpoint` does not advance the
+audit or demonstrate finding deduplication after continuation. Windows format,
+the full workspace suite (117 targets; exit 0, no failures, 4 ignored),
+warnings-denied Clippy, and focused Core/CLI/adapter tests passed. The
+PreparePacket CLI suite passed 9/9 in 122.76 seconds. The source-controlled
+target remains unexecuted. Linux CI and any automatic phase coordinator remain
+acceptance work; SPEC-08 as a whole is still open, and SPEC-08-03/08-04 do not
+provide an executable audit or remediation loop while the sandbox backend is
+unverified.

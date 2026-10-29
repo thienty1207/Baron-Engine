@@ -17,7 +17,7 @@ the same project is opened from either supported tool. The adapters provide the
 host-native files and hooks; they do not own a second workflow or memory
 system.
 
-Current source version: `5.0.1`.
+Current source version: `5.0.2` (unreleased candidate; end-to-end acceptance is pending).
 Current stable and downloadable release:
 [`Baron Engine v5.0.1`](https://github.com/thienty1207/Baron-Engine/releases/tag/v5.0.1).
 
