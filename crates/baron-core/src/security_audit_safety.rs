@@ -750,12 +750,9 @@ fn current_project_identity(root: &Path) -> Result<(String, String)> {
 }
 
 fn current_git_revision(root: &Path) -> Result<String> {
-    let top = git_output(root, &["rev-parse", "--show-toplevel"])?;
-    let top = PathBuf::from(top.trim())
-        .canonicalize()
-        .context("Git repository root is unavailable")?;
+    let prefix = git_output(root, &["rev-parse", "--show-prefix"])?;
     ensure!(
-        normalized_path_identity(&top) == normalized_path_identity(root),
+        prefix.trim().is_empty(),
         "repository path is not the Git worktree root"
     );
     let revision = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])?;
@@ -765,19 +762,6 @@ fn current_git_revision(root: &Path) -> Result<String> {
         "Git did not return a full source revision"
     );
     Ok(revision)
-}
-
-fn normalized_path_identity(path: &Path) -> String {
-    let value = path.to_string_lossy();
-    if cfg!(windows) {
-        value
-            .strip_prefix("\\\\?\\")
-            .unwrap_or(&value)
-            .replace('\\', "/")
-            .to_ascii_lowercase()
-    } else {
-        value.replace('\\', "/")
-    }
 }
 
 fn current_git_dirty_state(root: &Path, scope: &[String]) -> Result<String> {
@@ -1412,6 +1396,21 @@ mod tests {
         assert!(assessment.fresh_run_required);
         assert!(!assessment.can_resume);
         assert_eq!(assessment.changed_paths, vec!["src/lib.rs"]);
+    }
+
+    #[test]
+    fn current_git_revision_accepts_only_the_worktree_root() {
+        let temp = synthetic_git_project();
+
+        let revision = current_git_revision(temp.path()).unwrap();
+        assert!(matches!(revision.len(), 40 | 64));
+
+        let nested = temp.path().join("src");
+        let error = current_git_revision(&nested).unwrap_err().to_string();
+        assert!(
+            error.contains("repository path is not the Git worktree root"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

@@ -175,7 +175,11 @@ fn review_status_rejects_corrupt_finding_status() {
     let temp = tempdir().unwrap();
     let repo = temp.path().join("app");
     fs::create_dir_all(&repo).unwrap();
-    write_review_entry(&repo, "valid-open.md", b"# Finding\n- Status: `open`\n");
+    write_review_entry(
+        &repo,
+        "valid-open.md",
+        b"# Finding\n- Status: `open`\n\n## Summary\n\nA valid open finding.\n",
+    );
     let corrupt = write_review_entry(&repo, "corrupt.md", b"# Finding\n- Status: `open`\n\xff");
     let original = fs::read(&corrupt).unwrap();
 
